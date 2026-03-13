@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- PSU Blue colors for splash screen -->
+    <color name="psu_dark_blue">#0D3B6E</color>
+    <color name="psu_light_blue">#1E5A9E</color>
+	<color name="ic_launcher_background">#FFFFFF</color>
+</resources>
