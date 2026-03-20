@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
+import 'admin_logs_page.dart';
 import '../maintenance/maintenance_history_page.dart';
-import '../../../mobile/student_teacher/menu_pages/settings_page.dart';
-import '../../../mobile/student_teacher/menu_pages/contact_us_page.dart';
-import '../../../mobile/student_teacher/menu_pages/system_workflow_page.dart';
+import '../../teacher/menu_pages/settings_page.dart';
+import '../../teacher/menu_pages/contact_us_page.dart';
+import '../../teacher/menu_pages/system_workflow_page.dart';
 import 'about_system_page.dart';
 
 class MenuDrawer extends StatelessWidget {
@@ -114,7 +115,7 @@ class MenuDrawer extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const MaintenanceHistoryPage(),
+                          builder: (context) => const AdminLogsPage(),
                         ),
                       );
                     },

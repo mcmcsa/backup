@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../ticket/work_request_completion_page.dart';
 import '../ticket/admin_approval_signature_page.dart';
 import '../ticket/admin_work_process_page.dart';
@@ -22,6 +26,37 @@ class _RequestDetailsPageState extends State<RequestDetailsPage> {
   void initState() {
     super.initState();
     request = widget.request;
+    _markRelatedNotificationsRead();
+    _recordViewedRequest();
+  }
+
+  Future<void> _markRelatedNotificationsRead() async {
+    try {
+      final authService = context.read<AuthService>();
+      final user = authService.currentUser;
+      if (user == null) return;
+
+      await AppNotificationService.markWorkRequestAsRead(
+        role: user.role.name,
+        userId: user.id,
+        workRequestId: request.id,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _recordViewedRequest() async {
+    try {
+      final authService = context.read<AuthService>();
+      final user = authService.currentUser;
+      if (user == null) return;
+
+      await LoginActivityService.recordAdminAction(
+        user: user,
+        title: 'Viewed Request',
+        details: 'Viewed request details for ${request.officeRoom}',
+        workRequestId: request.id,
+      );
+    } catch (_) {}
   }
 
   @override

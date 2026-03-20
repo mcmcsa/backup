@@ -106,8 +106,6 @@ class ThemeProvider extends ChangeNotifier {
         onSecondary: Colors.white,
         error: Colors.red,
         onError: Colors.white,
-        background: backgroundColor,
-        onBackground: textColor,
         surface: cardColor,
         onSurface: textColor,
       ),

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/e_signature_service.dart';
+import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
+import '../../../shared/widgets/signature_pad_widget.dart';
 
 class WorkRequestFormPage extends StatefulWidget {
   final String? roomId;
@@ -24,21 +28,22 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _buildingController = TextEditingController();
   final TextEditingController _roomNumberController = TextEditingController();
-  final TextEditingController _officeRoomNameController = TextEditingController();
+  final TextEditingController _officeRoomNameController =
+      TextEditingController();
   final TextEditingController _issueDetailsController = TextEditingController();
   final TextEditingController _fullNameController = TextEditingController();
-  final TextEditingController _contactNumberController = TextEditingController();
-  final TextEditingController _otherRequestTypeController = TextEditingController();
-  
+  final TextEditingController _positionController = TextEditingController();
+  final TextEditingController _otherRequestTypeController =
+      TextEditingController();
+
   String _selectedBuilding = '';
   String _selectedCollege = '';
-  String _selectedPosition = '';
   String _selectedRequestType = '';
+  String? _requesterSignatureBase64;
   bool _isSubmitting = false;
 
   List<String> _buildings = [];
   List<String> _colleges = [];
-  List<String> _positions = [];
 
   @override
   void initState() {
@@ -56,16 +61,15 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     final helper = DropdownDataHelper();
     final buildings = await helper.getBuildingNames();
     final depts = await helper.getDepartmentNames();
-    final positions = helper.getPositions();
 
     if (mounted) {
       setState(() {
         _buildings = buildings;
         _colleges = depts.isNotEmpty ? depts : helper.getColleges();
-        _positions = positions;
-        _selectedBuilding = widget.buildingName ?? (_buildings.isNotEmpty ? _buildings.first : '');
+        _selectedBuilding =
+            widget.buildingName ??
+            (_buildings.isNotEmpty ? _buildings.first : '');
         _selectedCollege = _colleges.isNotEmpty ? _colleges.first : '';
-        _selectedPosition = _positions.isNotEmpty ? _positions.first : '';
       });
     }
   }
@@ -77,7 +81,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     _officeRoomNameController.dispose();
     _issueDetailsController.dispose();
     _fullNameController.dispose();
-    _contactNumberController.dispose();
+    _positionController.dispose();
     _otherRequestTypeController.dispose();
     super.dispose();
   }
@@ -94,9 +98,39 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         return;
       }
 
+      if (_requesterSignatureBase64 == null ||
+          _requesterSignatureBase64!.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Electronic signature is required before submitting.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final submittedRoomId = _roomNumberController.text.trim();
+      final hasActiveRequest = await WorkRequestService.hasActiveRequestForRoom(
+        submittedRoomId,
+      );
+      if (hasActiveRequest) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This Room is already Reported'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       setState(() {
         _isSubmitting = true;
       });
+
+      final authUser = Supabase.instance.client.auth.currentUser;
 
       final typeLabel = _selectedRequestType == 'Others'
           ? _otherRequestTypeController.text
@@ -111,18 +145,47 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         campus: 'PSU San Carlos',
         buildingName: _selectedBuilding,
         department: _selectedCollege,
+        roomId: submittedRoomId,
         officeRoom: _officeRoomNameController.text.trim().isNotEmpty
             ? _officeRoomNameController.text.trim()
-            : _roomNumberController.text.trim(),
+          : submittedRoomId,
         typeOfRequest: typeLabel,
         dateSubmitted: DateTime.now(),
         requestorName: _fullNameController.text.trim(),
-        requestorPosition: _selectedPosition,
+        requestorPosition: _positionController.text.trim(),
         reportedBy: _fullNameController.text.trim(),
+        requestorId: authUser?.id,
+        reportedById: authUser?.id,
       );
 
       try {
-        await WorkRequestService.insert(request);
+        final insertedRequest = await WorkRequestService.insert(request);
+
+        if (authUser != null) {
+          await ESignatureService.insert(
+            ESignature(
+              id: '',
+              workRequestId: insertedRequest.id,
+              signerId: authUser.id,
+              signerName: _fullNameController.text.trim(),
+              signerRole: 'student_teacher',
+              signatureType: 'approval',
+              signatureData: _requesterSignatureBase64!,
+              signedAt: DateTime.now(),
+              notes: 'Requester e-signature at submission',
+            ),
+          );
+        }
+
+        await AppNotificationService.createForRoles(
+          targetRoles: const ['admin', 'maintenance'],
+          title: 'New Work Request Submitted',
+          message:
+              '$_selectedBuilding • ${_officeRoomNameController.text.trim()} has a new request from ${_fullNameController.text.trim()}.',
+          type: 'work_request_submitted',
+          workRequestId: insertedRequest.id,
+          statusSnapshot: 'pending',
+        );
 
         if (!mounted) return;
         final trackingNumber =
@@ -132,7 +195,8 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           '/work-request-success',
           arguments: {
             'trackingNumber': trackingNumber,
-            'location': '$_selectedBuilding, ${_roomNumberController.text.trim()}',
+            'location':
+                '$_selectedBuilding, ${_roomNumberController.text.trim()}',
             'severity': typeLabel,
             'reportedDate': DateTime.now(),
           },
@@ -146,7 +210,11 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           ),
         );
       } finally {
-        if (mounted) setState(() { _isSubmitting = false; });
+        if (mounted) {
+          setState(() {
+            _isSubmitting = false;
+          });
+        }
       }
     }
   }
@@ -282,7 +350,8 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                       maxLines: 4,
                       style: const TextStyle(fontSize: 14),
                       decoration: InputDecoration(
-                        hintText: 'Please provide specific details about the problem...',
+                        hintText:
+                            'Please provide specific details about the problem...',
                         hintStyle: TextStyle(
                           fontSize: 13,
                           color: Colors.grey.shade400,
@@ -362,48 +431,85 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   const SizedBox(height: 16),
                   _buildLabel('Position'),
                   const SizedBox(height: 8),
-                  _buildDropdown(
-                    value: _selectedPosition,
-                    items: _positions,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedPosition = value!;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildLabel('Contact Number (9xxxxxxxx)'),
-                  const SizedBox(height: 8),
                   _buildTextField(
-                    controller: _contactNumberController,
-                    hint: '+63 9XX XXX XXXX',
-                    keyboardType: TextInputType.phone,
+                    controller: _positionController,
+                    hint: 'e.g., Instructor, Professor, Staff',
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter contact number';
+                        return 'Please enter your position';
                       }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
-                  _buildLabel('Digital Signature (PK-SING-XXXXXXXXX) *OPTIONAL'),
+                  _buildLabel('Electronic Signature *REQUIRED'),
                   const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
-                    height: 120,
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'Signature Pad',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade400,
-                        ),
+                      border: Border.all(
+                        color:
+                            (_requesterSignatureBase64 != null &&
+                                _requesterSignatureBase64!.isNotEmpty)
+                            ? const Color(0xFF00BFA5)
+                            : Colors.grey.shade300,
+                        width:
+                            (_requesterSignatureBase64 != null &&
+                                _requesterSignatureBase64!.isNotEmpty)
+                            ? 1.8
+                            : 1,
                       ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            (_requesterSignatureBase64 != null &&
+                                    _requesterSignatureBase64!.isNotEmpty)
+                                ? 'Signature captured successfully'
+                                : 'No signature yet',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  (_requesterSignatureBase64 != null &&
+                                      _requesterSignatureBase64!.isNotEmpty)
+                                  ? const Color(0xFF00BFA5)
+                                  : Colors.grey.shade500,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            final signature = await SignatureDialog.show(
+                              context,
+                              title: 'Requester E-Signature',
+                              subtitle:
+                                  'Please sign to confirm this work request',
+                            );
+                            if (signature == null || signature.isEmpty) return;
+                            if (!mounted) return;
+                            setState(
+                              () => _requesterSignatureBase64 = signature,
+                            );
+                          },
+                          icon: const Icon(Icons.draw_rounded, size: 16),
+                          label: Text(
+                            (_requesterSignatureBase64 != null &&
+                                    _requesterSignatureBase64!.isNotEmpty)
+                                ? 'Re-sign'
+                                : 'Sign',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00BFA5),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -411,8 +517,12 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () {
+                        setState(() => _requesterSignatureBase64 = null);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Signature cleared'), duration: Duration(seconds: 1)),
+                          const SnackBar(
+                            content: Text('Signature cleared'),
+                            duration: Duration(seconds: 1),
+                          ),
                         );
                       },
                       child: const Text(
@@ -433,7 +543,9 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+                      onPressed: _isSubmitting
+                          ? null
+                          : () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         side: BorderSide(color: Colors.grey.shade400),
@@ -464,7 +576,9 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         elevation: 0,
-                        disabledBackgroundColor: const Color(0xFF00BFA5).withOpacity(0.5),
+                        disabledBackgroundColor: const Color(
+                          0xFF00BFA5,
+                        ).withOpacity(0.5),
                       ),
                       child: _isSubmitting
                           ? const SizedBox(
@@ -472,7 +586,9 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Text(
@@ -562,10 +678,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         style: const TextStyle(fontSize: 14),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: TextStyle(
-            fontSize: 13,
-            color: Colors.grey.shade400,
-          ),
+          hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
@@ -594,15 +707,9 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           value: value,
           isExpanded: true,
           icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
-          style: const TextStyle(
-            fontSize: 14,
-            color: Colors.black87,
-          ),
+          style: const TextStyle(fontSize: 14, color: Colors.black87),
           items: items.map((String item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Text(item),
-            );
+            return DropdownMenuItem<String>(value: item, child: Text(item));
           }).toList(),
           onChanged: onChanged,
         ),

@@ -7,19 +7,19 @@ import 'authentication/services/auth_service.dart';
 import 'config/supabase_config.dart';
 import 'shared/providers/theme_provider.dart';
 import 'authentication/screens/login_page.dart';
-import 'mobile/admin/main_navigation.dart';
-import 'web/admin/main_navigation_web.dart';
-import 'mobile/student_teacher/student_teacher_navigation.dart';
-import 'mobile/student_teacher/scanner/manual_room_entry_page.dart';
-import 'mobile/student_teacher/scanner/room_verification_page.dart';
-import 'mobile/student_teacher/reports/work_request_form_page.dart';
-import 'mobile/student_teacher/reports/work_request_success_page.dart';
-import 'mobile/student_teacher/reports/request_details_page.dart';
-import 'mobile/student_teacher/menu_pages/archives_page.dart';
-import 'mobile/student_teacher/menu_pages/settings_page.dart';
-import 'mobile/student_teacher/menu_pages/about_us_page.dart';
-import 'mobile/student_teacher/menu_pages/contact_us_page.dart';
-import 'mobile/student_teacher/menu_pages/system_workflow_page.dart';
+import 'mobile/admin/main_navigation.dart' as mobile_admin;
+import 'web/admin/main_navigation_web.dart' as web_admin;
+import 'mobile/teacher/student_teacher_navigation.dart';
+import 'mobile/teacher/scanner/manual_room_entry_page.dart';
+import 'mobile/teacher/scanner/room_verification_page.dart';
+import 'mobile/teacher/reports/work_request_form_page.dart';
+import 'mobile/teacher/reports/work_request_success_page.dart';
+import 'mobile/teacher/reports/request_details_page.dart';
+import 'mobile/teacher/menu_pages/archives_page.dart';
+import 'mobile/teacher/menu_pages/settings_page.dart';
+import 'mobile/teacher/menu_pages/about_us_page.dart';
+import 'mobile/teacher/menu_pages/contact_us_page.dart';
+import 'mobile/teacher/menu_pages/system_workflow_page.dart';
 import 'mobile/maintenance/maintenance_navigation.dart';
 
 Future<void> main() async {
@@ -71,8 +71,8 @@ class MyApp extends StatelessWidget {
             routes: {
               '/login': (context) => const LoginPage(),
               '/admin/dashboard': (context) => kIsWeb
-                  ? const MainNavigationWeb()
-                  : const MainNavigation(),
+                  ? const web_admin.MainNavigationWeb()
+                  : const mobile_admin.MainNavigation(),
               '/student-teacher/dashboard': (context) => const StudentTeacherNavigation(),
               '/maintenance/dashboard': (context) => const MaintenanceNavigation(),
               '/manual-room-entry': (context) => const ManualRoomEntryPage(),

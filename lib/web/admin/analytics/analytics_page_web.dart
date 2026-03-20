@@ -18,6 +18,15 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
   bool _isLoading = true;
   String _selectedPeriod = 'This Month';
 
+  // Professional color palette
+  static const Color _primaryBlue = Color(0xFF3B82F6);
+  static const Color _successGreen = Color(0xFF22C55E);
+  static const Color _warningYellow = Color(0xFFFBBF24);
+  static const Color _dangerRed = Color(0xFFEF4444);
+  static const Color _darkText = Color(0xFF1E293B);
+  static const Color _subtleText = Color(0xFF64748B);
+  static const Color _pageBg = Color(0xFFF1F5F9);
+
   @override
   void initState() {
     super.initState();
@@ -37,437 +46,304 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
       }
     } catch (_) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
 
+  int get _totalRequests => _requests.length;
+  int get _completedRequests => _requests.where((r) => r.status.toLowerCase() == 'completed').length;
+  int get _pendingRequests => _requests.where((r) => r.status.toLowerCase() == 'pending').length;
+  int get _activeRequests => _requests.where((r) =>
+    r.status.toLowerCase() == 'in_progress' ||
+    r.status.toLowerCase() == 'approved' ||
+    r.status.toLowerCase() == 'under_maintenance'
+  ).length;
+  int get _highPriority => _requests.where((r) => r.priority.toLowerCase() == 'high').length;
+  double get _completionRate => _totalRequests > 0 ? (_completedRequests / _totalRequests * 100) : 0;
+
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 16,
+    return Container(
+      color: _pageBg,
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header with period selector
+                  _buildHeader(),
+                  const SizedBox(height: 24),
+
+                  // Stats Cards Row
+                  _buildStatsRow(),
+                  const SizedBox(height: 24),
+
+                  // Charts Row
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left Column - Performance & Status
+                      Expanded(
+                        flex: 4,
+                        child: Column(
+                          children: [
+                            _buildPerformanceCard(),
+                            const SizedBox(height: 20),
+                            _buildStatusDistributionCard(),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      // Right Column - Priority & Rooms
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          children: [
+                            _buildPriorityCard(),
+                            const SizedBox(height: 20),
+                            _buildRoomStatsCard(),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              child: const CircularProgressIndicator(
-                strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
-              ),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Loading analytics...',
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF64748B),
-                fontWeight: FontWeight.w500,
-              ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: _primaryBlue.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.bar_chart_rounded, color: _primaryBlue, size: 20),
+        ),
+        const SizedBox(width: 12),
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Analytics Dashboard',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _darkText),
+            ),
+            Text(
+              'Performance metrics and insights',
+              style: TextStyle(fontSize: 13, color: _subtleText),
             ),
           ],
         ),
-      );
-    }
+        const Spacer(),
+        // Period Selector
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedPeriod,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _subtleText),
+              items: ['Today', 'This Week', 'This Month', 'This Year']
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _selectedPeriod = value);
+              },
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _darkText),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-    final totalRequests = _requests.length;
-    final pendingRequests = _requests.where((r) => r.status == 'pending').length;
-    final ongoingRequests = _requests.where((r) => r.status == 'ongoing').length;
-    final completedRequests = _requests.where((r) => r.status == 'done').length;
-    final highPriorityRequests = _requests.where((r) => r.priority == 'high').length;
-    final mediumPriorityRequests = _requests.where((r) => r.priority == 'medium').length;
-    final lowPriorityRequests = _requests.where((r) => r.priority == 'low').length;
+  Widget _buildStatsRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCard(
+            title: 'Total Requests',
+            value: '$_totalRequests',
+            icon: Icons.description_rounded,
+            iconColor: _primaryBlue,
+            trend: '+12%',
+            trendUp: true,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _StatCard(
+            title: 'Completion Rate',
+            value: '${_completionRate.toStringAsFixed(1)}%',
+            icon: Icons.check_circle_rounded,
+            iconColor: _successGreen,
+            trend: '+5%',
+            trendUp: true,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _StatCard(
+            title: 'Pending',
+            value: '$_pendingRequests',
+            icon: Icons.hourglass_empty_rounded,
+            iconColor: _warningYellow,
+            trend: '-3%',
+            trendUp: false,
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _StatCard(
+            title: 'High Priority',
+            value: '$_highPriority',
+            icon: Icons.priority_high_rounded,
+            iconColor: _dangerRed,
+            trend: '+2%',
+            trendUp: true,
+          ),
+        ),
+      ],
+    );
+  }
 
-    final totalRooms = _rooms.length;
-    final availableRooms = _rooms.where((r) => r.status == 'available').length;
-    final maintenanceRooms = _rooms.where((r) => r.status == 'maintenance').length;
+  Widget _buildPerformanceCard() {
+    return _Card(
+      title: 'Performance Overview',
+      icon: Icons.trending_up_rounded,
+      child: SizedBox(
+        height: 200,
+        child: CustomPaint(
+          size: const Size(double.infinity, 200),
+          painter: _LineChartPainter(
+            data: [40, 55, 45, 70, 65, 80, 75],
+            color: _primaryBlue,
+          ),
+        ),
+      ),
+    );
+  }
 
-    final completionRate = totalRequests > 0
-        ? (completedRequests / totalRequests * 100).round()
-        : 0;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildStatusDistributionCard() {
+    return _Card(
+      title: 'Request Status',
+      icon: Icons.pie_chart_rounded,
+      child: Row(
         children: [
-          // Header
-          Row(
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Analytics Overview',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Track performance and monitor key metrics',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Color(0xFF94A3B8),
-                    ),
-                  ),
-                ],
+          // Chart
+          SizedBox(
+            width: 160,
+            height: 160,
+            child: CustomPaint(
+              painter: _DonutChartPainter(
+                completed: _completedRequests.toDouble(),
+                active: _activeRequests.toDouble(),
+                pending: _pendingRequests.toDouble(),
               ),
-              const Spacer(),
-              // Period Selector
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF64748B)),
-                    const SizedBox(width: 8),
-                    DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedPeriod,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF475569),
-                        ),
-                        icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
-                        items: ['Today', 'This Week', 'This Month', 'This Year']
-                            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                            .toList(),
-                        onChanged: (v) => setState(() => _selectedPeriod = v!),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.download_rounded, size: 18),
-                label: const Text('Export Report'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF64748B),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 28),
-
-          // Key Metrics Row
-          Row(
-            children: [
-              Expanded(
-                child: _MetricCard(
-                  title: 'Total Requests',
-                  value: totalRequests.toString(),
-                  subtitle: '${pendingRequests + ongoingRequests} active',
-                  icon: Icons.assignment_rounded,
-                  iconBgColor: const Color(0xFFDBEAFE),
-                  iconColor: const Color(0xFF2563EB),
-                  change: '+12%',
-                  isPositive: true,
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _MetricCard(
-                  title: 'Completion Rate',
-                  value: '$completionRate%',
-                  subtitle: '$completedRequests completed',
-                  icon: Icons.check_circle_rounded,
-                  iconBgColor: const Color(0xFFD1FAE5),
-                  iconColor: const Color(0xFF059669),
-                  change: '+5%',
-                  isPositive: true,
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _MetricCard(
-                  title: 'Avg. Resolution Time',
-                  value: '2.4d',
-                  subtitle: 'Average days',
-                  icon: Icons.timer_rounded,
-                  iconBgColor: const Color(0xFFFEF3C7),
-                  iconColor: const Color(0xFFD97706),
-                  change: '-8%',
-                  isPositive: true,
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _MetricCard(
-                  title: 'Room Utilization',
-                  value: '${totalRooms > 0 ? ((totalRooms - maintenanceRooms) / totalRooms * 100).round() : 0}%',
-                  subtitle: '$availableRooms available',
-                  icon: Icons.meeting_room_rounded,
-                  iconBgColor: const Color(0xFFF5F3FF),
-                  iconColor: const Color(0xFF7C3AED),
-                  change: '+3%',
-                  isPositive: true,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-
-          // Charts Row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Request Status Chart
-              Expanded(
-                flex: 3,
-                child: _ChartCard(
-                  title: 'Request Status Overview',
-                  subtitle: 'Distribution of maintenance requests',
-                  child: Row(
-                    children: [
-                      // Donut Chart
-                      Expanded(
-                        child: SizedBox(
-                          height: 200,
-                          child: CustomPaint(
-                            painter: _DonutChartPainter(
-                              segments: [
-                                _ChartSegment('Completed', completedRequests, const Color(0xFF059669)),
-                                _ChartSegment('In Progress', ongoingRequests, const Color(0xFF2563EB)),
-                                _ChartSegment('Pending', pendingRequests, const Color(0xFFD97706)),
-                              ],
-                              total: totalRequests,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 32),
-                      // Legend
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _ChartLegend(
-                            label: 'Completed',
-                            value: completedRequests,
-                            percentage: totalRequests > 0 ? (completedRequests / totalRequests * 100).round() : 0,
-                            color: const Color(0xFF059669),
-                          ),
-                          const SizedBox(height: 16),
-                          _ChartLegend(
-                            label: 'In Progress',
-                            value: ongoingRequests,
-                            percentage: totalRequests > 0 ? (ongoingRequests / totalRequests * 100).round() : 0,
-                            color: const Color(0xFF2563EB),
-                          ),
-                          const SizedBox(height: 16),
-                          _ChartLegend(
-                            label: 'Pending',
-                            value: pendingRequests,
-                            percentage: totalRequests > 0 ? (pendingRequests / totalRequests * 100).round() : 0,
-                            color: const Color(0xFFD97706),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 32),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 20),
-              // Priority Breakdown
-              Expanded(
-                flex: 2,
-                child: _ChartCard(
-                  title: 'Priority Breakdown',
-                  subtitle: 'Requests by urgency level',
-                  child: Column(
-                    children: [
-                      _PriorityBar(
-                        label: 'High Priority',
-                        count: highPriorityRequests,
-                        total: totalRequests,
-                        color: const Color(0xFFDC2626),
-                      ),
-                      const SizedBox(height: 20),
-                      _PriorityBar(
-                        label: 'Medium Priority',
-                        count: mediumPriorityRequests,
-                        total: totalRequests,
-                        color: const Color(0xFFD97706),
-                      ),
-                      const SizedBox(height: 20),
-                      _PriorityBar(
-                        label: 'Low Priority',
-                        count: lowPriorityRequests,
-                        total: totalRequests,
-                        color: const Color(0xFF059669),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-
-          // Room Analytics Row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Room Status
-              Expanded(
-                child: _ChartCard(
-                  title: 'Room Status',
-                  subtitle: 'Current availability status',
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _RoomStatusIndicator(
-                          label: 'Available',
-                          value: availableRooms,
-                          total: totalRooms,
-                          color: const Color(0xFF059669),
-                          icon: Icons.check_circle_rounded,
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 80,
-                        color: const Color(0xFFF1F5F9),
-                        margin: const EdgeInsets.symmetric(horizontal: 24),
-                      ),
-                      Expanded(
-                        child: _RoomStatusIndicator(
-                          label: 'Under Maintenance',
-                          value: maintenanceRooms,
-                          total: totalRooms,
-                          color: const Color(0xFFD97706),
-                          icon: Icons.build_rounded,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 20),
-              // Quick Stats
-              Expanded(
-                child: _ChartCard(
-                  title: 'Quick Stats',
-                  subtitle: 'Key performance indicators',
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _QuickStatItem(
-                          label: 'Avg. Requests/Day',
-                          value: '3.2',
-                          icon: Icons.trending_up_rounded,
-                          color: const Color(0xFF2563EB),
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 60,
-                        color: const Color(0xFFF1F5F9),
-                        margin: const EdgeInsets.symmetric(horizontal: 16),
-                      ),
-                      Expanded(
-                        child: _QuickStatItem(
-                          label: 'Pending > 3 Days',
-                          value: '${pendingRequests > 2 ? pendingRequests - 2 : 0}',
-                          icon: Icons.warning_rounded,
-                          color: const Color(0xFFDC2626),
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        height: 60,
-                        color: const Color(0xFFF1F5F9),
-                        margin: const EdgeInsets.symmetric(horizontal: 16),
-                      ),
-                      Expanded(
-                        child: _QuickStatItem(
-                          label: 'Resolution Rate',
-                          value: '${completionRate}%',
-                          icon: Icons.verified_rounded,
-                          color: const Color(0xFF059669),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-
-          // Trends Section
-          _ChartCard(
-            title: 'Request Trends',
-            subtitle: 'Weekly request volume over the past month',
-            child: SizedBox(
-              height: 200,
-              child: CustomPaint(
-                size: const Size(double.infinity, 200),
-                painter: _LineChartPainter(),
-              ),
+          const SizedBox(width: 32),
+          // Legend
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _LegendItem(color: _successGreen, label: 'Completed', value: _completedRequests),
+                const SizedBox(height: 12),
+                _LegendItem(color: _primaryBlue, label: 'Active', value: _activeRequests),
+                const SizedBox(height: 12),
+                _LegendItem(color: _warningYellow, label: 'Pending', value: _pendingRequests),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _buildPriorityCard() {
+    final high = _requests.where((r) => r.priority.toLowerCase() == 'high').length;
+    final medium = _requests.where((r) => r.priority.toLowerCase() == 'medium').length;
+    final low = _requests.where((r) => r.priority.toLowerCase() == 'low').length;
+    final total = high + medium + low;
+
+    return _Card(
+      title: 'Priority Distribution',
+      icon: Icons.flag_rounded,
+      child: Column(
+        children: [
+          _PriorityBar(label: 'High', value: high, total: total, color: _dangerRed),
+          const SizedBox(height: 16),
+          _PriorityBar(label: 'Medium', value: medium, total: total, color: _warningYellow),
+          const SizedBox(height: 16),
+          _PriorityBar(label: 'Low', value: low, total: total, color: _successGreen),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoomStatsCard() {
+    final available = _rooms.where((r) => r.status.toLowerCase() == 'available').length;
+    final reserved = _rooms.where((r) => r.status.toLowerCase() == 'reserved').length;
+    final maintenance = _rooms.where((r) => r.status.toLowerCase() == 'maintenance').length;
+
+    return _Card(
+      title: 'Room Status',
+      icon: Icons.meeting_room_rounded,
+      child: Column(
+        children: [
+          _RoomStatRow(icon: Icons.check_circle_rounded, color: _successGreen, label: 'Available', value: available),
+          const SizedBox(height: 14),
+          _RoomStatRow(icon: Icons.event_busy_rounded, color: _warningYellow, label: 'Reserved', value: reserved),
+          const SizedBox(height: 14),
+          _RoomStatRow(icon: Icons.build_rounded, color: _dangerRed, label: 'Maintenance', value: maintenance),
+        ],
+      ),
+    );
+  }
 }
 
-class _MetricCard extends StatefulWidget {
+// ==================== WIDGETS ====================
+
+class _StatCard extends StatefulWidget {
   final String title;
   final String value;
-  final String subtitle;
   final IconData icon;
-  final Color iconBgColor;
   final Color iconColor;
-  final String change;
-  final bool isPositive;
+  final String trend;
+  final bool trendUp;
 
-  const _MetricCard({
+  const _StatCard({
     required this.title,
     required this.value,
-    required this.subtitle,
     required this.icon,
-    required this.iconBgColor,
     required this.iconColor,
-    required this.change,
-    required this.isPositive,
+    required this.trend,
+    required this.trendUp,
   });
 
   @override
-  State<_MetricCard> createState() => _MetricCardState();
+  State<_StatCard> createState() => _StatCardState();
 }
 
-class _MetricCardState extends State<_MetricCard> {
+class _StatCardState extends State<_StatCard> {
   bool _isHovered = false;
 
   @override
@@ -476,103 +352,76 @@ class _MetricCardState extends State<_MetricCard> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(24),
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(20),
+        transform: Matrix4.identity()..translate(0.0, _isHovered ? -2.0 : 0.0),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: _isHovered ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
-          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: _isHovered ? 0.06 : 0.03),
-              blurRadius: _isHovered ? 20 : 12,
-              offset: const Offset(0, 4),
+              color: _isHovered
+                  ? widget.iconColor.withValues(alpha: 0.15)
+                  : Colors.black.withValues(alpha: 0.04),
+              blurRadius: _isHovered ? 16 : 12,
+              offset: Offset(0, _isHovered ? 6 : 4),
             ),
           ],
         ),
-        transform: _isHovered
-            ? (Matrix4.identity()..translate(0.0, -2.0))
-            : Matrix4.identity(),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(14),
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                color: widget.iconBgColor,
-                borderRadius: BorderRadius.circular(14),
+                color: widget.iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(widget.icon, color: widget.iconColor, size: 24),
             ),
-            const SizedBox(width: 20),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.title,
+                    widget.value,
                     style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E293B),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Text(
-                        widget.value,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF0F172A),
-                          height: 1,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: widget.isPositive
-                              ? const Color(0xFF059669).withValues(alpha: 0.1)
-                              : const Color(0xFFDC2626).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              widget.isPositive
-                                  ? Icons.trending_up_rounded
-                                  : Icons.trending_down_rounded,
-                              size: 14,
-                              color: widget.isPositive
-                                  ? const Color(0xFF059669)
-                                  : const Color(0xFFDC2626),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              widget.change,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: widget.isPositive
-                                    ? const Color(0xFF059669)
-                                    : const Color(0xFFDC2626),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
                   Text(
-                    widget.subtitle,
-                    style: const TextStyle(
+                    widget.title,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: widget.trendUp
+                    ? const Color(0xFF22C55E).withValues(alpha: 0.1)
+                    : const Color(0xFFEF4444).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.trendUp ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                    size: 14,
+                    color: widget.trendUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    widget.trend,
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF94A3B8),
+                      fontWeight: FontWeight.w700,
+                      color: widget.trendUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
                     ),
                   ),
                 ],
@@ -585,28 +434,24 @@ class _MetricCardState extends State<_MetricCard> {
   }
 }
 
-class _ChartCard extends StatelessWidget {
+class _Card extends StatelessWidget {
   final String title;
-  final String subtitle;
+  final IconData icon;
   final Widget child;
 
-  const _ChartCard({
-    required this.title,
-    required this.subtitle,
-    required this.child,
-  });
+  const _Card({required this.title, required this.icon, required this.child});
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF1F5F9)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -617,36 +462,26 @@ class _ChartCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF94A3B8),
-                    ),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: const Color(0xFF3B82F6), size: 18),
               ),
-              const Spacer(),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.more_horiz_rounded),
-                color: const Color(0xFF94A3B8),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E293B),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           child,
         ],
       ),
@@ -654,96 +489,12 @@ class _ChartCard extends StatelessWidget {
   }
 }
 
-class _ChartSegment {
+class _LegendItem extends StatelessWidget {
+  final Color color;
   final String label;
   final int value;
-  final Color color;
 
-  _ChartSegment(this.label, this.value, this.color);
-}
-
-class _DonutChartPainter extends CustomPainter {
-  final List<_ChartSegment> segments;
-  final int total;
-
-  _DonutChartPainter({required this.segments, required this.total});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.min(size.width, size.height) / 2 - 10;
-    const strokeWidth = 24.0;
-
-    double startAngle = -math.pi / 2;
-
-    for (final segment in segments) {
-      if (total == 0) continue;
-      final sweepAngle = (segment.value / total) * 2 * math.pi;
-
-      final paint = Paint()
-        ..color = segment.color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeCap = StrokeCap.round;
-
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius - strokeWidth / 2),
-        startAngle,
-        sweepAngle - 0.02,
-        false,
-        paint,
-      );
-
-      startAngle += sweepAngle;
-    }
-
-    // Center text
-    final textPainter = TextPainter(
-      text: TextSpan(
-        children: [
-          TextSpan(
-            text: total.toString(),
-            style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          const TextSpan(
-            text: '\nTotal',
-            style: TextStyle(
-              fontSize: 13,
-              color: Color(0xFF94A3B8),
-            ),
-          ),
-        ],
-      ),
-      textAlign: TextAlign.center,
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      center - Offset(textPainter.width / 2, textPainter.height / 2),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-class _ChartLegend extends StatelessWidget {
-  final String label;
-  final int value;
-  final int percentage;
-  final Color color;
-
-  const _ChartLegend({
-    required this.label,
-    required this.value,
-    required this.percentage,
-    required this.color,
-  });
+  const _LegendItem({required this.color, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -752,33 +503,13 @@ class _ChartLegend extends StatelessWidget {
         Container(
           width: 12,
           height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
-          ),
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
         ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF64748B),
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '$value ($percentage%)',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-          ],
+        const SizedBox(width: 10),
+        Expanded(child: Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)))),
+        Text(
+          '$value',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
         ),
       ],
     );
@@ -787,146 +518,37 @@ class _ChartLegend extends StatelessWidget {
 
 class _PriorityBar extends StatelessWidget {
   final String label;
-  final int count;
+  final int value;
   final int total;
   final Color color;
 
-  const _PriorityBar({
-    required this.label,
-    required this.count,
-    required this.total,
-    required this.color,
-  });
+  const _PriorityBar({required this.label, required this.value, required this.total, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    final percentage = total > 0 ? (count / total * 100).round() : 0;
-
+    final percentage = total > 0 ? value / total : 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                '$percentage%',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                ),
-              ),
-            ),
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+            Text('$value', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
           ],
-        ),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: total > 0 ? count / total : 0,
-            backgroundColor: const Color(0xFFF1F5F9),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            minHeight: 8,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _RoomStatusIndicator extends StatelessWidget {
-  final String label;
-  final int value;
-  final int total;
-  final Color color;
-  final IconData icon;
-
-  const _RoomStatusIndicator({
-    required this.label,
-    required this.value,
-    required this.total,
-    required this.color,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final percentage = total > 0 ? (value / total * 100).round() : 0;
-
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: color, size: 24),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          value.toString(),
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 13,
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w500,
-          ),
         ),
         const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          height: 8,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(6),
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(4),
           ),
-          child: Text(
-            '$percentage% of total',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: color,
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: percentage,
+            child: Container(
+              decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
             ),
           ),
         ),
@@ -935,142 +557,157 @@ class _RoomStatusIndicator extends StatelessWidget {
   }
 }
 
-class _QuickStatItem extends StatelessWidget {
-  final String label;
-  final String value;
+class _RoomStatRow extends StatelessWidget {
   final IconData icon;
   final Color color;
+  final String label;
+  final int value;
 
-  const _QuickStatItem({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
+  const _RoomStatRow({required this.icon, required this.color, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(height: 10),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: color,
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
           ),
+          child: Icon(icon, color: color, size: 18),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(width: 12),
+        Expanded(child: Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)))),
         Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w500,
-          ),
-          textAlign: TextAlign.center,
+          '$value',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
         ),
       ],
     );
   }
 }
 
+// ==================== PAINTERS ====================
+
 class _LineChartPainter extends CustomPainter {
+  final List<double> data;
+  final Color color;
+
+  _LineChartPainter({required this.data, required this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
+    if (data.isEmpty) return;
+
     final paint = Paint()
-      ..color = const Color(0xFF3B82F6)
-      ..style = PaintingStyle.stroke
+      ..color = color
       ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
     final fillPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [
-          const Color(0xFF3B82F6).withValues(alpha: 0.2),
-          const Color(0xFF3B82F6).withValues(alpha: 0.0),
-        ],
+        colors: [color.withValues(alpha: 0.3), color.withValues(alpha: 0.0)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 
-    // Sample data points
-    final points = [
-      Offset(0, size.height * 0.6),
-      Offset(size.width * 0.15, size.height * 0.4),
-      Offset(size.width * 0.3, size.height * 0.5),
-      Offset(size.width * 0.45, size.height * 0.3),
-      Offset(size.width * 0.6, size.height * 0.45),
-      Offset(size.width * 0.75, size.height * 0.25),
-      Offset(size.width, size.height * 0.2),
-    ];
+    final maxVal = data.reduce(math.max);
+    final minVal = data.reduce(math.min);
+    final range = maxVal - minVal;
+    final stepX = size.width / (data.length - 1);
 
-    // Draw fill
-    final fillPath = Path()..moveTo(0, size.height);
-    for (final point in points) {
-      fillPath.lineTo(point.dx, point.dy);
+    final path = Path();
+    final fillPath = Path();
+
+    for (int i = 0; i < data.length; i++) {
+      final x = i * stepX;
+      final y = size.height - ((data[i] - minVal) / range * size.height * 0.8 + size.height * 0.1);
+      if (i == 0) {
+        path.moveTo(x, y);
+        fillPath.moveTo(x, size.height);
+        fillPath.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
     }
+
     fillPath.lineTo(size.width, size.height);
     fillPath.close();
-    canvas.drawPath(fillPath, fillPaint);
 
-    // Draw line
-    final path = Path();
-    path.moveTo(points[0].dx, points[0].dy);
-    for (int i = 1; i < points.length; i++) {
-      final p0 = points[i - 1];
-      final p1 = points[i];
-      final midX = (p0.dx + p1.dx) / 2;
-      path.cubicTo(midX, p0.dy, midX, p1.dy, p1.dx, p1.dy);
-    }
+    canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, paint);
 
     // Draw dots
-    final dotPaint = Paint()
-      ..color = const Color(0xFF3B82F6)
-      ..style = PaintingStyle.fill;
-
-    final dotBorderPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-
-    for (final point in points) {
-      canvas.drawCircle(point, 6, dotBorderPaint);
-      canvas.drawCircle(point, 4, dotPaint);
-    }
-
-    // Draw grid lines
-    final gridPaint = Paint()
-      ..color = const Color(0xFFF1F5F9)
-      ..strokeWidth = 1;
-
-    for (int i = 1; i < 4; i++) {
-      final y = size.height * i / 4;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    // Draw x-axis labels
-    final labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
-    for (int i = 0; i < labels.length; i++) {
-      final x = size.width * (i + 0.5) / labels.length;
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: labels[i],
-          style: const TextStyle(
-            fontSize: 11,
-            color: Color(0xFF94A3B8),
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(canvas, Offset(x - textPainter.width / 2, size.height + 8));
+    final dotPaint = Paint()..color = color;
+    for (int i = 0; i < data.length; i++) {
+      final x = i * stepX;
+      final y = size.height - ((data[i] - minVal) / range * size.height * 0.8 + size.height * 0.1);
+      canvas.drawCircle(Offset(x, y), 4, dotPaint);
+      canvas.drawCircle(Offset(x, y), 2, Paint()..color = Colors.white);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class _DonutChartPainter extends CustomPainter {
+  final double completed;
+  final double active;
+  final double pending;
+
+  _DonutChartPainter({required this.completed, required this.active, required this.pending});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = completed + active + pending;
+    if (total == 0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2 - 10;
+    final strokeWidth = 24.0;
+
+    final bgPaint = Paint()
+      ..color = const Color(0xFFF1F5F9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    double startAngle = -math.pi / 2;
+
+    // Completed (green)
+    _drawArc(canvas, center, radius, strokeWidth, startAngle, completed / total, const Color(0xFF22C55E));
+    startAngle += (completed / total) * 2 * math.pi;
+
+    // Active (blue)
+    _drawArc(canvas, center, radius, strokeWidth, startAngle, active / total, const Color(0xFF3B82F6));
+    startAngle += (active / total) * 2 * math.pi;
+
+    // Pending (yellow)
+    _drawArc(canvas, center, radius, strokeWidth, startAngle, pending / total, const Color(0xFFFBBF24));
+  }
+
+  void _drawArc(Canvas canvas, Offset center, double radius, double strokeWidth, double startAngle, double fraction, Color color) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngle,
+      fraction * 2 * math.pi,
+      false,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

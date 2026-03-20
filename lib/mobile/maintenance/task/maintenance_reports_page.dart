@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'task_details_page.dart';
 import '../../../shared/widgets/common_app_bar.dart';
-import '../../../authentication/services/auth_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../admin/shared/notifications_page.dart';
 
 class MaintenanceReportsPage extends StatefulWidget {
   const MaintenanceReportsPage({super.key});
@@ -36,15 +35,24 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage> {
 
   Future<void> _loadRequests() async {
     try {
-      final user = context.read<AuthService>().currentUser;
-      if (user != null) {
-        final data = await WorkRequestService.fetchAssignedTo(user.id);
-        if (mounted) {
-          setState(() {
-            _requests = data;
-            _isLoading = false;
-          });
-        }
+      final data = await WorkRequestService.fetchAll();
+      final maintenanceQueue = data
+          .where(
+            (r) =>
+                r.status == 'pending' ||
+                r.status == 'approved' ||
+                r.status == 'in_progress' ||
+                r.status == 'under_maintenance' ||
+                r.status == 'completed' ||
+                r.status == 'done',
+          )
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _requests = maintenanceQueue;
+          _isLoading = false;
+        });
       }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
@@ -60,13 +68,17 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage> {
       return _requests.where((r) => r.status == 'approved').toList();
     }
     if (_selectedCategory == 'In Progress') {
-      return _requests.where((r) => r.status == 'ongoing' || r.status == 'in_progress').toList();
+      return _requests
+          .where((r) => r.status == 'ongoing' || r.status == 'in_progress')
+          .toList();
     }
     if (_selectedCategory == 'Under Maintenance') {
       return _requests.where((r) => r.status == 'under_maintenance').toList();
     }
     if (_selectedCategory == 'Completed') {
-      return _requests.where((r) => r.status == 'done' || r.status == 'completed').toList();
+      return _requests
+          .where((r) => r.status == 'done' || r.status == 'completed')
+          .toList();
     }
     if (_selectedCategory == 'High Priority') {
       return _requests.where((r) => r.priority == 'high').toList();
@@ -82,8 +94,14 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage> {
         roleText: 'Welcome Maintenance Staff',
         primaryColor: const Color(0xFF4169E1),
         showMenu: false,
-        onNotificationPressed: () {
-          // Handle notification press
+        onNotificationPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const NotificationsPage()),
+          );
+          if (mounted) {
+            setState(() {});
+          }
         },
       ),
       body: Column(
@@ -181,11 +199,18 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage> {
                       padding: const EdgeInsets.all(32),
                       child: Column(
                         children: [
-                          Icon(Icons.assignment_outlined, size: 48, color: Colors.grey.shade300),
+                          Icon(
+                            Icons.assignment_outlined,
+                            size: 48,
+                            color: Colors.grey.shade300,
+                          ),
                           const SizedBox(height: 12),
                           Text(
                             'No reports found',
-                            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
                           ),
                         ],
                       ),

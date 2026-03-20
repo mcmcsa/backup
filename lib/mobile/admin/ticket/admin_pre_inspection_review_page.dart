@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/pre_inspection_model.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/services/pre_inspection_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/widgets/workflow_status_badge.dart';
@@ -59,6 +60,13 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
       await PreInspectionService.approve(_report!.id, user.id);
       await WorkRequestService.setUnderMaintenance(widget.request.id);
 
+      await LoginActivityService.recordAdminAction(
+        user: user,
+        title: 'Pre-Inspection Approved',
+        details: 'Approved pre-inspection for ${widget.request.officeRoom}',
+        workRequestId: widget.request.id,
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -87,10 +95,21 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
       return;
     }
 
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+    if (user == null) return;
+
     setState(() => _isProcessing = true);
 
     try {
       await PreInspectionService.reject(_report!.id, notes);
+
+      await LoginActivityService.recordAdminAction(
+        user: user,
+        title: 'Pre-Inspection Rejected',
+        details: 'Rejected pre-inspection for ${widget.request.officeRoom}',
+        workRequestId: widget.request.id,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

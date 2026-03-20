@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import 'work_order_progress_page.dart';
 import 'pre_inspection_form_page.dart';
@@ -38,9 +41,24 @@ class _TaskDetailsPageState extends State<TaskDetailsPage> {
     try {
       final request = await WorkRequestService.fetchById(widget.taskId);
       if (mounted) setState(() { _request = request; _isLoading = false; });
+      await _markRelatedNotificationsRead();
     } catch (_) {
       if (mounted) setState(() { _isLoading = false; });
     }
+  }
+
+  Future<void> _markRelatedNotificationsRead() async {
+    try {
+      final authService = context.read<AuthService>();
+      final user = authService.currentUser;
+      if (user == null) return;
+
+      await AppNotificationService.markWorkRequestAsRead(
+        role: user.role.name,
+        userId: user.id,
+        workRequestId: widget.taskId,
+      );
+    } catch (_) {}
   }
 
   int _getProgressStep() {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../ticket/view_work_request_page.dart';
 import '../ticket/view_queue_page.dart';
@@ -193,11 +194,26 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               setState(() {
                 _pendingRequests.remove(request);
               });
-              WorkRequestService.updateStatus(request.id, 'cancelled');
+
+              await WorkRequestService.updateStatus(request.id, 'cancelled');
+
+              final reporterId = request.reportedById ?? request.requestorId;
+              if (reporterId != null && reporterId.trim().isNotEmpty) {
+                await AppNotificationService.createForUser(
+                  targetUserId: reporterId,
+                  title: 'Request Declined',
+                  message:
+                      'Your request ${request.id} for ${request.officeRoom} was declined by admin.',
+                  type: 'work_request_declined',
+                  workRequestId: request.id,
+                  statusSnapshot: 'cancelled',
+                );
+              }
+
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

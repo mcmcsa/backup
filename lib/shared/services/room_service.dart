@@ -99,6 +99,21 @@ class RoomService {
     await _db.from(_table).delete().eq('id', id);
   }
 
+  /// Returns the next auto-incremented room ID in the format RM0001, RM0002, …
+  static Future<String> generateNextId() async {
+    final data = await _db.from(_table).select('id');
+    int maxNum = 0;
+    final regex = RegExp(r'^RM(\d+)$', caseSensitive: false);
+    for (final row in (data as List)) {
+      final match = regex.firstMatch(row['id']?.toString() ?? '');
+      if (match != null) {
+        final n = int.tryParse(match.group(1)!) ?? 0;
+        if (n > maxNum) maxNum = n;
+      }
+    }
+    return 'RM${(maxNum + 1).toString().padLeft(4, '0')}';
+  }
+
   // Analytics methods
   static Future<int> getTotalRooms() async {
     final data = await _db.from(_table).select('id');

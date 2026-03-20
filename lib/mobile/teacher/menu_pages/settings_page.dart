@@ -386,7 +386,7 @@ class _SettingsPageState extends State<SettingsPage> {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: themeProvider.primaryColor,
+            activeThumbColor: themeProvider.primaryColor,
           ),
         ],
       ),

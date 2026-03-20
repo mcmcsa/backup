@@ -342,7 +342,7 @@ class _PostRepairReportPageState extends State<PostRepairReportPage> {
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
-                    value: _repairStatus,
+                    initialValue: _repairStatus,
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: const Color(0xFFF9FAFB),

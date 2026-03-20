@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../shared/notifications_page.dart';
 import '../main_navigation.dart';
@@ -16,11 +19,34 @@ class DashboardPageMobile extends StatefulWidget {
 class _DashboardPageMobileState extends State<DashboardPageMobile> {
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
+  int _unreadCount = 0;
+
+  String _ticketCode(String id) {
+    final trimmed = id.trim();
+    if (trimmed.isEmpty) return '#N/A';
+    final end = trimmed.length < 4 ? trimmed.length : 4;
+    return '#${trimmed.substring(0, end).toUpperCase()}';
+  }
 
   @override
   void initState() {
     super.initState();
     _loadRequests();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final authService = context.read<AuthService>();
+      final user = authService.currentUser;
+      if (user == null) return;
+
+      final count = await AppNotificationService.getUnreadCount(
+        role: user.role.name,
+        userId: user.id,
+      );
+      if (mounted) setState(() => _unreadCount = count);
+    } catch (_) {}
   }
 
   Future<void> _loadRequests() async {
@@ -96,27 +122,41 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
                     Icons.notifications_outlined,
                     color: Colors.black87,
                   ),
-                  onPressed: () {
-                    Navigator.push(
+                  onPressed: () async {
+                    await Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => const NotificationsPage(),
                       ),
                     );
+                    _loadUnreadCount();
                   },
                 ),
-                Positioned(
-                  right: 12,
-                  top: 12,
-                  child: Container(
-                    height: 8,
-                    width: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
+                if (_unreadCount > 0)
+                  Positioned(
+                    right: 6,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.all(Radius.circular(10)),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 18),
+                      child: Text(
+                        _unreadCount > 99 ? '99+' : '$_unreadCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -590,7 +630,7 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: _buildAgingTicket(
-            '#${r.id.substring(0, 4)} - ${r.officeRoom}',
+            '${_ticketCode(r.id)} - ${r.officeRoom}',
             '$daysOpen days open • ${r.requestorName}',
             color,
           ),
@@ -657,7 +697,7 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
                 ? Colors.green
                 : (r.status == 'ongoing' ? Colors.blue : Colors.orange);
             final statusLabel = r.status.toUpperCase();
-            return _buildRequestRow('#${r.id.substring(0, 4)}', r.title, statusLabel, statusColor);
+            return _buildRequestRow(_ticketCode(r.id), r.title, statusLabel, statusColor);
           }),
         ],
       ),

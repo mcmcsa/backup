@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
+import '../../shared/services/login_activity_service.dart';
 import '../../shared/widgets/loading_screen.dart';
 import '../screens/login_page.dart';
 
@@ -43,6 +43,7 @@ class AuthService extends ChangeNotifier {
         return null;
       }
       _currentUser = profile;
+      await LoginActivityService.recordLogin(profile);
       notifyListeners();
       return profile;
     } catch (e) {
@@ -87,6 +88,9 @@ class AuthService extends ChangeNotifier {
 
       final profile = await _fetchProfile(supabaseUser.id);
       _currentUser = profile;
+      if (profile != null) {
+        await LoginActivityService.recordLogin(profile);
+      }
       notifyListeners();
       return profile;
     } catch (e) {
@@ -120,9 +124,9 @@ class AuthService extends ChangeNotifier {
         data: {
           'name': name,
           'role': role.name,
-          if (campus != null) 'campus': campus,
-          if (department != null) 'department': department,
-          if (position != null) 'position': position,
+          'campus': ?campus,
+          'department': ?department,
+          'position': ?position,
         },
       );
 

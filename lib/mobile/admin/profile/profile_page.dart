@@ -6,8 +6,8 @@ import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../shared/notifications_page.dart';
-import '../../../mobile/student_teacher/menu_pages/about_us_page.dart';
-import '../../../mobile/student_teacher/menu_pages/contact_us_page.dart';
+import '../../teacher/menu_pages/about_us_page.dart';
+import '../../teacher/menu_pages/contact_us_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final VoidCallback openDrawer;

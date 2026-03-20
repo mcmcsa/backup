@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
+import '../../../shared/models/app_notification_model.dart';
+import '../../../shared/services/app_notification_service.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -12,6 +16,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   String _selectedCategory = 'ALL';
   String _selectedTimeFilter = 'Today';
   List<NotificationItem> _notifications = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -19,9 +24,39 @@ class _NotificationsPageState extends State<NotificationsPage> {
     _loadNotifications();
   }
 
-  void _loadNotifications() {
-    // Notifications will be loaded from the database when available
-    _notifications = [];
+  Future<void> _loadNotifications() async {
+    try {
+      final authService = context.read<AuthService>();
+      final user = authService.currentUser;
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _notifications = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      final data = await AppNotificationService.fetchForUser(
+        role: user.role.name,
+        userId: user.id,
+      );
+
+      if (mounted) {
+        setState(() {
+          _notifications = data.map(_toNotificationItem).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _notifications = [];
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -35,7 +70,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
     // Filter by category
     if (_selectedCategory != 'ALL') {
-      filtered = filtered.where((n) => n.category == _selectedCategory).toList();
+      filtered = filtered
+          .where((n) => n.category == _selectedCategory)
+          .toList();
     }
 
     // Filter by time
@@ -44,13 +81,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
     DateTime weekStart = today.subtract(Duration(days: now.weekday - 1));
 
     if (_selectedTimeFilter == 'Today') {
-      filtered = filtered.where((n) => 
-        n.date.isAfter(today.subtract(const Duration(days: 1)))
-      ).toList();
+      filtered = filtered
+          .where((n) => n.date.isAfter(today.subtract(const Duration(days: 1))))
+          .toList();
     } else if (_selectedTimeFilter == 'This Week') {
-      filtered = filtered.where((n) => 
-        n.date.isAfter(weekStart.subtract(const Duration(days: 1)))
-      ).toList();
+      filtered = filtered
+          .where(
+            (n) => n.date.isAfter(weekStart.subtract(const Duration(days: 1))),
+          )
+          .toList();
     }
 
     // Filter by search query
@@ -65,9 +104,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
     return filtered;
   }
 
-  void _markAllAsRead() {
+  Future<void> _markAllAsRead() async {
+    final authService = context.read<AuthService>();
+    final user = authService.currentUser;
+    if (user == null) return;
+
+    await AppNotificationService.markAllAsRead(
+      role: user.role.name,
+      userId: user.id,
+    );
+
     setState(() {
-      for (var notification in _notifications) {
+      for (final notification in _notifications) {
         notification.isRead = true;
       }
     });
@@ -79,7 +127,71 @@ class _NotificationsPageState extends State<NotificationsPage> {
     );
   }
 
-  Map<String, List<NotificationItem>> _groupNotificationsByDate(List<NotificationItem> notifications) {
+  NotificationItem _toNotificationItem(AppNotification notification) {
+    IconData icon;
+    Color iconColor;
+    NotificationType type;
+    String category;
+
+    switch (notification.type) {
+      case 'work_request_submitted':
+        icon = Icons.assignment_rounded;
+        iconColor = const Color(0xFF4169E1);
+        type = NotificationType.workOrder;
+        category = 'WORK ORDERS';
+        break;
+      case 'work_request_approved':
+        icon = Icons.check_circle_rounded;
+        iconColor = const Color(0xFF059669);
+        type = NotificationType.success;
+        category = 'WORK ORDERS';
+        break;
+      case 'work_request_completed':
+        icon = Icons.task_alt_rounded;
+        iconColor = const Color(0xFF059669);
+        type = NotificationType.success;
+        category = 'WORK ORDERS';
+        break;
+      case 'work_request_declined':
+        icon = Icons.cancel_rounded;
+        iconColor = const Color(0xFFDC2626);
+        type = NotificationType.urgent;
+        category = 'WORK ORDERS';
+        break;
+      default:
+        icon = Icons.notifications_active_rounded;
+        iconColor = const Color(0xFF6B7280);
+        type = NotificationType.info;
+        category = 'ALL';
+        break;
+    }
+
+    return NotificationItem(
+      id: notification.id,
+      type: type,
+      icon: icon,
+      iconColor: iconColor,
+      title: notification.title,
+      description: notification.message,
+      timestamp: _relativeTimestamp(notification.createdAt),
+      date: notification.createdAt,
+      isRead: notification.isRead,
+      category: category,
+    );
+  }
+
+  String _relativeTimestamp(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    if (diff.inDays < 7) return '${diff.inDays}d';
+    return '${dt.month}/${dt.day}/${dt.year}';
+  }
+
+  Map<String, List<NotificationItem>> _groupNotificationsByDate(
+    List<NotificationItem> notifications,
+  ) {
     Map<String, List<NotificationItem>> grouped = {
       'TODAY': [],
       'THIS WEEK': [],
@@ -94,23 +206,29 @@ class _NotificationsPageState extends State<NotificationsPage> {
     for (var notification in notifications) {
       if (notification.date.isAfter(today.subtract(const Duration(days: 1)))) {
         grouped['TODAY']!.add(notification);
-      } else if (notification.date.isAfter(weekStart.subtract(const Duration(days: 1)))) {
+      } else if (notification.date.isAfter(
+        weekStart.subtract(const Duration(days: 1)),
+      )) {
         grouped['THIS WEEK']!.add(notification);
-      } else if (notification.date.isAfter(lastWeekStart.subtract(const Duration(days: 1)))) {
+      } else if (notification.date.isAfter(
+        lastWeekStart.subtract(const Duration(days: 1)),
+      )) {
         grouped['LAST WEEK']!.add(notification);
       }
     }
 
     // Remove empty groups
     grouped.removeWhere((key, value) => value.isEmpty);
-    
+
     return grouped;
   }
 
   @override
   Widget build(BuildContext context) {
     final filteredNotifications = _filteredNotifications;
-    final groupedNotifications = _groupNotificationsByDate(filteredNotifications);
+    final groupedNotifications = _groupNotificationsByDate(
+      filteredNotifications,
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
@@ -148,10 +266,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
               onChanged: (value) => setState(() {}),
               decoration: InputDecoration(
                 hintText: 'Search notifications...',
-                hintStyle: TextStyle(
-                  color: Colors.grey.shade400,
-                  fontSize: 14,
-                ),
+                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
                 prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -199,7 +314,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
           // Notifications List
           Expanded(
-            child: filteredNotifications.isEmpty
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : filteredNotifications.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -236,8 +353,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
                             ),
                           ),
                         ),
-                        ...group.value.map((notification) => 
-                          _buildNotificationCard(notification)
+                        ...group.value.map(
+                          (notification) =>
+                              _buildNotificationCard(notification),
                         ),
                       ],
                     ],
@@ -250,7 +368,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Widget _buildCategoryChip(String label) {
     final isSelected = _selectedCategory == label;
-    
+
     return FilterChip(
       label: Text(label),
       selected: isSelected,
@@ -275,7 +393,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Widget _buildTimeFilterChip(String label) {
     final isSelected = _selectedTimeFilter == label;
-    
+
     return FilterChip(
       label: Text(label),
       selected: isSelected,
@@ -303,21 +421,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: notification.isRead ? Colors.grey.shade200 : Colors.transparent,
+          color: notification.isRead
+              ? Colors.grey.shade200
+              : Colors.transparent,
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: InkWell(
-        onTap: () {
+        onTap: () async {
           setState(() {
             notification.isRead = true;
           });
-          // TODO: Navigate to notification details
+          await AppNotificationService.markAsRead(notification.id);
         },
         borderRadius: BorderRadius.circular(12),
         child: Container(
@@ -325,7 +446,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
             borderRadius: BorderRadius.circular(12),
             border: Border(
               left: BorderSide(
-                color: notification.isRead ? Colors.transparent : notification.iconColor,
+                color: notification.isRead
+                    ? Colors.transparent
+                    : notification.iconColor,
                 width: 4,
               ),
             ),
@@ -360,8 +483,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               notification.title,
                               style: TextStyle(
                                 fontSize: 14,
-                                fontWeight: notification.isRead 
-                                    ? FontWeight.w500 
+                                fontWeight: notification.isRead
+                                    ? FontWeight.w500
                                     : FontWeight.w600,
                                 color: Colors.black87,
                               ),
@@ -399,12 +522,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 }
 
-enum NotificationType {
-  urgent,
-  workOrder,
-  info,
-  success,
-}
+enum NotificationType { urgent, workOrder, info, success }
 
 class NotificationItem {
   final String id;
@@ -431,9 +549,3 @@ class NotificationItem {
     required this.category,
   });
 }
-
-
-
-
-
-

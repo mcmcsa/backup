@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
-import '../../../authentication/services/auth_service.dart';
+import '../../admin/shared/notifications_page.dart';
 import '../task/task_details_page.dart';
 import '../maintenance_navigation.dart';
 
@@ -28,28 +27,57 @@ class _MaintenanceDashboardMobileState
 
   Future<void> _loadRequests() async {
     try {
-      final authService = context.read<AuthService>();
-      final user = authService.currentUser;
-      List<WorkRequest> data;
-      if (user != null && user.id.isNotEmpty) {
-        data = await WorkRequestService.fetchAssignedTo(user.id);
-      } else {
-        data = [];
+      final data = await WorkRequestService.fetchAll();
+      final maintenanceQueue = data
+          .where(
+            (r) =>
+                r.status == 'pending' ||
+                r.status == 'approved' ||
+                r.status == 'in_progress' ||
+                r.status == 'under_maintenance' ||
+                r.status == 'completed' ||
+                r.status == 'done',
+          )
+          .toList();
+      if (mounted) {
+        setState(() {
+          _requests = maintenanceQueue;
+          _isLoading = false;
+        });
       }
-      if (mounted) setState(() { _requests = data; _isLoading = false; });
     } catch (_) {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final assigned = _requests.where((r) => r.status == 'pending').length;
-    final inspection = _requests.where((r) => r.status == 'ongoing' && r.typeOfRequest.toLowerCase().contains('inspection')).length;
-    final repair = _requests.where((r) => r.status == 'ongoing' && !r.typeOfRequest.toLowerCase().contains('inspection')).length;
+    final inspection = _requests
+        .where(
+          (r) =>
+              r.status == 'ongoing' &&
+              r.typeOfRequest.toLowerCase().contains('inspection'),
+        )
+        .length;
+    final repair = _requests
+        .where(
+          (r) =>
+              r.status == 'ongoing' &&
+              !r.typeOfRequest.toLowerCase().contains('inspection'),
+        )
+        .length;
     final completed = _requests.where((r) => r.status == 'done').length;
-    final activeRequests = _requests.where((r) => r.status == 'pending' || r.status == 'ongoing').toList();
-    final highPriority = _requests.where((r) => r.priority == 'high' && r.status != 'done').toList();
+    final activeRequests = _requests
+        .where((r) => r.status == 'pending' || r.status == 'ongoing')
+        .toList();
+    final highPriority = _requests
+        .where((r) => r.priority == 'high' && r.status != 'done')
+        .toList();
 
     if (_isLoading) {
       return const Scaffold(
@@ -60,234 +88,268 @@ class _MaintenanceDashboardMobileState
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: const CommonAppBar(
+      appBar: CommonAppBar(
         roleText: 'Welcome Maintenance Staff',
         primaryColor: Color(0xFF4169E1),
+        onNotificationPressed: () async {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const NotificationsPage()),
+          );
+          if (mounted) {
+            setState(() {});
+          }
+        },
       ),
       body: RefreshIndicator(
         onRefresh: _loadRequests,
         child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Overview Section
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Overview',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'LIVE UPDATES',
-                  style: TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Stats Grid
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'ASSIGNED',
-                  '$assigned',
-                  Icons.add_box_outlined,
-                  Colors.blue,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'INSPECTION',
-                  '$inspection',
-                  Icons.remove_red_eye_outlined,
-                  Colors.blue,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard(
-                  'REPAIR',
-                  '$repair',
-                  Icons.build_outlined,
-                  Colors.orange,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatCard(
-                  'COMPLETED',
-                  '$completed',
-                  Icons.check_circle_outline,
-                  Colors.green,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Ticket Aging Section
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.access_time, size: 16, color: Colors.orange),
-                  const SizedBox(width: 4),
-                  const Text(
-                    'Ticket Aging (FIFO)',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'PRIORITY REQUIRED',
-                  style: TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Priority Tickets
-          if (highPriority.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text('No priority tickets', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
-              ),
-            )
-          else
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Overview Section
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                ...highPriority.take(2).map((r) => Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: _buildPriorityTicket(
-                      r.id.length > 5 ? '#${r.id.substring(r.id.length - 4)}' : '#${r.id}',
-                      r.title,
-                      '${r.buildingName}, ${r.officeRoom}',
-                      r.status == 'pending' ? 'Pending' : 'In Progress',
-                      r.priority == 'high' ? 'HIGH ATTENTION' : 'JUST ASSIGNED',
-                      r.priority == 'high' ? Colors.red : Colors.orange,
+                const Text(
+                  'Overview',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'LIVE UPDATES',
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                )),
+                ),
               ],
             ),
-          const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-          // My Active Tasks Section
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'My Active Tasks',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+            // Stats Grid
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    'ASSIGNED',
+                    '$assigned',
+                    Icons.add_box_outlined,
+                    Colors.blue,
+                  ),
                 ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MaintenanceNavigation(initialIndex: 1),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatCard(
+                    'INSPECTION',
+                    '$inspection',
+                    Icons.remove_red_eye_outlined,
+                    Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    'REPAIR',
+                    '$repair',
+                    Icons.build_outlined,
+                    Colors.orange,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildStatCard(
+                    'COMPLETED',
+                    '$completed',
+                    Icons.check_circle_outline,
+                    Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Ticket Aging Section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.access_time, size: 16, color: Colors.orange),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'Ticket Aging (FIFO)',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
                     ),
-                  );
-                },
-                child: const Text(
-                  'View All',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF4169E1)),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'PRIORITY REQUIRED',
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
 
-          // Task Cards
-          if (activeRequests.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text('No active tasks', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+            // Priority Tickets
+            if (highPriority.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    'No priority tickets',
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                  ),
+                ),
+              )
+            else
+              Row(
+                children: [
+                  ...highPriority
+                      .take(2)
+                      .map(
+                        (r) => Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: _buildPriorityTicket(
+                              r.id.length > 5
+                                  ? '#${r.id.substring(r.id.length - 4)}'
+                                  : '#${r.id}',
+                              r.title,
+                              '${r.buildingName}, ${r.officeRoom}',
+                              r.status == 'pending' ? 'Pending' : 'In Progress',
+                              r.priority == 'high'
+                                  ? 'HIGH ATTENTION'
+                                  : 'JUST ASSIGNED',
+                              r.priority == 'high' ? Colors.red : Colors.orange,
+                            ),
+                          ),
+                        ),
+                      ),
+                ],
               ),
-            )
-          else
-            ...activeRequests.take(5).map((r) {
-              final priorityLabel = r.priority == 'high' ? 'HIGH PRIORITY'
-                  : r.priority == 'medium' ? 'MEDIUM'
-                  : 'LOW PRIORITY';
-              final priorityColor = r.priority == 'high' ? Colors.red
-                  : r.priority == 'medium' ? Colors.orange
-                  : Colors.blue.shade700;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.push(
+            const SizedBox(height: 24),
+
+            // My Active Tasks Section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'My Active Tasks',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => TaskDetailsPage(
-                          taskId: r.id,
-                          title: r.title,
-                          location: '${r.buildingName}, ${r.officeRoom}',
-                        ),
+                        builder: (context) =>
+                            const MaintenanceNavigation(initialIndex: 1),
                       ),
                     );
                   },
-                  child: _buildTaskCard(
-                    r.id,
-                    r.title,
-                    '${r.buildingName}, ${r.officeRoom}',
-                    r.status == 'pending' ? 'Assigned' : 'In Progress',
-                    priorityLabel,
-                  priorityColor,
+                  child: const Text(
+                    'View All',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF4169E1)),
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Task Cards
+            if (activeRequests.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    'No active tasks',
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                  ),
                 ),
-              );
-            }),
-          const SizedBox(height: 100),
-        ],
-      ),
+              )
+            else
+              ...activeRequests.take(5).map((r) {
+                final priorityLabel = r.priority == 'high'
+                    ? 'HIGH PRIORITY'
+                    : r.priority == 'medium'
+                    ? 'MEDIUM'
+                    : 'LOW PRIORITY';
+                final priorityColor = r.priority == 'high'
+                    ? Colors.red
+                    : r.priority == 'medium'
+                    ? Colors.orange
+                    : Colors.blue.shade700;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TaskDetailsPage(
+                            taskId: r.id,
+                            title: r.title,
+                            location: '${r.buildingName}, ${r.officeRoom}',
+                          ),
+                        ),
+                      );
+                    },
+                    child: _buildTaskCard(
+                      r.id,
+                      r.title,
+                      '${r.buildingName}, ${r.officeRoom}',
+                      r.status == 'pending' ? 'Assigned' : 'In Progress',
+                      priorityLabel,
+                      priorityColor,
+                    ),
+                  ),
+                );
+              }),
+            const SizedBox(height: 100),
+          ],
+        ),
       ),
     );
   }

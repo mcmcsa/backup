@@ -15,14 +15,27 @@ class _TicketsPageWebState extends State<TicketsPageWeb> {
   final TextEditingController _searchController = TextEditingController();
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
-  String? _selectedPriority;
-  String _sortBy = 'date';
-  bool _sortAscending = false;
+
+  // Professional color palette
+  static const Color _primaryBlue = Color(0xFF3B82F6);
+  static const Color _successGreen = Color(0xFF22C55E);
+  static const Color _warningYellow = Color(0xFFFBBF24);
+  static const Color _darkText = Color(0xFF1E293B);
+  static const Color _subtleText = Color(0xFF64748B);
+  static const Color _pageBg = Color(0xFFF1F5F9);
+
+  final List<String> _filters = ['All Tickets', 'Pending', 'Active', 'Completed'];
 
   @override
   void initState() {
     super.initState();
     _loadRequests();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRequests() async {
@@ -45,489 +58,339 @@ class _TicketsPageWebState extends State<TicketsPageWeb> {
     final query = _searchController.text.toLowerCase();
     var requests = _requests;
 
-    // Status filter
+    // Apply status filter
     if (_selectedFilter == 1) {
-      requests = requests.where((r) => r.status == 'pending').toList();
+      requests = requests.where((r) => r.status.toLowerCase() == 'pending').toList();
     } else if (_selectedFilter == 2) {
-      requests = requests.where((r) => r.status == 'ongoing').toList();
+      requests = requests.where((r) =>
+        r.status.toLowerCase() == 'in_progress' ||
+        r.status.toLowerCase() == 'approved' ||
+        r.status.toLowerCase() == 'under_maintenance'
+      ).toList();
     } else if (_selectedFilter == 3) {
-      requests = requests.where((r) => r.status == 'done').toList();
+      requests = requests.where((r) => r.status.toLowerCase() == 'completed').toList();
     }
 
-    // Priority filter
-    if (_selectedPriority != null) {
-      requests = requests.where((r) => r.priority == _selectedPriority).toList();
-    }
-
-    // Search filter
+    // Apply search filter
     if (query.isNotEmpty) {
-      requests = requests
-          .where((r) =>
-              r.title.toLowerCase().contains(query) ||
-              r.requestorName.toLowerCase().contains(query) ||
-              r.id.toLowerCase().contains(query))
-          .toList();
+      requests = requests.where((r) =>
+        r.title.toLowerCase().contains(query) ||
+        r.id.toLowerCase().contains(query) ||
+        r.requestorName.toLowerCase().contains(query)
+      ).toList();
     }
-
-    // Sort
-    requests.sort((a, b) {
-      int cmp;
-      switch (_sortBy) {
-        case 'title':
-          cmp = a.title.compareTo(b.title);
-          break;
-        case 'requestor':
-          cmp = a.requestorName.compareTo(b.requestorName);
-          break;
-        case 'priority':
-          final priorityOrder = {'high': 0, 'medium': 1, 'low': 2};
-          cmp = (priorityOrder[a.priority] ?? 3)
-              .compareTo(priorityOrder[b.priority] ?? 3);
-          break;
-        case 'status':
-          cmp = a.status.compareTo(b.status);
-          break;
-        case 'date':
-        default:
-          cmp = a.dateSubmitted.compareTo(b.dateSubmitted);
-      }
-      return _sortAscending ? cmp : -cmp;
-    });
 
     return requests;
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
+  int _getCountByFilter(int filter) {
+    switch (filter) {
+      case 0: return _requests.length;
+      case 1: return _requests.where((r) => r.status.toLowerCase() == 'pending').length;
+      case 2: return _requests.where((r) =>
+        r.status.toLowerCase() == 'in_progress' ||
+        r.status.toLowerCase() == 'approved' ||
+        r.status.toLowerCase() == 'under_maintenance'
+      ).length;
+      case 3: return _requests.where((r) => r.status.toLowerCase() == 'completed').length;
+      default: return 0;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final pendingCount = _requests.where((r) => r.status == 'pending').length;
-    final ongoingCount = _requests.where((r) => r.status == 'ongoing').length;
-    final completedCount = _requests.where((r) => r.status == 'done').length;
+    return Container(
+      color: _pageBg,
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Stats Cards Row
+                  _buildStatsRow(),
+                  const SizedBox(height: 24),
 
-    return Column(
-      children: [
-        // Header Section
-        Container(
-          padding: const EdgeInsets.fromLTRB(28, 20, 28, 20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: const Border(
-              bottom: BorderSide(color: Color(0xFFE2E8F0)),
+                  // Main Content Card
+                  _buildMainCard(),
+                ],
+              ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Top Row - Stats and Search
-              Row(
-                children: [
-                  // Status Tabs
-                  _StatusTab(
-                    label: 'All',
-                    count: _requests.length,
-                    isSelected: _selectedFilter == 0,
-                    onTap: () => setState(() => _selectedFilter = 0),
-                  ),
-                  const SizedBox(width: 8),
-                  _StatusTab(
-                    label: 'Pending',
-                    count: pendingCount,
-                    color: const Color(0xFFD97706),
-                    isSelected: _selectedFilter == 1,
-                    onTap: () => setState(() => _selectedFilter = 1),
-                  ),
-                  const SizedBox(width: 8),
-                  _StatusTab(
-                    label: 'In Progress',
-                    count: ongoingCount,
-                    color: const Color(0xFF2563EB),
-                    isSelected: _selectedFilter == 2,
-                    onTap: () => setState(() => _selectedFilter = 2),
-                  ),
-                  const SizedBox(width: 8),
-                  _StatusTab(
-                    label: 'Completed',
-                    count: completedCount,
-                    color: const Color(0xFF059669),
-                    isSelected: _selectedFilter == 3,
-                    onTap: () => setState(() => _selectedFilter = 3),
-                  ),
-                  const Spacer(),
-                  // Search
-                  Container(
-                    width: 280,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (_) => setState(() {}),
-                      decoration: InputDecoration(
-                        hintText: 'Search tickets...',
-                        hintStyle: const TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontSize: 14,
-                        ),
-                        prefixIcon: const Icon(
-                          Icons.search_rounded,
-                          color: Color(0xFF94A3B8),
-                          size: 20,
-                        ),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() {});
-                                },
-                                color: const Color(0xFF94A3B8),
-                              )
-                            : null,
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Bottom Row - Filters and Actions
-              Row(
-                children: [
-                  // Priority Filter
-                  _FilterDropdown(
-                    icon: Icons.flag_outlined,
-                    label: 'Priority',
-                    value: _selectedPriority,
-                    items: const [
-                      DropdownMenuItem(value: null, child: Text('All Priorities')),
-                      DropdownMenuItem(value: 'high', child: Text('High')),
-                      DropdownMenuItem(value: 'medium', child: Text('Medium')),
-                      DropdownMenuItem(value: 'low', child: Text('Low')),
-                    ],
-                    onChanged: (value) => setState(() => _selectedPriority = value),
-                  ),
-                  const SizedBox(width: 12),
-                  // Sort Dropdown
-                  _FilterDropdown(
-                    icon: Icons.sort_rounded,
-                    label: 'Sort by',
-                    value: _sortBy,
-                    items: const [
-                      DropdownMenuItem(value: 'date', child: Text('Date')),
-                      DropdownMenuItem(value: 'title', child: Text('Title')),
-                      DropdownMenuItem(value: 'priority', child: Text('Priority')),
-                      DropdownMenuItem(value: 'status', child: Text('Status')),
-                    ],
-                    onChanged: (value) => setState(() => _sortBy = value ?? 'date'),
-                  ),
-                  const SizedBox(width: 8),
-                  // Sort Direction
-                  InkWell(
-                    onTap: () => setState(() => _sortAscending = !_sortAscending),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Icon(
-                        _sortAscending
-                            ? Icons.arrow_upward_rounded
-                            : Icons.arrow_downward_rounded,
-                        size: 18,
-                        color: const Color(0xFF64748B),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  // Results count
-                  Text(
-                    '${_filteredRequests.length} ticket${_filteredRequests.length != 1 ? 's' : ''} found',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Export Button
-                  OutlinedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.download_rounded, size: 18),
-                    label: const Text('Export'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF64748B),
-                      side: const BorderSide(color: Color(0xFFE2E8F0)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Refresh Button
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() => _isLoading = true);
-                      _loadRequests();
-                    },
-                    icon: const Icon(Icons.refresh_rounded, size: 18),
-                    label: const Text('Refresh'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF64748B),
-                      side: const BorderSide(color: Color(0xFFE2E8F0)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+    );
+  }
+
+  Widget _buildStatsRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: _StatCard(
+            title: 'All Tickets',
+            value: _getCountByFilter(0),
+            icon: Icons.confirmation_num_rounded,
+            iconColor: _primaryBlue,
+            isSelected: _selectedFilter == 0,
+            onTap: () => setState(() => _selectedFilter = 0),
           ),
         ),
-
-        // Table Content
+        const SizedBox(width: 16),
         Expanded(
-          child: _isLoading
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.06),
-                              blurRadius: 16,
-                            ),
-                          ],
-                        ),
-                        child: const CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Loading tickets...',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : _filteredRequests.isEmpty
-                  ? _EmptyState(hasFilters: _selectedFilter != 0 || _selectedPriority != null || _searchController.text.isNotEmpty)
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(28),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFF1F5F9)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            // Table Header
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFFAFAFA),
-                                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                                border: Border(
-                                  bottom: BorderSide(color: Color(0xFFF1F5F9)),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(flex: 2, child: _SortableHeader(title: 'TICKET ID', sortKey: 'id', currentSort: _sortBy, ascending: _sortAscending, onSort: (_) {})),
-                                  Expanded(flex: 3, child: _SortableHeader(title: 'DESCRIPTION', sortKey: 'title', currentSort: _sortBy, ascending: _sortAscending, onSort: (key) => setState(() { _sortBy = key; }))),
-                                  Expanded(flex: 2, child: _SortableHeader(title: 'REQUESTOR', sortKey: 'requestor', currentSort: _sortBy, ascending: _sortAscending, onSort: (key) => setState(() { _sortBy = key; }))),
-                                  Expanded(flex: 2, child: _SortableHeader(title: 'DATE', sortKey: 'date', currentSort: _sortBy, ascending: _sortAscending, onSort: (key) => setState(() { _sortBy = key; }))),
-                                  const SizedBox(width: 100, child: _TableHeader('PRIORITY')),
-                                  const SizedBox(width: 110, child: _TableHeader('STATUS')),
-                                  const SizedBox(width: 80, child: _TableHeader('ACTIONS')),
-                                ],
-                              ),
-                            ),
-                            // Table Body
-                            ...List.generate(_filteredRequests.length, (index) {
-                              return _TicketRow(
-                                request: _filteredRequests[index],
-                                isLast: index == _filteredRequests.length - 1,
-                              );
-                            }),
-                          ],
-                        ),
-                      ),
-                    ),
+          child: _StatCard(
+            title: 'Pending',
+            value: _getCountByFilter(1),
+            icon: Icons.hourglass_empty_rounded,
+            iconColor: _warningYellow,
+            isSelected: _selectedFilter == 1,
+            onTap: () => setState(() => _selectedFilter = 1),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _StatCard(
+            title: 'Active',
+            value: _getCountByFilter(2),
+            icon: Icons.build_rounded,
+            iconColor: _primaryBlue,
+            isSelected: _selectedFilter == 2,
+            onTap: () => setState(() => _selectedFilter = 2),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _StatCard(
+            title: 'Completed',
+            value: _getCountByFilter(3),
+            icon: Icons.check_circle_rounded,
+            iconColor: _successGreen,
+            isSelected: _selectedFilter == 3,
+            onTap: () => setState(() => _selectedFilter = 3),
+          ),
         ),
       ],
     );
   }
+
+  Widget _buildMainCard() {
+    final filteredRequests = _filteredRequests;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _primaryBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.confirmation_num_rounded, color: _primaryBlue, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _filters[_selectedFilter],
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: _darkText,
+                      ),
+                    ),
+                    Text(
+                      '${filteredRequests.length} tickets',
+                      style: const TextStyle(fontSize: 13, color: _subtleText),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                // Search
+                Container(
+                  width: 280,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: _pageBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'Search tickets...',
+                      hintStyle: TextStyle(color: _subtleText, fontSize: 14),
+                      prefixIcon: Icon(Icons.search_rounded, color: _subtleText, size: 20),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Table Header
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            decoration: BoxDecoration(
+              color: _pageBg,
+              border: Border(
+                top: BorderSide(color: Colors.grey.withValues(alpha: 0.1)),
+                bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.1)),
+              ),
+            ),
+            child: const Row(
+              children: [
+                SizedBox(width: 100, child: _TableHeader('TICKET #')),
+                Expanded(flex: 2, child: _TableHeader('SUBJECT')),
+                Expanded(child: _TableHeader('REQUESTOR')),
+                Expanded(child: _TableHeader('LOCATION')),
+                SizedBox(width: 100, child: _TableHeader('PRIORITY')),
+                SizedBox(width: 100, child: _TableHeader('STATUS')),
+                SizedBox(width: 100, child: _TableHeader('DATE')),
+              ],
+            ),
+          ),
+
+          // Table Body
+          if (filteredRequests.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(48),
+              child: Column(
+                children: [
+                  Icon(Icons.inbox_rounded, size: 48, color: Colors.grey[300]),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'No tickets found',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _subtleText),
+                  ),
+                ],
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: filteredRequests.length,
+              separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.withValues(alpha: 0.1)),
+              itemBuilder: (context, index) {
+                final request = filteredRequests[index];
+                return _TicketRow(request: request);
+              },
+            ),
+        ],
+      ),
+    );
+  }
 }
 
-class _StatusTab extends StatefulWidget {
-  final String label;
-  final int count;
-  final Color? color;
+// ==================== WIDGETS ====================
+
+class _StatCard extends StatefulWidget {
+  final String title;
+  final int value;
+  final IconData icon;
+  final Color iconColor;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _StatusTab({
-    required this.label,
-    required this.count,
-    this.color,
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.iconColor,
     required this.isSelected,
     required this.onTap,
   });
 
   @override
-  State<_StatusTab> createState() => _StatusTabState();
+  State<_StatCard> createState() => _StatCardState();
 }
 
-class _StatusTabState extends State<_StatusTab> {
+class _StatCardState extends State<_StatCard> {
   bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = widget.color ?? const Color(0xFF475569);
-
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.all(20),
+          transform: Matrix4.identity()..translate(0.0, _isHovered ? -2.0 : 0.0),
           decoration: BoxDecoration(
-            color: widget.isSelected
-                ? baseColor.withValues(alpha: 0.1)
-                : _isHovered
-                    ? const Color(0xFFF8FAFC)
-                    : Colors.white,
-            borderRadius: BorderRadius.circular(10),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: widget.isSelected
-                  ? baseColor.withValues(alpha: 0.3)
-                  : _isHovered
-                      ? const Color(0xFFE2E8F0)
-                      : const Color(0xFFF1F5F9),
-              width: widget.isSelected ? 1.5 : 1,
+                  ? widget.iconColor.withValues(alpha: 0.5)
+                  : Colors.transparent,
+              width: 2,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: widget.isSelected
+                    ? widget.iconColor.withValues(alpha: 0.15)
+                    : Colors.black.withValues(alpha: 0.04),
+                blurRadius: _isHovered ? 16 : 12,
+                offset: Offset(0, _isHovered ? 6 : 4),
+              ),
+            ],
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: widget.isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: widget.isSelected ? baseColor : const Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: widget.isSelected
-                      ? baseColor
-                      : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(6),
+                  color: widget.iconColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  widget.count.toString(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: widget.isSelected ? Colors.white : const Color(0xFF64748B),
+                child: Icon(widget.icon, color: widget.iconColor, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.value.toString(),
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1E293B),
+                    ),
                   ),
-                ),
+                  Text(
+                    widget.title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _FilterDropdown extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? value;
-  final List<DropdownMenuItem<String?>> items;
-  final ValueChanged<String?> onChanged;
-
-  const _FilterDropdown({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.items,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: const Color(0xFF64748B)),
-          const SizedBox(width: 8),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String?>(
-              value: value,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Color(0xFF64748B)),
-              items: items,
-              onChanged: onChanged,
-              isDense: true,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -535,7 +398,6 @@ class _FilterDropdown extends StatelessWidget {
 
 class _TableHeader extends StatelessWidget {
   final String text;
-
   const _TableHeader(this.text);
 
   @override
@@ -544,7 +406,7 @@ class _TableHeader extends StatelessWidget {
       text,
       style: const TextStyle(
         fontSize: 11,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w700,
         color: Color(0xFF64748B),
         letterSpacing: 0.5,
       ),
@@ -552,72 +414,9 @@ class _TableHeader extends StatelessWidget {
   }
 }
 
-class _SortableHeader extends StatefulWidget {
-  final String title;
-  final String sortKey;
-  final String currentSort;
-  final bool ascending;
-  final ValueChanged<String> onSort;
-
-  const _SortableHeader({
-    required this.title,
-    required this.sortKey,
-    required this.currentSort,
-    required this.ascending,
-    required this.onSort,
-  });
-
-  @override
-  State<_SortableHeader> createState() => _SortableHeaderState();
-}
-
-class _SortableHeaderState extends State<_SortableHeader> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = widget.currentSort == widget.sortKey;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: () => widget.onSort(widget.sortKey),
-        child: Row(
-          children: [
-            Text(
-              widget.title,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: isActive ? const Color(0xFF3B82F6) : const Color(0xFF64748B),
-                letterSpacing: 0.5,
-              ),
-            ),
-            if (_isHovered || isActive) ...[
-              const SizedBox(width: 4),
-              Icon(
-                isActive
-                    ? (widget.ascending
-                        ? Icons.arrow_upward_rounded
-                        : Icons.arrow_downward_rounded)
-                    : Icons.unfold_more_rounded,
-                size: 14,
-                color: isActive ? const Color(0xFF3B82F6) : const Color(0xFF94A3B8),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _TicketRow extends StatefulWidget {
   final WorkRequest request;
-  final bool isLast;
-
-  const _TicketRow({required this.request, this.isLast = false});
+  const _TicketRow({required this.request});
 
   @override
   State<_TicketRow> createState() => _TicketRowState();
@@ -628,232 +427,70 @@ class _TicketRowState extends State<_TicketRow> {
 
   @override
   Widget build(BuildContext context) {
-    Color statusColor;
-    String statusText;
-    IconData statusIcon;
-
-    switch (widget.request.status) {
-      case 'pending':
-        statusColor = const Color(0xFFD97706);
-        statusText = 'Pending';
-        statusIcon = Icons.schedule_rounded;
-        break;
-      case 'ongoing':
-        statusColor = const Color(0xFF2563EB);
-        statusText = 'In Progress';
-        statusIcon = Icons.engineering_rounded;
-        break;
-      case 'done':
-        statusColor = const Color(0xFF059669);
-        statusText = 'Completed';
-        statusIcon = Icons.check_circle_rounded;
-        break;
-      default:
-        statusColor = const Color(0xFF64748B);
-        statusText = widget.request.status;
-        statusIcon = Icons.help_outline_rounded;
-    }
-
-    Color priorityColor;
-    String priorityText;
-    switch (widget.request.priority) {
-      case 'high':
-        priorityColor = const Color(0xFFDC2626);
-        priorityText = 'High';
-        break;
-      case 'medium':
-        priorityColor = const Color(0xFFD97706);
-        priorityText = 'Medium';
-        break;
-      case 'low':
-        priorityColor = const Color(0xFF059669);
-        priorityText = 'Low';
-        break;
-      default:
-        priorityColor = const Color(0xFF64748B);
-        priorityText = widget.request.priority;
-    }
-
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          color: _isHovered ? const Color(0xFFFAFAFA) : Colors.white,
-          border: widget.isLast
-              ? null
-              : const Border(bottom: BorderSide(color: Color(0xFFF8FAFC))),
-          borderRadius: widget.isLast
-              ? const BorderRadius.vertical(bottom: Radius.circular(16))
-              : null,
-        ),
+        color: _isHovered ? const Color(0xFFF8FAFC) : Colors.white,
         child: Row(
           children: [
             // Ticket ID
-            Expanded(
-              flex: 2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  '#${widget.request.id.substring(0, 8).toUpperCase()}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF475569),
-                    fontFamily: 'monospace',
-                  ),
+            SizedBox(
+              width: 100,
+              child: Text(
+                '#${widget.request.id.length > 6 ? widget.request.id.substring(0, 6) : widget.request.id}',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF3B82F6),
+                  fontFamily: 'monospace',
                 ),
               ),
             ),
-            // Description
+            // Subject
             Expanded(
-              flex: 3,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Text(
-                  widget.request.title,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF1E293B),
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
+              flex: 2,
+              child: Text(
+                widget.request.title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1E293B),
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             // Requestor
             Expanded(
-              flex: 2,
-              child: Row(
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Center(
-                      child: Text(
-                        widget.request.requestorName.isNotEmpty
-                            ? widget.request.requestorName[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF3B82F6),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      widget.request.requestorName,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF64748B),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+              child: Text(
+                widget.request.requestorName,
+                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            // Date
+            // Location
             Expanded(
-              flex: 2,
               child: Text(
-                DateFormat('MMM dd, yyyy').format(widget.request.dateSubmitted),
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Color(0xFF64748B),
-                ),
+                '${widget.request.officeRoom}, ${widget.request.buildingName}',
+                style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             // Priority
+            SizedBox(width: 100, child: _PriorityBadge(priority: widget.request.priority)),
+            // Status
+            SizedBox(width: 100, child: _StatusBadge(status: widget.request.status)),
+            // Date
             SizedBox(
               width: 100,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: priorityColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: priorityColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      priorityText,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: priorityColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Status
-            SizedBox(
-              width: 110,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(statusIcon, size: 13, color: statusColor),
-                    const SizedBox(width: 5),
-                    Text(
-                      statusText,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: statusColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Actions
-            SizedBox(
-              width: 80,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _ActionButton(
-                    icon: Icons.visibility_outlined,
-                    tooltip: 'View Details',
-                    onPressed: () {},
-                  ),
-                  _ActionButton(
-                    icon: Icons.more_horiz_rounded,
-                    tooltip: 'More Options',
-                    onPressed: () {},
-                  ),
-                ],
+              child: Text(
+                DateFormat('MMM d, y').format(widget.request.dateSubmitted),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
               ),
             ),
           ],
@@ -863,109 +500,101 @@ class _TicketRowState extends State<_TicketRow> {
   }
 }
 
-class _ActionButton extends StatefulWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  const _ActionButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  @override
-  State<_ActionButton> createState() => _ActionButtonState();
-}
-
-class _ActionButtonState extends State<_ActionButton> {
-  bool _isHovered = false;
+class _StatusBadge extends StatelessWidget {
+  final String status;
+  const _StatusBadge({required this.status});
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: GestureDetector(
-          onTap: widget.onPressed,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: _isHovered ? const Color(0xFFF1F5F9) : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              widget.icon,
-              size: 18,
-              color: _isHovered ? const Color(0xFF475569) : const Color(0xFF94A3B8),
-            ),
-          ),
+    final config = _getConfig();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: config.bgColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        config.label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: config.textColor,
         ),
       ),
     );
   }
+
+  _Config _getConfig() {
+    switch (status.toLowerCase()) {
+      case 'pending':
+        return _Config('REVIEW', const Color(0xFFFEF3C7), const Color(0xFFD97706));
+      case 'approved':
+      case 'in_progress':
+      case 'under_maintenance':
+        return _Config('ACTIVE', const Color(0xFFDBEAFE), const Color(0xFF2563EB));
+      case 'completed':
+        return _Config('DONE', const Color(0xFFDCFCE7), const Color(0xFF16A34A));
+      case 'rework':
+        return _Config('REWORK', const Color(0xFFFEE2E2), const Color(0xFFDC2626));
+      default:
+        return _Config(status.toUpperCase(), const Color(0xFFF1F5F9), const Color(0xFF64748B));
+    }
+  }
 }
 
-class _EmptyState extends StatelessWidget {
-  final bool hasFilters;
-
-  const _EmptyState({this.hasFilters = false});
+class _PriorityBadge extends StatelessWidget {
+  final String priority;
+  const _PriorityBadge({required this.priority});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.assignment_outlined,
-              size: 40,
-              color: Color(0xFFCBD5E1),
-            ),
+    final config = _getConfig();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: config.color,
+            shape: BoxShape.circle,
           ),
-          const SizedBox(height: 24),
-          Text(
-            hasFilters ? 'No tickets match your filters' : 'No tickets yet',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1E293B),
-            ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          priority.toUpperCase(),
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: config.color,
           ),
-          const SizedBox(height: 8),
-          Text(
-            hasFilters
-                ? 'Try adjusting your search or filter criteria'
-                : 'Maintenance requests will appear here when submitted',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF64748B),
-            ),
-          ),
-          if (hasFilters) ...[
-            const SizedBox(height: 20),
-            TextButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.filter_alt_off_rounded, size: 18),
-              label: const Text('Clear Filters'),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF3B82F6),
-              ),
-            ),
-          ],
-        ],
-      ),
+        ),
+      ],
     );
   }
+
+  _PriorityConfig _getConfig() {
+    switch (priority.toLowerCase()) {
+      case 'high':
+        return _PriorityConfig(const Color(0xFFDC2626));
+      case 'medium':
+        return _PriorityConfig(const Color(0xFFD97706));
+      case 'low':
+        return _PriorityConfig(const Color(0xFF16A34A));
+      default:
+        return _PriorityConfig(const Color(0xFF64748B));
+    }
+  }
+}
+
+class _Config {
+  final String label;
+  final Color bgColor;
+  final Color textColor;
+  _Config(this.label, this.bgColor, this.textColor);
+}
+
+class _PriorityConfig {
+  final Color color;
+  _PriorityConfig(this.color);
 }

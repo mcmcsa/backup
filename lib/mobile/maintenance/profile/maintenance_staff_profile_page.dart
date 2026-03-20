@@ -4,9 +4,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/services/work_request_service.dart';
-import '../../../mobile/student_teacher/menu_pages/about_us_page.dart';
-import '../../../mobile/student_teacher/menu_pages/contact_us_page.dart';
-import '../../../mobile/student_teacher/menu_pages/settings_page.dart';
+import '../../teacher/menu_pages/about_us_page.dart';
+import '../../teacher/menu_pages/contact_us_page.dart';
+import '../../teacher/menu_pages/settings_page.dart';
 
 class MaintenanceStaffProfilePage extends StatefulWidget {
   const MaintenanceStaffProfilePage({super.key});

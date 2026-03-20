@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../authentication/services/auth_service.dart';
+import '../services/app_notification_service.dart';
 import '../providers/theme_provider.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -17,6 +19,17 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.onNotificationPressed,
     this.showMenu = true,
   });
+
+  Future<int> _fetchUnreadCount(BuildContext context) async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+    if (user == null) return 0;
+
+    return AppNotificationService.getUnreadCount(
+      role: user.role.name,
+      userId: user.id,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -82,28 +95,48 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
-        Stack(
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.notifications_outlined, 
-                color: themeProvider.appBarIconColor,
-              ),
-              onPressed: onNotificationPressed ?? () {},
-            ),
-            Positioned(
-              right: 12,
-              top: 12,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  color: Colors.red,
-                  shape: BoxShape.circle,
+        FutureBuilder<int>(
+          future: _fetchUnreadCount(context),
+          builder: (context, snapshot) {
+            final unreadCount = snapshot.data ?? 0;
+            return Stack(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.notifications_outlined,
+                    color: themeProvider.appBarIconColor,
+                  ),
+                  onPressed: onNotificationPressed ?? () {},
                 ),
-              ),
-            ),
-          ],
+                if (unreadCount > 0)
+                  Positioned(
+                    right: 6,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 2,
+                      ),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.rectangle,
+                        borderRadius: BorderRadius.all(Radius.circular(10)),
+                      ),
+                      constraints: const BoxConstraints(minWidth: 18),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ],
     );

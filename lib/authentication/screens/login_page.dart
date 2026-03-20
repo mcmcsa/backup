@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../services/auth_service.dart';
-import '../../mobile/admin/main_navigation.dart';
-import '../../web/admin/dashboard/dashboard_page_web.dart';
-import '../../mobile/student_teacher/student_teacher_navigation.dart';
+import '../../mobile/admin/main_navigation.dart' as mobile_admin;
+import '../../web/admin/main_navigation_web.dart' as web_admin;
+import '../../mobile/teacher/student_teacher_navigation.dart';
 import '../../mobile/maintenance/maintenance_navigation.dart';
 
 class LoginPage extends StatefulWidget {
@@ -47,7 +47,9 @@ class _LoginPageState extends State<LoginPage> {
       
       switch (user.role.name) {
         case 'admin':
-          destination = kIsWeb ? const DashboardPageWeb() : const MainNavigation();
+          destination = kIsWeb
+              ? const web_admin.MainNavigationWeb()
+              : const mobile_admin.MainNavigation();
           break;
         case 'studentTeacher':
         case 'student_teacher':

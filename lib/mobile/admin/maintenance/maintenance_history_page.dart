@@ -30,7 +30,14 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
   Future<void> _loadHistory() async {
     try {
       final all = await WorkRequestService.fetchAll();
-      final done = all.where((r) => r.status == 'done' || r.status == 'cancelled').toList();
+      final done = all
+          .where(
+            (r) =>
+                r.status == 'done' ||
+                r.status == 'completed' ||
+                r.status == 'cancelled',
+          )
+          .toList();
       if (mounted) {
         setState(() {
           _history = done;
@@ -58,7 +65,7 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF4169E1),
+        backgroundColor: const Color(0xFFF5F6FA),
         foregroundColor: Colors.white,
         title: const Text(
           'Request History',
@@ -113,9 +120,9 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
   }
 
   Widget _buildHistoryCard(BuildContext context, WorkRequest request) {
-    final isDone = request.status == 'done';
+    final isDone = request.status == 'done' || request.status == 'completed';
     final statusColor = isDone ? Colors.green : Colors.grey;
-    final statusLabel = isDone ? 'Completed' : 'Cancelled';
+    final statusLabel = isDone ? 'Completed' : 'Declined';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),

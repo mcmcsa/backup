@@ -40,7 +40,9 @@ class WorkRequestService {
     return (data as List).map((e) => WorkRequest.fromMap(e)).toList();
   }
 
-  static Future<List<WorkRequest>> fetchByDepartment(String departmentId) async {
+  static Future<List<WorkRequest>> fetchByDepartment(
+    String departmentId,
+  ) async {
     final data = await _db
         .from(_table)
         .select()
@@ -56,6 +58,19 @@ class WorkRequestService {
         .eq('room_id', roomId)
         .order('date_submitted', ascending: false);
     return (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+  }
+
+  /// Returns true when a room already has an active report.
+  /// Active means not yet completed.
+  static Future<bool> hasActiveRequestForRoom(String roomId) async {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty) return false;
+
+    final requests = await fetchByRoom(normalizedRoomId);
+    return requests.any((request) {
+      final status = request.status.toLowerCase();
+      return status != 'completed' && status != 'done';
+    });
   }
 
   static Future<List<WorkRequest>> fetchByRequestor(String requestorId) async {
@@ -77,11 +92,7 @@ class WorkRequestService {
   }
 
   static Future<WorkRequest?> fetchById(String id) async {
-    final data = await _db
-        .from(_table)
-        .select()
-        .eq('id', id)
-        .maybeSingle();
+    final data = await _db.from(_table).select().eq('id', id).maybeSingle();
     if (data == null) return null;
     return WorkRequest.fromMap(data);
   }
@@ -98,70 +109,102 @@ class WorkRequestService {
     await _db.from(_table).update({'assigned_to_id': userId}).eq('id', id);
   }
 
-  static Future<void> approveRequest(String id, String approvedById, String approvedByName) async {
-    await _db.from(_table).update({
-      'status': 'approved',
-      'approved_by_id': approvedById,
-      'approved_by': approvedByName,
-      'approved_date': DateTime.now().toIso8601String(),
-    }).eq('id', id);
+  static Future<void> approveRequest(
+    String id,
+    String approvedById,
+    String approvedByName,
+  ) async {
+    await _db
+        .from(_table)
+        .update({
+          'status': 'in_progress',
+          'maintenance_start_time': DateTime.now().toIso8601String(),
+          'approved_by_id': approvedById,
+          'approved_by': approvedByName,
+          'approved_date': DateTime.now().toIso8601String(),
+        })
+        .eq('id', id);
   }
 
   static Future<void> completeRequest(String id) async {
-    await _db.from(_table).update({
-      'status': 'completed',
-      'date_completed': DateTime.now().toIso8601String(),
-      'maintenance_end_time': DateTime.now().toIso8601String(),
-    }).eq('id', id);
+    await _db
+        .from(_table)
+        .update({
+          'status': 'completed',
+          'date_completed': DateTime.now().toIso8601String(),
+          'maintenance_end_time': DateTime.now().toIso8601String(),
+        })
+        .eq('id', id);
   }
 
   /// Maintenance accepts the work request
-  static Future<void> acceptByMaintenance(String id, String maintenanceId, String maintenanceName) async {
-    await _db.from(_table).update({
-      'status': 'in_progress',
-      'accepted_by_id': maintenanceId,
-      'accepted_by_name': maintenanceName,
-      'accepted_date': DateTime.now().toIso8601String(),
-      'assigned_to_id': maintenanceId,
-    }).eq('id', id);
+  static Future<void> acceptByMaintenance(
+    String id,
+    String maintenanceId,
+    String maintenanceName,
+  ) async {
+    await _db
+        .from(_table)
+        .update({
+          'status': 'in_progress',
+          'accepted_by_id': maintenanceId,
+          'accepted_by_name': maintenanceName,
+          'accepted_date': DateTime.now().toIso8601String(),
+          'assigned_to_id': maintenanceId,
+        })
+        .eq('id', id);
   }
 
-  /// Set status to under_maintenance (after admin approves pre-inspection)  
+  /// Set status to under_maintenance (after admin approves pre-inspection)
   static Future<void> setUnderMaintenance(String id) async {
-    await _db.from(_table).update({
-      'status': 'under_maintenance',
-      'maintenance_start_time': DateTime.now().toIso8601String(),
-    }).eq('id', id);
+    await _db
+        .from(_table)
+        .update({
+          'status': 'under_maintenance',
+          'maintenance_start_time': DateTime.now().toIso8601String(),
+        })
+        .eq('id', id);
   }
 
   /// Set status to rework
   static Future<void> setRework(String id, String reworkNotes) async {
     final request = await fetchById(id);
     final currentCount = request?.reworkCount ?? 0;
-    await _db.from(_table).update({
-      'status': 'rework',
-      'rework_count': currentCount + 1,
-      'rework_notes': reworkNotes,
-      'maintenance_end_time': null,
-    }).eq('id', id);
+    await _db
+        .from(_table)
+        .update({
+          'status': 'rework',
+          'rework_count': currentCount + 1,
+          'rework_notes': reworkNotes,
+          'maintenance_end_time': null,
+        })
+        .eq('id', id);
   }
 
   /// Link pre-inspection report to work request
-  static Future<void> linkPreInspection(String id, String preInspectionId) async {
-    await _db.from(_table).update({
-      'pre_inspection_id': preInspectionId,
-    }).eq('id', id);
+  static Future<void> linkPreInspection(
+    String id,
+    String preInspectionId,
+  ) async {
+    await _db
+        .from(_table)
+        .update({'pre_inspection_id': preInspectionId})
+        .eq('id', id);
   }
 
   /// Link post-repair report to work request
   static Future<void> linkPostRepair(String id, String postRepairId) async {
-    await _db.from(_table).update({
-      'post_repair_id': postRepairId,
-    }).eq('id', id);
+    await _db
+        .from(_table)
+        .update({'post_repair_id': postRepairId})
+        .eq('id', id);
   }
 
   /// Fetch requests by date range (for analytics)
-  static Future<List<WorkRequest>> fetchByDateRange(DateTime start, DateTime end) async {
+  static Future<List<WorkRequest>> fetchByDateRange(
+    DateTime start,
+    DateTime end,
+  ) async {
     final data = await _db
         .from(_table)
         .select()
@@ -173,10 +216,7 @@ class WorkRequestService {
 
   /// Get count by status
   static Future<int> getCountByStatus(String status) async {
-    final data = await _db
-        .from(_table)
-        .select('id')
-        .eq('status', status);
+    final data = await _db.from(_table).select('id').eq('status', status);
     return (data as List).length;
   }
 
@@ -190,8 +230,13 @@ class WorkRequestService {
     return getCountByStatus('approved');
   }
 
-  static Future<void> insert(WorkRequest request) async {
-    await _db.from(_table).insert(request.toMap());
+  static Future<WorkRequest> insert(WorkRequest request) async {
+    final data = await _db
+        .from(_table)
+        .insert(request.toMap())
+        .select()
+        .single();
+    return WorkRequest.fromMap(data);
   }
 
   static Future<void> update(WorkRequest request) async {
@@ -204,34 +249,22 @@ class WorkRequestService {
 
   // Analytics methods
   static Future<int> getPendingCount() async {
-    final data = await _db
-        .from(_table)
-        .select('id')
-        .eq('status', 'pending');
+    final data = await _db.from(_table).select('id').eq('status', 'pending');
     return (data as List).length;
   }
 
   static Future<int> getOngoingCount() async {
-    final data = await _db
-        .from(_table)
-        .select('id')
-        .eq('status', 'ongoing');
+    final data = await _db.from(_table).select('id').eq('status', 'ongoing');
     return (data as List).length;
   }
 
   static Future<int> getCompletedCount() async {
-    final data = await _db
-        .from(_table)
-        .select('id')
-        .eq('status', 'done');
+    final data = await _db.from(_table).select('id').eq('status', 'done');
     return (data as List).length;
   }
 
   static Future<int> getHighPriorityCount() async {
-    final data = await _db
-        .from(_table)
-        .select('id')
-        .eq('priority', 'high');
+    final data = await _db.from(_table).select('id').eq('priority', 'high');
     return (data as List).length;
   }
 }

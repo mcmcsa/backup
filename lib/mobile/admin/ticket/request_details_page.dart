@@ -1,19 +1,65 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import 'work_request_completion_page.dart';
 import 'admin_pre_inspection_review_page.dart';
 
-class RequestDetailsPage extends StatelessWidget {
+class RequestDetailsPage extends StatefulWidget {
   final WorkRequest request;
 
   const RequestDetailsPage({super.key, required this.request});
 
   @override
+  State<RequestDetailsPage> createState() => _RequestDetailsPageState();
+}
+
+class _RequestDetailsPageState extends State<RequestDetailsPage> {
+  @override
+  void initState() {
+    super.initState();
+    _markRelatedNotificationsRead();
+    _recordViewedRequest();
+  }
+
+  Future<void> _markRelatedNotificationsRead() async {
+    try {
+      final authService = context.read<AuthService>();
+      final user = authService.currentUser;
+      if (user == null) return;
+
+      await AppNotificationService.markWorkRequestAsRead(
+        role: user.role.name,
+        userId: user.id,
+        workRequestId: widget.request.id,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _recordViewedRequest() async {
+    try {
+      final authService = context.read<AuthService>();
+      final user = authService.currentUser;
+      if (user == null) return;
+
+      await LoginActivityService.recordAdminAction(
+        user: user,
+        title: 'Viewed Request',
+        details: 'Viewed request details for ${widget.request.officeRoom}',
+        workRequestId: widget.request.id,
+      );
+    } catch (_) {}
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final request = widget.request;
     Color statusColor;
     Color statusBgColor;
 
-    switch (request.status) {
+    switch (widget.request.status) {
       case 'pending':
         statusColor = Colors.orange;
         statusBgColor = const Color(0xFFFFF7ED);
@@ -56,7 +102,7 @@ class RequestDetailsPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Warning Alert
-              if (request.status == 'ongoing')
+              if (widget.request.status == 'ongoing')
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -99,7 +145,7 @@ class RequestDetailsPage extends StatelessWidget {
                     ],
                   ),
                 ),
-              if (request.status == 'ongoing') const SizedBox(height: 16),
+              if (widget.request.status == 'ongoing') const SizedBox(height: 16),
               
               // REQUEST ID Header
               const Text(
@@ -116,7 +162,7 @@ class RequestDetailsPage extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    '#${request.id.split('-').last}',
+                    '#${widget.request.id.split('-').last}',
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -134,7 +180,7 @@ class RequestDetailsPage extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      request.statusLabel,
+                      widget.request.statusLabel,
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -143,7 +189,7 @@ class RequestDetailsPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (request.priority == 'high') ...[
+                  if (widget.request.priority == 'high') ...[
                     const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -172,7 +218,7 @@ class RequestDetailsPage extends StatelessWidget {
               
               // Title with Location
               Text(
-                request.title,
+                widget.request.title,
                 style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -189,7 +235,7 @@ class RequestDetailsPage extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    '${request.officeRoom} - ${request.typeOfRequest.toUpperCase()}',
+                    '${widget.request.officeRoom} - ${widget.request.typeOfRequest.toUpperCase()}',
                     style: const TextStyle(
                       fontSize: 14,
                       color: Color(0xFF6B7280),
@@ -735,7 +781,7 @@ class RequestDetailsPage extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) => WorkRequestCompletionPage(
-                            request: request,
+                            request: widget.request,
                           ),
                         ),
                       );
