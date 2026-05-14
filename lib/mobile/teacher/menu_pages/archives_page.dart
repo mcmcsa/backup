@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../router/app_router.dart';
 import 'package:intl/intl.dart';
 
 class ArchivesPage extends StatefulWidget {
@@ -37,7 +39,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
         data = [];
       }
       // Archives = done + cancelled
-      data = data.where((r) => r.status == 'done' || r.status == 'cancelled').toList();
+      data = data.where((r) => r.status == 'completed' || r.status == 'cancelled').toList();
       if (mounted) setState(() { _archivedRequests = data; _isLoading = false; });
     } catch (_) {
       if (mounted) setState(() { _isLoading = false; });
@@ -47,7 +49,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
   List<WorkRequest> get _filteredArchives {
     List<WorkRequest> filtered = _archivedRequests;
     if (_selectedFilter == 'Completed') {
-      filtered = filtered.where((r) => r.status == 'done').toList();
+      filtered = filtered.where((r) => r.status == 'completed').toList();
     } else if (_selectedFilter == 'Declined' || _selectedFilter == 'Cancelled') {
       filtered = filtered.where((r) => r.status == 'cancelled').toList();
     }
@@ -76,7 +78,14 @@ class _ArchivesPageState extends State<ArchivesPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            final router = GoRouter.maybeOf(context);
+            if (router != null) {
+              router.go(teacherDashboardRoute);
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
         title: const Text(
           'Archives',
@@ -101,24 +110,31 @@ class _ArchivesPageState extends State<ArchivesPage> {
                   color: Colors.grey.shade400,
                   fontSize: 14,
                 ),
-                prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 20),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 8),
+                  child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                ),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 44,
+                  minHeight: 44,
+                ),
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: Colors.grey.shade200),
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFF00BFA5), width: 2),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                  borderSide: BorderSide(color: Color(0xFF4169E1), width: 2),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 14,
+                  vertical: 10,
                 ),
               ),
             ),
@@ -164,8 +180,8 @@ class _ArchivesPageState extends State<ArchivesPage> {
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final r = _filteredArchives[index];
-                      final statusLabel = r.status == 'done' ? 'COMPLETED' : 'CANCELLED';
-                      final statusColor = r.status == 'done' ? const Color(0xFF4CAF50) : Colors.red;
+                      final statusLabel = r.status == 'completed' ? 'COMPLETED' : 'CANCELLED';
+                      final statusColor = r.status == 'completed' ? const Color(0xFF4CAF50) : Colors.red;
                       return _buildArchiveCard(
                         trackingNumber: r.id,
                         title: r.title,
@@ -304,3 +320,4 @@ class _ArchivesPageState extends State<ArchivesPage> {
     );
   }
 }
+

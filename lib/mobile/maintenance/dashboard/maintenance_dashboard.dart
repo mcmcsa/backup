@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
@@ -27,7 +29,18 @@ class _MaintenanceDashboardMobileState
 
   Future<void> _loadRequests() async {
     try {
-      final data = await WorkRequestService.fetchAll();
+      final user = context.read<AuthService>().currentUser;
+      if (user == null) {
+        if (mounted) {
+          setState(() {
+            _requests = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      final data = await WorkRequestService.fetchAssignedTo(user.id);
       final maintenanceQueue = data
           .where(
             (r) =>
@@ -36,7 +49,7 @@ class _MaintenanceDashboardMobileState
                 r.status == 'in_progress' ||
                 r.status == 'under_maintenance' ||
                 r.status == 'completed' ||
-                r.status == 'done',
+                r.status == 'completed',
           )
           .toList();
       if (mounted) {
@@ -60,23 +73,23 @@ class _MaintenanceDashboardMobileState
     final inspection = _requests
         .where(
           (r) =>
-              r.status == 'ongoing' &&
+              r.status == 'in_progress' &&
               r.typeOfRequest.toLowerCase().contains('inspection'),
         )
         .length;
     final repair = _requests
         .where(
           (r) =>
-              r.status == 'ongoing' &&
+              r.status == 'in_progress' &&
               !r.typeOfRequest.toLowerCase().contains('inspection'),
         )
         .length;
-    final completed = _requests.where((r) => r.status == 'done').length;
+    final completed = _requests.where((r) => r.status == 'completed').length;
     final activeRequests = _requests
-        .where((r) => r.status == 'pending' || r.status == 'ongoing')
+        .where((r) => r.status == 'pending' || r.status == 'in_progress')
         .toList();
     final highPriority = _requests
-        .where((r) => r.priority == 'high' && r.status != 'done')
+        .where((r) => r.priority == 'high' && r.status != 'completed')
         .toList();
 
     if (_isLoading) {
@@ -587,3 +600,4 @@ class _MaintenanceDashboardMobileState
     );
   }
 }
+

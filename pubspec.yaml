@@ -58,6 +58,9 @@ dependencies:
   
   # QR Code Generation
   qr_flutter: ^4.0.0
+
+  # Routing
+  go_router: ^17.2.2
   
   # PDF Generation and Printing
   pdf: ^3.10.0
@@ -71,6 +74,8 @@ dependencies:
   
   # UUID generation
   uuid: ^4.0.0
+  flutter_svg: ^2.2.4
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:

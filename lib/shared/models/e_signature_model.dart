@@ -3,7 +3,7 @@ class ESignature {
   final String workRequestId;
   final String signerId;
   final String signerName;
-  final String signerRole; // 'admin', 'maintenance', 'student_teacher'
+  final String signerRole; // 'admin', 'maintenance', 'teacher'
   final String signatureType; // 'approval', 'acceptance', 'pre_inspection', 'post_repair', 'completion'
   final String signatureData; // Base64 encoded signature image
   final DateTime signedAt;

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../shared/models/room_model.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/models/request_type_model.dart';
 import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/room_service.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 
@@ -12,12 +16,16 @@ class WorkRequestFormPage extends StatefulWidget {
   final String? roomId;
   final String? buildingName;
   final String? roomName;
+  final Room? verifiedRoom;
+  final bool lockLocationDetails;
 
   const WorkRequestFormPage({
     super.key,
     this.roomId,
     this.buildingName,
     this.roomName,
+    this.verifiedRoom,
+    this.lockLocationDetails = false,
   });
 
   @override
@@ -38,16 +46,25 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
 
   String _selectedBuilding = '';
   String _selectedCollege = '';
+  String _selectedFloor = '';
   String _selectedRequestType = '';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
 
   List<String> _buildings = [];
+  List<String> _filteredBuildings = [];
   List<String> _colleges = [];
+  List<String> _floors = [];
+  List<String> _requestTypes = [];
+  final Map<String, List<String>> _buildingsByDepartment = {};
+
+  bool get _isLocationLocked =>
+      widget.lockLocationDetails || widget.verifiedRoom != null;
 
   @override
   void initState() {
     super.initState();
+    _applyVerifiedRoomDetails();
     _loadDropdownData();
     if (widget.roomId != null) {
       _roomNumberController.text = widget.roomId!;
@@ -57,20 +74,93 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     }
   }
 
+  void _applyVerifiedRoomDetails() {
+    final room = widget.verifiedRoom;
+    if (room == null) return;
+
+    _roomNumberController.text = room.code.isNotEmpty ? room.code : room.id;
+    _officeRoomNameController.text = room.name;
+    _selectedCollege = room.department;
+    _selectedBuilding = room.building;
+    _selectedFloor = room.floor;
+  }
+
   Future<void> _loadDropdownData() async {
     final helper = DropdownDataHelper();
     final buildings = await helper.getBuildingNames();
     final depts = await helper.getDepartmentNames();
+    final floors = await helper.getFloorNames(forceRefresh: true);
+    final requestTypes = await helper.getRequestTypeNames();
 
     if (mounted) {
+      // Build map of buildings by department
+      _buildingsByDepartment.clear();
+      for (final deptName in depts) {
+        final dept = await helper.getDepartmentByName(deptName);
+        if (dept != null) {
+          final buildingsForDept = await helper.getBuildingNamesByDepartment(dept.id);
+          _buildingsByDepartment[deptName] = buildingsForDept.isNotEmpty ? buildingsForDept : buildings;
+        } else {
+          _buildingsByDepartment[deptName] = buildings;
+        }
+      }
+
       setState(() {
         _buildings = buildings;
         _colleges = depts.isNotEmpty ? depts : helper.getColleges();
-        _selectedBuilding =
-            widget.buildingName ??
-            (_buildings.isNotEmpty ? _buildings.first : '');
-        _selectedCollege = _colleges.isNotEmpty ? _colleges.first : '';
+        final normalizedFloors = floors
+            .map((f) => f.trim())
+            .where((f) => f.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+        _floors = normalizedFloors.isNotEmpty ? normalizedFloors : ['N/A'];
+        _requestTypes = requestTypes;
+
+        if (_isLocationLocked && widget.verifiedRoom != null) {
+          if (_selectedCollege.isEmpty) {
+            _selectedCollege = widget.verifiedRoom!.department;
+          }
+          _selectedBuilding = widget.verifiedRoom!.building;
+        } else {
+          _selectedCollege = widget.buildingName != null
+              ? _colleges.firstWhere(
+                  (college) =>
+                      _buildingsByDepartment[college]?.contains(
+                        widget.buildingName,
+                      ) ??
+                      false,
+                  orElse: () => _colleges.isNotEmpty ? _colleges.first : '',
+                )
+              : (_colleges.isNotEmpty ? _colleges.first : '');
+
+          _selectedBuilding = widget.buildingName ?? '';
+        }
+        _updateFilteredBuildings();
+
+        if (_isLocationLocked && widget.verifiedRoom != null) {
+          if (_selectedFloor.isEmpty) {
+            _selectedFloor = widget.verifiedRoom!.floor;
+          }
+        } else {
+          _selectedFloor = _floors.isNotEmpty ? _floors.first : '';
+        }
+        if (_requestTypes.isNotEmpty && _selectedRequestType.isEmpty) {
+          _selectedRequestType = _requestTypes.first;
+        }
       });
+    }
+  }
+
+  void _updateFilteredBuildings() {
+    if (_selectedCollege.isEmpty) {
+      _filteredBuildings = [];
+    } else {
+      _filteredBuildings = _buildingsByDepartment[_selectedCollege] ?? _buildings;
+    }
+    // Reset building selection if current selection is not in filtered list
+    if (!_filteredBuildings.contains(_selectedBuilding)) {
+      _selectedBuilding = _filteredBuildings.isNotEmpty ? _filteredBuildings.first : '';
     }
   }
 
@@ -86,79 +176,145 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     super.dispose();
   }
 
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: Colors.white,
+          title: const Text(
+            'Error',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.red,
+            ),
+          ),
+          content: Text(
+            message,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Color(0xFF374151),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'OK',
+                style: TextStyle(
+                  color: Color(0xFF4169E1),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _submitRequest() async {
     if (_formKey.currentState!.validate()) {
-      if (_selectedRequestType.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please select a request type'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      if (_requesterSignatureBase64 == null ||
-          _requesterSignatureBase64!.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Electronic signature is required before submitting.',
-            ),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      final submittedRoomId = _roomNumberController.text.trim();
-      final hasActiveRequest = await WorkRequestService.hasActiveRequestForRoom(
-        submittedRoomId,
-      );
-      if (hasActiveRequest) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This Room is already Reported'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      setState(() {
-        _isSubmitting = true;
-      });
-
-      final authUser = Supabase.instance.client.auth.currentUser;
-
-      final typeLabel = _selectedRequestType == 'Others'
-          ? _otherRequestTypeController.text
-          : _selectedRequestType;
-
-      final request = WorkRequest(
-        id: '',
-        title: 'Work Request – $typeLabel',
-        description: _issueDetailsController.text.trim(),
-        status: 'pending',
-        priority: 'medium',
-        campus: 'PSU San Carlos',
-        buildingName: _selectedBuilding,
-        department: _selectedCollege,
-        roomId: submittedRoomId,
-        officeRoom: _officeRoomNameController.text.trim().isNotEmpty
-            ? _officeRoomNameController.text.trim()
-          : submittedRoomId,
-        typeOfRequest: typeLabel,
-        dateSubmitted: DateTime.now(),
-        requestorName: _fullNameController.text.trim(),
-        requestorPosition: _positionController.text.trim(),
-        reportedBy: _fullNameController.text.trim(),
-        requestorId: authUser?.id,
-        reportedById: authUser?.id,
-      );
-
       try {
+        if (_selectedRequestType.isEmpty) {
+          if (!mounted) return;
+          _showErrorDialog('Please select a request type');
+          return;
+        }
+
+        if (_requesterSignatureBase64 == null ||
+            _requesterSignatureBase64!.isEmpty) {
+          if (!mounted) return;
+          _showErrorDialog('Electronic signature is required before submitting.');
+          return;
+        }
+
+        setState(() {
+          _isSubmitting = true;
+        });
+
+        final verifiedRoom = widget.verifiedRoom;
+        final submittedRoomCode = verifiedRoom != null
+            ? (verifiedRoom.code.isNotEmpty ? verifiedRoom.code : verifiedRoom.id)
+            : _roomNumberController.text.trim();
+        final submittedRoomName = verifiedRoom?.name.isNotEmpty == true
+            ? verifiedRoom!.name
+            : _officeRoomNameController.text.trim();
+
+        var selectedRoom = verifiedRoom;
+        selectedRoom ??= await RoomService.fetchByIdOrRoomNumber(
+          submittedRoomCode,
+        );
+        if (selectedRoom == null && submittedRoomName.isNotEmpty) {
+          selectedRoom = await RoomService.fetchByName(submittedRoomName);
+        }
+
+        if (selectedRoom == null) {
+          if (!mounted) return;
+          _showErrorDialog('Room not found. Please check the room code or room name.');
+          return;
+        }
+
+        final hasActiveRequest = await WorkRequestService.hasActiveRequestForRoom(
+          selectedRoom.id,
+        );
+        if (hasActiveRequest) {
+          if (!mounted) return;
+          _showErrorDialog('This room is already reported.');
+          return;
+        }
+
+        final authUser = Supabase.instance.client.auth.currentUser;
+        final helper = DropdownDataHelper();
+        final selectedBuildingRecord = await helper.getBuildingByName(_selectedBuilding);
+        final selectedDepartmentRecord = await helper.getDepartmentByName(_selectedCollege);
+
+        final typeLabel = _selectedRequestType == 'Others'
+            ? _otherRequestTypeController.text.trim()
+            : _selectedRequestType.trim();
+        if (typeLabel.isEmpty) {
+          if (!mounted) return;
+          _showErrorDialog('Please specify the request type.');
+          return;
+        }
+
+        var selectedRequestTypeRecord = await helper.getRequestTypeByName(typeLabel);
+        if (selectedRequestTypeRecord == null) {
+          final createdType = await Supabase.instance.client
+              .from('request_types')
+              .insert({'name': typeLabel})
+              .select()
+              .maybeSingle();
+          if (createdType != null) {
+            selectedRequestTypeRecord = RequestType.fromMap(createdType);
+          }
+        }
+
+        final request = WorkRequest(
+          id: '',
+          title: 'Work Request – $typeLabel',
+          description: _issueDetailsController.text.trim(),
+          status: 'pending',
+          priority: 'medium',
+          buildingName: _selectedBuilding,
+          buildingId: selectedBuildingRecord?.id,
+          departmentName: _selectedCollege,
+          departmentId: selectedDepartmentRecord?.id,
+          roomId: selectedRoom.id,
+          roomName: submittedRoomName.isNotEmpty ? submittedRoomName : selectedRoom.name,
+          requestTypeId: selectedRequestTypeRecord?.id,
+          typeOfRequest: typeLabel,
+          dateSubmitted: DateTime.now(),
+          requestorName: _fullNameController.text.trim(),
+          requestorPosition: _positionController.text.trim(),
+          reportedByName: _fullNameController.text.trim(),
+          requestorId: authUser?.id,
+        );
+
         final insertedRequest = await WorkRequestService.insert(request);
 
         if (authUser != null) {
@@ -168,7 +324,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
               workRequestId: insertedRequest.id,
               signerId: authUser.id,
               signerName: _fullNameController.text.trim(),
-              signerRole: 'student_teacher',
+              signerRole: 'teacher',
               signatureType: 'approval',
               signatureData: _requesterSignatureBase64!,
               signedAt: DateTime.now(),
@@ -184,16 +340,15 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
               '$_selectedBuilding • ${_officeRoomNameController.text.trim()} has a new request from ${_fullNameController.text.trim()}.',
           type: 'work_request_submitted',
           workRequestId: insertedRequest.id,
-          statusSnapshot: 'pending',
         );
 
         if (!mounted) return;
         final trackingNumber =
             'PSU-SC-MR-${DateTime.now().year}-${DateTime.now().millisecondsSinceEpoch % 10000}';
-        Navigator.pushReplacementNamed(
-          context,
+        if (!mounted) return;
+        context.replace(
           '/work-request-success',
-          arguments: {
+          extra: {
             'trackingNumber': trackingNumber,
             'location':
                 '$_selectedBuilding, ${_roomNumberController.text.trim()}',
@@ -252,54 +407,99 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                 title: '1. Location Details',
                 children: [
                   const SizedBox(height: 16),
-                  _buildLabel('Building Name'),
-                  const SizedBox(height: 8),
-                  _buildDropdown(
-                    value: _selectedBuilding,
-                    items: _buildings,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedBuilding = value!;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildLabel('Room Number'),
-                  const SizedBox(height: 8),
-                  _buildTextField(
-                    controller: _roomNumberController,
-                    hint: 'e.g., 402',
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter room number';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildLabel('College'),
-                  const SizedBox(height: 8),
-                  _buildDropdown(
-                    value: _selectedCollege,
-                    items: _colleges,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCollege = value!;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _buildLabel('Office / Room Name'),
+                  if (_isLocationLocked)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00BFA5).withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFF00BFA5).withOpacity(0.35),
+                        ),
+                      ),
+                      child: const Text(
+                        'Location details are locked because the room has already been verified.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF0F766E),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  _buildLabel('Room Name'),
                   const SizedBox(height: 8),
                   _buildTextField(
                     controller: _officeRoomNameController,
                     hint: 'e.g., Room-301-Computer Science Lab-B',
+                    readOnly: _isLocationLocked,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter office/room name';
+                        return 'Please enter room name';
                       }
                       return null;
                     },
+                  ),
+                  const SizedBox(height: 16),
+                  _buildLabel('Room Code'),
+                  const SizedBox(height: 8),
+                  _buildTextField(
+                    controller: _roomNumberController,
+                    hint: 'e.g., 402',
+                    readOnly: _isLocationLocked,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter room code';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  _buildLabel('Department'),
+                  const SizedBox(height: 8),
+                  _buildDropdown(
+                    value: _selectedCollege,
+                    items: _colleges,
+                    onChanged: _isLocationLocked
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _selectedCollege = value!;
+                              _updateFilteredBuildings();
+                            });
+                          },
+                    enabled: !_isLocationLocked,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildLabel('Building'),
+                  const SizedBox(height: 8),
+                  _buildDropdown(
+                    value: _selectedBuilding,
+                    items: _filteredBuildings,
+                    onChanged: _selectedCollege.isEmpty || _isLocationLocked
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _selectedBuilding = value!;
+                            });
+                          },
+                    enabled: _selectedCollege.isNotEmpty && !_isLocationLocked,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildLabel('Floor'),
+                  const SizedBox(height: 8),
+                  _buildDropdown(
+                    value: _selectedFloor,
+                    items: _floors,
+                    onChanged: _isLocationLocked
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _selectedFloor = value!;
+                            });
+                          },
+                    enabled: !_isLocationLocked,
                   ),
                 ],
               ),
@@ -309,10 +509,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                 title: '2. Request Type',
                 children: [
                   const SizedBox(height: 16),
-                  _buildRadioOption('Ocular Inspection'),
-                  _buildRadioOption('Installation'),
-                  _buildRadioOption('Repair'),
-                  _buildRadioOption('Replacement'),
+                  ..._requestTypes.map(_buildRadioOption),
                   _buildRadioOption('Others'),
                   if (_selectedRequestType == 'Others')
                     Padding(
@@ -665,16 +862,20 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     required String hint,
     String? Function(String?)? validator,
     TextInputType? keyboardType,
+    bool readOnly = false,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: readOnly ? Colors.grey.shade100 : Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: readOnly ? Colors.grey.shade200 : Colors.grey.shade300,
+        ),
       ),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
+        readOnly: readOnly,
         style: const TextStyle(fontSize: 14),
         decoration: InputDecoration(
           hintText: hint,
@@ -693,25 +894,41 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   Widget _buildDropdown({
     required String value,
     required List<String> items,
-    required void Function(String?) onChanged,
+    required void Function(String?)? onChanged,
+    bool enabled = true,
   }) {
+    String displayValue = value;
+    if (items.isNotEmpty && !items.contains(value)) {
+      displayValue = items.first;
+    }
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: enabled ? Colors.white : Colors.grey.shade100,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: enabled ? Colors.grey.shade300 : Colors.grey.shade200),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: value,
+          value: displayValue,
           isExpanded: true,
-          icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
-          style: const TextStyle(fontSize: 14, color: Colors.black87),
-          items: items.map((String item) {
-            return DropdownMenuItem<String>(value: item, child: Text(item));
-          }).toList(),
-          onChanged: onChanged,
+          icon: Icon(Icons.keyboard_arrow_down, color: enabled ? Colors.grey.shade600 : Colors.grey.shade400),
+          style: TextStyle(
+            fontSize: 14,
+            color: enabled ? Colors.black87 : Colors.grey.shade500,
+          ),
+          items: items.isEmpty
+              ? [DropdownMenuItem<String>(
+                  value: '',
+                  child: Text(
+                    enabled ? 'No options available' : 'Select department first',
+                    style: TextStyle(color: Colors.grey.shade400),
+                  ),
+                )]
+              : items.map((String item) {
+                  return DropdownMenuItem<String>(value: item, child: Text(item));
+                }).toList(),
+          onChanged: enabled ? onChanged : null,
         ),
       ),
     );

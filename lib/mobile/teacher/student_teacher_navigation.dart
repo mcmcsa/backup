@@ -29,9 +29,16 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
   }
 
   void _onNavItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    if (_selectedIndex == index) return;
+    setState(() => _selectedIndex = index);
+  }
+
+  @override
+  void didUpdateWidget(covariant StudentTeacherNavigation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialIndex != widget.initialIndex) {
+      _selectedIndex = widget.initialIndex;
+    }
   }
 
   @override
@@ -40,20 +47,31 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
     final List<Widget> pages = [
       StudentTeacherDashboard(scaffoldKey: _scaffoldKey),
       LogsPage(scaffoldKey: _scaffoldKey),
-      ScannerPage(scaffoldKey: _scaffoldKey),
+      ScannerPage(
+        scaffoldKey: _scaffoldKey,
+        isActive: _selectedIndex == 2,
+      ),
       StudentReportsPage(scaffoldKey: _scaffoldKey),
       StudentProfilePage(scaffoldKey: _scaffoldKey),
     ];
 
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: themeProvider.backgroundColor,
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: pages,
+    return WillPopScope(
+      onWillPop: () async {
+        // Prevent exiting the navigation with the system back button to avoid
+        // accidentally triggering a logout/route redirect. User can use
+        // system home button or in-app navigation instead.
+        return false;
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: themeProvider.backgroundColor,
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: pages,
+        ),
+        drawer: const StudentDrawer(),
+        bottomNavigationBar: _buildBottomNavBar(themeProvider),
       ),
-      drawer: const StudentDrawer(),
-      bottomNavigationBar: _buildBottomNavBar(themeProvider),
     );
   }
 

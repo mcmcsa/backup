@@ -52,8 +52,10 @@ class RoomSuccessPage extends StatelessWidget {
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: isEdit
           ? AppBar(
-              backgroundColor: Colors.white,
-              elevation: 0,
+              backgroundColor: const Color(0xFFF2F4F7),
+              surfaceTintColor: Colors.transparent,
+              shadowColor: Colors.black12,
+              elevation: 1,
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.black87),
                 onPressed: () => Navigator.pop(context),

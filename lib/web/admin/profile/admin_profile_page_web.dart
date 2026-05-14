@@ -11,19 +11,11 @@ class AdminProfilePageWeb extends StatefulWidget {
 }
 
 class _AdminProfilePageWebState extends State<AdminProfilePageWeb> {
-  late TextEditingController _nameController;
-  late TextEditingController _emailController;
-  late TextEditingController _phoneController;
-  late TextEditingController _departmentController;
-  late TextEditingController _birthdayController;
-  late TextEditingController _locationController;
-
   int _totalRequests = 0;
   int _resolvedPercent = 0;
   int _activeRequests = 0;
   int _pendingRequests = 0;
   bool _isLoadingStats = true;
-  bool _isSaving = false;
 
   // Professional color palette
   static const Color _primaryBlue = Color(0xFF3B82F6);
@@ -35,25 +27,7 @@ class _AdminProfilePageWebState extends State<AdminProfilePageWeb> {
   @override
   void initState() {
     super.initState();
-    final user = context.read<AuthService>().currentUser;
-    _nameController = TextEditingController(text: user?.name ?? '');
-    _emailController = TextEditingController(text: user?.email ?? '');
-    _phoneController = TextEditingController(text: '');
-    _departmentController = TextEditingController(text: 'IT Department');
-    _birthdayController = TextEditingController(text: '');
-    _locationController = TextEditingController(text: 'Main Office');
     _loadStats();
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _departmentController.dispose();
-    _birthdayController.dispose();
-    _locationController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadStats() async {
@@ -81,22 +55,6 @@ class _AdminProfilePageWebState extends State<AdminProfilePageWeb> {
     }
   }
 
-  Future<void> _saveProfile() async {
-    setState(() => _isSaving = true);
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) {
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Profile updated successfully'),
-          backgroundColor: _successGreen,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthService>().currentUser;
@@ -121,7 +79,7 @@ class _AdminProfilePageWebState extends State<AdminProfilePageWeb> {
                 children: [
                   _buildStatsCard(),
                   const SizedBox(height: 20),
-                  _buildSettingsCard(),
+                  _buildAdminDetailsCard(user),
                 ],
               ),
             ),
@@ -210,11 +168,9 @@ class _AdminProfilePageWebState extends State<AdminProfilePageWeb> {
           // Info rows
           _InfoRow(icon: Icons.email_rounded, label: 'Email', value: user?.email ?? ''),
           const SizedBox(height: 16),
-          _InfoRow(icon: Icons.phone_rounded, label: 'Phone', value: _phoneController.text.isEmpty ? 'Not set' : _phoneController.text),
+          _InfoRow(icon: Icons.badge_rounded, label: 'Role', value: user?.roleLabel ?? 'Administrator'),
           const SizedBox(height: 16),
-          _InfoRow(icon: Icons.business_rounded, label: 'Department', value: _departmentController.text),
-          const SizedBox(height: 16),
-          _InfoRow(icon: Icons.location_on_rounded, label: 'Location', value: _locationController.text),
+          _InfoRow(icon: Icons.business_rounded, label: 'Department', value: _displayValue(user?.department)),
           const SizedBox(height: 24),
           // Status badge
           Container(
@@ -299,7 +255,7 @@ class _AdminProfilePageWebState extends State<AdminProfilePageWeb> {
     );
   }
 
-  Widget _buildSettingsCard() {
+  Widget _buildAdminDetailsCard(dynamic user) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -324,66 +280,37 @@ class _AdminProfilePageWebState extends State<AdminProfilePageWeb> {
                   color: _primaryBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.settings_rounded, color: _primaryBlue, size: 20),
+                child: const Icon(Icons.admin_panel_settings_rounded, color: _primaryBlue, size: 20),
               ),
               const SizedBox(width: 12),
               const Text(
-                'Edit Profile',
+                'Admin Information',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _darkText),
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          // Form fields
-          Row(
-            children: [
-              Expanded(child: _FormField(label: 'Full Name', controller: _nameController, icon: Icons.person_rounded)),
-              const SizedBox(width: 16),
-              Expanded(child: _FormField(label: 'Email', controller: _emailController, icon: Icons.email_rounded, enabled: false)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _FormField(label: 'Phone', controller: _phoneController, icon: Icons.phone_rounded)),
-              const SizedBox(width: 16),
-              Expanded(child: _FormField(label: 'Department', controller: _departmentController, icon: Icons.business_rounded)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(child: _FormField(label: 'Birthday', controller: _birthdayController, icon: Icons.cake_rounded)),
-              const SizedBox(width: 16),
-              Expanded(child: _FormField(label: 'Location', controller: _locationController, icon: Icons.location_on_rounded)),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // Save button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              ElevatedButton(
-                onPressed: _isSaving ? null : _saveProfile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.w600)),
-              ),
-            ],
-          ),
+          const SizedBox(height: 20),
+          _InfoRow(icon: Icons.person_rounded, label: 'Name', value: _displayValue(user?.name)),
+          const SizedBox(height: 14),
+          _InfoRow(icon: Icons.email_rounded, label: 'Email', value: _displayValue(user?.email)),
+          const SizedBox(height: 14),
+          _InfoRow(icon: Icons.badge_rounded, label: 'Role', value: user?.roleLabel ?? 'Administrator'),
+          const SizedBox(height: 14),
+          _InfoRow(icon: Icons.school_rounded, label: 'Campus', value: _displayValue(user?.campus)),
+          const SizedBox(height: 14),
+          _InfoRow(icon: Icons.business_rounded, label: 'Department', value: _displayValue(user?.department)),
+          const SizedBox(height: 14),
+          _InfoRow(icon: Icons.work_rounded, label: 'Position', value: _displayValue(user?.position)),
+          const SizedBox(height: 14),
+          _InfoRow(icon: Icons.fingerprint_rounded, label: 'User ID', value: _displayValue(user?.id)),
         ],
       ),
     );
+  }
+
+  String _displayValue(String? value) {
+    final trimmed = value?.trim() ?? '';
+    return trimmed.isEmpty ? 'Not set' : trimmed;
   }
 }
 
@@ -462,50 +389,4 @@ class _StatBox extends StatelessWidget {
   }
 }
 
-class _FormField extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final IconData icon;
-  final bool enabled;
-
-  const _FormField({
-    required this.label,
-    required this.controller,
-    required this.icon,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: enabled ? Colors.white : const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: TextField(
-            controller: controller,
-            enabled: enabled,
-            decoration: InputDecoration(
-              prefixIcon: Icon(icon, color: const Color(0xFF94A3B8), size: 20),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            style: TextStyle(
-              fontSize: 14,
-              color: enabled ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
+ 

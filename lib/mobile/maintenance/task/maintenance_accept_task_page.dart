@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../shared/widgets/common_app_bar.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/models/e_signature_model.dart';
+import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
@@ -27,7 +30,7 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
   void initState() {
     super.initState();
     _loadSignatures();
-    _isAccepted = widget.request.acceptedById != null;
+    _isAccepted = widget.request.acceptedDate != null;
   }
 
   Future<void> _loadSignatures() async {
@@ -63,6 +66,18 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
         user.name,
       );
 
+      await WorkRequestService.updateStatus(
+        widget.request.id,
+        'under_maintenance',
+      );
+
+      await AppNotificationService.notifyAcceptedToAdminAndRequestor(
+        workRequestId: widget.request.id,
+        maintenanceName: user.name,
+        adminId: widget.request.approvedById,
+        requestorId: widget.request.requestorId,
+      );
+
       if (mounted) {
         setState(() {
           _isAccepted = true;
@@ -88,18 +103,15 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context, _isAccepted),
-        ),
-        title: const Text('Accept Work Request',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
-        centerTitle: true,
+      backgroundColor: themeProvider.backgroundColor,
+      appBar: CommonAppBar(
+        roleText: 'Maintenance Staff',
+        primaryColor: themeProvider.primaryColor,
+        showBack: true,
+        onBackPressed: () => Navigator.pop(context, _isAccepted),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF4169E1)))
@@ -140,8 +152,7 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
                 _buildSection('REQUEST DETAILS', [
                   _buildInfoRow('Type', widget.request.typeOfRequest),
                   _buildInfoRow('Priority', widget.request.priorityLabel),
-                  _buildInfoRow('Campus', widget.request.campus),
-                  _buildInfoRow('Department', widget.request.department),
+                  _buildInfoRow('Department', widget.request.department ?? ''),
                   _buildInfoRow('Requestor', widget.request.requestorName),
                 ]),
                 const SizedBox(height: 16),

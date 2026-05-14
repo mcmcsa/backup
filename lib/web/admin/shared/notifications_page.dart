@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/utils/notification_status_utils.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -146,6 +147,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
         type = NotificationType.success;
         category = 'WORK ORDERS';
         break;
+      case 'work_request_accepted':
+        icon = Icons.handshake_rounded;
+        iconColor = const Color(0xFF0D9488);
+        type = NotificationType.success;
+        category = 'WORK ORDERS';
+        break;
+      case 'work_request_completed':
+        icon = Icons.task_alt_rounded;
+        iconColor = const Color(0xFF059669);
+        type = NotificationType.success;
+        category = 'WORK ORDERS';
+        break;
+      case 'work_request_declined':
+        icon = Icons.cancel_rounded;
+        iconColor = const Color(0xFFDC2626);
+        type = NotificationType.urgent;
+        category = 'WORK ORDERS';
+        break;
       default:
         icon = Icons.notifications_active_rounded;
         iconColor = const Color(0xFF6B7280);
@@ -255,16 +274,31 @@ class _NotificationsPageState extends State<NotificationsPage> {
               decoration: InputDecoration(
                 hintText: 'Search notifications...',
                 hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 8),
+                  child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                ),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 44,
+                  minHeight: 44,
+                ),
                 filled: true,
-                fillColor: Colors.grey.shade50,
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                  borderSide: BorderSide(color: Color(0xFF4169E1)),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 12,
+                  vertical: 10,
                 ),
               ),
             ),

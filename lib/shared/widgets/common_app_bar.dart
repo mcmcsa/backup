@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../authentication/services/auth_service.dart';
 import '../services/app_notification_service.dart';
 import '../providers/theme_provider.dart';
@@ -10,6 +11,8 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onMenuPressed;
   final VoidCallback? onNotificationPressed;
   final bool showMenu;
+  final bool showBack;
+  final VoidCallback? onBackPressed;
 
   const CommonAppBar({
     super.key,
@@ -18,6 +21,8 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.onMenuPressed,
     this.onNotificationPressed,
     this.showMenu = true,
+    this.showBack = false,
+    this.onBackPressed,
   });
 
   Future<int> _fetchUnreadCount(BuildContext context) async {
@@ -36,29 +41,44 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     
     return AppBar(
+      leadingWidth: 48,
       backgroundColor: themeProvider.appBarColor,
       elevation: 0,
       automaticallyImplyLeading: false,
-      leading: showMenu
+      leading: showBack
           ? IconButton(
-              icon: Icon(
-                Icons.menu, 
-                color: themeProvider.appBarIconColor, 
-                size: 24,
-              ),
-              onPressed: onMenuPressed ?? () {
-                Scaffold.of(context).openDrawer();
+              icon: Icon(Icons.arrow_back, color: themeProvider.appBarIconColor),
+              onPressed: onBackPressed ?? () {
+                final router = GoRouter.maybeOf(context);
+                if (router != null) {
+                  router.pop();
+                } else {
+                  Navigator.pop(context);
+                }
               },
             )
-          : null,
+          : (showMenu
+              ? IconButton(
+                  icon: Icon(
+                    Icons.menu,
+                    color: themeProvider.appBarIconColor,
+                    size: 24,
+                  ),
+                  onPressed: onMenuPressed ?? () {
+                    Scaffold.of(context).openDrawer();
+                  },
+                )
+              : null),
       title: Row(
         children: [
           SizedBox(
-            height: 35,
-            width: 35,
+            height: 32,
+            width: 32,
             child: Image.asset(
               'assets/images/PsuLogo.png',
               fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              isAntiAlias: true,
               errorBuilder: (_, __, ___) => Icon(
                 Icons.school,
                 color: primaryColor,
@@ -66,7 +86,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 6),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -95,48 +115,51 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
-        FutureBuilder<int>(
-          future: _fetchUnreadCount(context),
-          builder: (context, snapshot) {
-            final unreadCount = snapshot.data ?? 0;
-            return Stack(
-              children: [
-                IconButton(
-                  icon: Icon(
-                    Icons.notifications_outlined,
-                    color: themeProvider.appBarIconColor,
+        Padding(
+          padding: const EdgeInsets.only(right: 12.0),
+          child: FutureBuilder<int>(
+            future: _fetchUnreadCount(context),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.notifications_outlined,
+                      color: themeProvider.appBarIconColor,
+                    ),
+                    onPressed: onNotificationPressed ?? () {},
                   ),
-                  onPressed: onNotificationPressed ?? () {},
-                ),
-                if (unreadCount > 0)
-                  Positioned(
-                    right: 6,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 2,
-                      ),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.rectangle,
-                        borderRadius: BorderRadius.all(Radius.circular(10)),
-                      ),
-                      constraints: const BoxConstraints(minWidth: 18),
-                      child: Text(
-                        unreadCount > 99 ? '99+' : '$unreadCount',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 6,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.rectangle,
+                          borderRadius: BorderRadius.all(Radius.circular(10)),
+                        ),
+                        constraints: const BoxConstraints(minWidth: 18),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ],
     );

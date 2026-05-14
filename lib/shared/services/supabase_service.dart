@@ -95,9 +95,14 @@ class SupabaseService {
     required String bucket,
     required String path,
     required dynamic file,
+    bool upsert = false,
   }) async {
     try {
-      final response = await client.storage.from(bucket).upload(path, file);
+      final response = await client.storage.from(bucket).upload(
+        path,
+        file,
+        fileOptions: FileOptions(upsert: upsert),
+      );
       return response;
     } catch (e) {
       throw Exception('Error uploading file: $e');

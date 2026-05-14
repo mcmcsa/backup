@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../task/task_details_page.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../authentication/services/auth_service.dart';
@@ -56,11 +57,11 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
     Color statusColor;
     String statusLabel;
     switch (r.status.toLowerCase()) {
-      case 'done':
+      case 'completed':
         statusColor = Colors.green;
         statusLabel = 'COMPLETED';
         break;
-      case 'ongoing':
+      case 'in_progress':
         statusColor = Colors.orange;
         statusLabel = 'IN PROGRESS';
         break;
@@ -103,7 +104,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
       'status': statusLabel,
       'statusColor': statusColor,
       'date': r.dateSubmitted,
-      'completedDate': r.status == 'done' ? r.dateSubmitted : null,
+      'completedDate': r.status == 'completed' ? r.dateSubmitted : null,
       'priority': r.priority.isNotEmpty
           ? '${r.priority[0].toUpperCase()}${r.priority.substring(1)}'
           : 'Medium',
@@ -200,6 +201,13 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
     return '${months[date.month - 1]} ${date.day.toString().padLeft(2, '0')}, ${date.year}';
   }
 
+  String _formatRangeLabel() {
+    if (_startDate == null || _endDate == null) {
+      return 'Set Date Range';
+    }
+    return '${_formatDate(_startDate!)} - ${_formatDate(_endDate!)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredItems = _filteredItems;
@@ -210,7 +218,14 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
         roleText: 'Welcome Maintenance Staff',
         primaryColor: const Color(0xFF4169E1),
         showMenu: false,
-        onMenuPressed: () => Navigator.pop(context),
+        onMenuPressed: () {
+          final router = GoRouter.maybeOf(context);
+          if (router != null) {
+            router.go('/maintenance/dashboard');
+          } else {
+            Navigator.pop(context);
+          }
+        },
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -229,16 +244,31 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                   color: Colors.grey.shade400,
                   fontSize: 14,
                 ),
-                prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 8),
+                  child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                ),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 44,
+                  minHeight: 44,
+                ),
                 filled: true,
-                fillColor: Colors.grey.shade50,
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                  borderSide: BorderSide(color: Color(0xFF4169E1)),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 12,
+                  vertical: 10,
                 ),
               ),
             ),
@@ -268,72 +298,192 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _showDateRangePicker,
-                    icon: const Icon(Icons.calendar_today, size: 16),
-                    label: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            _startDate != null && _endDate != null
-                                ? '${_formatDate(_startDate!)} - ${_formatDate(_endDate!)}'
-                                : 'Date Range',
+            child: _startDate == null || _endDate == null
+                ? Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _showDateRangePicker,
+                          icon: const Icon(Icons.calendar_today, size: 16),
+                          label: Text(
+                            _formatRangeLabel(),
                             style: const TextStyle(fontSize: 11),
                             overflow: TextOverflow.ellipsis,
                           ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.black87,
+                            side: BorderSide(color: Colors.grey.shade300),
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                          ),
                         ),
-                        if (_startDate != null && _endDate != null) ...[
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _toggleSortOrder,
+                          icon: Icon(
+                            _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                            size: 16,
+                          ),
+                          label: Text(
+                            _sortAscending ? 'Oldest' : 'Newest',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.black87,
+                            side: BorderSide(color: Colors.grey.shade300),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Selected Date Range:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFF4169E1),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'From',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _formatDate(_startDate!),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.grey.shade400,
+                              size: 16,
+                            ),
+                          ),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFF4169E1),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'To',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _formatDate(_endDate!),
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF1E293B),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _toggleSortOrder,
+                              icon: Icon(
+                                _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                                size: 14,
+                              ),
+                              label: Text(
+                                _sortAscending ? 'Oldest' : 'Newest',
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.black87,
+                                side: BorderSide(color: Colors.grey.shade300),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            tooltip: 'Change date range',
+                            onPressed: _showDateRangePicker,
+                            icon: const Icon(Icons.edit_rounded),
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              foregroundColor: const Color(0xFF4169E1),
+                              minimumSize: const Size(36, 36),
+                            ),
+                          ),
                           const SizedBox(width: 4),
-                          GestureDetector(
-                            onTap: () {
+                          IconButton(
+                            tooltip: 'Clear date range',
+                            onPressed: () {
                               setState(() {
                                 _startDate = null;
                                 _endDate = null;
                               });
                             },
-                            child: const Icon(Icons.close, size: 14),
+                            icon: const Icon(Icons.close_rounded),
+                            style: IconButton.styleFrom(
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              foregroundColor: const Color(0xFFDC2626),
+                              minimumSize: const Size(36, 36),
+                            ),
                           ),
                         ],
-                      ],
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _startDate != null && _endDate != null
-                          ? const Color(0xFF4169E1)
-                          : Colors.black87,
-                      side: BorderSide(
-                        color: _startDate != null && _endDate != null
-                            ? const Color(0xFF4169E1)
-                            : Colors.grey.shade300,
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                    ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _toggleSortOrder,
-                    icon: Icon(
-                      _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                      size: 16,
-                    ),
-                    label: Text(
-                      _sortAscending ? 'Oldest' : 'Newest',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.black87,
-                      side: BorderSide(color: Colors.grey.shade300),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
 
           // History List
@@ -597,3 +747,4 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
     }
   }
 }
+

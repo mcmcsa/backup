@@ -2,7 +2,6 @@ class QRCodeHistory {
   final String id;
   final String? roomId;
   final String qrCodeValue;
-  final String? qrCodeImage;
   final String? roomName;
   final String? building;
   final String? department;
@@ -16,7 +15,6 @@ class QRCodeHistory {
     required this.id,
     this.roomId,
     required this.qrCodeValue,
-    this.qrCodeImage,
     this.roomName,
     this.building,
     this.department,
@@ -27,19 +25,25 @@ class QRCodeHistory {
     this.isActive = true,
   });
 
+  static DateTime _parseToLocal(dynamic value) {
+    if (value == null) return DateTime.now();
+    return DateTime.parse(value.toString()).toLocal();
+  }
+
   factory QRCodeHistory.fromMap(Map<String, dynamic> map) {
     return QRCodeHistory(
       id: map['id'] ?? '',
       roomId: map['room_id'],
       qrCodeValue: map['qr_code_value'] ?? '',
-      qrCodeImage: map['qr_code_image'],
       roomName: map['room_name'],
       building: map['building'],
       department: map['department'],
       createdById: map['created_by_id'] ?? '',
-      createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
+      createdAt: _parseToLocal(map['created_at']),
       scannedCount: map['scanned_count'] ?? 0,
-      lastScanned: map['last_scanned'] != null ? DateTime.parse(map['last_scanned']) : null,
+      lastScanned: map['last_scanned'] != null
+          ? _parseToLocal(map['last_scanned'])
+          : null,
       isActive: map['is_active'] ?? true,
     );
   }
@@ -50,7 +54,6 @@ class QRCodeHistory {
       'id': id,
       'room_id': roomId,
       'qr_code_value': qrCodeValue,
-      'qr_code_image': qrCodeImage,
       'room_name': roomName,
       'building': building,
       'department': department,
@@ -75,7 +78,6 @@ class QRCodeHistory {
     String? id,
     String? roomId,
     String? qrCodeValue,
-    String? qrCodeImage,
     String? roomName,
     String? building,
     String? department,
@@ -89,7 +91,6 @@ class QRCodeHistory {
       id: id ?? this.id,
       roomId: roomId ?? this.roomId,
       qrCodeValue: qrCodeValue ?? this.qrCodeValue,
-      qrCodeImage: qrCodeImage ?? this.qrCodeImage,
       roomName: roomName ?? this.roomName,
       building: building ?? this.building,
       department: department ?? this.department,

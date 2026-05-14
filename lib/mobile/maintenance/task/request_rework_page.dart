@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../../shared/widgets/common_app_bar.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/models/work_request_model.dart';
 
 class RequestReworkPage extends StatefulWidget {
@@ -36,23 +40,22 @@ class _RequestReworkPageState extends State<RequestReworkPage> {
       return _buildSuccessScreen();
     }
 
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF4169E1)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Request Rework',
-          style: TextStyle(
-            color: Colors.black87,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+      backgroundColor: themeProvider.backgroundColor,
+      appBar: CommonAppBar(
+        roleText: 'Maintenance Staff',
+        primaryColor: themeProvider.primaryColor,
+        showBack: true,
+        onBackPressed: () {
+          final router = GoRouter.maybeOf(context);
+          if (router != null) {
+            router.go('/maintenance/dashboard');
+          } else {
+            Navigator.pop(context);
+          }
+        },
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -433,21 +436,14 @@ class _RequestReworkPageState extends State<RequestReworkPage> {
   }
 
   Widget _buildSuccessScreen() {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        centerTitle: true,
-        title: const Text(
-          'Request Rework',
-          style: TextStyle(
-            color: Colors.black87,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+      backgroundColor: themeProvider.backgroundColor,
+      appBar: CommonAppBar(
+        roleText: 'Maintenance Staff',
+        primaryColor: themeProvider.primaryColor,
+        showMenu: false,
       ),
       body: Center(
         child: Padding(

@@ -17,6 +17,7 @@ class PreInspectionReport {
   final DateTime? adminApprovedDate;
   final String status; // 'submitted', 'approved', 'rejected'
   final String? notes;
+  final String? reviewNotes;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -39,6 +40,7 @@ class PreInspectionReport {
     this.adminApprovedDate,
     this.status = 'submitted',
     this.notes,
+    this.reviewNotes,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -66,6 +68,7 @@ class PreInspectionReport {
           : null,
       status: map['status'] ?? 'submitted',
       notes: map['notes'],
+      reviewNotes: map['review_notes'],
       createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
       updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
     );
@@ -90,6 +93,7 @@ class PreInspectionReport {
       'admin_approved_date': adminApprovedDate?.toIso8601String(),
       'status': status,
       'notes': notes,
+      'review_notes': reviewNotes,
     };
   }
 
@@ -112,6 +116,7 @@ class PreInspectionReport {
     DateTime? adminApprovedDate,
     String? status,
     String? notes,
+    String? reviewNotes,
   }) {
     return PreInspectionReport(
       id: id ?? this.id,
@@ -132,6 +137,7 @@ class PreInspectionReport {
       adminApprovedDate: adminApprovedDate ?? this.adminApprovedDate,
       status: status ?? this.status,
       notes: notes ?? this.notes,
+      reviewNotes: reviewNotes ?? this.reviewNotes,
     );
   }
 

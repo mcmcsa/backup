@@ -1,9 +1,13 @@
 import '../models/building_model.dart';
 import '../models/department_model.dart';
+import '../models/floor_model.dart';
 import '../models/request_type_model.dart';
+import '../models/room_type_model.dart';
 import '../services/building_service.dart';
 import '../services/department_service.dart';
+import '../services/floor_service.dart';
 import '../services/request_type_service.dart';
+import '../services/room_type_service.dart';
 
 /// Utility class for caching and retrieving dropdown data
 /// This prevents repeated database calls and improves performance
@@ -12,11 +16,15 @@ class DropdownDataHelper {
   
   late List<Building>? _buildingsCache;
   late List<Department>? _departmentsCache;
+  late List<Floor>? _floorsCache;
   late List<RequestType>? _requestTypesCache;
+  late List<RoomType>? _roomTypesCache;
   
   DateTime? _buildingsCacheTime;
   DateTime? _departmentsCacheTime;
+  DateTime? _floorsCacheTime;
   DateTime? _requestTypesCacheTime;
+  DateTime? _roomTypesCacheTime;
   
   // Cache duration: 1 hour
   static const Duration _cacheDuration = Duration(hours: 1);
@@ -28,7 +36,9 @@ class DropdownDataHelper {
   DropdownDataHelper._internal() {
     _buildingsCache = null;
     _departmentsCache = null;
+    _floorsCache = null;
     _requestTypesCache = null;
+    _roomTypesCache = null;
   }
 
   /// Get buildings list with caching
@@ -47,6 +57,17 @@ class DropdownDataHelper {
     } catch (e) {
       print('Error fetching buildings: $e');
       // Return empty list on error
+      return [];
+    }
+  }
+
+  /// Get building names for a specific department.
+  Future<List<String>> getBuildingNamesByDepartment(String departmentId) async {
+    try {
+      final buildings = await BuildingService.fetchByDepartment(departmentId);
+      return buildings.map((b) => b.name).toList();
+    } catch (e) {
+      print('Error fetching buildings by department: $e');
       return [];
     }
   }
@@ -87,9 +108,12 @@ class DropdownDataHelper {
   /// Get department by name
   Future<Department?> getDepartmentByName(String name) async {
     try {
+      final normalizedName = name.trim().toLowerCase();
+      if (normalizedName.isEmpty) return null;
+
       final departments = await DepartmentService.fetchAll();
       for (final dept in departments) {
-        if (dept.name == name) return dept;
+        if (dept.name.trim().toLowerCase() == normalizedName) return dept;
       }
       return null;
     } catch (e) {
@@ -140,7 +164,7 @@ class DropdownDataHelper {
   /// Standard positions available in the system
   List<String> getPositions() {
     return [
-      'Student',
+      'Teacher',
       'Professor',
       'Assistant Professor',
       'Instructor',
@@ -162,28 +186,40 @@ class DropdownDataHelper {
     ];
   }
 
-  /// Get floor options
-  List<String> getFloors() {
-    return [
-      '1st Floor',
-      '2nd Floor',
-      '3rd Floor',
-      '4th Floor',
-      '5th Floor',
-      '6th Floor',
-    ];
+  /// Get floor names list with caching
+  Future<List<String>> getFloorNames({bool forceRefresh = false}) async {
+    try {
+      if (!forceRefresh && _isCacheValid(_floorsCacheTime)) {
+        return _floorsCache?.map((f) => f.name).toList() ?? [];
+      }
+
+      final floors = await FloorService.fetchAll();
+      _floorsCache = floors;
+      _floorsCacheTime = DateTime.now();
+
+      return floors.map((f) => f.name).toList();
+    } catch (e) {
+      print('Error fetching floors: $e');
+      return [];
+    }
   }
 
   /// Get room type options
-  List<String> getRoomTypes() {
-    return [
-      'Laboratory',
-      'Lecture Hall',
-      'Seminar Room',
-      'Office',
-      'Storage',
-      'Conference Room',
-    ];
+  Future<List<String>> getRoomTypes() async {
+    try {
+      if (_isCacheValid(_roomTypesCacheTime)) {
+        return _roomTypesCache?.map((r) => r.name).toList() ?? [];
+      }
+
+      final roomTypes = await RoomTypeService.fetchAll();
+      _roomTypesCache = roomTypes;
+      _roomTypesCacheTime = DateTime.now();
+
+      return roomTypes.map((r) => r.name).toList();
+    } catch (e) {
+      print('Error fetching room types: $e');
+      return [];
+    }
   }
 
   /// Get room status options
@@ -200,8 +236,11 @@ class DropdownDataHelper {
   List<String> getWorkRequestStatuses() {
     return [
       'pending',
-      'ongoing',
-      'done',
+      'approved',
+      'in_progress',
+      'under_maintenance',
+      'completed',
+      'rework',
       'cancelled',
     ];
   }
@@ -219,10 +258,14 @@ class DropdownDataHelper {
   void clearCache() {
     _buildingsCache = null;
     _departmentsCache = null;
+    _floorsCache = null;
     _requestTypesCache = null;
+    _roomTypesCache = null;
     _buildingsCacheTime = null;
     _departmentsCacheTime = null;
+    _floorsCacheTime = null;
     _requestTypesCacheTime = null;
+    _roomTypesCacheTime = null;
   }
 
   /// Check if cache is still valid

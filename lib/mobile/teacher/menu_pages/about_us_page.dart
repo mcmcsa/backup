@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../../router/app_router.dart';
 
 class AboutUsPage extends StatelessWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -14,7 +16,14 @@ class AboutUsPage extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            final router = GoRouter.maybeOf(context);
+            if (router != null) {
+              router.go(teacherDashboardRoute);
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
         title: const Text(
           'About Us',
@@ -95,7 +104,7 @@ class AboutUsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'The PSU Maintenance System is a comprehensive platform designed to streamline maintenance requests and operations at Pangasinan State University. Our system enables students, teachers, and staff to efficiently report issues, track maintenance progress, and ensure a well-maintained campus environment.',
+                  'The PSU Maintenance System is a comprehensive platform designed to streamline maintenance requests and operations at Pangasinan State University. Our system enables teachers and staff to efficiently report issues, track maintenance progress, and ensure a well-maintained campus environment.',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade700,

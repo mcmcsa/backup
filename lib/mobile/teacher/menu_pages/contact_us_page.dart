@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../../router/app_router.dart';
 
 class ContactUsPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -34,7 +36,14 @@ class _ContactUsPageState extends State<ContactUsPage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            final router = GoRouter.maybeOf(context);
+            if (router != null) {
+              router.go(teacherDashboardRoute);
+            } else {
+              Navigator.pop(context);
+            }
+          },
         ),
         title: const Text(
           'Contact Us',

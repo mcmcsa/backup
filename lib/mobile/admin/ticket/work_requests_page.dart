@@ -1,8 +1,10 @@
+﻿import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/services/maintenance_account_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import 'request_details_page.dart';
-import 'view_queue_page.dart';
 import 'admin_pre_inspection_review_page.dart';
 import 'admin_post_repair_evaluation_page.dart';
 import 'admin_request_history_page.dart';
@@ -18,30 +20,111 @@ class WorkRequestsPage extends StatefulWidget {
   State<WorkRequestsPage> createState() => _WorkRequestsPageState();
 }
 
-class _WorkRequestsPageState extends State<WorkRequestsPage> {
+class _WorkRequestsPageState extends State<WorkRequestsPage>
+    with WidgetsBindingObserver {
   int _selectedFilter = 0;
   final TextEditingController _searchController = TextEditingController();
   final List<String> _filters = [
     'All Requests',
     'Pending',
-    'Ongoing',
+    'In Progress',
+    'Under Maintenance',
     'Completed',
   ];
   List<WorkRequest> _requests = [];
+  Map<String, String> _maintenanceNamesById = {};
+  Map<String, String> _maintenanceSpecializationsById = {};
   bool _isLoading = true;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRequests();
+    _startAutoRefresh();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadRequests();
+    }
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _loadRequests();
+    });
   }
 
   Future<void> _loadRequests() async {
     try {
-      final data = await WorkRequestService.fetchAll();
-      if (mounted) setState(() { _requests = data; _isLoading = false; });
+      final results = await Future.wait([
+        WorkRequestService.fetchAll(),
+        MaintenanceAccountService.fetchCreatedByCurrentAdmin(),
+      ]);
+
+      final data = results[0] as List<WorkRequest>;
+      final maintenanceAccounts = results[1] as List<MaintenanceAccount>;
+      final nameMap = {
+        for (final account in maintenanceAccounts)
+          account.userId: account.fullName,
+      };
+      final specializationMap = {
+        for (final account in maintenanceAccounts)
+          account.userId: (account.specialization ?? '').trim(),
+      };
+
+      if (mounted) {
+        setState(() {
+          _requests = data;
+          _maintenanceNamesById = nameMap;
+          _maintenanceSpecializationsById = specializationMap;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted)
+        setState(() {
+          _isLoading = false;
+        });
+    }
+  }
+
+  String _assignedMaintenanceName(WorkRequest request) {
+    final assignedToId = request.assignedToId?.trim();
+    if (assignedToId == null || assignedToId.isEmpty) return 'Unassigned';
+
+    final name = _maintenanceNamesById[assignedToId];
+    if (name != null && name.trim().isNotEmpty) {
+      final specialization =
+          (_maintenanceSpecializationsById[assignedToId] ?? '').trim();
+      if (specialization.isNotEmpty) {
+        return '$name ($specialization)';
+      }
+      return name;
+    }
+
+    return 'Unassigned';
+  }
+
+  Future<void> _openLatestRequestDetails(WorkRequest request) async {
+    try {
+      final latest = await WorkRequestService.fetchById(request.id);
+      if (!mounted) return;
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RequestDetailsPage(request: latest ?? request),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        await _loadRequests();
+      }
     }
   }
 
@@ -53,9 +136,11 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
     if (_selectedFilter == 1) {
       requests = requests.where((r) => r.status == 'pending').toList();
     } else if (_selectedFilter == 2) {
-      requests = requests.where((r) => r.status == 'ongoing').toList();
+      requests = requests.where((r) => r.status == 'in_progress').toList();
     } else if (_selectedFilter == 3) {
-      requests = requests.where((r) => r.status == 'done').toList();
+      requests = requests.where((r) => r.status == 'under_maintenance').toList();
+    } else if (_selectedFilter == 4) {
+      requests = requests.where((r) => r.status == 'completed').toList();
     }
 
     // Apply search
@@ -65,7 +150,7 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
             (r) =>
                 r.title.toLowerCase().contains(query) ||
                 r.id.contains(query) ||
-                r.department.toLowerCase().contains(query),
+                (r.department ?? '').toLowerCase().contains(query),
           )
           .toList();
     }
@@ -75,6 +160,8 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
   }
@@ -87,14 +174,16 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    final totalCompleted = _requests.where((r) => r.status == 'done').length;
+    final totalCompleted = _requests
+        .where((r) => r.status == 'completed')
+        .length;
     final readyCount = _requests.where((r) => r.status == 'pending').length;
     final ongoingRequests = _requests
-        .where((r) => r.status == 'ongoing')
+        .where((r) => r.status == 'in_progress')
         .toList();
     final ongoingRequest = ongoingRequests.isNotEmpty
         ? ongoingRequests.firstWhere(
-            (r) => r.officeRoom.contains('CLR'),
+            (r) => (r.officeRoom ?? '').contains('CLR'),
             orElse: () => ongoingRequests.first,
           )
         : null;
@@ -201,14 +290,36 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
                       color: Colors.grey.shade400,
                       fontSize: 14,
                     ),
-                    prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
-                    filled: true,
-                    fillColor: const Color(0xFFF3F4F6),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.only(left: 12, right: 8),
+                      child: Icon(
+                        Icons.search_rounded,
+                        color: Colors.grey.shade400,
+                        size: 20,
+                      ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(999),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(999),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(999)),
+                      borderSide: BorderSide(color: Color(0xFF4169E1)),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -263,60 +374,62 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // In Progress Card
-                if (ongoingRequest != null) ...[_buildInProgressCard(ongoingRequest), const SizedBox(height: 12)],
+                if (ongoingRequest != null) ...[
+                  _buildInProgressCard(ongoingRequest),
+                  const SizedBox(height: 12),
+                ],
 
-                // View Queue Link
-                Center(
-                  child: TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ViewQueuePage(),
-                        ),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stackStats = constraints.maxWidth < 320;
+
+                    if (stackStats) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildStatCard(
+                            'Total Completed',
+                            '$totalCompleted',
+                            '',
+                            Colors.black87,
+                          ),
+                          const SizedBox(height: 12),
+                          _buildStatCard(
+                            'Pending',
+                            '$readyCount',
+                            '',
+                            Colors.orange,
+                          ),
+                        ],
                       );
-                    },
-                    child: const Text(
-                      'View Queue',
-                      style: TextStyle(
-                        color: Color(0xFF4169E1),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            'Total Completed',
+                            '$totalCompleted',
+                            '',
+                            Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            'Pending',
+                            '$readyCount',
+                            '',
+                            Colors.orange,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 16),
 
-                // Stats Row
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatCard(
-                        'Total Completed',
-                        '$totalCompleted',
-                        '',
-                        Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildStatCard(
-                        'Pending',
-                        '$readyCount',
-                        '',
-                        Colors.orange,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Request Cards
-                ..._filteredRequests.map(
-                  (request) => _buildRequestCard(request),
-                ),
+                ..._filteredRequests.map((request) => _buildRequestCard(request)),
               ],
             ),
           ),
@@ -347,7 +460,10 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            runSpacing: 8,
             children: [
               const Text(
                 'REQUEST BY',
@@ -358,7 +474,6 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
                   letterSpacing: 0.5,
                 ),
               ),
-              const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -395,64 +510,129 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
               const Icon(Icons.room, color: Colors.white, size: 16),
               const SizedBox(width: 6),
               Text(
-                request.officeRoom,
+                request.officeRoom ?? '',
                 style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'STARTED',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stackActions = constraints.maxWidth < 350;
+
+              if (stackActions) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'STARTED',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
+                      ),
                     ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${request.dateSubmitted.hour > 12 ? request.dateSubmitted.hour - 12 : request.dateSubmitted.hour}:${request.dateSubmitted.minute.toString().padLeft(2, '0')} ${request.dateSubmitted.hour >= 12 ? 'PM' : 'AM'}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  AdminWorkProcessPage(request: request),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF4169E1),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'View Progress',
+                          style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'STARTED',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${request.dateSubmitted.hour > 12 ? request.dateSubmitted.hour - 12 : request.dateSubmitted.hour}:${request.dateSubmitted.minute.toString().padLeft(2, '0')} ${request.dateSubmitted.hour >= 12 ? 'PM' : 'AM'}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${request.dateSubmitted.hour > 12 ? request.dateSubmitted.hour - 12 : request.dateSubmitted.hour}:${request.dateSubmitted.minute.toString().padLeft(2, '0')} ${request.dateSubmitted.hour >= 12 ? 'PM' : 'AM'}',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              AdminWorkProcessPage(request: request),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF4169E1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'View Progress',
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AdminWorkProcessPage(request: request),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF4169E1),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 10,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'View Progress',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ],
+              );
+            },
           ),
         ],
       ),
@@ -490,31 +670,37 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
             ),
           ),
           const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: valueColor,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(
-                  percentage,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  value,
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.green.shade600,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: valueColor,
+                    height: 1,
                   ),
                 ),
-              ),
-            ],
+                if (percentage.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      percentage,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.green.shade600,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -551,14 +737,26 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
     Color statusColor;
     String statusLabel;
 
-    switch (request.status) {
-      case 'ongoing':
-        statusColor = const Color(0xFF4169E1);
-        statusLabel = 'ONGOING';
+    switch (request.status.toLowerCase()) {
+      case 'pending':
+        statusColor = const Color(0xFFFF9800);
+        statusLabel = 'PENDING';
         break;
-      case 'done':
+      case 'approved':
+        statusColor = const Color(0xFF2196F3);
+        statusLabel = 'APPROVED';
+        break;
+      case 'in_progress':
+        statusColor = const Color(0xFF4169E1);
+        statusLabel = 'IN PROGRESS';
+        break;
+      case 'under_maintenance':
+        statusColor = const Color(0xFF9C27B0);
+        statusLabel = 'UNDER MAINTENANCE';
+        break;
+      case 'completed':
         statusColor = Colors.green;
-        statusLabel = 'ISO-READY';
+        statusLabel = 'COMPLETED';
         break;
       default:
         statusColor = urgencyColor;
@@ -593,17 +791,8 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
               ),
             ),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Text(
-                  urgencyLabel,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: urgencyColor,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const Spacer(),
                 Text(
                   statusLabel,
                   style: TextStyle(
@@ -646,7 +835,70 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
                 const SizedBox(height: 12),
 
                 // Details Grid
-                Row(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stackDetails = constraints.maxWidth < 320;
+
+                    if (stackDetails) {
+                      return Column(
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'DEPARTMENT',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade500,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                request.department ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF111827),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'ROOM',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade500,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                request.officeRoom ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF111827),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Column(
@@ -663,7 +915,9 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            request.department,
+                            request.department ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -688,7 +942,9 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            request.officeRoom,
+                            request.officeRoom ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -699,6 +955,8 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
                       ),
                     ),
                   ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
 
@@ -730,96 +988,189 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
 
                 // Assigned to
                 Text(
-                  'Assigned to: ${request.reportedBy}',
+                  'Assigned to: ${_assignedMaintenanceName(request)}',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 16),
 
                 // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AdminPreInspectionReviewPage(request: request),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wrapActions = constraints.maxWidth < 340;
+
+                    if (wrapActions) {
+                      return Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        AdminPreInspectionReviewPage(
+                                          request: request,
+                                        ),
+                                  ),
+                                ).then((_) => _loadRequests());
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                              child: const Text(
+                                'Pre-Inspect',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
                           ),
-                        ),
-                        child: const Text(
-                          'Pre-Inspect',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AdminPostRepairEvaluationPage(request: request),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        AdminPostRepairEvaluationPage(
+                                          request: request,
+                                        ),
+                                  ),
+                                ).then((_) => _loadRequests());
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                              ),
+                              child: const Text(
+                                'Post-Repair',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
                           ),
-                        ),
-                        child: const Text(
-                          'Post-Repair',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  RequestDetailsPage(request: request),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () => _openLatestRequestDetails(request),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4169E1),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: const Text(
+                                'View Details',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4169E1),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
                           ),
-                          elevation: 0,
-                        ),
-                        child: const Text(
-                          'View Details',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      AdminPreInspectionReviewPage(
+                                        request: request,
+                                      ),
+                                ),
+                              ).then((_) => _loadRequests());
+                            },
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                            child: const Text(
+                              'Pre-Inspect',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      AdminPostRepairEvaluationPage(
+                                        request: request,
+                                      ),
+                                ),
+                              ).then((_) => _loadRequests());
+                            },
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                            child: const Text(
+                              'Post-Repair',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => _openLatestRequestDetails(request),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF4169E1),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'View Details',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
 
                 // View History button for low urgency
@@ -832,14 +1183,18 @@ class _WorkRequestsPageState extends State<WorkRequestsPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const AdminRequestHistoryPage(),
+                            builder: (context) =>
+                                const AdminRequestHistoryPage(),
                           ),
                         );
                       },
                       icon: const Icon(Icons.history, size: 14),
                       label: const Text(
                         'View History',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../../shared/widgets/common_app_bar.dart';
+import '../../../shared/providers/theme_provider.dart';
 
 class WorkOrderConfirmationPage extends StatelessWidget {
   final String workOrderId;
@@ -18,24 +22,22 @@ class WorkOrderConfirmationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Confirmation',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
-        ),
-        centerTitle: true,
+      backgroundColor: themeProvider.backgroundColor,
+      appBar: CommonAppBar(
+        roleText: 'Maintenance Staff',
+        primaryColor: themeProvider.primaryColor,
+        showBack: true,
+        onBackPressed: () {
+          final router = GoRouter.maybeOf(context);
+          if (router != null) {
+            router.go('/maintenance/dashboard');
+          } else {
+            Navigator.pop(context);
+          }
+        },
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),

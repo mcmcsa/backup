@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../authentication/models/user_model.dart';
+import '../../../authentication/services/auth_service.dart';
+import '../../../router/app_router.dart';
 import '../../../shared/providers/theme_provider.dart';
+import '../../../shared/services/admin_audit_log_service.dart';
+import '../../../shared/services/app_settings_service.dart';
+import '../../admin/shared/about_system_page.dart';
+import '../../admin/shared/change_password_page.dart';
 import 'about_us_page.dart';
 import 'contact_us_page.dart';
+import 'system_workflow_page.dart';
 
 class SettingsPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -17,20 +26,120 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _notificationsEnabled = true;
   bool _emailNotifications = false;
   bool _pushNotifications = true;
+  bool _qrRegenerationEnabled = false;
+  bool _isLoadingPreferences = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final settings = await AppSettingsService.getNotificationSettings();
+    final qrRegenerationEnabled = await AppSettingsService.isQrRegenerationEnabled();
+    if (!mounted) return;
+    setState(() {
+      _notificationsEnabled = settings['notificationsEnabled'] ?? true;
+      _emailNotifications = settings['emailNotifications'] ?? false;
+      _pushNotifications = settings['pushNotifications'] ?? true;
+      _qrRegenerationEnabled = qrRegenerationEnabled;
+      _isLoadingPreferences = false;
+    });
+  }
+
+  Future<void> _savePreferences() async {
+    await AppSettingsService.setNotificationSettings(
+      notificationsEnabled: _notificationsEnabled,
+      emailNotifications: _emailNotifications,
+      pushNotifications: _pushNotifications,
+    );
+  }
+
+  Future<void> _toggleMasterNotifications(bool value) async {
+    setState(() {
+      _notificationsEnabled = value;
+      if (!value) {
+        _emailNotifications = false;
+        _pushNotifications = false;
+      }
+    });
+    await _savePreferences();
+    await AdminAuditLogService.logAction(
+      title: value ? 'Enabled Notifications' : 'Disabled Notifications',
+      details: 'Settings > Notifications',
+    );
+  }
+
+  Future<void> _toggleEmailNotifications(bool value) async {
+    if (!_notificationsEnabled) return;
+    setState(() {
+      _emailNotifications = value;
+    });
+    await _savePreferences();
+    await AdminAuditLogService.logAction(
+      title: value ? 'Enabled Email Notifications' : 'Disabled Email Notifications',
+      details: 'Settings > Notifications',
+    );
+  }
+
+  Future<void> _togglePushNotifications(bool value) async {
+    if (!_notificationsEnabled) return;
+    setState(() {
+      _pushNotifications = value;
+    });
+    await _savePreferences();
+    await AdminAuditLogService.logAction(
+      title: value ? 'Enabled Push Notifications' : 'Disabled Push Notifications',
+      details: 'Settings > Notifications',
+    );
+  }
+
+  Future<void> _toggleQrRegeneration(bool value) async {
+    if (value && !_qrRegenerationEnabled) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Enable QR Regeneration?'),
+          content: const Text(
+            'Regenerating QR codes changes room QR identity and may affect previously printed QR codes. Continue?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Enable'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+    }
+
+    setState(() => _qrRegenerationEnabled = value);
+    await AppSettingsService.setQrRegenerationEnabled(value);
+    await AdminAuditLogService.logAction(
+      title: value ? 'Enabled QR Regeneration' : 'Disabled QR Regeneration',
+      details: 'Settings > QR Code',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final authService = context.watch<AuthService>();
+    final isAdmin = authService.currentUser?.role == UserRole.admin;
     
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
         backgroundColor: themeProvider.appBarColor,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: themeProvider.appBarTextColor, size: 24),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: Text(
           'Settings',
           style: TextStyle(
@@ -55,26 +164,16 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               children: [
                 _buildSettingsItem(
-                  icon: Icons.person_outline,
-                  iconColor: themeProvider.primaryColor,
-                  title: 'Edit Profile',
-                  subtitle: 'Update your personal information',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Edit profile coming soon')),
-                    );
-                  },
-                  themeProvider: themeProvider,
-                ),
-                _buildDivider(themeProvider),
-                _buildSettingsItem(
                   icon: Icons.lock_outline,
                   iconColor: Colors.blue,
                   title: 'Change Password',
                   subtitle: 'Update your password',
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Change password coming soon')),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ChangePasswordPage(),
+                      ),
                     );
                   },
                   themeProvider: themeProvider,
@@ -101,12 +200,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: 'Enable Notifications',
                   subtitle: 'Receive updates about your requests',
                   value: _notificationsEnabled,
-                  onChanged: (value) {
-                    setState(() {
-                      _notificationsEnabled = value;
-                    });
-                  },
+                  onChanged: _toggleMasterNotifications,
                   themeProvider: themeProvider,
+                  enabled: !_isLoadingPreferences,
                 ),
                 _buildDivider(themeProvider),
                 _buildSwitchItem(
@@ -115,12 +211,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: 'Email Notifications',
                   subtitle: 'Receive email updates',
                   value: _emailNotifications,
-                  onChanged: (value) {
-                    setState(() {
-                      _emailNotifications = value;
-                    });
-                  },
+                  onChanged: _toggleEmailNotifications,
                   themeProvider: themeProvider,
+                  enabled: !_isLoadingPreferences && _notificationsEnabled,
                 ),
                 _buildDivider(themeProvider),
                 _buildSwitchItem(
@@ -129,14 +222,33 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: 'Push Notifications',
                   subtitle: 'Receive push notifications',
                   value: _pushNotifications,
-                  onChanged: (value) {
-                    setState(() {
-                      _pushNotifications = value;
-                    });
-                  },
+                  onChanged: _togglePushNotifications,
                   themeProvider: themeProvider,
+                  enabled: !_isLoadingPreferences && _notificationsEnabled,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // QR Code Section
+          _buildSectionHeader('QR Code', themeProvider),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: themeProvider.cardColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: themeProvider.borderColor),
+            ),
+            child: _buildSwitchItem(
+              icon: Icons.qr_code_2_outlined,
+              iconColor: Colors.blue,
+              title: 'Allow QR Regeneration',
+              subtitle: 'Show regenerate option in Add/Edit Room',
+              value: _qrRegenerationEnabled,
+              onChanged: _toggleQrRegeneration,
+              themeProvider: themeProvider,
+              enabled: !_isLoadingPreferences,
             ),
           ),
           const SizedBox(height: 24),
@@ -151,7 +263,7 @@ class _SettingsPageState extends State<SettingsPage> {
               border: Border.all(color: themeProvider.borderColor),
               boxShadow: [
                 BoxShadow(
-                  color: themeProvider.primaryColor.withOpacity(0.1),
+                  color: themeProvider.primaryColor.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -164,33 +276,36 @@ class _SettingsPageState extends State<SettingsPage> {
               subtitle: themeProvider.isDarkMode ? 'Dark theme enabled' : 'Light theme enabled',
               value: themeProvider.isDarkMode,
               onChanged: (value) async {
-                await themeProvider.toggleTheme();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Row(
-                        children: [
-                          Icon(
-                            themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            themeProvider.isDarkMode 
-                                ? 'Dark mode enabled' 
-                                : 'Light mode enabled',
-                          ),
-                        ],
-                      ),
-                      backgroundColor: themeProvider.primaryColor,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      duration: const Duration(seconds: 2),
+                await themeProvider.setDarkMode(value);
+                await AdminAuditLogService.logAction(
+                  title: value ? 'Enabled Dark Mode' : 'Disabled Dark Mode',
+                  details: 'Settings > Appearance',
+                );
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(
+                          themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          themeProvider.isDarkMode
+                              ? 'Dark mode enabled'
+                              : 'Light mode enabled',
+                        ),
+                      ],
                     ),
-                  );
-                }
+                    backgroundColor: themeProvider.primaryColor,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
               },
               themeProvider: themeProvider,
             ),
@@ -198,7 +313,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 24),
 
           // Other Section
-          _buildSectionHeader('Other', themeProvider),
+          _buildSectionHeader(isAdmin ? 'System' : 'Other', themeProvider),
           const SizedBox(height: 12),
           Container(
             decoration: BoxDecoration(
@@ -209,30 +324,21 @@ class _SettingsPageState extends State<SettingsPage> {
             child: Column(
               children: [
                 _buildSettingsItem(
-                  icon: Icons.language_outlined,
-                  iconColor: Colors.cyan,
-                  title: 'Language',
-                  subtitle: 'English',
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Language selection coming soon')),
-                    );
-                  },
-                  themeProvider: themeProvider,
-                ),
-                _buildDivider(themeProvider),
-                _buildSettingsItem(
                   icon: Icons.help_outline,
                   iconColor: Colors.amber,
-                  title: 'Help & Support',
+                  title: 'Contact Us',
                   subtitle: 'Get help and contact support',
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ContactUsPage(),
-                      ),
-                    );
+                    if (isAdmin) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ContactUsPage(),
+                        ),
+                      );
+                    } else {
+                      context.push(teacherContactRoute);
+                    }
                   },
                   themeProvider: themeProvider,
                 ),
@@ -240,18 +346,39 @@ class _SettingsPageState extends State<SettingsPage> {
                 _buildSettingsItem(
                   icon: Icons.info_outline,
                   iconColor: Colors.indigo,
-                  title: 'About',
+                  title: 'About Us',
                   subtitle: 'App version and information',
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AboutUsPage(),
-                      ),
-                    );
+                    if (isAdmin) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AboutSystemPage(),
+                        ),
+                      );
+                    } else {
+                      context.push(teacherAboutRoute);
+                    }
                   },
                   themeProvider: themeProvider,
                 ),
+                if (isAdmin) _buildDivider(themeProvider),
+                if (isAdmin)
+                  _buildSettingsItem(
+                    icon: Icons.account_tree_outlined,
+                    iconColor: Colors.teal,
+                    title: 'System workflow',
+                    subtitle: 'View maintenance request flow',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SystemWorkflowPage(),
+                        ),
+                      );
+                    },
+                    themeProvider: themeProvider,
+                  ),
               ],
             ),
           ),
@@ -290,7 +417,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+                color: iconColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -342,53 +469,60 @@ class _SettingsPageState extends State<SettingsPage> {
     required bool value,
     required ValueChanged<bool> onChanged,
     required ThemeProvider themeProvider,
+    bool enabled = true,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: themeProvider.textColor,
-                  ),
+    return Opacity(
+      opacity: enabled ? 1 : 0.55,
+      child: InkWell(
+        onTap: enabled ? () => onChanged(!value) : null,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: themeProvider.subtitleColor,
-                  ),
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 22,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: themeProvider.textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: themeProvider.subtitleColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: value,
+                onChanged: enabled ? onChanged : null,
+                activeThumbColor: themeProvider.primaryColor,
+              ),
+            ],
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeThumbColor: themeProvider.primaryColor,
-          ),
-        ],
+        ),
       ),
     );
   }

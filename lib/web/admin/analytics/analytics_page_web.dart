@@ -4,6 +4,7 @@ import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/room_model.dart';
 import '../../../shared/services/room_service.dart';
 import 'dart:math' as math;
+import '../shared/admin_styles.dart';
 
 class AnalyticsPageWeb extends StatefulWidget {
   const AnalyticsPageWeb({super.key});
@@ -18,14 +19,14 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
   bool _isLoading = true;
   String _selectedPeriod = 'This Month';
 
-  // Professional color palette
-  static const Color _primaryBlue = Color(0xFF3B82F6);
-  static const Color _successGreen = Color(0xFF22C55E);
-  static const Color _warningYellow = Color(0xFFFBBF24);
-  static const Color _dangerRed = Color(0xFFEF4444);
-  static const Color _darkText = Color(0xFF1E293B);
-  static const Color _subtleText = Color(0xFF64748B);
-  static const Color _pageBg = Color(0xFFF1F5F9);
+  // Professional color palette mapping
+  static const Color _primaryBlue = AdminStyles.primary;
+  static const Color _successGreen = AdminStyles.success;
+  static const Color _warningYellow = AdminStyles.warning;
+  static const Color _dangerRed = AdminStyles.error;
+  static const Color _darkText = AdminStyles.textPrimary;
+  static const Color _subtleText = AdminStyles.textSecondary;
+  static const Color _pageBg = AdminStyles.bg;
 
   @override
   void initState() {
@@ -61,6 +62,92 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
   ).length;
   int get _highPriority => _requests.where((r) => r.priority.toLowerCase() == 'high').length;
   double get _completionRate => _totalRequests > 0 ? (_completedRequests / _totalRequests * 100) : 0;
+
+  DateTime _periodStart(DateTime now) {
+    switch (_selectedPeriod) {
+      case 'Today':
+        return DateTime(now.year, now.month, now.day);
+      case 'This Week':
+        return DateTime(now.year, now.month, now.day)
+            .subtract(Duration(days: now.weekday - 1));
+      case 'This Year':
+        return DateTime(now.year, 1, 1);
+      case 'This Month':
+      default:
+        return DateTime(now.year, now.month, 1);
+    }
+  }
+
+  DateTime _previousPeriodStart(DateTime now) {
+    final start = _periodStart(now);
+    switch (_selectedPeriod) {
+      case 'Today':
+        return start.subtract(const Duration(days: 1));
+      case 'This Week':
+        return start.subtract(const Duration(days: 7));
+      case 'This Year':
+        return DateTime(start.year - 1, 1, 1);
+      case 'This Month':
+      default:
+        return DateTime(start.year, start.month - 1, 1);
+    }
+  }
+
+  DateTime _previousPeriodEnd(DateTime now) {
+    return _periodStart(now).subtract(const Duration(milliseconds: 1));
+  }
+
+  DateTime _currentPeriodEnd(DateTime now) {
+    switch (_selectedPeriod) {
+      case 'Today':
+        return DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      case 'This Week':
+        return _periodStart(now)
+            .add(const Duration(days: 7))
+            .subtract(const Duration(milliseconds: 1));
+      case 'This Year':
+        return DateTime(now.year + 1, 1, 1)
+            .subtract(const Duration(milliseconds: 1));
+      case 'This Month':
+      default:
+        return DateTime(now.year, now.month + 1, 1)
+            .subtract(const Duration(milliseconds: 1));
+    }
+  }
+
+  int _countInRange(
+    DateTime start,
+    DateTime end,
+    bool Function(WorkRequest request) predicate,
+  ) {
+    return _requests.where((request) {
+      final submitted = request.dateSubmitted;
+      return !submitted.isBefore(start) &&
+          !submitted.isAfter(end) &&
+          predicate(request);
+    }).length;
+  }
+
+  double _trendPercent(int current, int previous) {
+    if (previous == 0) return current > 0 ? 100 : 0;
+    return ((current - previous) / previous) * 100;
+  }
+
+  List<double> _buildDailySubmissionSeries() {
+    final now = DateTime.now();
+    final days = List<DateTime>.generate(7, (index) {
+      final day = now.subtract(Duration(days: 6 - index));
+      return DateTime(day.year, day.month, day.day);
+    });
+
+    return days.map((day) {
+      final nextDay = day.add(const Duration(days: 1));
+      return _requests.where((request) {
+        return !request.dateSubmitted.isBefore(day) &&
+            request.dateSubmitted.isBefore(nextDay);
+      }).length.toDouble();
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,11 +220,11 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
           children: [
             Text(
               'Analytics Dashboard',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _darkText),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _darkText, letterSpacing: -0.5),
             ),
             Text(
               'Performance metrics and insights',
-              style: TextStyle(fontSize: 13, color: _subtleText),
+              style: TextStyle(fontSize: 14, color: _subtleText, fontWeight: FontWeight.w500),
             ),
           ],
         ),
@@ -147,12 +234,13 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AdminStyles.border),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -175,6 +263,54 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
   }
 
   Widget _buildStatsRow() {
+    final now = DateTime.now();
+    final currentStart = _periodStart(now);
+    final currentEnd = _currentPeriodEnd(now);
+    final previousStart = _previousPeriodStart(now);
+    final previousEnd = _previousPeriodEnd(now);
+
+    final currentTotal = _countInRange(currentStart, currentEnd, (_) => true);
+    final previousTotal = _countInRange(previousStart, previousEnd, (_) => true);
+    final totalTrend = _trendPercent(currentTotal, previousTotal);
+
+    final currentPending = _countInRange(
+      currentStart,
+      currentEnd,
+      (request) => request.status.toLowerCase() == 'pending',
+    );
+    final previousPending = _countInRange(
+      previousStart,
+      previousEnd,
+      (request) => request.status.toLowerCase() == 'pending',
+    );
+    final pendingTrend = _trendPercent(currentPending, previousPending);
+
+    final currentHighPriority = _countInRange(
+      currentStart,
+      currentEnd,
+      (request) => request.priority.toLowerCase() == 'high',
+    );
+    final previousHighPriority = _countInRange(
+      previousStart,
+      previousEnd,
+      (request) => request.priority.toLowerCase() == 'high',
+    );
+    final highPriorityTrend = _trendPercent(currentHighPriority, previousHighPriority);
+
+    final currentCompleted = _countInRange(
+      currentStart,
+      currentEnd,
+      (request) => request.status.toLowerCase() == 'completed',
+    );
+    final previousCompleted = _countInRange(
+      previousStart,
+      previousEnd,
+      (request) => request.status.toLowerCase() == 'completed',
+    );
+    final currentCompletionRate = currentTotal == 0 ? 0 : (currentCompleted / currentTotal) * 100;
+    final previousCompletionRate = previousTotal == 0 ? 0 : (previousCompleted / previousTotal) * 100;
+    final completionRateTrend = currentCompletionRate - previousCompletionRate;
+
     return Row(
       children: [
         Expanded(
@@ -183,8 +319,8 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
             value: '$_totalRequests',
             icon: Icons.description_rounded,
             iconColor: _primaryBlue,
-            trend: '+12%',
-            trendUp: true,
+            trend: '${totalTrend >= 0 ? '+' : ''}${totalTrend.toStringAsFixed(1)}%',
+            trendUp: totalTrend >= 0,
           ),
         ),
         const SizedBox(width: 16),
@@ -194,8 +330,8 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
             value: '${_completionRate.toStringAsFixed(1)}%',
             icon: Icons.check_circle_rounded,
             iconColor: _successGreen,
-            trend: '+5%',
-            trendUp: true,
+            trend: '${completionRateTrend >= 0 ? '+' : ''}${completionRateTrend.toStringAsFixed(1)}%',
+            trendUp: completionRateTrend >= 0,
           ),
         ),
         const SizedBox(width: 16),
@@ -205,8 +341,8 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
             value: '$_pendingRequests',
             icon: Icons.hourglass_empty_rounded,
             iconColor: _warningYellow,
-            trend: '-3%',
-            trendUp: false,
+            trend: '${pendingTrend >= 0 ? '+' : ''}${pendingTrend.toStringAsFixed(1)}%',
+            trendUp: pendingTrend <= 0,
           ),
         ),
         const SizedBox(width: 16),
@@ -216,8 +352,8 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
             value: '$_highPriority',
             icon: Icons.priority_high_rounded,
             iconColor: _dangerRed,
-            trend: '+2%',
-            trendUp: true,
+            trend: '${highPriorityTrend >= 0 ? '+' : ''}${highPriorityTrend.toStringAsFixed(1)}%',
+            trendUp: highPriorityTrend <= 0,
           ),
         ),
       ],
@@ -225,6 +361,8 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
   }
 
   Widget _buildPerformanceCard() {
+    final chartData = _buildDailySubmissionSeries();
+
     return _Card(
       title: 'Performance Overview',
       icon: Icons.trending_up_rounded,
@@ -233,7 +371,7 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
         child: CustomPaint(
           size: const Size(double.infinity, 200),
           painter: _LineChartPainter(
-            data: [40, 55, 45, 70, 65, 80, 75],
+            data: chartData,
             color: _primaryBlue,
           ),
         ),
@@ -354,16 +492,20 @@ class _StatCardState extends State<_StatCard> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.all(20),
-        transform: Matrix4.identity()..translate(0.0, _isHovered ? -2.0 : 0.0),
+        transform: Matrix4.identity()..setTranslationRaw(0.0, _isHovered ? -2.0 : 0.0, 0.0),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isHovered ? widget.iconColor.withValues(alpha: 0.5) : AdminStyles.border,
+            width: _isHovered ? 1.5 : 1,
+          ),
           boxShadow: [
             BoxShadow(
               color: _isHovered
-                  ? widget.iconColor.withValues(alpha: 0.15)
-                  : Colors.black.withValues(alpha: 0.04),
-              blurRadius: _isHovered ? 16 : 12,
+                  ? widget.iconColor.withValues(alpha: 0.12)
+                  : Colors.black.withValues(alpha: 0.03),
+              blurRadius: _isHovered ? 20 : 10,
               offset: Offset(0, _isHovered ? 6 : 4),
             ),
           ],
@@ -386,15 +528,19 @@ class _StatCardState extends State<_StatCard> {
                 children: [
                   Text(
                     widget.value,
-                    style: const TextStyle(
+                    style: AdminStyles.headingStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E293B),
+                      color: AdminStyles.textPrimary,
                     ),
                   ),
                   Text(
                     widget.title,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF64748B)),
+                    style: AdminStyles.bodyStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AdminStyles.textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -418,10 +564,10 @@ class _StatCardState extends State<_StatCard> {
                   const SizedBox(width: 4),
                   Text(
                     widget.trend,
-                    style: TextStyle(
+                    style: AdminStyles.dataStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: widget.trendUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                      color: widget.trendUp ? AdminStyles.success : AdminStyles.error,
                     ),
                   ),
                 ],
@@ -446,17 +592,7 @@ class _Card extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: AdminStyles.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -473,10 +609,10 @@ class _Card extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 15,
+                style: AdminStyles.headingStyle(
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E293B),
+                  color: AdminStyles.textPrimary,
                 ),
               ),
             ],
@@ -617,6 +753,7 @@ class _LineChartPainter extends CustomPainter {
     final maxVal = data.reduce(math.max);
     final minVal = data.reduce(math.min);
     final range = maxVal - minVal;
+    final normalizedRange = range == 0 ? 1.0 : range;
     final stepX = size.width / (data.length - 1);
 
     final path = Path();
@@ -624,7 +761,7 @@ class _LineChartPainter extends CustomPainter {
 
     for (int i = 0; i < data.length; i++) {
       final x = i * stepX;
-      final y = size.height - ((data[i] - minVal) / range * size.height * 0.8 + size.height * 0.1);
+      final y = size.height - ((data[i] - minVal) / normalizedRange * size.height * 0.8 + size.height * 0.1);
       if (i == 0) {
         path.moveTo(x, y);
         fillPath.moveTo(x, size.height);
@@ -645,7 +782,7 @@ class _LineChartPainter extends CustomPainter {
     final dotPaint = Paint()..color = color;
     for (int i = 0; i < data.length; i++) {
       final x = i * stepX;
-      final y = size.height - ((data[i] - minVal) / range * size.height * 0.8 + size.height * 0.1);
+      final y = size.height - ((data[i] - minVal) / normalizedRange * size.height * 0.8 + size.height * 0.1);
       canvas.drawCircle(Offset(x, y), 4, dotPaint);
       canvas.drawCircle(Offset(x, y), 2, Paint()..color = Colors.white);
     }

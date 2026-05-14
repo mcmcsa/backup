@@ -1,9 +1,13 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../shared/services/supabase_service.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/widgets/common_app_bar.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../teacher/menu_pages/about_us_page.dart';
 import '../../teacher/menu_pages/contact_us_page.dart';
 import '../../teacher/menu_pages/settings_page.dart';
@@ -38,7 +42,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     _usernameController = TextEditingController(text: user?.name ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
     _birthdayController = TextEditingController(text: '');
-    _locationController = TextEditingController(text: '');
+    _locationController = TextEditingController(text: user?.department ?? '');
     _phoneController = TextEditingController(text: '');
     _loadStats();
   }
@@ -50,8 +54,8 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
         final requests = await WorkRequestService.fetchAssignedTo(user.id);
         if (mounted) {
           setState(() {
-            _completedCount = requests.where((r) => r.status == 'done').length;
-            _inProgressCount = requests.where((r) => r.status == 'ongoing').length;
+            _completedCount = requests.where((r) => r.status == 'completed').length;
+            _inProgressCount = requests.where((r) => r.status == 'in_progress').length;
           });
         }
       }
@@ -66,6 +70,52 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     _locationController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  Future<void> _uploadAndSaveProfileImage(File file) async {
+    final auth = context.read<AuthService>();
+    final user = auth.currentUser;
+    if (user == null) return;
+    final ext = file.path.split('.').last;
+    final path = 'profiles/${user.id}.$ext';
+    try {
+      await SupabaseService.uploadFile(
+        bucket: 'profile-images',
+        path: path,
+        file: file,
+        upsert: true,
+      );
+      final publicUrl = SupabaseService.getPublicUrl(bucket: 'profile-images', path: path);
+      final ok = await auth.updateProfileImage(
+        role: user.role,
+        userId: user.id,
+        profileImage: publicUrl,
+      );
+      if (ok) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile picture updated')));
+      } else {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to update profile')));
+      }
+    } catch (e) {
+      debugPrint('Profile image upload error: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error uploading image')));
+    }
+  }
+
+  Future<void> _removeProfileImageFromProfile() async {
+    final auth = context.read<AuthService>();
+    final user = auth.currentUser;
+    if (user == null) return;
+    final ok = await auth.updateProfileImage(
+      role: user.role,
+      userId: user.id,
+      clear: true,
+    );
+    if (ok) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile picture removed')));
+    } else {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to remove profile picture')));
+    }
   }
 
   Future<void> _pickImage() async {
@@ -119,6 +169,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                     setState(() {
                       _profileImage = File(image.path);
                     });
+                    _uploadAndSaveProfileImage(File(image.path));
                   }
                 },
               ),
@@ -144,6 +195,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                     setState(() {
                       _profileImage = File(image.path);
                     });
+                    _uploadAndSaveProfileImage(File(image.path));
                   }
                 },
               ),
@@ -163,6 +215,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                     setState(() {
                       _profileImage = null;
                     });
+                   _removeProfileImageFromProfile();
                   },
                 ),
             ],
@@ -174,59 +227,16 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final auth = context.watch<AuthService>();
+    final user = auth.currentUser;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: Row(
-          children: [
-            SizedBox(
-              height: 32,
-              width: 32,
-              child: Image.asset(
-                'assets/images/PsuLogo.png',
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.school,
-                  color: Color(0xFF4169E1),
-                  size: 28,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'PSU',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    height: 1,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'MAINTENANCE STAFF',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.black54,
-                    height: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [],
-        leading: GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: const Icon(Icons.arrow_back, color: Colors.black87),
-        ),
+      backgroundColor: themeProvider.backgroundColor,
+      appBar: CommonAppBar(
+        roleText: 'Maintenance Staff',
+        primaryColor: themeProvider.primaryColor,
+        onMenuPressed: () => Scaffold.of(context).openDrawer(),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -255,11 +265,11 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                         width: 100,
                         height: 100,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF4169E1),
+                          color: themeProvider.primaryColor,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF4169E1).withOpacity(0.3),
+                              color: themeProvider.primaryColor.withOpacity(0.3),
                               blurRadius: 15,
                               offset: const Offset(0, 5),
                             ),
@@ -271,11 +281,21 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                                   _profileImage!,
                                   fit: BoxFit.cover,
                                 )
-                              : const Icon(
-                                  Icons.person,
-                                  size: 50,
-                                  color: Colors.white,
-                                ),
+                              : (user?.profileImage != null && user!.profileImage!.isNotEmpty)
+                                  ? Image.network(
+                                      user.profileImage!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => const Icon(
+                                        Icons.person,
+                                        size: 50,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.person,
+                                      size: 50,
+                                      color: Colors.white,
+                                    ),
                         ),
                       ),
                       Positioned(
@@ -874,64 +894,67 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+void _showLogoutDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    useRootNavigator: true,
+    builder: (BuildContext dialogContext) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Logout',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
-          title: const Text(
-            'Logout',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+        ),
+        content: const Text(
+          'Are you sure you want to logout?',
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.black87,
           ),
-          content: const Text(
-            'Are you sure you want to logout?',
-            style: TextStyle(
-              fontSize: 15,
-              color: Colors.black87,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: Colors.grey.shade600,
-                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.grey.shade600,
               ),
             ),
-            ElevatedButton(
-              onPressed: () {
-                // Handle logout
-                Navigator.pop(context);
-                // Navigate to login screen
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final authService = context.read<AuthService>();
+              Navigator.of(dialogContext, rootNavigator: true).pop();
+              if (context.mounted) {
+                await authService.handleLogoutButton(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: const Text(
-                'Logout',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: const Text(
+              'Logout',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
               ),
             ),
-          ],
-        );
-      },
-    );
-  }
+          ),
+        ],
+      );
+    },
+  );
+}
 }

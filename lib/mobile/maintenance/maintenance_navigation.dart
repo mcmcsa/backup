@@ -67,7 +67,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
               _buildNavItem(
                 icon: Icons.home_outlined,
                 activeIcon: Icons.home_rounded,
-                label: 'Dashboard',
+                label: 'Home',
                 index: 0,
               ),
               _buildNavItem(

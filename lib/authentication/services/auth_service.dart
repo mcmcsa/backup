@@ -1,21 +1,115 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../router/app_router.dart';
 import '../models/user_model.dart';
+import '../../shared/services/department_service.dart';
 import '../../shared/services/login_activity_service.dart';
-import '../../shared/widgets/loading_screen.dart';
-import '../screens/login_page.dart';
 
 class AuthService extends ChangeNotifier {
   AppUser? _currentUser;
   bool _isLoading = false;
+  bool _isHandlingLogout = false;
+  bool _isSessionInitialized = false;
+  bool _pauseLoginRedirectOnce = false;
+  bool _isPostLoginSplashActive = false;
   String? _loginError;
+  final bool _restoreSessionOnStartup;
+  late final StreamSubscription<AuthState> _authStateSubscription;
+  static const List<String> _institutionalDomains = [
+    'psu.edu.ph',
+    'university.edu',
+  ];
 
   AppUser? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _currentUser != null;
+  bool get isSessionInitialized => _isSessionInitialized;
+  bool get pauseLoginRedirectOnce => _pauseLoginRedirectOnce;
+  bool get isPostLoginSplashActive => _isPostLoginSplashActive;
   String? get loginError => _loginError;
 
   static SupabaseClient get _auth => Supabase.instance.client;
+
+  AuthService({bool restoreSessionOnStartup = true})
+      : _restoreSessionOnStartup = restoreSessionOnStartup {
+    _authStateSubscription = _auth.auth.onAuthStateChange.listen(
+      (data) => _handleAuthStateChange(data.event, data.session),
+    );
+
+    if (_restoreSessionOnStartup) {
+      _restoreSessionOnStartupAsync();
+    } else {
+      _isSessionInitialized = true;
+    }
+  }
+
+  Future<void> _restoreSessionOnStartupAsync() async {
+    try {
+      await _syncCurrentUserFromSession(_auth.auth.currentSession);
+    } catch (e) {
+      debugPrint('Startup session restore error: $e');
+    } finally {
+      _isSessionInitialized = true;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _handleAuthStateChange(
+    AuthChangeEvent event,
+    Session? session,
+  ) async {
+    try {
+      switch (event) {
+        case AuthChangeEvent.signedOut:
+        case AuthChangeEvent.userDeleted:
+          _currentUser = null;
+          _isPostLoginSplashActive = false;
+          _pauseLoginRedirectOnce = false;
+          _isSessionInitialized = true;
+          notifyListeners();
+          return;
+        case AuthChangeEvent.signedIn:
+        case AuthChangeEvent.tokenRefreshed:
+        case AuthChangeEvent.userUpdated:
+        case AuthChangeEvent.initialSession:
+        case AuthChangeEvent.passwordRecovery:
+        case AuthChangeEvent.mfaChallengeVerified:
+          await _syncCurrentUserFromSession(session);
+          _isSessionInitialized = true;
+          notifyListeners();
+          return;
+      }
+    } catch (e) {
+      debugPrint('Auth state change handling error: $e');
+      _isSessionInitialized = true;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _syncCurrentUserFromSession(Session? session) async {
+    final supabaseUser = session?.user ?? _auth.auth.currentUser;
+    if (supabaseUser == null) {
+      _currentUser = null;
+      return;
+    }
+
+    _currentUser = await _fetchProfile(supabaseUser.id);
+  }
+
+  bool consumeLoginRedirectPause() {
+    if (!_pauseLoginRedirectOnce) return false;
+    _pauseLoginRedirectOnce = false;
+    return true;
+  }
+
+  void finishPostLoginSplash() {
+    if (!_isPostLoginSplashActive) return;
+    _isPostLoginSplashActive = false;
+    notifyListeners();
+  }
 
   // ---------------------------------------------------------------
   // Login with email and password
@@ -37,18 +131,61 @@ class AuthService extends ChangeNotifier {
         return null;
       }
 
-      final profile = await _fetchProfile(supabaseUser.id);
+      AppUser? profile;
+      try {
+        profile = await _fetchProfile(supabaseUser.id);
+      } catch (e) {
+        debugPrint('Profile fetch error during login: $e');
+        _loginError =
+            'Unable to load your account profile right now. Please try again.';
+        return null;
+      }
       if (profile == null) {
         _loginError = 'Login succeeded but no profile found. Contact an admin.';
         return null;
       }
+
+      if (!profile.isActive) {
+        _loginError = profile.role == UserRole.teacher
+            ? 'Your faculty account is not active yet. Please verify your email first.'
+            : 'Your account is inactive. Please contact the administrator.';
+        await _auth.auth.signOut();
+        return null;
+      }
+
+      if (profile.role == UserRole.teacher &&
+          supabaseUser.emailConfirmedAt == null) {
+        _loginError =
+            'Please verify your institutional email before logging in.';
+        await _auth.auth.signOut();
+        return null;
+      }
+
       _currentUser = profile;
-      await LoginActivityService.recordLogin(profile);
+      // Allow the UI to show transition/splash first before router login redirect.
+      _pauseLoginRedirectOnce = true;
+      _isPostLoginSplashActive = true;
+      try {
+        await LoginActivityService.recordLogin(profile);
+      } catch (e) {
+        // Login should still succeed even if local activity logging fails.
+        debugPrint('Login activity recording failed: $e');
+      }
       notifyListeners();
       return profile;
+    } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('invalid login credentials')) {
+        _loginError = 'Invalid email or password.';
+      } else if (msg.contains('email not confirmed')) {
+        _loginError = 'Email is not verified yet. Please check your inbox.';
+      } else {
+        _loginError = e.message;
+      }
+      return null;
     } catch (e) {
       debugPrint('Login error: $e');
-      _loginError = e.toString();
+      _loginError = 'Unable to log in right now. Please try again.';
       return null;
     } finally {
       _isLoading = false;
@@ -63,9 +200,21 @@ class AuthService extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    final current = _currentUser;
     try {
-      await _auth.auth.signOut();
+      if (current != null && current.role == UserRole.admin) {
+        await LoginActivityService.recordAdminAction(
+          user: current,
+          title: 'Admin Logout',
+          details: 'Logged out from the system',
+        );
+      }
+
+      await _auth.auth.signOut(scope: SignOutScope.global);
       _currentUser = null;
+      _isSessionInitialized = true;
+      _isPostLoginSplashActive = false;
+      _pauseLoginRedirectOnce = false;
       notifyListeners();
     } catch (e) {
       debugPrint('Logout error: $e');
@@ -83,13 +232,17 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final supabaseUser = _auth.auth.currentUser;
-      if (supabaseUser == null) return null;
-
-      final profile = await _fetchProfile(supabaseUser.id);
+      await _syncCurrentUserFromSession(_auth.auth.currentSession);
+      final profile = _currentUser;
       _currentUser = profile;
+      _isSessionInitialized = true;
+      _isPostLoginSplashActive = false;
       if (profile != null) {
-        await LoginActivityService.recordLogin(profile);
+        try {
+          await LoginActivityService.recordLogin(profile);
+        } catch (e) {
+          debugPrint('Session login activity recording failed: $e');
+        }
       }
       notifyListeners();
       return profile;
@@ -97,6 +250,7 @@ class AuthService extends ChangeNotifier {
       debugPrint('Session check error: $e');
       return null;
     } finally {
+      _isSessionInitialized = true;
       _isLoading = false;
       notifyListeners();
     }
@@ -124,9 +278,8 @@ class AuthService extends ChangeNotifier {
         data: {
           'name': name,
           'role': role.name,
-          'campus': ?campus,
-          'department': ?department,
-          'position': ?position,
+          if (campus != null) 'campus': campus,
+          if (department != null) 'department': department,
         },
       );
 
@@ -166,6 +319,118 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  bool isInstitutionalEmail(String email) {
+    final normalized = email.trim().toLowerCase();
+    return _institutionalDomains.any(
+      (domain) => normalized.endsWith('@$domain'),
+    );
+  }
+
+  Future<String?> registerFaculty({
+    required String fullName,
+    required String email,
+    required String department,
+    required String employeeId,
+    required String password,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+      if (!isInstitutionalEmail(normalizedEmail)) {
+        return 'Faculty registration only accepts institutional email addresses.';
+      }
+
+      final response = await _auth.auth.signUp(
+        email: normalizedEmail,
+        password: password,
+        data: {
+          'name': fullName.trim(),
+          'role': UserRole.teacher.name,
+          'department': department.trim(),
+          'employee_id': employeeId.trim(),
+        },
+      );
+
+      final newUser = response.user;
+      if (newUser == null) {
+        return 'Registration failed. Please try again.';
+      }
+
+      String? departmentId;
+      final normalizedDepartment = department.trim();
+      if (normalizedDepartment.isNotEmpty) {
+        final dept = await DepartmentService.findOrCreateByName(
+          normalizedDepartment,
+        );
+        departmentId = dept.id;
+      }
+
+      await _auth.from('teacher_users').upsert({
+        'user_id': newUser.id,
+        'department_id': departmentId,
+        'employee_id': employeeId.trim(),
+        'position': 'Faculty',
+      }, onConflict: 'user_id');
+
+      await _auth.auth.signOut();
+      return null;
+    } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('already') || msg.contains('registered')) {
+        return 'This email is already registered.';
+      }
+      if (msg.contains('database error saving new user')) {
+        return 'Faculty registration failed while creating the account profile. Please apply the latest database migrations and try again.';
+      }
+      return e.message;
+    } catch (_) {
+      return 'Unable to complete registration right now.';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Change password (requires old password verification)
+  // ---------------------------------------------------------------
+  Future<String?> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    final supabaseUser = _auth.auth.currentUser;
+    final email = supabaseUser?.email;
+
+    if (supabaseUser == null || email == null) {
+      return 'No active session found. Please login again.';
+    }
+
+    try {
+      await _auth.auth.signInWithPassword(email: email, password: oldPassword);
+    } catch (_) {
+      return 'Old password is incorrect.';
+    }
+
+    try {
+      await _auth.auth.updateUser(UserAttributes(password: newPassword));
+
+      if (_currentUser != null && _currentUser!.role == UserRole.admin) {
+        await LoginActivityService.recordAdminAction(
+          user: _currentUser!,
+          title: 'Changed Password',
+          details: 'Updated account password',
+        );
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('Change password error: $e');
+      return 'Failed to update password. Please try again.';
+    }
+  }
+
   // ---------------------------------------------------------------
   // Update the current user's profile in the database
   // ---------------------------------------------------------------
@@ -174,16 +439,51 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _auth.from('users').update({
-        'name': updatedUser.name,
-        'role': updatedUser.role.name,
-        'campus': updatedUser.campus,
-        'department_id': updatedUser.department,
-        'position': updatedUser.position,
-        'profile_image': updatedUser.profileImage,
-      }).eq('id', updatedUser.id);
+      await _auth
+          .from('users')
+          .update({
+            'name': updatedUser.name,
+            'role': updatedUser.role.name,
+            if (updatedUser.role == UserRole.teacher)
+              'department': updatedUser.department,
+          })
+          .eq('id', updatedUser.id);
 
-      _currentUser = updatedUser;
+      if (updatedUser.role == UserRole.teacher) {
+        String? departmentId;
+        final normalizedDepartment = updatedUser.department?.trim() ?? '';
+        if (normalizedDepartment.isNotEmpty) {
+          final dept = await DepartmentService.findOrCreateByName(
+            normalizedDepartment,
+          );
+          departmentId = dept.id;
+        }
+
+        await _auth.from('teacher_users').upsert({
+          'user_id': updatedUser.id,
+          'department_id': departmentId,
+          'employee_id': updatedUser.employeeId,
+          'position': updatedUser.position,
+          'profile_image': updatedUser.profileImage,
+        }, onConflict: 'user_id');
+      } else if (updatedUser.role == UserRole.maintenance) {
+        await _auth.from('maintenance_users').upsert({
+          'user_id': updatedUser.id,
+          'employee_id': updatedUser.employeeId,
+          'specialization': updatedUser.position,
+          'phone': updatedUser.phone,
+          'profile_image': updatedUser.profileImage,
+        }, onConflict: 'user_id');
+      }
+
+      _currentUser = await _fetchProfile(updatedUser.id) ?? updatedUser;
+      if (updatedUser.role == UserRole.admin) {
+        await LoginActivityService.recordAdminAction(
+          user: updatedUser,
+          title: 'Updated Profile',
+          details: 'Updated admin profile information',
+        );
+      }
       notifyListeners();
       return true;
     } catch (e) {
@@ -195,37 +495,85 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  Future<bool> updateProfileImage({
+    required UserRole role,
+    required String userId,
+    String? profileImage,
+    bool clear = false,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final payload = {
+        'user_id': userId,
+        'profile_image': clear ? null : profileImage,
+      };
+
+      if (role == UserRole.teacher) {
+        await _auth.from('teacher_users').upsert(payload, onConflict: 'user_id');
+      } else if (role == UserRole.maintenance) {
+        await _auth.from('maintenance_users').upsert(
+          payload,
+          onConflict: 'user_id',
+        );
+      } else {
+        return false;
+      }
+
+      _currentUser = await _fetchProfile(userId) ?? _currentUser;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Profile image update error: $e');
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   // ---------------------------------------------------------------
   // Handle logout button press
   // ---------------------------------------------------------------
   Future<void> handleLogoutButton(BuildContext context) async {
-    await logout();
+    if (_isHandlingLogout) return;
+    _isHandlingLogout = true;
+    try {
+      await logout();
 
-    if (context.mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => LoadingScreen(
-            destination: const LoginPage(),
-            instant: true,
-            statusText: 'LOGGING OUT',
-          ),
-        ),
-      );
+      final routerContext =
+          context.mounted ? context : rootNavigatorKey.currentContext;
+      if (routerContext != null) {
+        GoRouter.of(routerContext).go('/login');
+      }
+    } finally {
+      _isHandlingLogout = false;
     }
   }
 
   // ---------------------------------------------------------------
   // Show initialization screen after successful login
   // ---------------------------------------------------------------
-  void showInitializingScreen(BuildContext context, Widget destination) {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => LoadingScreen(
-          destination: destination,
-          delay: const Duration(seconds: 4),
-          statusText: 'INITIALIZING',
-        ),
-      ),
+  void showInitializingScreen(
+    BuildContext context,
+    String destinationRoute, {
+    String? statusText,
+  }) {
+    final user = _currentUser;
+    final resolvedStatusText = statusText ?? switch (user?.role) {
+      UserRole.admin => 'Welcome, Admin',
+      UserRole.teacher || UserRole.maintenance =>
+        'Welcome, ${(user?.name.trim().isNotEmpty ?? false) ? user!.name.trim() : 'User'}',
+      null => 'INITIALIZING',
+    };
+
+    GoRouter.of(context).go(
+      '/post-login-splash',
+      extra: {
+        'destinationRoute': destinationRoute,
+        'statusText': resolvedStatusText,
+      },
     );
   }
 
@@ -233,13 +581,42 @@ class AuthService extends ChangeNotifier {
   // Internal: fetch profile row from Supabase
   // ---------------------------------------------------------------
   Future<AppUser?> _fetchProfile(String userId) async {
-    final data = await _auth
+    final baseProfile = await _auth
         .from('users')
-        .select()
+        .select('*')
         .eq('id', userId)
         .maybeSingle();
-    if (data == null) return null;
-    return AppUser.fromMap(data);
+    if (baseProfile == null) return null;
+
+    final mergedProfile = Map<String, dynamic>.from(baseProfile);
+    final role = (mergedProfile['role'] ?? '').toString().toLowerCase();
+
+    if (role == UserRole.teacher.name) {
+      final teacherProfile = await _auth
+          .from('teacher_users')
+          .select('*, departments(name)')
+          .eq('user_id', userId)
+          .maybeSingle();
+      if (teacherProfile != null) {
+        mergedProfile['teacher_users'] = teacherProfile;
+      }
+    } else if (role == UserRole.maintenance.name) {
+      final maintenanceProfile = await _auth
+          .from('maintenance_users')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+      if (maintenanceProfile != null) {
+        mergedProfile['maintenance_users'] = maintenanceProfile;
+      }
+    }
+
+    return AppUser.fromMap(mergedProfile);
+  }
+
+  @override
+  void dispose() {
+    _authStateSubscription.cancel();
+    super.dispose();
   }
 }
-

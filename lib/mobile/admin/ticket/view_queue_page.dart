@@ -47,7 +47,7 @@ class _ViewQueuePageState extends State<ViewQueuePage> {
       filtered = filtered
           .where((r) =>
               r.id.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-              r.officeRoom.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              (r.officeRoom?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false) ||
               r.title.toLowerCase().contains(_searchQuery.toLowerCase()))
           .toList();
     }
@@ -216,8 +216,9 @@ class _ViewQueuePageState extends State<ViewQueuePage> {
                 // Search Bar
                 Container(
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(10),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: Colors.grey.shade300),
                   ),
                   child: TextField(
                     controller: _searchController,
@@ -229,9 +230,18 @@ class _ViewQueuePageState extends State<ViewQueuePage> {
                         fontSize: 13,
                         color: Colors.grey.shade400,
                       ),
-                      prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 20),
+                      filled: true,
+                      fillColor: Colors.white,
+                      prefixIcon: Padding(
+                        padding: const EdgeInsets.only(left: 12, right: 8),
+                        child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                      ),
+                      prefixIconConstraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),
                   ),
                 ),

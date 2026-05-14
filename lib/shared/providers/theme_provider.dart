@@ -5,7 +5,9 @@ class ThemeProvider extends ChangeNotifier {
   static const String _themeKey = 'theme_mode';
   bool _isDarkMode = false;
 
-  ThemeProvider();
+  ThemeProvider() {
+    _loadThemeFromPrefs();
+  }
 
   bool get isDarkMode => _isDarkMode;
 
@@ -72,19 +74,27 @@ class ThemeProvider extends ChangeNotifier {
       
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: inputFillColor,
+        fillColor: _isDarkMode ? const Color(0xFF242424) : const Color(0xFFF8FAFC),
+        hintStyle: TextStyle(
+          color: _isDarkMode ? Colors.grey.shade500 : const Color(0xFF94A3B8),
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(999),
           borderSide: BorderSide(color: inputBorderColor),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(999),
           borderSide: BorderSide(color: inputBorderColor),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(999),
           borderSide: BorderSide(color: primaryColor, width: 2),
         ),
+        prefixIconColor: _isDarkMode ? Colors.grey.shade400 : const Color(0xFF64748B),
+        suffixIconColor: _isDarkMode ? Colors.grey.shade400 : const Color(0xFF64748B),
       ),
       
       textTheme: TextTheme(
@@ -130,6 +140,18 @@ class ThemeProvider extends ChangeNotifier {
       await prefs.setBool(_themeKey, _isDarkMode);
     } catch (e) {
       debugPrint('Error saving theme preference: $e');
+    }
+  }
+
+  Future<void> _loadThemeFromPrefs() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getBool(_themeKey);
+      if (saved == null) return;
+      _isDarkMode = saved;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading theme preference: $e');
     }
   }
 }

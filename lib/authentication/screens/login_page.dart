@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../services/auth_service.dart';
-import '../../mobile/admin/main_navigation.dart' as mobile_admin;
-import '../../web/admin/main_navigation_web.dart' as web_admin;
-import '../../mobile/teacher/student_teacher_navigation.dart';
-import '../../mobile/maintenance/maintenance_navigation.dart';
+import 'faculty_register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,6 +16,67 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
+  Future<void> _showResetPasswordDialog() async {
+    final emailController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Forgot Password'),
+          content: TextField(
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Email',
+              hintText: 'Enter your account email',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final email = emailController.text.trim();
+                if (email.isEmpty || !email.contains('@')) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter a valid email.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+                final sent = await context.read<AuthService>().resetPassword(
+                  email,
+                );
+                if (!mounted) return;
+                Navigator.of(dialogContext).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      sent
+                          ? 'Password reset email sent. Check your inbox.'
+                          : 'Unable to send reset email right now.',
+                    ),
+                    backgroundColor: sent ? Colors.green : Colors.red,
+                  ),
+                );
+              },
+              child: const Text('Send Link'),
+            ),
+          ],
+        );
+      },
+    );
+
+    emailController.dispose();
+  }
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -33,7 +90,7 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     final authService = context.read<AuthService>();
-    
+
     final user = await authService.login(
       _emailController.text.trim(),
       _passwordController.text,
@@ -42,34 +99,16 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted) return;
 
     if (user != null) {
-      // Create the appropriate dashboard widget based on user role
-      late Widget destination;
-      
-      switch (user.role.name) {
-        case 'admin':
-          destination = kIsWeb
-              ? const web_admin.MainNavigationWeb()
-              : const mobile_admin.MainNavigation();
-          break;
-        case 'studentTeacher':
-        case 'student_teacher':
-          destination = const StudentTeacherNavigation();
-          break;
-        case 'maintenance':
-          destination = const MaintenanceNavigation();
-          break;
-        default:
-          destination = const LoginPage();
-      }
-      
-      // Show initializing screen then navigate to dashboard
-      authService.showInitializingScreen(context, destination);
-      
+      authService.showInitializingScreen(
+        context,
+        user.dashboardRoute,
+      );
+
       // Show welcome message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Welcome, ${user.name}!'),
-          backgroundColor: Colors.green,
+          backgroundColor: const Color(0xFF4169E1),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -97,7 +136,7 @@ class _LoginPageState extends State<LoginPage> {
           builder: (context, constraints) {
             // Responsive layout for mobile and web
             final isMobile = constraints.maxWidth < 600;
-            
+
             return Center(
               child: SingleChildScrollView(
                 padding: EdgeInsets.all(isMobile ? 24 : 48),
@@ -172,14 +211,21 @@ class _LoginPageState extends State<LoginPage> {
                               style: const TextStyle(color: Colors.black),
                               decoration: InputDecoration(
                                 hintText: 'Enter your email',
-                                hintStyle: TextStyle(color: Colors.grey.shade600),
-                                prefixIcon: Icon(Icons.email_outlined, color: Colors.grey.shade700),
+                                hintStyle: TextStyle(
+                                  color: Colors.grey.shade600,
+                                ),
+                                prefixIcon: Icon(
+                                  Icons.email_outlined,
+                                  color: Colors.grey.shade700,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -219,15 +265,7 @@ class _LoginPageState extends State<LoginPage> {
                                 TextButton(
                                   onPressed: isLoading
                                       ? null
-                                      : () {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Password reset feature coming soon',
-                                              ),
-                                            ),
-                                          );
-                                        },
+                                      : _showResetPasswordDialog,
                                   style: TextButton.styleFrom(
                                     padding: EdgeInsets.zero,
                                     minimumSize: const Size(0, 0),
@@ -250,9 +288,14 @@ class _LoginPageState extends State<LoginPage> {
                               enabled: !isLoading,
                               style: const TextStyle(color: Colors.black),
                               decoration: InputDecoration(
-                                hintText: '••••••••',
-                                hintStyle: TextStyle(color: Colors.grey.shade600),
-                                prefixIcon: Icon(Icons.lock_outline, color: Colors.grey.shade700),
+                                hintText: 'Enter your password',
+                                hintStyle: TextStyle(
+                                  color: Colors.grey.shade600,
+                                ),
+                                prefixIcon: Icon(
+                                  Icons.lock_outline,
+                                  color: Colors.grey.shade700,
+                                ),
                                 suffixIcon: IconButton(
                                   icon: Icon(
                                     _obscurePassword
@@ -271,7 +314,9 @@ class _LoginPageState extends State<LoginPage> {
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(color: Colors.grey.shade300),
+                                  borderSide: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -315,9 +360,10 @@ class _LoginPageState extends State<LoginPage> {
                                         width: 20,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(
-                                            Colors.white,
-                                          ),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
                                         ),
                                       )
                                     : const Text(
@@ -327,6 +373,37 @@ class _LoginPageState extends State<LoginPage> {
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+                            OutlinedButton(
+                              onPressed: isLoading
+                                  ? null
+                                  : () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const FacultyRegisterPage(),
+                                        ),
+                                      );
+                                    },
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(double.infinity, 48),
+                                side: const BorderSide(
+                                  color: Color(0xFF4169E1),
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Register',
+                                style: TextStyle(
+                                  color: Color(0xFF4169E1),
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
 
@@ -357,7 +434,9 @@ class _LoginPageState extends State<LoginPage> {
                                   onTap: isLoading
                                       ? null
                                       : () {
-                                          ScaffoldMessenger.of(context).showSnackBar(
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
                                             const SnackBar(
                                               content: Text(
                                                 'Technical support feature coming soon',
@@ -372,7 +451,9 @@ class _LoginPageState extends State<LoginPage> {
                                         width: 32,
                                         height: 32,
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+                                          color: const Color(
+                                            0xFF4169E1,
+                                          ).withValues(alpha: 0.1),
                                           shape: BoxShape.circle,
                                         ),
                                         child: const Icon(
@@ -421,6 +502,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
-
-

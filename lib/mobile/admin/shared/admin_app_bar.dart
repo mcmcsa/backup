@@ -8,6 +8,8 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback openDrawer;
   final String? subtitle;
 
+  static const Color _headerColor = Color(0xFFF2F4F7);
+
   const AdminAppBar({
     super.key,
     required this.openDrawer,
@@ -31,55 +33,69 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 0,
+      backgroundColor: _headerColor,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.black12,
+      elevation: 1,
+      leadingWidth: 56,
       leading: Padding(
-        padding: const EdgeInsets.all(8.0),
+        padding: const EdgeInsets.only(left: 12, right: 8, top: 8, bottom: 8),
         child: GestureDetector(
           onTap: openDrawer,
           child: const Icon(Icons.menu, color: Colors.black87, size: 28),
         ),
       ),
-      title: Row(
-        children: [
-          SizedBox(
-            height: 35,
-            width: 35,
-            child: Image.asset(
-              'assets/images/PsuLogo.png',
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) => const Icon(
-                Icons.school,
-                color: Color(0xFF4169E1),
-                size: 28,
+      titleSpacing: 0,
+      title: Padding(
+        padding: const EdgeInsets.only(left: 0),
+        child: Row(
+          children: [
+            SizedBox(
+              height: 40,
+              width: 40,
+              child: Image.asset(
+                'assets/images/psu_logo_v3.png',
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+                isAntiAlias: true,
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                  Icons.school,
+                  color: Color(0xFF4169E1),
+                  size: 28,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'PSU',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                  height: 1,
-                ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    'PSU',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                      height: 1.2,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Text(
+                    subtitle?.toUpperCase() ?? 'CAMPUS ADMINISTRATOR',
+                    style: const TextStyle(
+                      fontSize: 8,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF64748B),
+                      height: 1.2,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                subtitle?.toUpperCase() ?? 'CAMPUS ADMINISTRATOR',
-                style: const TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF64748B),
-                  height: 1,
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
       actions: [
         FutureBuilder<int>(
@@ -88,23 +104,26 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
             final unreadCount = snapshot.data ?? 0;
             return Stack(
               children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.notifications_outlined,
-                    color: Colors.black87,
+                Padding(
+                  padding: const EdgeInsets.only(left: 8, right: 10),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.black87,
+                    ),
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const NotificationsPage(),
+                        ),
+                      );
+                    },
                   ),
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationsPage(),
-                      ),
-                    );
-                  },
                 ),
                 if (unreadCount > 0)
                   Positioned(
-                    right: 6,
+                    right: 14,
                     top: 8,
                     child: Container(
                       padding: const EdgeInsets.symmetric(

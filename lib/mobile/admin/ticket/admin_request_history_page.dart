@@ -20,6 +20,8 @@ class _AdminRequestHistoryPageState extends State<AdminRequestHistoryPage> {
   bool _isLoading = true;
   String _selectedPeriod = 'Last 30 Days';
   String _selectedStatusFilter = 'all';
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   final List<String> _periods = ['Last 30 Days', 'Quarterly', 'Yearly'];
   final List<String> _statusFilters = ['all', 'pending', 'approved', 'in_progress', 'under_maintenance', 'completed', 'rework'];
@@ -44,20 +46,28 @@ class _AdminRequestHistoryPageState extends State<AdminRequestHistoryPage> {
   void _applyFilters() {
     final now = DateTime.now();
     DateTime startDate;
+    DateTime endDate = now;
 
-    switch (_selectedPeriod) {
-      case 'Quarterly':
-        startDate = DateTime(now.year, now.month - 3, now.day);
-        break;
-      case 'Yearly':
-        startDate = DateTime(now.year - 1, now.month, now.day);
-        break;
-      default: // Last 30 Days
-        startDate = now.subtract(const Duration(days: 30));
+    // Use custom date range if set, otherwise use period selection
+    if (_startDate != null && _endDate != null) {
+      startDate = _startDate!;
+      endDate = _endDate!;
+    } else {
+      switch (_selectedPeriod) {
+        case 'Quarterly':
+          startDate = DateTime(now.year, now.month - 3, now.day);
+          break;
+        case 'Yearly':
+          startDate = DateTime(now.year - 1, now.month, now.day);
+          break;
+        default: // Last 30 Days
+          startDate = now.subtract(const Duration(days: 30));
+      }
     }
 
     _filteredRequests = _allRequests.where((r) {
-      final inRange = r.dateSubmitted.isAfter(startDate);
+      final inRange = r.dateSubmitted.isAfter(startDate.subtract(const Duration(days: 1))) &&
+          r.dateSubmitted.isBefore(endDate.add(const Duration(days: 1)));
       final matchesStatus = _selectedStatusFilter == 'all' || r.status == _selectedStatusFilter;
       return inRange && matchesStatus;
     }).toList();
@@ -73,6 +83,128 @@ class _AdminRequestHistoryPageState extends State<AdminRequestHistoryPage> {
     }
     counts['total'] = _filteredRequests.length;
     return counts;
+  }
+
+  Future<void> _showDateRangePicker() async {
+    DateTime tempStart = _startDate ?? DateTime.now().subtract(const Duration(days: 7));
+    DateTime tempEnd = _endDate ?? DateTime.now();
+    bool selectingStart = true;
+
+    final picked = await showDialog<DateTimeRange>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final activeDate = selectingStart ? tempStart : tempEnd;
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Select Custom Date Range'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: Text('From: ${_formatDate(tempStart)}'),
+                          selected: selectingStart,
+                          onSelected: (_) {
+                            setDialogState(() => selectingStart = true);
+                          },
+                        ),
+                        ChoiceChip(
+                          label: Text('To: ${_formatDate(tempEnd)}'),
+                          selected: !selectingStart,
+                          onSelected: (_) {
+                            setDialogState(() => selectingStart = false);
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: CalendarDatePicker(
+                        initialDate: activeDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                        onDateChanged: (selectedDate) {
+                          setDialogState(() {
+                            if (selectingStart) {
+                              tempStart = selectedDate;
+                              if (tempEnd.isBefore(tempStart)) {
+                                tempEnd = tempStart;
+                              }
+                            } else {
+                              tempEnd = selectedDate;
+                              if (tempEnd.isBefore(tempStart)) {
+                                tempStart = tempEnd;
+                              }
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4169E1),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    Navigator.pop(
+                      dialogContext,
+                      DateTimeRange(start: tempStart, end: tempEnd),
+                    );
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _startDate = picked.start;
+        _endDate = picked.end;
+        _applyFilters();
+      });
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    return DateFormat('MMM dd, yyyy').format(date);
+  }
+
+  String _formatRangeLabel() {
+    if (_startDate == null || _endDate == null) {
+      return 'Set Custom Date Range';
+    }
+    return '${_formatDate(_startDate!)} - ${_formatDate(_endDate!)}';
+  }
+
+  void _clearDateRange() {
+    setState(() {
+      _startDate = null;
+      _endDate = null;
+      _applyFilters();
+    });
   }
 
   @override
@@ -101,7 +233,46 @@ class _AdminRequestHistoryPageState extends State<AdminRequestHistoryPage> {
                   _buildPeriodSelector(),
                   const SizedBox(height: 16),
 
-                  // Stats overview
+                  // Custom Date Range (compact)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _showDateRangePicker,
+                          icon: const Icon(Icons.calendar_today_rounded, size: 16),
+                          label: Text(
+                            _formatRangeLabel(),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF1E293B),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_startDate != null && _endDate != null) ...[
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: 'Clear date range',
+                          onPressed: _clearDateRange,
+                          icon: const Icon(Icons.close_rounded),
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFFF1F5F9),
+                            foregroundColor: const Color(0xFFDC2626),
+                            minimumSize: const Size(36, 36),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                   _buildStatsGrid(),
                   const SizedBox(height: 16),
 
@@ -153,6 +324,8 @@ class _AdminRequestHistoryPageState extends State<AdminRequestHistoryPage> {
               onTap: () {
                 setState(() {
                   _selectedPeriod = period;
+                  _startDate = null;
+                  _endDate = null;
                   _applyFilters();
                 });
               },

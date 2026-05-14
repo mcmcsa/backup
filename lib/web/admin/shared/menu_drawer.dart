@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
-import '../../../mobile/admin/shared/admin_logs_page.dart';
-import '../maintenance/maintenance_history_page.dart';
-import '../../../mobile/teacher/menu_pages/settings_page.dart';
-import '../../../mobile/teacher/menu_pages/contact_us_page.dart';
-import '../../../mobile/teacher/menu_pages/system_workflow_page.dart';
-import 'about_system_page.dart';
+import '../facilities/admin_buildings_web.dart';
+import '../facilities/facility_quick_actions_row.dart';
+import '../tickets/maintenance/maintenance_management_page_web.dart';
+import '../shared/admin_logs_web.dart';
+import '../shared/settings_page_web.dart';
+import '../tickets/maintenance_history_page_web.dart';
 
 class MenuDrawer extends StatelessWidget {
   const MenuDrawer({super.key});
@@ -26,7 +26,7 @@ class MenuDrawer extends StatelessWidget {
                 children: [
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
@@ -51,7 +51,8 @@ class MenuDrawer extends StatelessWidget {
                       color: Colors.white,
                       shape: BoxShape.circle,
                       boxShadow: [
-                        BoxShadow(color: Colors.black.withOpacity(0.1),
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -61,7 +62,7 @@ class MenuDrawer extends StatelessWidget {
                     child: Image.asset(
                       'assets/images/PsuLogo.png',
                       fit: BoxFit.contain,
-                      errorBuilder: (_, __, _) => const Icon(
+                      errorBuilder: (_, error, stackTrace) => const Icon(
                         Icons.school,
                         color: Color(0xFF4169E1),
                         size: 50,
@@ -108,27 +109,65 @@ class MenuDrawer extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
                   _buildMenuItem(
-                    icon: Icons.description_outlined,
+                    icon: Icons.list_alt_rounded,
                     title: 'Logs',
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const AdminLogsPage(),
+                          builder: (context) => const AdminLogsWeb(),
                         ),
                       );
                     },
                   ),
+
                   _buildMenuItem(
-                    icon: Icons.history,
+                    icon: Icons.history_rounded,
                     title: 'History',
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const MaintenanceHistoryPage(),
+                          builder: (context) => const MaintenanceHistoryPageWeb(),
+                        ),
+                      );
+                    },
+                  ),
+
+                  _buildMenuItem(
+                    icon: Icons.engineering_outlined,
+                    title: 'Manage Maintenance',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MaintenanceManagementPageWeb(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.apartment_outlined,
+                    title: 'Facility Management',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AdminBuildingsWeb(
+                            activeIndex: 0,
+                            onNavigate: (_) {},
+                            quickActionsConfig: const FacilityQuickActionsConfig(
+                              departmentsIndex: 0,
+                              buildingsIndex: 0,
+                              floorsIndex: 0,
+                              roomTypesIndex: 0,
+                              requestTypesIndex: 0,
+                            ),
+                          ),
                         ),
                       );
                     },
@@ -141,46 +180,7 @@ class MenuDrawer extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const SettingsPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildMenuItem(
-                    icon: Icons.info_outline,
-                    title: 'About Us',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AboutSystemPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildMenuItem(
-                    icon: Icons.contact_support_outlined,
-                    title: 'Contact Us',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ContactUsPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildMenuItem(
-                    icon: Icons.account_tree_outlined,
-                    title: 'System workflow',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SystemWorkflowPage(),
+                          builder: (context) => const SettingsPageWeb(),
                         ),
                       );
                     },
@@ -208,12 +208,16 @@ class MenuDrawer extends StatelessWidget {
                             content: const Text('Do you want to logout?'),
                             actions: [
                               TextButton(
-                                onPressed: () => Navigator.of(dialogContext).pop(false),
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(false),
                                 child: const Text('Cancel'),
                               ),
                               ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                onPressed: () => Navigator.of(dialogContext).pop(true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                ),
+                                onPressed: () =>
+                                    Navigator.of(dialogContext).pop(true),
                                 child: const Text('Logout'),
                               ),
                             ],
@@ -221,12 +225,6 @@ class MenuDrawer extends StatelessWidget {
                         );
 
                         if (confirm == true) {
-                          // Close the drawer before logging out
-                          if (context.mounted) {
-                            Navigator.of(context).pop();
-                          }
-                          // Use a slight delay to ensure drawer is closed before navigating
-                          await Future.delayed(const Duration(milliseconds: 100));
                           if (context.mounted) {
                             await authService.handleLogoutButton(context);
                           }
@@ -254,7 +252,7 @@ class MenuDrawer extends StatelessWidget {
                   Text(
                     '© PSU Maintenance',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       fontSize: 12,
                     ),
                   ),
@@ -283,11 +281,7 @@ class MenuDrawer extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                Icon(
-                  icon,
-                  color: Colors.white,
-                  size: 24,
-                ),
+                Icon(icon, color: Colors.white, size: 24),
                 const SizedBox(width: 16),
                 Text(
                   title,
@@ -305,9 +299,3 @@ class MenuDrawer extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-

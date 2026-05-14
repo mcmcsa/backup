@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
-import '../shared/notifications_page.dart';
+import '../shared/admin_app_bar.dart';
 
 class AnalyticsPage extends StatefulWidget {
   final VoidCallback openDrawer;
@@ -49,92 +49,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: GestureDetector(
-            onTap: widget.openDrawer,
-            child: const Icon(
-              Icons.menu,
-              color: Colors.black87,
-              size: 28,
-            ),
-          ),
-        ),
-        title: Row(
-          children: [
-            SizedBox(
-              height: 35,
-              width: 35,
-              child: Image.asset(
-                'assets/images/PsuLogo.png',
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, _) => const Icon(
-                  Icons.school,
-                  color: Color(0xFF4169E1),
-                  size: 28,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'PSU',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    height: 1,
-                  ),
-                ),
-                Text(
-                  'CAMPUS ADMINISTRATOR',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.black54,
-                    height: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationsPage(),
-                      ),
-                    );
-                  },
-                ),
-                Positioned(
-                  right: 12,
-                  top: 12,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      appBar: AdminAppBar(
+        openDrawer: widget.openDrawer,
+        subtitle: 'Campus Administrator',
       ),
       body: Column(
         children: [
@@ -142,12 +59,12 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           Container(
             color: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 12,
               children: [
                 _buildPeriodTab('Last 30 Days', 0),
-                const SizedBox(width: 12),
                 _buildPeriodTab('Quarterly', 1),
-                const SizedBox(width: 12),
                 _buildPeriodTab('Yearly', 2),
               ],
             ),
@@ -183,28 +100,56 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Statistics Cards
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          'TOTAL ISSUES',
-                          '${_filteredByPeriod.length}',
-                          '',
-                          Colors.blue,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildStatCard(
-                          'RESOLVED',
-                          _filteredByPeriod.isEmpty
-                              ? '0%'
-                              : '${(_filteredByPeriod.where((r) => r.status == 'done').length * 100 / _filteredByPeriod.length).round()}%',
-                          '',
-                          Colors.orange,
-                        ),
-                      ),
-                    ],
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final stackCards = constraints.maxWidth < 500;
+
+                      if (stackCards) {
+                        return Column(
+                          children: [
+                            _buildStatCard(
+                              'TOTAL ISSUES',
+                              '${_filteredByPeriod.length}',
+                              '',
+                              Colors.blue,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildStatCard(
+                              'RESOLVED',
+                              _filteredByPeriod.isEmpty
+                                  ? '0%'
+                                  : '${(_filteredByPeriod.where((r) => r.status == 'completed').length * 100 / _filteredByPeriod.length).round()}%',
+                              '',
+                              Colors.orange,
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              'TOTAL ISSUES',
+                              '${_filteredByPeriod.length}',
+                              '',
+                              Colors.blue,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildStatCard(
+                              'RESOLVED',
+                              _filteredByPeriod.isEmpty
+                                  ? '0%'
+                                  : '${(_filteredByPeriod.where((r) => r.status == 'completed').length * 100 / _filteredByPeriod.length).round()}%',
+                              '',
+                              Colors.orange,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 20),
@@ -270,26 +215,57 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   _buildSectionCard(
                     title: 'Request Types Breakdown',
                     icon: Icons.build_outlined,
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 24),
-                        SizedBox(
-                          height: 180,
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: _getRequestTypeCounts().entries.take(5).map((entry) =>
-                              _buildEquipmentBar(entry.key.toUpperCase(), entry.value),
-                            ).toList(),
-                          ),
-                        ),
-                        if (_getRequestTypeCounts().isEmpty)
-                          Padding(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isCompact = constraints.maxWidth < 500;
+                        final entries = _getRequestTypeCounts().entries.take(5).toList();
+
+                        if (entries.isEmpty) {
+                          return Padding(
                             padding: const EdgeInsets.all(16),
-                            child: Text('No request type data yet', style: TextStyle(color: Colors.grey.shade400)),
-                          ),
-                        const SizedBox(height: 16),
-                      ],
+                            child: Text(
+                              'No request type data yet',
+                              style: TextStyle(color: Colors.grey.shade400),
+                            ),
+                          );
+                        }
+
+                        if (isCompact) {
+                          final maxCount = _getRequestTypeCounts().values.fold<int>(1, (a, b) => a > b ? a : b);
+
+                          return Column(
+                            children: [
+                              const SizedBox(height: 16),
+                              ...entries.map((entry) => Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: _buildTypeProgressRow(
+                                  entry.key.toUpperCase(),
+                                  entry.value,
+                                  maxCount,
+                                ),
+                              )),
+                              const SizedBox(height: 2),
+                            ],
+                          );
+                        }
+
+                        return Column(
+                          children: [
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              height: 150,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: entries
+                                    .map((entry) => _buildEquipmentBar(entry.key.toUpperCase(), entry.value))
+                                    .toList(),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        );
+                      },
                     ),
                   ),
 
@@ -305,7 +281,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   Widget _buildPeriodTab(String label, int index) {
     final isSelected = _selectedPeriod == index;
-    return Expanded(
+    return SizedBox(
+      width: 112,
       child: GestureDetector(
         onTap: () => setState(() => _selectedPeriod = index),
         child: Container(
@@ -550,31 +527,78 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           Text(
             '$count',
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w600,
               color: Color(0xFF111827),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Container(
-            height: 140 * heightPercentage,
+            height: 110 * heightPercentage,
             decoration: BoxDecoration(
               color: const Color(0xFF4169E1),
               borderRadius: BorderRadius.circular(4),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 9,
+              fontSize: 8,
               fontWeight: FontWeight.w600,
               color: Colors.grey.shade600,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTypeProgressRow(String label, int count, int maxCount) {
+    final percentage = maxCount > 0 ? count / maxCount : 0.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF111827),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: percentage,
+            minHeight: 10,
+            backgroundColor: Colors.grey.shade200,
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
+          ),
+        ),
+      ],
     );
   }
 
@@ -604,7 +628,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   List<MapEntry<String, int>> _getTopRooms() {
     final counts = <String, int>{};
     for (final r in _filteredByPeriod) {
-      final room = r.officeRoom.isNotEmpty ? r.officeRoom : 'Unknown';
+      final room = (r.officeRoom?.isNotEmpty ?? false) ? r.officeRoom! : 'Unknown';
       counts[room] = (counts[room] ?? 0) + 1;
     }
     final sorted = counts.entries.toList()
@@ -612,6 +636,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     return sorted.take(3).toList();
   }
 }
+
 
 
 

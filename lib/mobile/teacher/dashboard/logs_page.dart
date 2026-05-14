@@ -25,12 +25,12 @@ class _LogsPageState extends State<LogsPage> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    
+
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
-        roleText: 'STUDENT/TEACHER',
-        primaryColor: const Color(0xFF00BFA5),
+        roleText: 'Teacher',
+        primaryColor: themeProvider.primaryColor,
         onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
       ),
       body: Column(
@@ -45,19 +45,34 @@ class _LogsPageState extends State<LogsPage> {
               decoration: InputDecoration(
                 hintText: 'Search tracking number or room...',
                 hintStyle: TextStyle(
-                  color: themeProvider.subtitleColor,
+                  color: Colors.grey.shade400,
                   fontSize: 14,
                 ),
-                prefixIcon: Icon(Icons.search, color: themeProvider.subtitleColor, size: 20),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 8),
+                  child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                ),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 44,
+                  minHeight: 44,
+                ),
                 filled: true,
-                fillColor: themeProvider.inputFillColor,
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                  borderSide: BorderSide(color: Color(0xFF4169E1)),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 14,
+                  vertical: 10,
                 ),
               ),
             ),

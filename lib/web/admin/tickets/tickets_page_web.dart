@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import 'package:intl/intl.dart';
+import '../shared/admin_styles.dart';
+import 'admin_work_process_web.dart';
 
 class TicketsPageWeb extends StatefulWidget {
   const TicketsPageWeb({super.key});
@@ -10,46 +14,101 @@ class TicketsPageWeb extends StatefulWidget {
   State<TicketsPageWeb> createState() => _TicketsPageWebState();
 }
 
-class _TicketsPageWebState extends State<TicketsPageWeb> {
+class _TicketsPageWebState extends State<TicketsPageWeb>
+    with WidgetsBindingObserver {
   int _selectedFilter = 0;
   final TextEditingController _searchController = TextEditingController();
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
+  bool _isRefreshing = false;
+  Timer? _autoRefreshTimer;
+  int _loadSequence = 0;
 
-  // Professional color palette
-  static const Color _primaryBlue = Color(0xFF3B82F6);
-  static const Color _successGreen = Color(0xFF22C55E);
-  static const Color _warningYellow = Color(0xFFFBBF24);
-  static const Color _darkText = Color(0xFF1E293B);
-  static const Color _subtleText = Color(0xFF64748B);
-  static const Color _pageBg = Color(0xFFF1F5F9);
+  // Professional color palette mapping
+  static const Color _primaryBlue = AdminStyles.primary;
+  static const Color _successGreen = AdminStyles.success;
+  static const Color _warningYellow = AdminStyles.warning;
+  static const Color _darkText = AdminStyles.textPrimary;
+  static const Color _subtleText = AdminStyles.textSecondary;
+  static const Color _pageBg = AdminStyles.bg;
 
-  final List<String> _filters = ['All Tickets', 'Pending', 'Active', 'Completed'];
+  final List<String> _filters = [
+    'All Requests',
+    'Pending',
+    'In Progress',
+    'Under Maintenance',
+    'Completed',
+  ];
+
+  StreamSubscription? _realtimeSubscription;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRequests();
+    _setupRealtime();
+    _startAutoRefresh();
+  }
+
+  void _setupRealtime() {
+    _realtimeSubscription?.cancel();
+    // Using the service's listenToAllWorkRequests which returns a RealtimeChannel
+    // For simplicity in this widget, we'll just trigger _loadRequests when any change occurs
+    WorkRequestService.listenToAllWorkRequests((updatedRequests) {
+      if (mounted) {
+        setState(() {
+          _requests = updatedRequests;
+        });
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadRequests();
+    }
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
+    _realtimeSubscription?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadRequests() async {
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _loadRequests();
+    });
+  }
+
+  Future<void> _loadRequests({bool isManualRefresh = false}) async {
+    final currentSequence = ++_loadSequence;
+
+    if (isManualRefresh && mounted) {
+      setState(() => _isRefreshing = true);
+    }
+
     try {
       final data = await WorkRequestService.fetchAll();
-      if (mounted) {
+      if (mounted && currentSequence == _loadSequence) {
         setState(() {
           _requests = data;
           _isLoading = false;
+          _isRefreshing = false;
         });
       }
     } catch (_) {
-      if (mounted) {
-        setState(() => _isLoading = false);
+      if (mounted && currentSequence == _loadSequence) {
+        setState(() {
+          _isLoading = false;
+          _isRefreshing = false;
+        });
       }
     }
   }
@@ -60,24 +119,36 @@ class _TicketsPageWebState extends State<TicketsPageWeb> {
 
     // Apply status filter
     if (_selectedFilter == 1) {
-      requests = requests.where((r) => r.status.toLowerCase() == 'pending').toList();
+      requests = requests
+          .where((r) => r.status.toLowerCase() == 'pending')
+          .toList();
     } else if (_selectedFilter == 2) {
-      requests = requests.where((r) =>
-        r.status.toLowerCase() == 'in_progress' ||
-        r.status.toLowerCase() == 'approved' ||
-        r.status.toLowerCase() == 'under_maintenance'
-      ).toList();
+      requests = requests
+          .where(
+            (r) => r.status.toLowerCase() == 'in_progress' ||
+                r.status.toLowerCase() == 'approved',
+          )
+          .toList();
     } else if (_selectedFilter == 3) {
-      requests = requests.where((r) => r.status.toLowerCase() == 'completed').toList();
+      requests = requests
+          .where((r) => r.status.toLowerCase() == 'under_maintenance')
+          .toList();
+    } else if (_selectedFilter == 4) {
+      requests = requests
+          .where((r) => r.status.toLowerCase() == 'completed')
+          .toList();
     }
 
     // Apply search filter
     if (query.isNotEmpty) {
-      requests = requests.where((r) =>
-        r.title.toLowerCase().contains(query) ||
-        r.id.toLowerCase().contains(query) ||
-        r.requestorName.toLowerCase().contains(query)
-      ).toList();
+      requests = requests
+          .where(
+            (r) =>
+                r.title.toLowerCase().contains(query) ||
+                r.id.toLowerCase().contains(query) ||
+                r.requestorName.toLowerCase().contains(query),
+          )
+          .toList();
     }
 
     return requests;
@@ -85,220 +156,395 @@ class _TicketsPageWebState extends State<TicketsPageWeb> {
 
   int _getCountByFilter(int filter) {
     switch (filter) {
-      case 0: return _requests.length;
-      case 1: return _requests.where((r) => r.status.toLowerCase() == 'pending').length;
-      case 2: return _requests.where((r) =>
-        r.status.toLowerCase() == 'in_progress' ||
-        r.status.toLowerCase() == 'approved' ||
-        r.status.toLowerCase() == 'under_maintenance'
-      ).length;
-      case 3: return _requests.where((r) => r.status.toLowerCase() == 'completed').length;
-      default: return 0;
+      case 0:
+        return _requests.length;
+      case 1:
+        return _requests
+            .where((r) => r.status.toLowerCase() == 'pending')
+            .length;
+      case 2:
+        return _requests
+            .where(
+              (r) => r.status.toLowerCase() == 'in_progress' ||
+                  r.status.toLowerCase() == 'approved',
+            )
+            .length;
+      case 3:
+        return _requests
+            .where((r) => r.status.toLowerCase() == 'under_maintenance')
+            .length;
+      case 4:
+        return _requests
+            .where((r) => r.status.toLowerCase() == 'completed')
+            .length;
+      default:
+        return 0;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: _pageBg,
-      child: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Stats Cards Row
-                  _buildStatsRow(),
-                  const SizedBox(height: 24),
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (bool didPop, dynamic result) {
+        _loadRequests();
+      },
+      child: Container(
+        color: _pageBg,
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: _primaryBlue),
+              )
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final isMobile = constraints.maxWidth < 780;
+                  final isTablet = constraints.maxWidth >= 780 && constraints.maxWidth < 1200;
 
-                  // Main Content Card
-                  _buildMainCard(),
-                ],
+                  return SingleChildScrollView(
+                    primary: true,
+                    padding: EdgeInsets.all(isMobile ? 12 : 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildStatsRow(maxWidth: constraints.maxWidth, isMobile: isMobile, isTablet: isTablet),
+                        const SizedBox(height: 24),
+                        _buildMainCard(isMobile: isMobile, isTablet: isTablet),
+                      ],
+                    ),
+                  );
+                },
               ),
-            ),
+      ),
     );
   }
 
-  Widget _buildStatsRow() {
+  Widget _buildStatsRow({
+    required double maxWidth,
+    required bool isMobile,
+    required bool isTablet,
+  }) {
+    final cards = [
+      _StatCard(
+        title: 'All Requests',
+        value: _getCountByFilter(0),
+        icon: Icons.confirmation_num_rounded,
+        iconColor: _primaryBlue,
+        isSelected: _selectedFilter == 0,
+        onTap: () => setState(() => _selectedFilter = 0),
+      ),
+      _StatCard(
+        title: 'Pending',
+        value: _getCountByFilter(1),
+        icon: Icons.hourglass_empty_rounded,
+        iconColor: _warningYellow,
+        isSelected: _selectedFilter == 1,
+        onTap: () => setState(() => _selectedFilter = 1),
+      ),
+      _StatCard(
+        title: 'In Progress',
+        value: _getCountByFilter(2),
+        icon: Icons.build_rounded,
+        iconColor: _primaryBlue,
+        isSelected: _selectedFilter == 2,
+        onTap: () => setState(() => _selectedFilter = 2),
+      ),
+      _StatCard(
+        title: 'Under Maintenance',
+        value: _getCountByFilter(3),
+        icon: Icons.build_circle_rounded,
+        iconColor: const Color(0xFFF97316),
+        isSelected: _selectedFilter == 3,
+        onTap: () => setState(() => _selectedFilter = 3),
+      ),
+      _StatCard(
+        title: 'Completed',
+        value: _getCountByFilter(4),
+        icon: Icons.check_circle_rounded,
+        iconColor: _successGreen,
+        isSelected: _selectedFilter == 4,
+        onTap: () => setState(() => _selectedFilter = 4),
+      ),
+    ];
+
+    if (isMobile) {
+      return Column(
+        children: [
+          for (int i = 0; i < cards.length; i++) ...[
+            cards[i],
+            if (i != cards.length - 1) const SizedBox(height: 12),
+          ],
+        ],
+      );
+    }
+
+    if (isTablet) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          SizedBox(width: 216, child: cards[0]),
+          SizedBox(width: 216, child: cards[1]),
+          SizedBox(width: 216, child: cards[2]),
+          SizedBox(width: 216, child: cards[3]),
+          SizedBox(width: 216, child: cards[4]),
+        ],
+      );
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: _StatCard(
-            title: 'All Tickets',
-            value: _getCountByFilter(0),
-            icon: Icons.confirmation_num_rounded,
-            iconColor: _primaryBlue,
-            isSelected: _selectedFilter == 0,
-            onTap: () => setState(() => _selectedFilter = 0),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _StatCard(
-            title: 'Pending',
-            value: _getCountByFilter(1),
-            icon: Icons.hourglass_empty_rounded,
-            iconColor: _warningYellow,
-            isSelected: _selectedFilter == 1,
-            onTap: () => setState(() => _selectedFilter = 1),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _StatCard(
-            title: 'Active',
-            value: _getCountByFilter(2),
-            icon: Icons.build_rounded,
-            iconColor: _primaryBlue,
-            isSelected: _selectedFilter == 2,
-            onTap: () => setState(() => _selectedFilter = 2),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _StatCard(
-            title: 'Completed',
-            value: _getCountByFilter(3),
-            icon: Icons.check_circle_rounded,
-            iconColor: _successGreen,
-            isSelected: _selectedFilter == 3,
-            onTap: () => setState(() => _selectedFilter = 3),
-          ),
-        ),
+        for (int i = 0; i < cards.length; i++) ...[
+          Expanded(child: cards[i]),
+          if (i != cards.length - 1) const SizedBox(width: 8),
+        ],
       ],
     );
   }
 
-  Widget _buildMainCard() {
+  Widget _buildMainCard({required bool isMobile, required bool isTablet}) {
     final filteredRequests = _filteredRequests;
+    final stackHeaderActions = isMobile || isTablet;
 
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: AdminStyles.cardDecoration(),
       child: Column(
         children: [
           // Header
           Padding(
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: _primaryBlue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.confirmation_num_rounded, color: _primaryBlue, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _filters[_selectedFilter],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: _darkText,
+            padding: EdgeInsets.all(isMobile ? 14 : 24),
+            child: stackHeaderActions
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: _primaryBlue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.confirmation_num_rounded,
+                              color: _primaryBlue,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _filters[_selectedFilter],
+                                style: AdminStyles.headingStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: _darkText,
+                                ),
+                              ),
+                              Text(
+                                '${filteredRequests.length} tickets',
+                                style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ),
-                    Text(
-                      '${filteredRequests.length} tickets',
-                      style: const TextStyle(fontSize: 13, color: _subtleText),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                // Search
-                Container(
-                  width: 280,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: _pageBg,
-                    borderRadius: BorderRadius.circular(10),
+                      const SizedBox(height: 14),
+                      SizedBox(width: double.infinity, child: _buildSearchBar(width: double.infinity)),
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _buildRefreshButton(),
+                      ),
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: _primaryBlue.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.confirmation_num_rounded,
+                                color: _primaryBlue,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _filters[_selectedFilter],
+                                  style: AdminStyles.headingStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: _darkText,
+                                  ),
+                                ),
+                                Text(
+                                  '${filteredRequests.length} tickets',
+                                  style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(width: 220, child: _buildSearchBar(width: 220)),
+                          const SizedBox(width: 12),
+                          _buildRefreshButton(),
+                        ],
+                      ),
+                    ],
                   ),
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      hintText: 'Search tickets...',
-                      hintStyle: TextStyle(color: _subtleText, fontSize: 14),
-                      prefixIcon: Icon(Icons.search_rounded, color: _subtleText, size: 20),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
 
-          // Table Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            decoration: BoxDecoration(
-              color: _pageBg,
-              border: Border(
-                top: BorderSide(color: Colors.grey.withValues(alpha: 0.1)),
-                bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.1)),
-              ),
-            ),
-            child: const Row(
-              children: [
-                SizedBox(width: 100, child: _TableHeader('TICKET #')),
-                Expanded(flex: 2, child: _TableHeader('SUBJECT')),
-                Expanded(child: _TableHeader('REQUESTOR')),
-                Expanded(child: _TableHeader('LOCATION')),
-                SizedBox(width: 100, child: _TableHeader('PRIORITY')),
-                SizedBox(width: 100, child: _TableHeader('STATUS')),
-                SizedBox(width: 100, child: _TableHeader('DATE')),
-              ],
-            ),
-          ),
-
-          // Table Body
-          if (filteredRequests.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(48),
-              child: Column(
-                children: [
-                  Icon(Icons.inbox_rounded, size: 48, color: Colors.grey[300]),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'No tickets found',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _subtleText),
+          // Scrollable Grid/List of Ticket Cards
+          // Grid/List of Ticket Cards
+          filteredRequests.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(60),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.inbox_rounded, size: 64, color: Colors.grey[300]),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No tickets found',
+                          style: AdminStyles.headingStyle(
+                            fontSize: 18,
+                            color: _subtleText,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: filteredRequests.length,
-              separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.withValues(alpha: 0.1)),
-              itemBuilder: (context, index) {
-                final request = filteredRequests[index];
-                return _TicketRow(request: request);
-              },
-            ),
+                )
+              : Padding(
+                  padding: EdgeInsets.fromLTRB(isMobile ? 14 : 24, 0, isMobile ? 14 : 24, 24),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final crossAxisCount = constraints.maxWidth > 1400 
+                          ? 3 
+                          : constraints.maxWidth > 900 
+                              ? 2 
+                              : 1;
+                      
+                      return GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 20,
+                          mainAxisSpacing: 20,
+                          mainAxisExtent: 260,
+                        ),
+                        itemCount: filteredRequests.length,
+                        itemBuilder: (context, index) {
+                          return _TicketCard(request: filteredRequests[index]);
+                        },
+                      );
+                    },
+                  ),
+                ),
         ],
       ),
     );
   }
-}
 
-// ==================== WIDGETS ====================
+  Widget _buildSearchBar({required double width}) {
+    return SizedBox(
+      width: width,
+      height: 42,
+      child: TextField(
+        controller: _searchController,
+        onChanged: (_) => setState(() {}),
+        style: AdminStyles.bodyStyle(
+          fontSize: 13,
+          color: AdminStyles.textPrimary,
+          fontWeight: FontWeight.w600,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Search ticket ID, room, issue...',
+          hintStyle: AdminStyles.bodyStyle(
+            fontSize: 13,
+            color: AdminStyles.textMuted,
+            fontWeight: FontWeight.w500,
+          ),
+          prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AdminStyles.primary),
+          prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18, color: AdminStyles.textMuted),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {});
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: const Color(0xFFFCFEFF),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFCFE0F5)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFCFE0F5)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFF93C5FD)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRefreshButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _isRefreshing ? null : () => _loadRequests(isManualRefresh: true),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: _isRefreshing
+                ? _primaryBlue.withValues(alpha: 0.18)
+                : _primaryBlue.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: _primaryBlue.withValues(alpha: 0.2)),
+          ),
+          child: _isRefreshing
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: _primaryBlue),
+                )
+              : const Icon(Icons.refresh_rounded, color: _primaryBlue, size: 20),
+        ),
+      ),
+    );
+  }
+
+}
 
 class _StatCard extends StatefulWidget {
   final String title;
@@ -333,61 +579,61 @@ class _StatCardState extends State<_StatCard> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.all(20),
-          transform: Matrix4.identity()..translate(0.0, _isHovered ? -2.0 : 0.0),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: widget.isSelected
-                  ? widget.iconColor.withValues(alpha: 0.5)
-                  : Colors.transparent,
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: widget.isSelected
-                    ? widget.iconColor.withValues(alpha: 0.15)
-                    : Colors.black.withValues(alpha: 0.04),
-                blurRadius: _isHovered ? 16 : 12,
-                offset: Offset(0, _isHovered ? 6 : 4),
-              ),
-            ],
-          ),
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+          decoration: widget.isSelected
+              ? AdminStyles.glassDecoration(
+                  color: widget.iconColor,
+                  opacity: 0.1,
+                  borderRadius: 18,
+                )
+              : AdminStyles.cardDecoration(
+                  borderRadius: 18,
+                  borderColor: _isHovered ? widget.iconColor.withValues(alpha: 0.3) : null,
+                ),
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: widget.iconColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  color: widget.iconColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                child: Icon(widget.icon, color: widget.iconColor, size: 24),
+                child: Icon(widget.icon, color: widget.iconColor, size: 20),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     widget.value.toString(),
-                    style: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E293B),
+                    style: AdminStyles.headingStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: AdminStyles.textPrimary,
                     ),
                   ),
-                  Text(
-                    widget.title,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF64748B),
+                  SizedBox(
+                    width: 130,
+                    child: Text(
+                      widget.title.toUpperCase(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: AdminStyles.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                 ],
               ),
+              if (widget.isSelected) ...[
+                const Spacer(),
+                const Icon(Icons.check_circle_rounded, color: AdminStyles.primary, size: 16),
+              ],
             ],
           ),
         ),
@@ -404,99 +650,160 @@ class _TableHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
+      style: AdminStyles.headingStyle(
         fontSize: 11,
         fontWeight: FontWeight.w700,
-        color: Color(0xFF64748B),
-        letterSpacing: 0.5,
+        color: const Color(0xFF64748B),
       ),
     );
   }
 }
 
-class _TicketRow extends StatefulWidget {
+class _TicketCard extends StatefulWidget {
   final WorkRequest request;
-  const _TicketRow({required this.request});
+  const _TicketCard({required this.request});
 
   @override
-  State<_TicketRow> createState() => _TicketRowState();
+  State<_TicketCard> createState() => _TicketCardState();
 }
 
-class _TicketRowState extends State<_TicketRow> {
+class _TicketCardState extends State<_TicketCard> {
   bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = _getStatusColor(widget.request.status);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        color: _isHovered ? const Color(0xFFF8FAFC) : Colors.white,
-        child: Row(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(24),
+        decoration: AdminStyles.cardDecoration(
+          borderRadius: 24,
+          borderColor: _isHovered ? AdminStyles.primary : null,
+        ).copyWith(
+          boxShadow: _isHovered 
+            ? [BoxShadow(color: AdminStyles.primary.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 10))] 
+            : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Ticket ID
-            SizedBox(
-              width: 100,
-              child: Text(
-                '#${widget.request.id.length > 6 ? widget.request.id.substring(0, 6) : widget.request.id}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF3B82F6),
-                  fontFamily: 'monospace',
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '#${widget.request.id.length > 6 ? widget.request.id.substring(0, 6).toUpperCase() : widget.request.id.toUpperCase()}',
+                    style: AdminStyles.headingStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AdminStyles.primary,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            // Subject
-            Expanded(
-              flex: 2,
-              child: Text(
-                widget.request.title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1E293B),
+                Text(
+                  DateFormat('MMM d, y').format(widget.request.dateSubmitted),
+                  style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              ],
             ),
-            // Requestor
-            Expanded(
-              child: Text(
-                widget.request.requestorName,
-                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            const SizedBox(height: 16),
+            Text(
+              widget.request.title,
+              style: AdminStyles.headingStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            // Location
-            Expanded(
-              child: Text(
-                '${widget.request.officeRoom}, ${widget.request.buildingName}',
-                style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.person_outline_rounded, size: 14, color: AdminStyles.textMuted),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    widget.request.requestorName,
+                    style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            // Priority
-            SizedBox(width: 100, child: _PriorityBadge(priority: widget.request.priority)),
-            // Status
-            SizedBox(width: 100, child: _StatusBadge(status: widget.request.status)),
-            // Date
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textMuted),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    '${widget.request.officeRoom}, ${widget.request.buildingName}',
+                    style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                _StatusBadge(status: widget.request.status),
+                const SizedBox(width: 8),
+                _PriorityBadge(priority: widget.request.priority),
+              ],
+            ),
+            const SizedBox(height: 16),
             SizedBox(
-              width: 100,
-              child: Text(
-                DateFormat('MMM d, y').format(widget.request.dateSubmitted),
-                style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+              width: double.infinity,
+              height: 40,
+              child: ElevatedButton(
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AdminWorkProcessWeb(request: widget.request),
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _isHovered ? AdminStyles.primary : const Color(0xFFF1F5F9),
+                  foregroundColor: _isHovered ? Colors.white : AdminStyles.primary,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text(
+                  'VIEW DETAILS',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                ),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'pending': return AdminStyles.warning;
+      case 'approved':
+      case 'in_progress':
+      case 'under_maintenance': return AdminStyles.primary;
+      case 'completed': return AdminStyles.success;
+      case 'rework': return AdminStyles.error;
+      default: return AdminStyles.textMuted;
+    }
   }
 }
 
@@ -508,17 +815,17 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final config = _getConfig();
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: config.bgColor,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        config.label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: config.textColor,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: AdminStyles.pillDecoration(color: config.textColor, isSecondary: true),
+      child: Center(
+        child: Text(
+          config.label.toUpperCase(),
+          style: AdminStyles.headingStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            color: config.textColor,
+            letterSpacing: 0.5,
+          ),
         ),
       ),
     );
@@ -527,17 +834,37 @@ class _StatusBadge extends StatelessWidget {
   _Config _getConfig() {
     switch (status.toLowerCase()) {
       case 'pending':
-        return _Config('REVIEW', const Color(0xFFFEF3C7), const Color(0xFFD97706));
+        return _Config(
+          'REVIEW',
+          const Color(0xFFFEF3C7),
+          const Color(0xFFD97706),
+        );
       case 'approved':
       case 'in_progress':
       case 'under_maintenance':
-        return _Config('ACTIVE', const Color(0xFFDBEAFE), const Color(0xFF2563EB));
+        return _Config(
+          'ACTIVE',
+          const Color(0xFFDBEAFE),
+          const Color(0xFF2563EB),
+        );
       case 'completed':
-        return _Config('DONE', const Color(0xFFDCFCE7), const Color(0xFF16A34A));
+        return _Config(
+          'completed',
+          const Color(0xFFDCFCE7),
+          const Color(0xFF16A34A),
+        );
       case 'rework':
-        return _Config('REWORK', const Color(0xFFFEE2E2), const Color(0xFFDC2626));
+        return _Config(
+          'REWORK',
+          const Color(0xFFFEE2E2),
+          const Color(0xFFDC2626),
+        );
       default:
-        return _Config(status.toUpperCase(), const Color(0xFFF1F5F9), const Color(0xFF64748B));
+        return _Config(
+          status.toUpperCase(),
+          const Color(0xFFF1F5F9),
+          const Color(0xFF64748B),
+        );
     }
   }
 }
@@ -563,9 +890,9 @@ class _PriorityBadge extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           priority.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+          style: AdminStyles.headingStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
             color: config.color,
           ),
         ),

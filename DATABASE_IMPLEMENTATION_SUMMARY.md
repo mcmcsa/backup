@@ -2,7 +2,13 @@
 
 ## Overview
 
-The PSU Maintenance System now includes a complete Supabase database infrastructure with 8 tables, comprehensive services, models, and Row Level Security policies.
+This file is a historical implementation snapshot from the initial rollout.
+
+For the current migration-to-page ownership map and updated table scope, see:
+
+- `SUPABASE_MIGRATION_PAGE_OWNERSHIP.md`
+
+The PSU Maintenance System now includes a complete Supabase database infrastructure with expanded schema, comprehensive services, models, and Row Level Security policies.
 
 ## Quick Start
 

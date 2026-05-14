@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class WorkflowStatusBadge extends StatelessWidget {
   final String status;
@@ -46,11 +46,6 @@ class WorkflowStatusBadge extends StatelessWidget {
         return 'REWORK';
       case 'cancelled':
         return 'CANCELLED';
-      // Legacy
-      case 'ongoing':
-        return 'IN PROGRESS';
-      case 'done':
-        return 'COMPLETED';
       default:
         return status.toUpperCase();
     }
@@ -67,7 +62,6 @@ class WorkflowStatusBadge extends StatelessWidget {
       case 'under_maintenance':
         return const Color(0xFFFFE4D6);
       case 'completed':
-      case 'done':
         return const Color(0xFFD1FAE5);
       case 'rework':
         return const Color(0xFFFEE2E2);
@@ -89,7 +83,6 @@ class WorkflowStatusBadge extends StatelessWidget {
       case 'under_maintenance':
         return const Color(0xFFEA580C);
       case 'completed':
-      case 'done':
         return const Color(0xFF059669);
       case 'rework':
         return const Color(0xFFDC2626);
@@ -112,7 +105,6 @@ class WorkflowStatusBadge extends StatelessWidget {
       case 'under_maintenance':
         return const Color(0xFFEA580C);
       case 'completed':
-      case 'done':
         return const Color(0xFF059669);
       case 'rework':
         return const Color(0xFFDC2626);
@@ -123,3 +115,4 @@ class WorkflowStatusBadge extends StatelessWidget {
     }
   }
 }
+

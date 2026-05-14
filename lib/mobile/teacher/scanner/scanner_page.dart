@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/room_service.dart';
 import '../../../shared/widgets/common_app_bar.dart';
-import '../../../shared/providers/theme_provider.dart';
 
 class ScannerPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
+  final bool isActive;
 
-  const ScannerPage({super.key, this.scaffoldKey});
+  const ScannerPage({
+    super.key,
+    this.scaffoldKey,
+    this.isActive = true,
+  });
 
   @override
   State<ScannerPage> createState() => _ScannerPageState();
@@ -19,15 +25,25 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     detectionSpeed: DetectionSpeed.noDuplicates,
     facing: CameraFacing.back,
   );
-  
+
   bool _isFlashOn = false;
-  String? _scannedCode;
+  bool _isScannerRunning = false;
   bool _isValidating = false;
+  String? _scannedCode;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _queueScannerSync();
+  }
+
+  @override
+  void didUpdateWidget(covariant ScannerPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isActive != widget.isActive) {
+      _queueScannerSync();
+    }
   }
 
   @override
@@ -40,75 +56,112 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (!cameraController.value.isInitialized) {
-      return;
-    }
-    
+
     switch (state) {
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
+      case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
+        _stopScanner();
         return;
       case AppLifecycleState.resumed:
-        cameraController.start();
-        return;
-      case AppLifecycleState.inactive:
-        cameraController.stop();
+        _queueScannerSync();
         return;
     }
   }
 
-  void _toggleFlash() {
-    setState(() {
-      _isFlashOn = !_isFlashOn;
+  void _queueScannerSync() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncScannerState();
     });
-    cameraController.toggleTorch();
+  }
+
+  Future<void> _syncScannerState() async {
+    if (!mounted) return;
+
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    final shouldRun =
+        widget.isActive &&
+        lifecycleState != AppLifecycleState.detached &&
+        lifecycleState != AppLifecycleState.hidden &&
+        lifecycleState != AppLifecycleState.inactive &&
+        lifecycleState != AppLifecycleState.paused;
+
+    if (shouldRun) {
+      await _startScanner();
+    } else {
+      await _stopScanner();
+    }
+  }
+
+  Future<void> _startScanner() async {
+    if (_isScannerRunning) return;
+    try {
+      await cameraController.start();
+      if (!mounted) return;
+      setState(() => _isScannerRunning = true);
+    } catch (_) {}
+  }
+
+  Future<void> _stopScanner() async {
+    if (!_isScannerRunning) return;
+    try {
+      await cameraController.stop();
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() => _isScannerRunning = false);
+  }
+
+  Future<void> _toggleFlash() async {
+    setState(() => _isFlashOn = !_isFlashOn);
+    try {
+      await cameraController.toggleTorch();
+    } catch (_) {}
   }
 
   void _handleBarcode(BarcodeCapture capture) {
     if (_isValidating) return;
-    final List<Barcode> barcodes = capture.barcodes;
-    if (barcodes.isNotEmpty) {
-      final String? code = barcodes.first.rawValue;
-      if (code != null && code != _scannedCode) {
-        setState(() {
-          _scannedCode = code;
-        });
-        _validateAndNavigate(code);
-      }
-    }
+
+    final barcodes = capture.barcodes;
+    if (barcodes.isEmpty) return;
+
+    final code = barcodes.first.rawValue?.trim();
+    if (code == null || code.isEmpty || code == _scannedCode) return;
+
+    setState(() => _scannedCode = code);
+    _validateAndNavigate(code);
   }
 
-  void _validateAndNavigate(String code) async {
+  Future<void> _validateAndNavigate(String code) async {
     setState(() => _isValidating = true);
+    await _stopScanner();
+
     try {
-      // Look up the room by QR code data in the database
-      final room = await RoomService.fetchByQRCode(code);
+      final room = await RoomService.fetchByScanValue(code);
       if (!mounted) return;
 
       if (room != null) {
-        // Valid QR code — navigate to verification page with room data
-        await Navigator.pushNamed(
-          context,
+        await context.push(
           '/room-verification',
-          arguments: {
-            'roomId': room.id,
+          extra: {
+            'roomId': room.code.isNotEmpty ? room.code : room.id,
             'room': room,
           },
         );
       } else {
-        // Invalid QR code — show error
         _showInvalidQRCodeDialog();
       }
     } catch (_) {
       if (mounted) _showInvalidQRCodeDialog();
     }
-    if (mounted) {
-      setState(() {
-        _scannedCode = null;
-        _isValidating = false;
-      });
-    }
+
+    if (!mounted) return;
+    setState(() {
+      _scannedCode = null;
+      _isValidating = false;
+    });
+    await _syncScannerState();
   }
 
   void _showInvalidQRCodeDialog() {
@@ -128,18 +181,30 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                   color: Colors.red.shade50,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.error_outline, color: Colors.red.shade600, size: 36),
+                child: Icon(
+                  Icons.error_outline,
+                  color: Colors.red.shade600,
+                  size: 36,
+                ),
               ),
               const SizedBox(height: 20),
               const Text(
                 'Invalid QR Code',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
                 'This QR code is not recognized. Please scan a valid room QR code generated by the admin.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
               ),
               const SizedBox(height: 24),
               SizedBox(
@@ -150,9 +215,14 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                     backgroundColor: const Color(0xFF4169E1),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                  child: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Try Again',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -163,7 +233,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   }
 
   void _enterManually() {
-    Navigator.pushNamed(context, '/manual-room-entry');
+    context.push('/manual-room-entry');
   }
 
   @override
@@ -173,7 +243,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
         return Scaffold(
           backgroundColor: themeProvider.backgroundColor,
           appBar: CommonAppBar(
-            roleText: 'STUDENT/TEACHER',
+            roleText: 'Teacher',
             primaryColor: themeProvider.primaryColor,
             onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
           ),
@@ -185,7 +255,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                   child: Column(
                     children: [
                       const SizedBox(height: 20),
-                      // QR Scanner View
                       Expanded(
                         child: Container(
                           decoration: BoxDecoration(
@@ -200,11 +269,36 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                             borderRadius: BorderRadius.circular(13),
                             child: Stack(
                               children: [
-                                MobileScanner(
-                                  controller: cameraController,
-                                  onDetect: _handleBarcode,
-                                ),
-                                // Dashed border overlay
+                                if (widget.isActive)
+                                  MobileScanner(
+                                    controller: cameraController,
+                                    fit: BoxFit.cover,
+                                    onDetect: _handleBarcode,
+                                  )
+                                else
+                                  Container(
+                                    color: Colors.black,
+                                    alignment: Alignment.center,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.qr_code_scanner_rounded,
+                                          size: 48,
+                                          color: Colors.white.withOpacity(0.7),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          'Open the Scanner tab to use the camera',
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(0.75),
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 CustomPaint(
                                   painter: DashedBorderPainter(
                                     color: themeProvider.primaryColor,
@@ -214,7 +308,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                                   ),
                                   child: Container(),
                                 ),
-                                // Corner brackets
                                 Positioned(
                                   top: 20,
                                   left: 20,
@@ -257,20 +350,20 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Instruction text
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           border: Border.all(
                             color: themeProvider.primaryColor,
                             width: 2,
-                            style: BorderStyle.solid,
                           ),
                           borderRadius: BorderRadius.circular(8),
                           color: themeProvider.cardColor,
                         ),
                         child: Text(
-                          'Point your camera at the QR code of the room',
+                          _isValidating
+                              ? 'Checking the scanned room...'
+                              : 'Point your camera at the QR code of the room',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,
@@ -280,7 +373,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      // Enter Manually Button
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
@@ -305,7 +397,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Flash Toggle
                       InkWell(
                         onTap: _toggleFlash,
                         child: Row(
@@ -340,31 +431,26 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildCornerBracket({required bool isTop, required bool isLeft, required Color color}) {
+  Widget _buildCornerBracket({
+    required bool isTop,
+    required bool isLeft,
+    required Color color,
+  }) {
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
         border: Border(
-          top: isTop
-              ? BorderSide(color: color, width: 4)
-              : BorderSide.none,
-          bottom: !isTop
-              ? BorderSide(color: color, width: 4)
-              : BorderSide.none,
-          left: isLeft
-              ? BorderSide(color: color, width: 4)
-              : BorderSide.none,
-          right: !isLeft
-              ? BorderSide(color: color, width: 4)
-              : BorderSide.none,
+          top: isTop ? BorderSide(color: color, width: 4) : BorderSide.none,
+          bottom: !isTop ? BorderSide(color: color, width: 4) : BorderSide.none,
+          left: isLeft ? BorderSide(color: color, width: 4) : BorderSide.none,
+          right: !isLeft ? BorderSide(color: color, width: 4) : BorderSide.none,
         ),
       ),
     );
   }
 }
 
-// Custom painter for dashed border
 class DashedBorderPainter extends CustomPainter {
   final Color color;
   final double strokeWidth;
@@ -387,31 +473,27 @@ class DashedBorderPainter extends CustomPainter {
 
     final path = Path();
     double startX = 0;
-    
-    // Top border
+
     while (startX < size.width) {
       path.moveTo(startX, 0);
       path.lineTo(startX + dashWidth, 0);
       startX += dashWidth + dashSpace;
     }
-    
-    // Right border
+
     double startY = 0;
     while (startY < size.height) {
       path.moveTo(size.width, startY);
       path.lineTo(size.width, startY + dashWidth);
       startY += dashWidth + dashSpace;
     }
-    
-    // Bottom border
+
     startX = size.width;
     while (startX > 0) {
       path.moveTo(startX, size.height);
       path.lineTo(startX - dashWidth, size.height);
       startX -= dashWidth + dashSpace;
     }
-    
-    // Left border
+
     startY = size.height;
     while (startY > 0) {
       path.moveTo(0, startY);

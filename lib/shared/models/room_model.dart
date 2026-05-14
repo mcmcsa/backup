@@ -1,63 +1,79 @@
 class Room {
   final String id;
+  final String code;
   final String name;
   final String buildingId;
   final String building; // display name from join
+  final String floorId;
   final String floor;
   final int seats;
   final String departmentId;
   final String department; // display name from join
+  final String roomTypeId;
   final String roomType; // 'Laboratory', 'Lecture Hall', 'Seminar Room'
   final String status; // 'available', 'reserved', 'maintenance'
   final String? imageUrl;
-  final String? description;
   final String? qrCodeData;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   Room({
     required this.id,
+    this.code = '',
     required this.name,
     this.buildingId = '',
     this.building = '',
-    this.floor = '1st Floor',
+    this.floorId = '',
+    this.floor = '',
     required this.seats,
     this.departmentId = '',
     this.department = '',
-    this.roomType = 'Laboratory',
+    this.roomTypeId = '',
+    this.roomType = '',
     required this.status,
     this.imageUrl,
-    this.description,
     this.qrCodeData,
+    this.createdAt,
+    this.updatedAt,
   });
 
   Room copyWith({
     String? id,
+    String? code,
     String? name,
     String? buildingId,
     String? building,
+    String? floorId,
     String? floor,
     int? seats,
     String? departmentId,
     String? department,
+    String? roomTypeId,
     String? roomType,
     String? status,
     String? imageUrl,
-    String? description,
     String? qrCodeData,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return Room(
       id: id ?? this.id,
+      code: code ?? this.code,
       name: name ?? this.name,
       buildingId: buildingId ?? this.buildingId,
       building: building ?? this.building,
+      floorId: floorId ?? this.floorId,
       floor: floor ?? this.floor,
       seats: seats ?? this.seats,
       departmentId: departmentId ?? this.departmentId,
       department: department ?? this.department,
+      roomTypeId: roomTypeId ?? this.roomTypeId,
       roomType: roomType ?? this.roomType,
       status: status ?? this.status,
       imageUrl: imageUrl ?? this.imageUrl,
-      description: description ?? this.description,
       qrCodeData: qrCodeData ?? this.qrCodeData,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
@@ -72,41 +88,61 @@ class Room {
     if (map['departments'] is Map) {
       departmentName = map['departments']['name'] ?? '';
     }
+    if (departmentName.isEmpty) {
+      departmentName = map['department_name'] ?? map['department'] ?? '';
+    }
+    String roomTypeName = '';
+    if (map['room_types'] is Map) {
+      roomTypeName = map['room_types']['name'] ?? '';
+    }
+    if (roomTypeName.isEmpty) {
+      roomTypeName = map['room_type'] ?? '';
+    }
 
     return Room(
       id: map['id']?.toString() ?? '',
+      code: map['code']?.toString() ?? '',
       name: map['name'] ?? '',
       buildingId: map['building_id']?.toString() ?? '',
       building: buildingName,
-      floor: map['floor'] ?? '1st Floor',
+      floorId: map['floor_id']?.toString() ?? '',
+      floor: map['floor'] ?? map['floor_id']?.toString() ?? '',
       seats: map['seats'] ?? 0,
       departmentId: map['department_id']?.toString() ?? '',
       department: departmentName,
-      roomType: map['room_type'] ?? 'Laboratory',
+      roomTypeId: map['room_type_id']?.toString() ?? '',
+      roomType: roomTypeName.isNotEmpty ? roomTypeName : (map['room_type'] ?? ''),
       status: map['status'] ?? 'available',
       imageUrl: map['image_url'],
-      description: map['description'],
       qrCodeData: map['qr_code_data'],
+      createdAt:
+          map['created_at'] != null ? DateTime.tryParse(map['created_at'].toString()) : null,
+      updatedAt:
+          map['updated_at'] != null ? DateTime.tryParse(map['updated_at'].toString()) : null,
     );
   }
 
   Map<String, dynamic> toMap() {
     final map = <String, dynamic>{
-      'id': id,
+      'code': code.isNotEmpty ? code : id,
       'name': name,
       'building_id': buildingId,
+      // Legacy schemas still require a non-null floor column.
       'floor': floor,
+      if (floorId.isNotEmpty) 'floor_id': floorId,
       'seats': seats,
-      'room_type': roomType,
+      if (roomTypeId.isNotEmpty) 'room_type_id': roomTypeId,
       'status': status,
       'image_url': imageUrl,
-      'description': description,
     };
     if (departmentId.isNotEmpty) {
       map['department_id'] = departmentId;
     }
     if (qrCodeData != null) {
       map['qr_code_data'] = qrCodeData;
+    }
+    if (id.isNotEmpty) {
+      map['id'] = id;
     }
     return map;
   }

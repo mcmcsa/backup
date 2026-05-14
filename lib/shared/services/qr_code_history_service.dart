@@ -35,7 +35,6 @@ class QRCodeHistoryService {
   static Future<QRCodeHistory> saveQRCode({
     required String roomId,
     required String qrCodeValue,
-    required String? qrCodeImage,
     String? roomName,
     String? building,
     String? department,
@@ -49,10 +48,6 @@ class QRCodeHistoryService {
       final response = await _db.from(_table).insert({
         'room_id': roomId,
         'qr_code_value': qrCodeValue,
-        'qr_code_image': qrCodeImage,
-        'room_name': roomName,
-        'building': building,
-        'department': department,
         'created_by_id': userId,
         'is_active': true,
         'scanned_count': 0,
@@ -62,6 +57,19 @@ class QRCodeHistoryService {
     } catch (e) {
       throw Exception('Error saving QR code: $e');
     }
+  }
+
+  // Update display metadata for active QR history entries of a room.
+  // The QR value remains unchanged.
+  static Future<void> updateRoomMetadata({
+    required String roomId,
+    required String roomName,
+    required String building,
+    required String department,
+  }) async {
+    // Metadata snapshot columns were removed from qr_code_history in 3NF migration.
+    // Keep this method for call-site compatibility and future extension.
+    return;
   }
 
   // Get single QR code by value

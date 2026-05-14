@@ -13,7 +13,6 @@ class WorkRequestFormPage extends StatefulWidget {
 
 class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _campusController = TextEditingController();
   final TextEditingController _buildingController = TextEditingController();
   final TextEditingController _departmentController = TextEditingController();
   final TextEditingController _officeRoomController = TextEditingController();
@@ -47,14 +46,13 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     _loadBuildings();
     if (widget.existingRequest != null) {
       final request = widget.existingRequest!;
-      _campusController.text = request.campus;
-      _buildingController.text = request.buildingName;
-      _departmentController.text = request.department;
-      _officeRoomController.text = request.officeRoom;
+      _buildingController.text = request.buildingName ?? '';
+      _departmentController.text = request.department ?? '';
+      _officeRoomController.text = request.officeRoom ?? '';
       _descriptionController.text = request.description;
       _requestorNameController.text = request.requestorName;
       _requestorPositionController.text = request.requestorPosition;
-      _reportedByController.text = request.reportedBy;
+      _reportedByController.text = request.reportedBy ?? '';
       _requestType = request.typeOfRequest;
       _selectedDate = request.dateSubmitted;
       if (request.approvedBy != null) {
@@ -76,7 +74,6 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
 
   @override
   void dispose() {
-    _campusController.dispose();
     _buildingController.dispose();
     _departmentController.dispose();
     _officeRoomController.dispose();
@@ -156,15 +153,6 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                               fontSize: 14,
                               color: Color(0xFF6B7280),
                             ),
-                          ),
-                          const SizedBox(height: 16),
-                          
-                          _buildLabel('Campus'),
-                          const SizedBox(height: 8),
-                          _buildTextField(
-                            controller: _campusController,
-                            hintText: 'PSU San Carlos',
-                            enabled: !isViewMode,
                           ),
                           const SizedBox(height: 16),
                           

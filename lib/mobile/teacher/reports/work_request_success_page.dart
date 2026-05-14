@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../router/app_router.dart';
 
 class WorkRequestSuccessPage extends StatelessWidget {
   final String trackingNumber;
@@ -25,11 +27,7 @@ class WorkRequestSuccessPage extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () {
-            Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/student-teacher/dashboard',
-              (route) => false,
-            );
+            context.go(teacherDashboardRoute);
           },
         ),
         title: const Text(
@@ -179,11 +177,7 @@ class WorkRequestSuccessPage extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: () {
                   // Navigate to request tracking/status page
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    '/student-teacher/dashboard',
-                    (route) => false,
-                  );
+                  context.go(teacherDashboardRoute);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00BFA5),
@@ -207,11 +201,7 @@ class WorkRequestSuccessPage extends StatelessWidget {
             // Back to Home Link
             TextButton(
               onPressed: () {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/student-teacher/dashboard',
-                  (route) => false,
-                );
+                context.go(teacherDashboardRoute);
               },
               child: const Text(
                 'Back to Home',

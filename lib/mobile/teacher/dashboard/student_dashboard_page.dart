@@ -1,11 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../authentication/services/auth_service.dart';
-import '../student_teacher_navigation.dart';
+import '../../../router/app_router.dart';
 import 'package:intl/intl.dart';
 
 class StudentTeacherDashboard extends StatefulWidget {
@@ -57,7 +58,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
-        roleText: 'STUDENT/TEACHER',
+        roleText: 'Teacher',
         primaryColor: const Color(0xFF00BFA5),
         onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
       ),
@@ -75,27 +76,34 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
               decoration: InputDecoration(
                 hintText: 'Search my requests...',
                 hintStyle: TextStyle(
-                  color: themeProvider.subtitleColor,
+                  color: Colors.grey.shade400,
                   fontSize: 14,
                 ),
-                prefixIcon: Icon(Icons.search, color: themeProvider.subtitleColor, size: 20),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 8),
+                  child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                ),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 44,
+                  minHeight: 44,
+                ),
                 filled: true,
-                fillColor: themeProvider.cardColor,
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: themeProvider.borderColor),
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: themeProvider.borderColor),
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: themeProvider.primaryColor, width: 2),
+                focusedBorder: const OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                  borderSide: BorderSide(color: Color(0xFF4169E1), width: 2),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 14,
+                  vertical: 10,
                 ),
               ),
             ),
@@ -133,7 +141,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                 Expanded(
                   child: _buildStatCard(
                     'IN PROGRESS',
-                    '${_requests.where((r) => r.status == 'ongoing').length}',
+                    '${_requests.where((r) => r.status == 'in_progress').length}',
                     Colors.orange,
                     themeProvider,
                   ),
@@ -146,7 +154,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                 Expanded(
                   child: _buildStatCard(
                     'RESOLVED',
-                    '${_requests.where((r) => r.status == 'done').length}',
+                    '${_requests.where((r) => r.status == 'completed').length}',
                     Colors.green,
                     themeProvider,
                   ),
@@ -169,7 +177,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pushNamed(context, '/work-request-form');
+                  context.push('/work-request-form');
                 },
                 icon: const Icon(Icons.add_box_outlined, size: 22),
                 label: const Text(
@@ -212,12 +220,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                 ),
                 TextButton(
                   onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const StudentTeacherNavigation(initialIndex: 3),
-                      ),
-                    );
+                    context.go(teacherReportsRoute);
                   },
                   child: Text(
                     'View All',
@@ -234,12 +237,12 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
 
             // Recent Reports List
             ..._requests.take(5).map((r) {
-              final statusLabel = r.status == 'done' ? 'RESOLVED'
-                  : r.status == 'ongoing' ? 'IN PROGRESS'
+              final statusLabel = r.status == 'completed' ? 'RESOLVED'
+                  : r.status == 'in_progress' ? 'IN PROGRESS'
                   : r.status == 'cancelled' ? 'DECLINED'
                   : 'PENDING';
-              final statusColor = r.status == 'done' ? Colors.green
-                  : r.status == 'ongoing' ? Colors.orange
+              final statusColor = r.status == 'completed' ? Colors.green
+                  : r.status == 'in_progress' ? Colors.orange
                   : r.status == 'cancelled' ? Colors.red
                   : const Color(0xFF00BFA5);
               return Padding(
@@ -250,7 +253,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                   iconBgColor: themeProvider.primaryColor.withOpacity(0.1),
                   title: r.title,
                   location: '${r.officeRoom}, ${r.buildingName}',
-                  date: DateFormat('MMM dd, yyyy • hh:mm a').format(r.dateSubmitted).toUpperCase(),
+                  date: DateFormat('MMM dd, yyyy â€¢ hh:mm a').format(r.dateSubmitted).toUpperCase(),
                   status: statusLabel,
                   statusColor: statusColor,
                   themeProvider: themeProvider,
@@ -410,3 +413,4 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
     );
   }
 }
+

@@ -123,7 +123,7 @@ class WorkRequestCompletionPage extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  request.officeRoom,
+                                  request.officeRoom ?? '',
                                   style: const TextStyle(
                                     fontSize: 12,
                                     color: Color(0xFF6B7280),

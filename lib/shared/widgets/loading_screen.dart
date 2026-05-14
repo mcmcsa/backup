@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class LoadingScreen extends StatefulWidget {
-  final Widget destination;
+  final String destinationRoute;
   final Duration delay;
   final String statusText;
   final bool instant;
+  final VoidCallback? onCompleted;
 
   const LoadingScreen({
     super.key,
-    required this.destination,
+    required this.destinationRoute,
     this.delay = const Duration(seconds: 4),
     this.statusText = 'LOADING SYSTEM',
     this.instant = false,
+    this.onCompleted,
   });
 
   @override
@@ -44,10 +47,8 @@ class _LoadingScreenState extends State<LoadingScreen>
       _controller.value = 1.0;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => widget.destination),
-          );
+          widget.onCompleted?.call();
+          context.go(widget.destinationRoute);
         }
       });
     } else {
@@ -56,10 +57,8 @@ class _LoadingScreenState extends State<LoadingScreen>
       // Navigate to destination after delay
       Future.delayed(widget.delay, () {
         if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => widget.destination),
-          );
+          widget.onCompleted?.call();
+          context.go(widget.destinationRoute);
         }
       });
     }
@@ -87,6 +86,8 @@ class _LoadingScreenState extends State<LoadingScreen>
                 child: Image.asset(
                   'assets/images/psummsIcon.png',
                   fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                  isAntiAlias: true,
                 ),
               ),
               const SizedBox(height: 50),

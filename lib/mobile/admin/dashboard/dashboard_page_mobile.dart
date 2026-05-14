@@ -1,10 +1,7 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../authentication/services/auth_service.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
-import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/work_request_service.dart';
-import '../shared/notifications_page.dart';
+import '../shared/admin_app_bar.dart';
 import '../main_navigation.dart';
 
 class DashboardPageMobile extends StatefulWidget {
@@ -19,7 +16,6 @@ class DashboardPageMobile extends StatefulWidget {
 class _DashboardPageMobileState extends State<DashboardPageMobile> {
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
-  int _unreadCount = 0;
 
   String _ticketCode(String id) {
     final trimmed = id.trim();
@@ -32,21 +28,6 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
   void initState() {
     super.initState();
     _loadRequests();
-    _loadUnreadCount();
-  }
-
-  Future<void> _loadUnreadCount() async {
-    try {
-      final authService = context.read<AuthService>();
-      final user = authService.currentUser;
-      if (user == null) return;
-
-      final count = await AppNotificationService.getUnreadCount(
-        role: user.role.name,
-        userId: user.id,
-      );
-      if (mounted) setState(() => _unreadCount = count);
-    } catch (_) {}
   }
 
   Future<void> _loadRequests() async {
@@ -62,105 +43,9 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: GestureDetector(
-            onTap: widget.openDrawer,
-            child: const Icon(Icons.menu, color: Colors.black87, size: 28),
-          ),
-        ),
-        title: Row(
-          children: [
-            SizedBox(
-              height: 35,
-              width: 35,
-              child: Image.asset(
-                'assets/images/PsuLogo.png',
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, _) => const Icon(
-                  Icons.school,
-                  color: Color(0xFF4169E1),
-                  size: 28,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'PSU',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    height: 1,
-                  ),
-                ),
-                Text(
-                  'CAMPUS ADMINISTRATOR',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.black54,
-                    height: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.notifications_outlined,
-                    color: Colors.black87,
-                  ),
-                  onPressed: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationsPage(),
-                      ),
-                    );
-                    _loadUnreadCount();
-                  },
-                ),
-                if (_unreadCount > 0)
-                  Positioned(
-                    right: 6,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 2,
-                      ),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.all(Radius.circular(10)),
-                      ),
-                      constraints: const BoxConstraints(minWidth: 18),
-                      child: Text(
-                        _unreadCount > 99 ? '99+' : '$_unreadCount',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
+      appBar: AdminAppBar(
+        openDrawer: widget.openDrawer,
+        subtitle: 'Campus Administrator',
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -172,25 +57,36 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
               decoration: InputDecoration(
                 hintText: 'Search tickets, assets or staff...',
                 hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 8),
+                  child: Icon(
+                    Icons.search_rounded,
+                    color: Colors.grey.shade400,
+                    size: 20,
+                  ),
+                ),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 44,
+                  minHeight: 44,
+                ),
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(999),
                   borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(999),
                   borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(999),
                   borderSide: const BorderSide(color: Color(0xFF4169E1)),
                 ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
 
             // Stats Cards Grid
             Builder(
@@ -202,13 +98,13 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
                     .where((r) => r.status == 'pending')
                     .length;
                 final ongoingCount = _requests
-                    .where((r) => r.status == 'ongoing')
+                    .where((r) => r.status == 'in_progress')
                     .length;
                 final highPriorityCount = _requests
                     .where((r) => r.priority == 'high')
                     .length;
                 final completedCount = _requests
-                    .where((r) => r.status == 'done')
+                    .where((r) => r.status == 'completed')
                     .length;
 
                 return GridView.count(
@@ -273,10 +169,10 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
 
             _buildInsightCard(
               'Avg. Resolution Time',
-              _requests.where((r) => r.status == 'done' && r.dateCompleted != null).isEmpty
+              _requests.where((r) => r.status == 'completed' && r.dateCompleted != null).isEmpty
                   ? 'N/A'
-                  : '${(_requests.where((r) => r.status == 'done' && r.dateCompleted != null).map((r) => r.dateCompleted!.difference(r.dateSubmitted).inHours).fold<int>(0, (a, b) => a + b) / _requests.where((r) => r.status == 'done' && r.dateCompleted != null).length).toStringAsFixed(1)}h',
-              _requests.where((r) => r.status == 'done' && r.dateCompleted != null).isEmpty ? 0.0 : 0.5,
+                  : '${(_requests.where((r) => r.status == 'completed' && r.dateCompleted != null).map((r) => r.dateCompleted!.difference(r.dateSubmitted).inHours).fold<int>(0, (a, b) => a + b) / _requests.where((r) => r.status == 'completed' && r.dateCompleted != null).length).toStringAsFixed(1)}h',
+              _requests.where((r) => r.status == 'completed' && r.dateCompleted != null).isEmpty ? 0.0 : 0.5,
               Colors.blue,
               Icons.access_time,
             ),
@@ -285,8 +181,8 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
               'Resolution Rate',
               _requests.isEmpty
                   ? '0%'
-                  : '${(_requests.where((r) => r.status == 'done').length * 100 / _requests.length).round()}%',
-              _requests.isEmpty ? 0.0 : _requests.where((r) => r.status == 'done').length / _requests.length,
+                  : '${(_requests.where((r) => r.status == 'completed').length * 100 / _requests.length).round()}%',
+              _requests.isEmpty ? 0.0 : _requests.where((r) => r.status == 'completed').length / _requests.length,
               Colors.green,
               Icons.shield_outlined,
             ),
@@ -611,7 +507,7 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
 
   Widget _buildAgingTicketsSection() {
     final agingRequests = _requests
-        .where((r) => r.status == 'pending' || r.status == 'ongoing')
+        .where((r) => r.status == 'pending' || r.status == 'in_progress')
         .toList()
       ..sort((a, b) => a.dateSubmitted.compareTo(b.dateSubmitted));
     final top = agingRequests.take(3).toList();
@@ -631,7 +527,7 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
           padding: const EdgeInsets.only(bottom: 8),
           child: _buildAgingTicket(
             '${_ticketCode(r.id)} - ${r.officeRoom}',
-            '$daysOpen days open • ${r.requestorName}',
+            '$daysOpen days open â€¢ ${r.requestorName}',
             color,
           ),
         );
@@ -693,9 +589,9 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
             ),
           ),
           ...top.map((r) {
-            final statusColor = r.status == 'done'
+            final statusColor = r.status == 'completed'
                 ? Colors.green
-                : (r.status == 'ongoing' ? Colors.blue : Colors.orange);
+                : (r.status == 'in_progress' ? Colors.blue : Colors.orange);
             final statusLabel = r.status.toUpperCase();
             return _buildRequestRow(_ticketCode(r.id), r.title, statusLabel, statusColor);
           }),
@@ -704,3 +600,4 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
     );
   }
 }
+

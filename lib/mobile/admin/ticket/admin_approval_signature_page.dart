@@ -69,14 +69,10 @@ class _AdminApprovalSignaturePageState
         user.name,
       );
 
-      await AppNotificationService.createForRole(
-        targetRole: 'maintenance',
-        title: 'Request Approved by Admin',
-        message:
-            'Work request ${widget.request.id} was approved by ${user.name}. Status is now In Progress.',
-        type: 'work_request_approved',
+      await AppNotificationService.notifyApprovedToMaintenance(
         workRequestId: widget.request.id,
-        statusSnapshot: 'in_progress',
+        adminName: user.name,
+        assignedMaintenanceId: widget.request.assignedToId,
       );
 
       await LoginActivityService.recordAdminAction(
@@ -294,10 +290,9 @@ class _AdminApprovalSignaturePageState
             ],
           ),
           const SizedBox(height: 12),
-          _buildInfoRow('Campus', widget.request.campus),
-          _buildInfoRow('Building', widget.request.buildingName),
-          _buildInfoRow('Room', widget.request.officeRoom),
-          _buildInfoRow('Department', widget.request.department),
+          _buildInfoRow('Building', widget.request.buildingName ?? ''),
+          _buildInfoRow('Room', widget.request.officeRoom ?? ''),
+          _buildInfoRow('Department', widget.request.department ?? ''),
         ],
       ),
     );
@@ -360,7 +355,7 @@ class _AdminApprovalSignaturePageState
           const SizedBox(height: 12),
           _buildInfoRow('Name', widget.request.requestorName),
           _buildInfoRow('Position', widget.request.requestorPosition),
-          _buildInfoRow('Reported By', widget.request.reportedBy),
+          _buildInfoRow('Reported By', widget.request.reportedBy ?? ''),
         ],
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../shared/models/room_model.dart';
 
 class RoomVerificationPage extends StatelessWidget {
@@ -186,13 +187,14 @@ class RoomVerificationPage extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pushNamed(
-                    context,
+                  context.push(
                     '/work-request-form',
-                    arguments: {
+                    extra: {
                       'roomId': roomId,
                       'buildingName': room?.building ?? 'Unknown Building',
-                      'roomName': '${room?.name ?? 'Unknown Room'} - ${room?.roomType ?? 'Room'}',
+                      'roomName': room?.name ?? 'Unknown Room',
+                      'verifiedRoom': room,
+                      'lockLocationDetails': true,
                     },
                   );
                 },

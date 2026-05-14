@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import '../../../shared/services/room_service.dart';
 
 class ManualRoomEntryPage extends StatefulWidget {
@@ -36,18 +37,15 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
     });
 
     try {
-      // Try to find room by QR code data first, then by ID
-      var room = await RoomService.fetchByQRCode(code);
-      room ??= await RoomService.fetchById(code);
+      final room = await RoomService.fetchByScanValue(code);
 
       if (!mounted) return;
 
       if (room != null) {
-        Navigator.pushNamed(
-          context,
+        context.push(
           '/room-verification',
-          arguments: {
-            'roomId': room.id,
+          extra: {
+            'roomId': room.code.isNotEmpty ? room.code : room.id,
             'room': room,
           },
         );

@@ -1,4 +1,7 @@
+﻿import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/providers/theme_provider.dart';
@@ -6,6 +9,7 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../authentication/services/auth_service.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StudentReportsPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -16,16 +20,49 @@ class StudentReportsPage extends StatefulWidget {
   State<StudentReportsPage> createState() => _StudentReportsPageState();
 }
 
-class _StudentReportsPageState extends State<StudentReportsPage> {
+class _StudentReportsPageState extends State<StudentReportsPage>
+    with WidgetsBindingObserver {
   String _selectedFilter = 'All';
   final TextEditingController _searchController = TextEditingController();
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
+  RealtimeChannel? _realtimeChannel;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRequests();
+    _startAutoRefresh();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadRequests();
+    }
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _loadRequests();
+    });
+  }
+
+  void _setupRealtimeListener(String requestorId) {
+    if (_realtimeChannel != null) return;
+    _realtimeChannel = WorkRequestService.listenToRequestorRequests(
+      requestorId,
+      (updatedRequests) {
+        if (mounted) {
+          setState(() {
+            _requests = updatedRequests;
+          });
+        }
+      },
+    );
   }
 
   Future<void> _loadRequests() async {
@@ -35,12 +72,20 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
       List<WorkRequest> data;
       if (user != null && user.id.isNotEmpty) {
         data = await WorkRequestService.fetchByRequestor(user.id);
+        _setupRealtimeListener(user.id);
       } else {
         data = [];
       }
-      if (mounted) setState(() { _requests = data; _isLoading = false; });
+      if (mounted)
+        setState(() {
+          _requests = data;
+          _isLoading = false;
+        });
     } catch (_) {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted)
+        setState(() {
+          _isLoading = false;
+        });
     }
   }
 
@@ -48,25 +93,37 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
     List<WorkRequest> filtered = _requests;
     if (_selectedFilter == 'Pending') {
       filtered = filtered.where((r) => r.status == 'pending').toList();
-    } else if (_selectedFilter == 'Ongoing') {
-      filtered = filtered.where((r) => r.status == 'ongoing').toList();
+    } else if (_selectedFilter == 'In Progress') {
+      filtered = filtered
+          .where(
+            (r) => r.status == 'in_progress' || r.status == 'under_maintenance',
+          )
+          .toList();
     } else if (_selectedFilter == 'Complete') {
-      filtered = filtered.where((r) => r.status == 'done').toList();
+      filtered = filtered.where((r) => r.status == 'completed').toList();
     }
     final query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
-      filtered = filtered.where((r) =>
-        r.id.toLowerCase().contains(query) ||
-        r.officeRoom.toLowerCase().contains(query) ||
-        r.title.toLowerCase().contains(query)
-      ).toList();
+      filtered = filtered
+          .where(
+            (r) =>
+                r.id.toLowerCase().contains(query) ||
+                (r.officeRoom?.toLowerCase().contains(query) ?? false) ||
+                r.title.toLowerCase().contains(query),
+          )
+          .toList();
     }
     return filtered;
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
+    if (_realtimeChannel != null) {
+      Supabase.instance.client.realtime.removeChannel(_realtimeChannel!);
+    }
     super.dispose();
   }
 
@@ -77,7 +134,7 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
         return Scaffold(
           backgroundColor: themeProvider.backgroundColor,
           appBar: CommonAppBar(
-            roleText: 'STUDENT/TEACHER',
+            roleText: 'Teacher',
             primaryColor: themeProvider.primaryColor,
             onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
           ),
@@ -89,30 +146,45 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
                 padding: const EdgeInsets.all(16),
                 child: TextField(
                   controller: _searchController,
+                  onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     hintText: 'Search tracking number or room...',
                     hintStyle: TextStyle(
-                      color: themeProvider.isDarkMode ? Colors.grey.shade600 : Colors.grey.shade400,
+                      color: Colors.grey.shade400,
                       fontSize: 14,
                     ),
-                    prefixIcon: Icon(Icons.search, color: themeProvider.isDarkMode ? Colors.grey.shade600 : Colors.grey.shade400, size: 20),
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.only(left: 12, right: 8),
+                      child: Icon(
+                        Icons.search_rounded,
+                        color: Colors.grey.shade400,
+                        size: 20,
+                      ),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
                     filled: true,
-                    fillColor: themeProvider.cardColor,
+                    fillColor: Colors.white,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: themeProvider.borderColor),
+                      borderRadius: BorderRadius.circular(999),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: themeProvider.borderColor),
+                      borderRadius: BorderRadius.circular(999),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: themeProvider.primaryColor, width: 2),
+                    focusedBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(999)),
+                      borderSide: BorderSide(
+                        color: Color(0xFF4169E1),
+                        width: 2,
+                      ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
-                      vertical: 14,
+                      vertical: 10,
                     ),
                   ),
                 ),
@@ -122,7 +194,11 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Icon(Icons.assignment_outlined, size: 20, color: themeProvider.primaryColor),
+                    Icon(
+                      Icons.assignment_outlined,
+                      size: 20,
+                      color: themeProvider.primaryColor,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'My Reports',
@@ -146,7 +222,7 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
                     const SizedBox(width: 8),
                     _buildFilterChip('Pending', themeProvider),
                     const SizedBox(width: 8),
-                    _buildFilterChip('Ongoing', themeProvider),
+                    _buildFilterChip('In Progress', themeProvider),
                     const SizedBox(width: 8),
                     _buildFilterChip('Complete', themeProvider),
                   ],
@@ -156,15 +232,22 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
               // Reports List
               Expanded(
                 child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _filteredRequests.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : _filteredRequests.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade300),
+                            Icon(
+                              Icons.inbox_outlined,
+                              size: 48,
+                              color: Colors.grey.shade300,
+                            ),
                             const SizedBox(height: 12),
-                            Text('No reports found', style: TextStyle(color: Colors.grey.shade400)),
+                            Text(
+                              'No reports found',
+                              style: TextStyle(color: Colors.grey.shade400),
+                            ),
                           ],
                         ),
                       )
@@ -174,27 +257,38 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final r = _filteredRequests[index];
-                          final statusLabel = r.status == 'done' ? 'COMPLETED'
-                              : r.status == 'ongoing' ? 'ONGOING'
-                              : r.status == 'cancelled' ? 'CANCELLED'
+                          final statusLabel = r.status == 'completed'
+                              ? 'COMPLETED'
+                              : r.status == 'under_maintenance'
+                              ? 'UNDER MAINTENANCE'
+                              : r.status == 'in_progress'
+                              ? 'IN PROGRESS'
+                              : r.status == 'cancelled'
+                              ? 'CANCELLED'
                               : 'PENDING';
-                          final statusColor = r.status == 'done' ? const Color(0xFF4CAF50)
-                              : r.status == 'ongoing' ? const Color(0xFF2196F3)
-                              : r.status == 'cancelled' ? Colors.red
+                          final statusColor = r.status == 'completed'
+                              ? const Color(0xFF4CAF50)
+                              : r.status == 'under_maintenance'
+                              ? const Color(0xFF9C27B0)
+                              : r.status == 'in_progress'
+                              ? const Color(0xFF2196F3)
+                              : r.status == 'cancelled'
+                              ? Colors.red
                               : const Color(0xFFFF9800);
                           return _buildReportCard(
                             trackingNumber: r.id,
                             title: '${r.officeRoom} - ${r.buildingName}',
                             category: r.typeOfRequest,
-                            date: DateFormat('MMM dd, yyyy').format(r.dateSubmitted),
+                            date: DateFormat(
+                              'MMM dd, yyyy',
+                            ).format(r.dateSubmitted),
                             status: statusLabel,
                             statusColor: statusColor,
                             themeProvider: themeProvider,
                             onTap: () {
-                              Navigator.pushNamed(
-                                context,
+                              context.push(
                                 '/request-details',
-                                arguments: {
+                                extra: {
                                   'trackingNumber': r.id,
                                   'status': statusLabel,
                                 },
@@ -222,10 +316,14 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? themeProvider.primaryColor : themeProvider.cardColor,
+          color: isSelected
+              ? themeProvider.primaryColor
+              : themeProvider.cardColor,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? themeProvider.primaryColor : themeProvider.borderColor,
+            color: isSelected
+                ? themeProvider.primaryColor
+                : themeProvider.borderColor,
           ),
         ),
         child: Text(
@@ -259,7 +357,9 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(themeProvider.isDarkMode ? 0.3 : 0.05),
+              color: Colors.black.withOpacity(
+                themeProvider.isDarkMode ? 0.3 : 0.05,
+              ),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -272,17 +372,25 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  trackingNumber,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: themeProvider.subtitleColor,
-                    letterSpacing: 0.5,
+                Expanded(
+                  child: Text(
+                    trackingNumber,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: themeProvider.subtitleColor,
+                      letterSpacing: 0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(6),
@@ -308,43 +416,57 @@ class _StudentReportsPageState extends State<StudentReportsPage> {
                 fontWeight: FontWeight.bold,
                 color: themeProvider.textColor,
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 12),
             // Category and Date
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Icon(
-                  Icons.build_circle_outlined,
-                  size: 16,
-                  color: themeProvider.subtitleColor,
+                _buildMetaItem(
+                  icon: Icons.build_circle_outlined,
+                  text: category,
+                  themeProvider: themeProvider,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  category,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: themeProvider.subtitleColor,
-                  ),
-                ),
-                const Spacer(),
-                Icon(
-                  Icons.calendar_today,
-                  size: 14,
-                  color: themeProvider.subtitleColor,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  date,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: themeProvider.subtitleColor,
-                  ),
+                _buildMetaItem(
+                  icon: Icons.calendar_today,
+                  text: date,
+                  themeProvider: themeProvider,
                 ),
               ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildMetaItem({
+    required IconData icon,
+    required String text,
+    required ThemeProvider themeProvider,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: themeProvider.subtitleColor),
+        const SizedBox(width: 6),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 180),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 13,
+              color: themeProvider.subtitleColor,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

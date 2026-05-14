@@ -44,7 +44,7 @@ class StudentTeacherDashboardMobile extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'STUDENT/TEACHER',
+                  'Teacher',
                   style: TextStyle(
                     fontSize: 9,
                     color: Colors.black54,
@@ -79,7 +79,7 @@ class StudentTeacherDashboardMobile extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Student/Teacher Dashboard',
+                'Teacher Dashboard',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,

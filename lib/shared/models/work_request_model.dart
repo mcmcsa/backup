@@ -1,16 +1,17 @@
-class WorkRequest {
+﻿class WorkRequest {
   final String id;
   final String title;
   final String description;
-  final String status; // 'pending', 'approved', 'in_progress', 'under_maintenance', 'completed', 'rework', 'cancelled'
+  final String
+  status; // 'pending', 'approved', 'in_progress', 'under_maintenance', 'completed', 'rework', 'cancelled'
   final String priority; // 'low', 'medium', 'high'
-  final String campus;
-  final String buildingName;
   final String? buildingId;
-  final String department;
+  final String? buildingName;
   final String? departmentId;
-  final String officeRoom;
+  final String? departmentName;
   final String? roomId;
+  final String? roomName;
+  final String? requestTypeId;
   final String typeOfRequest;
   final DateTime dateSubmitted;
   final DateTime? dateCompleted;
@@ -18,11 +19,11 @@ class WorkRequest {
   final String requestorName;
   final String requestorPosition;
   final String? requestorId;
-  final String? approvedBy;
   final String? approvedById;
   final DateTime? approvedDate;
-  final String reportedBy;
+  final String? approvedByName;
   final String? reportedById;
+  final String? reportedByName;
   final String? assignedToId;
   final String? workEvidence;
   final String? maintenanceNotes;
@@ -36,6 +37,8 @@ class WorkRequest {
   final String? postRepairId;
   final int reworkCount;
   final String? reworkNotes;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 
   WorkRequest({
     required this.id,
@@ -43,13 +46,13 @@ class WorkRequest {
     required this.description,
     required this.status,
     this.priority = 'medium',
-    required this.campus,
-    required this.buildingName,
     this.buildingId,
-    required this.department,
+    this.buildingName,
     this.departmentId,
-    required this.officeRoom,
+    this.departmentName,
     this.roomId,
+    this.roomName,
+    this.requestTypeId,
     required this.typeOfRequest,
     required this.dateSubmitted,
     this.dateCompleted,
@@ -57,11 +60,11 @@ class WorkRequest {
     required this.requestorName,
     required this.requestorPosition,
     this.requestorId,
-    this.approvedBy,
     this.approvedById,
     this.approvedDate,
-    required this.reportedBy,
+    this.approvedByName,
     this.reportedById,
+    this.reportedByName,
     this.assignedToId,
     this.workEvidence,
     this.maintenanceNotes,
@@ -74,6 +77,8 @@ class WorkRequest {
     this.postRepairId,
     this.reworkCount = 0,
     this.reworkNotes,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory WorkRequest.fromMap(Map<String, dynamic> map) {
@@ -83,39 +88,68 @@ class WorkRequest {
       description: map['description'] ?? '',
       status: map['status'] ?? 'pending',
       priority: map['priority'] ?? 'medium',
-      campus: map['campus'] ?? '',
-      buildingName: map['building_name'] ?? '',
       buildingId: map['building_id'],
-      department: map['department'] ?? '',
+      buildingName:
+          map['building_name'] ?? _nestedText(map['building'], 'name'),
       departmentId: map['department_id'],
-      officeRoom: map['office_room'] ?? '',
+      departmentName:
+          map['department_name'] ?? _nestedText(map['department'], 'name'),
       roomId: map['room_id'],
-      typeOfRequest: map['type_of_request'] ?? '',
-      dateSubmitted: DateTime.parse(map['date_submitted'] ?? DateTime.now().toIso8601String()),
-      dateCompleted:
-          map['date_completed'] != null ? DateTime.parse(map['date_completed']) : null,
+      roomName: map['room_name'] ?? _nestedText(map['room'], 'name'),
+      requestTypeId: map['request_type_id']?.toString(),
+      typeOfRequest:
+        map['type_of_request'] ??
+        _nestedText(map['request_type'], 'name') ??
+        '',
+      dateSubmitted: DateTime.parse(
+        map['date_submitted'] ?? DateTime.now().toIso8601String(),
+      ),
+      dateCompleted: map['date_completed'] != null
+          ? DateTime.parse(map['date_completed'])
+          : null,
       dateDue: map['date_due'] != null ? DateTime.parse(map['date_due']) : null,
-      requestorName: map['requestor_name'] ?? '',
+      requestorName:
+          map['requestor_name'] ??
+          _nestedText(map['requestor'], 'name') ??
+          '',
       requestorPosition: map['requestor_position'] ?? '',
       requestorId: map['requestor_id'],
-      approvedBy: map['approved_by'],
       approvedById: map['approved_by_id'],
-      approvedDate:
-          map['approved_date'] != null ? DateTime.parse(map['approved_date']) : null,
-      reportedBy: map['reported_by'] ?? '',
-      reportedById: map['reported_by_id'],
+      approvedDate: map['approved_date'] != null
+          ? DateTime.parse(map['approved_date'])
+          : null,
+      approvedByName: map['approved_by_name'] ?? _nestedText(map['approver'], 'name'),
+      reportedById: map['reported_by_id'] ?? map['requestor_id'],
+      reportedByName:
+          map['reported_by_name'] ?? _nestedText(map['requestor'], 'name') ?? map['requestor_name'] ?? '',
       assignedToId: map['assigned_to_id'],
       workEvidence: map['work_evidence'],
       maintenanceNotes: map['maintenance_notes'],
-      acceptedById: map['accepted_by_id'],
-      acceptedByName: map['accepted_by_name'],
-      acceptedDate: map['accepted_date'] != null ? DateTime.parse(map['accepted_date']) : null,
-      maintenanceStartTime: map['maintenance_start_time'] != null ? DateTime.parse(map['maintenance_start_time']) : null,
-      maintenanceEndTime: map['maintenance_end_time'] != null ? DateTime.parse(map['maintenance_end_time']) : null,
-      preInspectionId: map['pre_inspection_id'],
-      postRepairId: map['post_repair_id'],
+      acceptedById:
+          map['accepted_by_id'] ??
+          ((map['accepted_date'] != null) ? map['assigned_to_id'] : null),
+      acceptedByName:
+          map['accepted_by_name'] ?? _nestedText(map['assignee'], 'name'),
+      acceptedDate: map['accepted_date'] != null
+          ? DateTime.parse(map['accepted_date'])
+          : null,
+      maintenanceStartTime: map['maintenance_start_time'] != null
+          ? DateTime.parse(map['maintenance_start_time'])
+          : null,
+      maintenanceEndTime: map['maintenance_end_time'] != null
+          ? DateTime.parse(map['maintenance_end_time'])
+          : null,
+      preInspectionId:
+          map['pre_inspection_id'] ?? _firstNestedId(map['pre_reports']),
+      postRepairId: map['post_repair_id'] ?? _firstNestedId(map['post_reports']),
       reworkCount: map['rework_count'] ?? 0,
       reworkNotes: map['rework_notes'],
+      createdAt: map['created_at'] != null
+          ? DateTime.tryParse(map['created_at'].toString())
+          : null,
+      updatedAt: map['updated_at'] != null
+          ? DateTime.tryParse(map['updated_at'].toString())
+          : null,
     );
   }
 
@@ -126,37 +160,28 @@ class WorkRequest {
       'description': description,
       'status': status,
       'priority': priority,
-      'campus': campus,
-      'building_name': buildingName,
+        'type_of_request': typeOfRequest,
+      'request_type_id':
+          requestTypeId ??
+          (_isLikelyUuid(typeOfRequest) ? typeOfRequest : null),
       'building_id': buildingId,
-      'department': department,
       'department_id': departmentId,
-      'office_room': officeRoom,
       'room_id': roomId,
-      'type_of_request': typeOfRequest,
       'date_submitted': dateSubmitted.toIso8601String(),
       'date_completed': dateCompleted?.toIso8601String(),
       'date_due': dateDue?.toIso8601String(),
       'requestor_name': requestorName,
       'requestor_position': requestorPosition,
       'requestor_id': requestorId,
-      'approved_by': approvedBy,
       'approved_by_id': approvedById,
       'approved_date': approvedDate?.toIso8601String(),
-      'reported_by': reportedBy,
-      'reported_by_id': reportedById,
       'assigned_to_id': assignedToId,
-      'work_evidence': workEvidence,
-      'maintenance_notes': maintenanceNotes,
-      'accepted_by_id': acceptedById,
-      'accepted_by_name': acceptedByName,
       'accepted_date': acceptedDate?.toIso8601String(),
       'maintenance_start_time': maintenanceStartTime?.toIso8601String(),
       'maintenance_end_time': maintenanceEndTime?.toIso8601String(),
-      'pre_inspection_id': preInspectionId,
-      'post_repair_id': postRepairId,
       'rework_count': reworkCount,
       'rework_notes': reworkNotes,
+      // Don't include created_at on INSERT - database provides default
     };
   }
 
@@ -166,13 +191,13 @@ class WorkRequest {
     String? description,
     String? status,
     String? priority,
-    String? campus,
-    String? buildingName,
     String? buildingId,
-    String? department,
+    String? buildingName,
     String? departmentId,
-    String? officeRoom,
+    String? departmentName,
     String? roomId,
+    String? roomName,
+    String? requestTypeId,
     String? typeOfRequest,
     DateTime? dateSubmitted,
     DateTime? dateCompleted,
@@ -180,11 +205,11 @@ class WorkRequest {
     String? requestorName,
     String? requestorPosition,
     String? requestorId,
-    String? approvedBy,
     String? approvedById,
     DateTime? approvedDate,
-    String? reportedBy,
+    String? approvedByName,
     String? reportedById,
+    String? reportedByName,
     String? assignedToId,
     String? workEvidence,
     String? maintenanceNotes,
@@ -197,6 +222,8 @@ class WorkRequest {
     String? postRepairId,
     int? reworkCount,
     String? reworkNotes,
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return WorkRequest(
       id: id ?? this.id,
@@ -204,13 +231,13 @@ class WorkRequest {
       description: description ?? this.description,
       status: status ?? this.status,
       priority: priority ?? this.priority,
-      campus: campus ?? this.campus,
-      buildingName: buildingName ?? this.buildingName,
       buildingId: buildingId ?? this.buildingId,
-      department: department ?? this.department,
+      buildingName: buildingName ?? this.buildingName,
       departmentId: departmentId ?? this.departmentId,
-      officeRoom: officeRoom ?? this.officeRoom,
+      departmentName: departmentName ?? this.departmentName,
       roomId: roomId ?? this.roomId,
+      roomName: roomName ?? this.roomName,
+      requestTypeId: requestTypeId ?? this.requestTypeId,
       typeOfRequest: typeOfRequest ?? this.typeOfRequest,
       dateSubmitted: dateSubmitted ?? this.dateSubmitted,
       dateCompleted: dateCompleted ?? this.dateCompleted,
@@ -218,11 +245,11 @@ class WorkRequest {
       requestorName: requestorName ?? this.requestorName,
       requestorPosition: requestorPosition ?? this.requestorPosition,
       requestorId: requestorId ?? this.requestorId,
-      approvedBy: approvedBy ?? this.approvedBy,
       approvedById: approvedById ?? this.approvedById,
       approvedDate: approvedDate ?? this.approvedDate,
-      reportedBy: reportedBy ?? this.reportedBy,
+        approvedByName: approvedByName ?? this.approvedByName,
       reportedById: reportedById ?? this.reportedById,
+        reportedByName: reportedByName ?? this.reportedByName,
       assignedToId: assignedToId ?? this.assignedToId,
       workEvidence: workEvidence ?? this.workEvidence,
       maintenanceNotes: maintenanceNotes ?? this.maintenanceNotes,
@@ -235,10 +262,46 @@ class WorkRequest {
       postRepairId: postRepairId ?? this.postRepairId,
       reworkCount: reworkCount ?? this.reworkCount,
       reworkNotes: reworkNotes ?? this.reworkNotes,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
   String get formattedId => '#${id.padLeft(3, '0')}';
+
+  String? get department => departmentName;
+  String? get officeRoom => roomName;
+  String? get reportedBy => reportedByName;
+  String? get approvedBy => approvedByName;
+
+  static bool _isLikelyUuid(String value) {
+    final normalized = value.trim();
+    if (normalized.isEmpty) return false;
+    final uuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    );
+    return uuid.hasMatch(normalized);
+  }
+
+  static String? _nestedText(dynamic value, String key) {
+    if (value is Map<String, dynamic>) {
+      return value[key]?.toString();
+    }
+    if (value is List && value.isNotEmpty && value.first is Map<String, dynamic>) {
+      return (value.first as Map<String, dynamic>)[key]?.toString();
+    }
+    return null;
+  }
+
+  static String? _firstNestedId(dynamic value) {
+    if (value is List && value.isNotEmpty && value.first is Map<String, dynamic>) {
+      return (value.first as Map<String, dynamic>)['id']?.toString();
+    }
+    if (value is Map<String, dynamic>) {
+      return value['id']?.toString();
+    }
+    return null;
+  }
 
   String get statusLabel {
     switch (status) {
@@ -256,11 +319,6 @@ class WorkRequest {
         return 'REWORK';
       case 'cancelled':
         return 'CANCELLED';
-      // Legacy statuses
-      case 'ongoing':
-        return 'IN PROGRESS';
-      case 'done':
-        return 'COMPLETED';
       default:
         return status.toUpperCase();
     }
@@ -279,4 +337,3 @@ class WorkRequest {
     }
   }
 }
-

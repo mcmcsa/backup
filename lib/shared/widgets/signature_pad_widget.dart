@@ -38,8 +38,17 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
   Future<void> _saveSignature() async {
     if (!_hasSigned) return;
 
+    final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+    final size = (context.findRenderObject() as RenderBox).size;
+    final width = size.width * pixelRatio;
+    final height = widget.height * pixelRatio;
+
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
+    
+    // Scale canvas for high DPI
+    canvas.scale(pixelRatio);
+
     final paint = Paint()
       ..color = Colors.black
       ..strokeWidth = 2.5
@@ -48,7 +57,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
 
     // Draw white background
     canvas.drawRect(
-      Rect.fromLTWH(0, 0, 400, widget.height),
+      Rect.fromLTWH(0, 0, size.width, widget.height),
       Paint()..color = Colors.white,
     );
 
@@ -64,7 +73,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
     }
 
     final picture = recorder.endRecording();
-    final img = await picture.toImage(400, widget.height.toInt());
+    final img = await picture.toImage(width.toInt(), height.toInt());
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
 
     if (byteData != null) {
@@ -87,41 +96,75 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
           // Header
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF111827),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 340;
+
+                final titleBlock = Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF111827),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6B7280),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.subtitle,
+                        maxLines: isNarrow ? 3 : 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF6B7280),
+                          height: 1.3,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                if (_hasSigned)
-                  TextButton.icon(
-                    onPressed: _clear,
-                    icon: const Icon(Icons.refresh, size: 16),
-                    label: const Text('Clear'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF6B7280),
-                      textStyle: const TextStyle(fontSize: 12),
-                    ),
+                    ],
                   ),
-              ],
+                );
+
+                final clearButton = _hasSigned
+                    ? Padding(
+                        padding: EdgeInsets.only(left: isNarrow ? 8 : 12),
+                        child: TextButton.icon(
+                          onPressed: _clear,
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Clear'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF6B7280),
+                            textStyle: const TextStyle(fontSize: 12),
+                            visualDensity: VisualDensity.compact,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink();
+
+                if (isNarrow && _hasSigned) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [titleBlock]),
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: clearButton,
+                      ),
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [titleBlock, if (_hasSigned) clearButton],
+                );
+              },
             ),
           ),
 
@@ -174,12 +217,16 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
                 children: [
                   Icon(Icons.draw_outlined, size: 16, color: Color(0xFF9CA3AF)),
                   SizedBox(width: 6),
-                  Text(
-                    'Draw your signature above',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF9CA3AF),
-                      fontStyle: FontStyle.italic,
+                  Flexible(
+                    child: Text(
+                      'Draw your signature above',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF9CA3AF),
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
                 ],
@@ -196,10 +243,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
                 icon: const Icon(Icons.check_circle_outline, size: 18),
                 label: const Text(
                   'Confirm Signature',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4169E1),
@@ -302,7 +346,11 @@ class SignatureDialog extends StatelessWidget {
   }
 
   /// Show the signature dialog and return the base64 signature or null
-  static Future<String?> show(BuildContext context, {String? title, String? subtitle}) {
+  static Future<String?> show(
+    BuildContext context, {
+    String? title,
+    String? subtitle,
+  }) {
     return showDialog<String>(
       context: context,
       barrierDismissible: false,

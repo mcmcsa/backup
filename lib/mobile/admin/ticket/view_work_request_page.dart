@@ -100,38 +100,6 @@ class ViewWorkRequestPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
 
-                  // Campus
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Campus',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3F4F6),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
-                        ),
-                        child: Text(
-                          request.campus,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF111827),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
                   // Building Name
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,7 +126,7 @@ class ViewWorkRequestPage extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              request.buildingName,
+                              request.buildingName ?? '',
                               style: const TextStyle(
                                 fontSize: 13,
                                 color: Color(0xFF111827),
@@ -196,7 +164,7 @@ class ViewWorkRequestPage extends StatelessWidget {
                           border: Border.all(color: const Color(0xFFE5E7EB)),
                         ),
                         child: Text(
-                          request.department,
+                          request.department ?? '',
                           style: const TextStyle(
                             fontSize: 13,
                             color: Color(0xFF111827),
@@ -228,7 +196,7 @@ class ViewWorkRequestPage extends StatelessWidget {
                           border: Border.all(color: const Color(0xFFE5E7EB)),
                         ),
                         child: Text(
-                          request.officeRoom,
+                          request.officeRoom ?? '',
                           style: const TextStyle(
                             fontSize: 13,
                             color: Color(0xFF111827),

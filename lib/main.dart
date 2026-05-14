@@ -1,26 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'authentication/services/auth_service.dart';
 import 'config/supabase_config.dart';
+import 'router/app_router.dart';
 import 'shared/providers/theme_provider.dart';
-import 'authentication/screens/login_page.dart';
-import 'mobile/admin/main_navigation.dart' as mobile_admin;
-import 'web/admin/main_navigation_web.dart' as web_admin;
-import 'mobile/teacher/student_teacher_navigation.dart';
-import 'mobile/teacher/scanner/manual_room_entry_page.dart';
-import 'mobile/teacher/scanner/room_verification_page.dart';
-import 'mobile/teacher/reports/work_request_form_page.dart';
-import 'mobile/teacher/reports/work_request_success_page.dart';
-import 'mobile/teacher/reports/request_details_page.dart';
-import 'mobile/teacher/menu_pages/archives_page.dart';
-import 'mobile/teacher/menu_pages/settings_page.dart';
-import 'mobile/teacher/menu_pages/about_us_page.dart';
-import 'mobile/teacher/menu_pages/contact_us_page.dart';
-import 'mobile/teacher/menu_pages/system_workflow_page.dart';
-import 'mobile/maintenance/maintenance_navigation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,79 +37,49 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  late final AuthService _authService;
+  late final ThemeProvider _themeProvider;
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _authService = AuthService(
+      restoreSessionOnStartup: true,
+    );
+    _themeProvider = ThemeProvider();
+    _router = buildAppRouter(_authService);
+  }
+
+  @override
+  void dispose() {
+    _authService.dispose();
+    _themeProvider.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthService()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider<AuthService>.value(value: _authService),
+        ChangeNotifierProvider<ThemeProvider>.value(value: _themeProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
-          return MaterialApp(
-            title: 'PSU MaintSystem',
+          return MaterialApp.router(
+            title: 'PSU QR-MMS',
             debugShowCheckedModeBanner: false,
             theme: themeProvider.themeData,
-            initialRoute: '/login',
-            routes: {
-              '/login': (context) => const LoginPage(),
-              '/admin/dashboard': (context) => kIsWeb
-                  ? const web_admin.MainNavigationWeb()
-                  : const mobile_admin.MainNavigation(),
-              '/student-teacher/dashboard': (context) => const StudentTeacherNavigation(),
-              '/maintenance/dashboard': (context) => const MaintenanceNavigation(),
-              '/manual-room-entry': (context) => const ManualRoomEntryPage(),
-              '/student-archives': (context) => const ArchivesPage(),
-              '/student-settings': (context) => const SettingsPage(),
-              '/student-about-us': (context) => const AboutUsPage(),
-              '/student-contact-us': (context) => const ContactUsPage(),
-              '/student-system-workflow': (context) => const SystemWorkflowPage(),
-            },
-            onGenerateRoute: (settings) {
-              if (settings.name == '/room-verification') {
-                final args = settings.arguments as Map<String, dynamic>?;
-                return MaterialPageRoute(
-                  builder: (context) => RoomVerificationPage(
-                    roomId: args?['roomId'] ?? '',
-                    room: args?['room'],
-                  ),
-                );
-              }
-              if (settings.name == '/work-request-form') {
-                final args = settings.arguments as Map<String, dynamic>?;
-                return MaterialPageRoute(
-                  builder: (context) => WorkRequestFormPage(
-                    roomId: args?['roomId'],
-                    buildingName: args?['buildingName'],
-                    roomName: args?['roomName'],
-                  ),
-                );
-              }
-              if (settings.name == '/work-request-success') {
-                final args = settings.arguments as Map<String, dynamic>?;
-                return MaterialPageRoute(
-                  builder: (context) => WorkRequestSuccessPage(
-                    trackingNumber: args?['trackingNumber'] ?? '',
-                    location: args?['location'] ?? '',
-                    severity: args?['severity'] ?? '',
-                    reportedDate: args?['reportedDate'] ?? DateTime.now(),
-                  ),
-                );
-              }
-              if (settings.name == '/request-details') {
-                final args = settings.arguments as Map<String, dynamic>?;
-                return MaterialPageRoute(
-                  builder: (context) => RequestDetailsPage(
-                    trackingNumber: args?['trackingNumber'] ?? '',
-                    status: args?['status'] ?? 'PENDING',
-                  ),
-                );
-              }
-              return null;
-            },
+            routerConfig: _router,
           );
         },
       ),

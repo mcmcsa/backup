@@ -60,23 +60,25 @@ class PreInspectionService {
   }
 
   /// Admin approves the pre-inspection report
-  static Future<void> approve(String id, String adminId) async {
+  static Future<void> approve(String id, String adminId, {String? reviewNotes}) async {
     await _db.from(_table).update({
       'admin_approved': true,
       'admin_approved_by': adminId,
       'admin_approved_date': DateTime.now().toIso8601String(),
       'status': 'approved',
       'updated_at': DateTime.now().toIso8601String(),
+      if (reviewNotes != null) 'review_notes': reviewNotes.trim().isEmpty ? null : reviewNotes.trim(),
     }).eq('id', id);
   }
 
   /// Admin rejects the pre-inspection report
-  static Future<void> reject(String id, String notes) async {
+  static Future<void> reject(String id, String notes, {String? reviewNotes}) async {
     await _db.from(_table).update({
       'admin_approved': false,
       'status': 'rejected',
       'notes': notes,
       'updated_at': DateTime.now().toIso8601String(),
+      if (reviewNotes != null) 'review_notes': reviewNotes.trim().isEmpty ? null : reviewNotes.trim(),
     }).eq('id', id);
   }
 

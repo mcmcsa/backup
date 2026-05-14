@@ -6,7 +6,6 @@ class AppNotification {
   final String targetRole;
   final String? targetUserId;
   final String? workRequestId;
-  final String? statusSnapshot;
   final bool isRead;
   final DateTime createdAt;
 
@@ -18,7 +17,6 @@ class AppNotification {
     required this.targetRole,
     this.targetUserId,
     this.workRequestId,
-    this.statusSnapshot,
     this.isRead = false,
     required this.createdAt,
   });
@@ -32,7 +30,6 @@ class AppNotification {
       targetRole: map['target_role'] ?? 'all',
       targetUserId: map['target_user_id']?.toString(),
       workRequestId: map['work_request_id']?.toString(),
-      statusSnapshot: map['status_snapshot'],
       isRead: map['is_read'] ?? false,
       createdAt: DateTime.parse(
         map['created_at'] ?? DateTime.now().toIso8601String(),
@@ -48,7 +45,6 @@ class AppNotification {
       'target_role': targetRole,
       'target_user_id': targetUserId,
       'work_request_id': workRequestId,
-      'status_snapshot': statusSnapshot,
       'is_read': isRead,
     };
   }

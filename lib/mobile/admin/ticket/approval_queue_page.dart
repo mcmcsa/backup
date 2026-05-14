@@ -1,9 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import 'view_work_request_page.dart';
-import 'view_queue_page.dart';
 
 class ApprovalQueuePage extends StatefulWidget {
   const ApprovalQueuePage({super.key});
@@ -15,6 +14,11 @@ class ApprovalQueuePage extends StatefulWidget {
 class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
   List<WorkRequest> _pendingRequests = [];
   bool _isLoading = true;
+
+  bool _isUnassigned(String? staffId) {
+    final normalized = staffId?.trim().toLowerCase();
+    return normalized == null || normalized.isEmpty || normalized == 'null';
+  }
 
   @override
   void initState() {
@@ -32,6 +36,28 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
   }
 
   void _approveRequest(WorkRequest request) {
+    if (_isUnassigned(request.assignedToId)) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Assign Maintenance First'),
+          content: const Text(
+            'Please assign maintenance staff before approving this request.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -67,7 +93,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              WorkRequestService.updateStatus(request.id, 'ongoing');
+              WorkRequestService.updateStatus(request.id, 'in_progress');
               _showApprovedSuccess(request);
             },
             style: ElevatedButton.styleFrom(
@@ -139,7 +165,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                 elevation: 0,
               ),
               child: const Text(
-                'Done',
+                'completed',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ),
@@ -200,7 +226,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
               });
               await WorkRequestService.updateStatus(request.id, 'cancelled');
 
-              final reporterId = request.reportedById ?? request.requestorId;
+              final reporterId = request.requestorId;
               if (reporterId != null && reporterId.trim().isNotEmpty) {
                 await AppNotificationService.createForUser(
                   targetUserId: reporterId,
@@ -209,7 +235,6 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                       'Your request ${request.id} for ${request.officeRoom} was declined by admin.',
                   type: 'work_request_declined',
                   workRequestId: request.id,
-                  statusSnapshot: 'cancelled',
                 );
               }
 
@@ -355,31 +380,6 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                                   style: TextStyle(
                                     fontSize: 13,
                                     color: Color(0xFF9CA3AF),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const ViewQueuePage(),
-                                    ),
-                                  );
-                                },
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                                  minimumSize: const Size(0, 0),
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                child: const Text(
-                                  'View History',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF4169E1),
-                                    decoration: TextDecoration.underline,
                                   ),
                                 ),
                               ),
@@ -567,7 +567,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  request.department,
+                  request.department ?? '',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 const SizedBox(width: 12),
@@ -578,7 +578,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  request.officeRoom,
+                  request.officeRoom ?? '',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ],
@@ -689,3 +689,4 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
     );
   }
 }
+

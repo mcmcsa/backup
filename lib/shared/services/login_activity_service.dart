@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../authentication/models/user_model.dart';
 
@@ -26,6 +28,9 @@ class LoginActivity {
   });
 
   factory LoginActivity.fromMap(Map<String, dynamic> map) {
+    final timestampRaw =
+        map['logged_in_at']?.toString() ?? map['logged_at']?.toString();
+
     return LoginActivity(
       userId: map['user_id']?.toString() ?? '',
       userName: map['user_name']?.toString() ?? '',
@@ -35,7 +40,7 @@ class LoginActivity {
       details: map['details']?.toString(),
       workRequestId: map['work_request_id']?.toString(),
       loggedInAt: DateTime.parse(
-        map['logged_in_at']?.toString() ?? DateTime.now().toIso8601String(),
+        timestampRaw ?? DateTime.now().toIso8601String(),
       ),
     );
   }
@@ -56,8 +61,29 @@ class LoginActivity {
 
 class LoginActivityService {
   static const String _storageKey = 'psu_login_activity_logs_v1';
+  static const String _table = 'admin_activity_logs';
+  static SupabaseClient get _db => Supabase.instance.client;
+  static final StreamController<void> _changesController =
+      StreamController<void>.broadcast();
+
+  static Stream<void> get changes => _changesController.stream;
 
   static Future<void> _append(Map<String, dynamic> entry) async {
+    try {
+      await _db.from(_table).insert({
+        'user_id': entry['user_id'],
+        'user_name': entry['user_name'],
+        'role': entry['role'],
+        'event_type': entry['event_type'],
+        'title': entry['title'],
+        'details': entry['details'],
+        'work_request_id': entry['work_request_id'],
+        'logged_at': entry['logged_in_at'],
+      });
+    } catch (_) {
+      // Keep local fallback so logging never blocks business actions.
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final existingRaw = prefs.getString(_storageKey);
 
@@ -74,6 +100,7 @@ class LoginActivityService {
     }
 
     await prefs.setString(_storageKey, jsonEncode(decoded));
+    _changesController.add(null);
   }
 
   static Future<void> recordLogin(AppUser user) async {
@@ -110,20 +137,103 @@ class LoginActivityService {
     });
   }
 
+  static Future<void> recordTeacherAction({
+    required AppUser user,
+    required String title,
+    String? details,
+    String? workRequestId,
+  }) async {
+    if (user.role != UserRole.teacher) return;
+
+    await _append({
+      'user_id': user.id,
+      'user_name': user.name,
+      'role': user.role.name,
+      'event_type': 'action',
+      'title': title,
+      'details': details,
+      'work_request_id': workRequestId,
+      'logged_in_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  static Future<void> recordAction({
+    required AppUser user,
+    required String title,
+    String? details,
+    String? workRequestId,
+  }) async {
+    await _append({
+      'user_id': user.id,
+      'user_name': user.name,
+      'role': user.role.name,
+      'event_type': 'action',
+      'title': title,
+      'details': details,
+      'work_request_id': workRequestId,
+      'logged_in_at': DateTime.now().toIso8601String(),
+    });
+  }
+
   static Future<List<LoginActivity>> fetchAdminLogs({String? userId}) async {
+    List<LoginActivity> dbLogs = const <LoginActivity>[];
+
+    try {
+      dynamic query = _db
+          .from(_table)
+          .select(
+            'user_id, user_name, role, event_type, title, details, work_request_id, logged_at',
+          )
+          .eq('role', UserRole.admin.name);
+
+      if (userId != null && userId.trim().isNotEmpty) {
+        query = query.eq('user_id', userId);
+      }
+
+      final rows = await query.order('logged_at', ascending: false).limit(2000);
+      dbLogs = (rows as List)
+          .map((item) => LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    } catch (_) {
+      // Fall back to local cache below.
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
-    if (raw == null) return const <LoginActivity>[];
+    if (raw == null) {
+      return dbLogs;
+    }
 
-    final decoded = (jsonDecode(raw) as List)
-        .map((item) => LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)))
+    final localLogs = (jsonDecode(raw) as List)
+        .map(
+          (item) =>
+              LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)),
+        )
         .where((log) => log.role == UserRole.admin.name)
         .toList();
 
-    if (userId != null && userId.trim().isNotEmpty) {
-      return decoded.where((log) => log.userId == userId).toList();
+    final merged = <LoginActivity>[...dbLogs];
+    final seen = <String>{
+      ...dbLogs.map(
+        (log) =>
+            '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toIso8601String()}',
+      ),
+    };
+
+    for (final log in localLogs) {
+      final key =
+          '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toIso8601String()}';
+      if (seen.add(key)) {
+        merged.add(log);
+      }
     }
 
-    return decoded;
+    if (userId != null && userId.trim().isNotEmpty) {
+      return merged.where((log) => log.userId == userId).toList()
+        ..sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
+    }
+
+    merged.sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
+    return merged;
   }
 }

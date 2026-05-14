@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../router/app_router.dart';
+import '../../../shared/services/supabase_service.dart';
 
 class StudentProfilePageNew extends StatefulWidget {
   const StudentProfilePageNew({super.key});
@@ -15,6 +18,75 @@ class StudentProfilePageNew extends StatefulWidget {
 class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
+  bool _isUploadingProfileImage = false;
+
+  Future<void> _uploadAndSaveProfileImage(File file) async {
+    final auth = context.read<AuthService>();
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isUploadingProfileImage = true;
+    });
+
+    final ext = file.path.split('.').last;
+    final path = 'profiles/${user.id}.$ext';
+
+    try {
+      await SupabaseService.uploadFile(
+        bucket: 'profile-images',
+        path: path,
+        file: file,
+        upsert: true,
+      );
+      final publicUrl = SupabaseService.getPublicUrl(
+        bucket: 'profile-images',
+        path: path,
+      );
+      await auth.updateProfileImage(
+        role: user.role,
+        userId: user.id,
+        profileImage: publicUrl,
+      );
+    } catch (e) {
+      debugPrint('Teacher profile image upload error: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingProfileImage = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _removeProfileImage() async {
+    final auth = context.read<AuthService>();
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isUploadingProfileImage = true;
+    });
+
+    try {
+      final ok = await auth.updateProfileImage(
+        role: user.role,
+        userId: user.id,
+        clear: true,
+      );
+      if (ok && mounted) {
+        setState(() {
+          _profileImage = null;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingProfileImage = false;
+        });
+      }
+    }
+  }
 
   Future<void> _pickImage() async {
     showModalBottomSheet(
@@ -67,6 +139,7 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                     setState(() {
                       _profileImage = File(image.path);
                     });
+                    _uploadAndSaveProfileImage(File(image.path));
                   }
                 },
               ),
@@ -92,10 +165,13 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                     setState(() {
                       _profileImage = File(image.path);
                     });
+                    _uploadAndSaveProfileImage(File(image.path));
                   }
                 },
               ),
-              if (_profileImage != null)
+              if (_profileImage != null ||
+                  ((context.read<AuthService>().currentUser?.profileImage ?? '')
+                      .isNotEmpty))
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(10),
@@ -106,11 +182,9 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                     child: const Icon(Icons.delete, color: Colors.red),
                   ),
                   title: const Text('Remove Photo'),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(context);
-                    setState(() {
-                      _profileImage = null;
-                    });
+                    await _removeProfileImage();
                   },
                 ),
             ],
@@ -128,11 +202,12 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
     final userEmail = user?.email ?? '';
     final userDept = user?.department ?? '';
     final userId = user?.id ?? '';
+    final hasSavedProfileImage = (user?.profileImage ?? '').isNotEmpty;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F3F5),
       appBar: const CommonAppBar(
-        roleText: 'STUDENT/TEACHER',
+        roleText: 'Teacher',
         primaryColor: Color(0xFF00BFA5),
       ),
       body: SafeArea(
@@ -167,20 +242,32 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                               ],
                             ),
                             child: ClipOval(
-                              child: _profileImage != null
-                                  ? Image.file(
-                                      _profileImage!,
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Image.asset(
-                                      'assets/images/avatar_placeholder.png',
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Icon(
-                                        Icons.person,
-                                        size: 48,
-                                        color: Colors.grey.shade600,
+                              child:
+                                  _profileImage != null
+                                      ? Image.file(
+                                        _profileImage!,
+                                        fit: BoxFit.cover,
+                                      )
+                                      : hasSavedProfileImage
+                                      ? Image.network(
+                                        user!.profileImage!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder:
+                                            (_, __, ___) => Icon(
+                                              Icons.person,
+                                              size: 48,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                      )
+                                      : Image.asset(
+                                        'assets/images/avatar_placeholder.png',
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Icon(
+                                          Icons.person,
+                                          size: 48,
+                                          color: Colors.grey.shade600,
+                                        ),
                                       ),
-                                    ),
                             ),
                           ),
                           Positioned(
@@ -199,11 +286,24 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                                     width: 2,
                                   ),
                                 ),
-                                child: const Icon(
-                                  Icons.camera_alt,
-                                  size: 18,
-                                  color: Colors.white,
-                                ),
+                                child:
+                                    _isUploadingProfileImage
+                                        ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  Colors.white,
+                                                ),
+                                          ),
+                                        )
+                                        : const Icon(
+                                          Icons.camera_alt,
+                                          size: 18,
+                                          color: Colors.white,
+                                        ),
                               ),
                             ),
                           ),
@@ -420,7 +520,7 @@ class _SettingsTile extends StatelessWidget {
       title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
       onTap: () {
-        Navigator.pushNamed(context, '/student-settings');
+        context.push(teacherSettingsRoute);
       },
     );
   }

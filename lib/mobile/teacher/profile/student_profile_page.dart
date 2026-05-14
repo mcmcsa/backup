@@ -6,6 +6,7 @@ import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../admin/shared/notifications_page.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../shared/services/supabase_service.dart';
 
 class StudentProfilePage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -19,6 +20,7 @@ class StudentProfilePage extends StatefulWidget {
 class _StudentProfilePageState extends State<StudentProfilePage> {
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
+  bool _isUploadingProfileImage = false;
 
   // Profile fields
   late TextEditingController _usernameController;
@@ -58,6 +60,97 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     _phoneController.dispose();
     _bioController.dispose();
     super.dispose();
+  }
+
+  Future<void> _uploadAndSaveProfileImage(File file) async {
+    final auth = context.read<AuthService>();
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isUploadingProfileImage = true;
+    });
+
+    final ext = file.path.split('.').last;
+    final path = 'profiles/${user.id}.$ext';
+
+    try {
+      await SupabaseService.uploadFile(
+        bucket: 'profile-images',
+        path: path,
+        file: file,
+        upsert: true,
+      );
+      final publicUrl = SupabaseService.getPublicUrl(
+        bucket: 'profile-images',
+        path: path,
+      );
+      final ok = await auth.updateProfileImage(
+        role: user.role,
+        userId: user.id,
+        profileImage: publicUrl,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ok ? 'Profile picture updated' : 'Failed to update profile picture',
+          ),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Teacher profile image upload error: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error uploading profile picture')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingProfileImage = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _removeProfileImage() async {
+    final auth = context.read<AuthService>();
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      _isUploadingProfileImage = true;
+    });
+
+    try {
+      final ok = await auth.updateProfileImage(
+        role: user.role,
+        userId: user.id,
+        clear: true,
+      );
+      if (!mounted) return;
+
+      if (ok) {
+        setState(() {
+          _profileImage = null;
+        });
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ok ? 'Profile picture removed' : 'Failed to remove profile picture',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingProfileImage = false;
+        });
+      }
+    }
   }
 
   Future<void> _pickImage() async {
@@ -111,6 +204,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                     setState(() {
                       _profileImage = File(image.path);
                     });
+                    _uploadAndSaveProfileImage(File(image.path));
                   }
                 },
               ),
@@ -136,10 +230,13 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                     setState(() {
                       _profileImage = File(image.path);
                     });
+                    _uploadAndSaveProfileImage(File(image.path));
                   }
                 },
               ),
-              if (_profileImage != null)
+              if (_profileImage != null ||
+                  ((context.read<AuthService>().currentUser?.profileImage ?? '')
+                      .isNotEmpty))
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(10),
@@ -150,11 +247,9 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                     child: const Icon(Icons.delete, color: Colors.red),
                   ),
                   title: const Text('Remove Photo'),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(context);
-                    setState(() {
-                      _profileImage = null;
-                    });
+                    await _removeProfileImage();
                   },
                 ),
             ],
@@ -171,7 +266,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         return Scaffold(
           backgroundColor: themeProvider.backgroundColor,
           appBar: CommonAppBar(
-            roleText: 'STUDENT/TEACHER',
+            roleText: 'Teacher',
             primaryColor: themeProvider.primaryColor,
             onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
             onNotificationPressed: () {
@@ -326,6 +421,9 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
   }
 
   Widget _buildProfileHeader(ThemeProvider themeProvider) {
+    final user = context.watch<AuthService>().currentUser;
+    final hasSavedProfileImage = (user?.profileImage ?? '').isNotEmpty;
+
     return Column(
       children: [
         // Profile Picture
@@ -351,21 +449,40 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 ],
               ),
               child: ClipOval(
-                child: _profileImage != null
-                    ? Image.file(
-                        _profileImage!,
-                        fit: BoxFit.cover,
-                        width: 112,
-                        height: 112,
-                      )
-                    : Container(
-                        color: themeProvider.primaryColor.withOpacity(0.2),
-                        child: Icon(
-                          Icons.person,
-                          size: 60,
-                          color: themeProvider.primaryColor,
+                child:
+                    _profileImage != null
+                        ? Image.file(
+                          _profileImage!,
+                          fit: BoxFit.cover,
+                          width: 112,
+                          height: 112,
+                        )
+                        : hasSavedProfileImage
+                        ? Image.network(
+                          user!.profileImage!,
+                          fit: BoxFit.cover,
+                          width: 112,
+                          height: 112,
+                          errorBuilder:
+                              (_, __, ___) => Container(
+                                color: themeProvider.primaryColor.withOpacity(
+                                  0.2,
+                                ),
+                                child: Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: themeProvider.primaryColor,
+                                ),
+                              ),
+                        )
+                        : Container(
+                          color: themeProvider.primaryColor.withOpacity(0.2),
+                          child: Icon(
+                            Icons.person,
+                            size: 60,
+                            color: themeProvider.primaryColor,
+                          ),
                         ),
-                      ),
               ),
             ),
             Positioned(
@@ -387,11 +504,23 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                       ),
                     ],
                   ),
-                  child: Icon(
-                    Icons.camera_alt,
-                    size: 20,
-                    color: themeProvider.primaryColor,
-                  ),
+                  child:
+                      _isUploadingProfileImage
+                          ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                themeProvider.primaryColor,
+                              ),
+                            ),
+                          )
+                          : Icon(
+                            Icons.camera_alt,
+                            size: 20,
+                            color: themeProvider.primaryColor,
+                          ),
                 ),
               ),
             ),
@@ -409,7 +538,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        // Student Badge
+        // Teacher Badge
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
@@ -421,7 +550,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
             ),
           ),
           child: const Text(
-            'STUDENT',
+            'TEACHER',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -431,7 +560,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
           ),
         ),
         const SizedBox(height: 12),
-        // Student ID
+        // Teacher ID
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -591,7 +720,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
             controller: _studentIdController,
             style: TextStyle(color: themeProvider.textColor),
             decoration: InputDecoration(
-              labelText: 'Student ID',
+              labelText: 'Teacher ID',
               labelStyle: TextStyle(color: themeProvider.subtitleColor),
               prefixIcon: Icon(Icons.badge, color: themeProvider.subtitleColor),
               border: OutlineInputBorder(
@@ -623,7 +752,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         children: [
           _buildInfoRow(
             icon: Icons.badge_outlined,
-            label: 'Student ID',
+            label: 'Teacher ID',
             value: _studentIdController.text,
             themeProvider: themeProvider,
           ),

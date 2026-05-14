@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../../authentication/services/auth_service.dart';
 import 'package:provider/provider.dart';
+import '../../../router/app_router.dart';
 
 class StudentDrawer extends StatelessWidget {
   const StudentDrawer({super.key});
@@ -55,7 +57,7 @@ class StudentDrawer extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      'STUDENT/PROFESSOR',
+                      'TEACHER',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -79,7 +81,7 @@ class StudentDrawer extends StatelessWidget {
                         label: 'Archives',
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/student-archives');
+                          context.push(teacherArchivesRoute);
                         },
                       ),
                       const SizedBox(height: 16),
@@ -88,7 +90,7 @@ class StudentDrawer extends StatelessWidget {
                         label: 'Settings',
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/student-settings');
+                          context.push(teacherSettingsRoute);
                         },
                       ),
                       const SizedBox(height: 16),
@@ -97,7 +99,7 @@ class StudentDrawer extends StatelessWidget {
                         label: 'About Us',
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/student-about-us');
+                          context.push(teacherAboutRoute);
                         },
                       ),
                       const SizedBox(height: 16),
@@ -106,7 +108,7 @@ class StudentDrawer extends StatelessWidget {
                         label: 'Contact Us',
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/student-contact-us');
+                          context.push(teacherContactRoute);
                         },
                       ),
                       const SizedBox(height: 16),
@@ -115,7 +117,7 @@ class StudentDrawer extends StatelessWidget {
                         label: 'System workflow',
                         onTap: () {
                           Navigator.pop(context);
-                          Navigator.pushNamed(context, '/student-system-workflow');
+                          context.push(teacherWorkflowRoute);
                         },
                       ),
                     ],
@@ -129,10 +131,7 @@ class StudentDrawer extends StatelessWidget {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _showLogoutConfirmation(context);
-                    },
+                    onPressed: () => _showLogoutConfirmation(context),
                     icon: const Icon(Icons.logout, size: 20),
                     label: const Text(
                       'Logout',
@@ -282,74 +281,9 @@ class StudentDrawer extends StatelessWidget {
     );
 
     if (confirm == true && context.mounted) {
-      // Show loading screen
-      await _showLoggingOutScreen(context);
-      
-      if (context.mounted) {
-        // Perform logout
-        final authService = context.read<AuthService>();
-        await authService.logout();
-        
-        if (context.mounted) {
-          // Navigate to login
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            '/login',
-            (route) => false,
-          );
-        }
-      }
-    }
-  }
-
-  Future<void> _showLoggingOutScreen(BuildContext context) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return PopScope(
-          canPop: false,
-          child: Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00BFA5)),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Logging out...',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Please wait',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
-    // Simulate loading delay
-    await Future.delayed(const Duration(seconds: 2));
-    
-    if (context.mounted) {
-      Navigator.of(context).pop(); // Close loading dialog
+      Navigator.of(context).pop();
+      final authService = context.read<AuthService>();
+      await authService.handleLogoutButton(context);
     }
   }
 }

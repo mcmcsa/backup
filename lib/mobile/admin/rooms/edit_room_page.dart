@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../shared/models/room_model.dart';
 import '../../../shared/services/room_service.dart';
 import '../../../shared/services/building_service.dart';
-import '../../../shared/services/department_service.dart';
+import '../../../shared/services/floor_service.dart';
+import '../../../shared/services/room_type_service.dart';
 import '../../../shared/services/qr_code_history_service.dart';
+import '../../../shared/utils/dropdown_data_helper.dart';
 import 'room_success_page.dart';
 
 class EditRoomPage extends StatefulWidget {
@@ -18,50 +19,127 @@ class EditRoomPage extends StatefulWidget {
 }
 
 class _EditRoomPageState extends State<EditRoomPage> {
+  static const String _noDepartmentOption = 'Not specified';
+
+  final _dropdownHelper = DropdownDataHelper();
+  late TextEditingController _roomCodeController;
   late TextEditingController _nameController;
-  late TextEditingController _buildingController;
   late TextEditingController _capacityController;
-  late TextEditingController _departmentController;
+  List<String> _buildingOptions = [];
+  List<String> _departmentOptions = [];
+  List<String> _floors = [];
+  List<String> _roomTypes = [];
+  String _selectedBuilding = '';
+  String _selectedDepartment = _noDepartmentOption;
   late String _selectedFloor;
   late String _selectedRoomType;
   late String _selectedStatus;
   bool _isSaving = false;
   String _qrData = '';
 
-  final List<String> _floors = [
-    '1st Floor',
-    '2nd Floor',
-    '3rd Floor',
-    '4th Floor',
-  ];
-  final List<String> _roomTypes = [
-    'Laboratory',
-    'Lecture Hall',
-    'Seminar Room',
-    'Office',
-  ];
+  bool get _isDepartmentSelected =>
+      _selectedDepartment != _noDepartmentOption &&
+      _selectedDepartment.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
+    final roomCode = widget.room.code.isNotEmpty ? widget.room.code : widget.room.id;
+    _roomCodeController = TextEditingController(text: roomCode);
     _nameController = TextEditingController(text: widget.room.name);
-    _buildingController = TextEditingController(text: widget.room.building);
     _capacityController =
         TextEditingController(text: widget.room.seats.toString());
-    _departmentController =
-        TextEditingController(text: widget.room.department);
+    _selectedBuilding = widget.room.building;
+    _selectedDepartment = widget.room.department.isEmpty
+      ? _noDepartmentOption
+      : widget.room.department;
     _selectedFloor = widget.room.floor;
     _selectedRoomType = widget.room.roomType;
     _selectedStatus = widget.room.status;
-    _qrData = 'PSU-ROOM-${widget.room.name}-${widget.room.building}-${widget.room.id.substring(0, 8)}';
+    _qrData = (widget.room.qrCodeData != null && widget.room.qrCodeData!.trim().isNotEmpty)
+        ? widget.room.qrCodeData!.trim()
+        : RoomService.buildQrCodePayload(
+            roomCode: roomCode,
+            roomName: widget.room.name,
+            buildingName: widget.room.building,
+            departmentName: widget.room.department,
+            floor: widget.room.floor,
+            roomType: widget.room.roomType,
+            status: widget.room.status,
+          );
+    _loadDropdownOptions();
+  }
+
+  Future<void> _loadDropdownOptions() async {
+    final departments = await _dropdownHelper.getDepartmentNames();
+    final floors = await _dropdownHelper.getFloorNames();
+    final roomTypes = await _dropdownHelper.getRoomTypes();
+    if (!mounted) return;
+
+    setState(() {
+      _departmentOptions = _uniqueNonEmpty(departments);
+      _floors = _uniqueNonEmpty(floors);
+      _roomTypes = _uniqueNonEmpty(roomTypes);
+
+      if (_selectedDepartment != _noDepartmentOption &&
+          !_departmentOptions.contains(_selectedDepartment)) {
+        _selectedDepartment = _noDepartmentOption;
+      }
+
+      if (_roomTypes.isNotEmpty && !_roomTypes.contains(_selectedRoomType)) {
+        _roomTypes = [..._roomTypes, _selectedRoomType];
+      }
+
+      if (_floors.isNotEmpty && !_floors.contains(_selectedFloor)) {
+        _floors = [..._floors, _selectedFloor];
+      }
+    });
+
+    await _loadBuildingsByDepartment(_selectedDepartment);
+  }
+
+  Future<void> _loadBuildingsByDepartment(String departmentName) async {
+    final normalizedDepartment = departmentName.trim();
+    if (normalizedDepartment == _noDepartmentOption ||
+        normalizedDepartment.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _buildingOptions = [];
+        _selectedBuilding = '';
+      });
+      return;
+    }
+
+    final department = await _dropdownHelper.getDepartmentByName(normalizedDepartment);
+    if (department == null) {
+      if (!mounted) return;
+      setState(() {
+        _buildingOptions = [];
+        _selectedBuilding = '';
+      });
+      return;
+    }
+
+    final buildings = _uniqueNonEmpty(
+      await _dropdownHelper.getBuildingNamesByDepartment(department.id),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _buildingOptions = buildings;
+      if (!_buildingOptions.contains(_selectedBuilding)) {
+        _selectedBuilding = _buildingOptions.isNotEmpty
+            ? _buildingOptions.first
+            : '';
+      }
+    });
   }
 
   @override
   void dispose() {
+    _roomCodeController.dispose();
     _nameController.dispose();
-    _buildingController.dispose();
     _capacityController.dispose();
-    _departmentController.dispose();
     super.dispose();
   }
 
@@ -161,34 +239,72 @@ class _EditRoomPageState extends State<EditRoomPage> {
     setState(() => _isSaving = true);
 
     try {
-      final buildingName = _buildingController.text.trim();
-      final departmentName = _departmentController.text.trim();
+        final buildingName = _selectedBuilding.trim();
+        final departmentName =
+          _selectedDepartment == _noDepartmentOption ? '' : _selectedDepartment.trim();
 
-      // Find or create building/department in database
-      final building = await BuildingService.findOrCreateByName(buildingName);
-      String departmentId = '';
-      if (departmentName.isNotEmpty) {
-        final dept = await DepartmentService.findOrCreateByName(departmentName);
-        departmentId = dept.id;
+      if (departmentName.isEmpty) {
+        throw Exception('Please select a department');
       }
+
+      final department = await _dropdownHelper.getDepartmentByName(departmentName);
+      if (department == null) {
+        throw Exception('Selected department was not found');
+      }
+
+      final building = await BuildingService.fetchByNameAndDepartment(
+        buildingName,
+        department.id,
+      );
+      if (building == null) {
+        throw Exception('Selected building was not found under the selected department');
+      }
+
+      final departmentId = department.id;
+      final floor = await FloorService.findOrCreateByName(_selectedFloor);
+      final roomType = await RoomTypeService.fetchByName(_selectedRoomType);
+      if (roomType == null) {
+        throw Exception('Selected room type was not found');
+      }
+
+      final qrData = RoomService.buildQrCodePayload(
+        roomCode: _roomCodeController.text.trim(),
+        roomName: _nameController.text.trim(),
+        buildingName: building.name,
+        departmentName: departmentName,
+        floor: _selectedFloor,
+        roomType: _selectedRoomType,
+        status: _selectedStatus,
+      );
 
       final updatedRoom = Room(
         id: widget.room.id,
+        code: _roomCodeController.text.trim().isNotEmpty
+            ? _roomCodeController.text.trim()
+            : (widget.room.code.isNotEmpty ? widget.room.code : widget.room.id),
         name: _nameController.text.trim(),
         buildingId: building.id,
         building: building.name,
+        floorId: floor.id,
         floor: _selectedFloor,
         seats: int.tryParse(_capacityController.text) ?? widget.room.seats,
         departmentId: departmentId,
         department: departmentName,
+        roomTypeId: roomType.id,
         roomType: _selectedRoomType,
         status: _selectedStatus,
         imageUrl: widget.room.imageUrl,
-        description: widget.room.description,
-        qrCodeData: widget.room.qrCodeData,
+        qrCodeData: qrData,
       );
 
       await RoomService.update(updatedRoom);
+      await QRCodeHistoryService.updateRoomMetadata(
+        roomId: widget.room.id,
+        roomName: _nameController.text.trim(),
+        building: building.name,
+        department: departmentName,
+      );
+      _qrData = qrData;
 
       if (!mounted) return;
       Navigator.pushReplacement(
@@ -214,37 +330,15 @@ class _EditRoomPageState extends State<EditRoomPage> {
     if (mounted) setState(() => _isSaving = false);
   }
 
-  void _regenerateQRCode() async {
-    final buildingName = _buildingController.text.trim();
-    final newQrData = 'PSU-ROOM-${_nameController.text}-$buildingName-${const Uuid().v4().substring(0, 8)}';
-    try {
-      await QRCodeHistoryService.saveQRCode(
-        roomId: widget.room.id,
-        qrCodeValue: newQrData,
-        qrCodeImage: null,
-      );
-      setState(() => _qrData = newQrData);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('QR Code regenerated successfully'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error regenerating QR: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
+        backgroundColor: const Color(0xFFF2F4F7),
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.black12,
+        elevation: 1,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
@@ -263,141 +357,192 @@ class _EditRoomPageState extends State<EditRoomPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Room Name
-            _buildLabel('Room Name'),
-            const SizedBox(height: 8),
-            _buildTextField(_nameController),
-            const SizedBox(height: 18),
-
-            // Building
-            _buildLabel('Building'),
-            const SizedBox(height: 8),
-            _buildTextField(_buildingController),
-            const SizedBox(height: 18),
-
-            // Floor & Capacity Row
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLabel('Floor'),
-                      const SizedBox(height: 8),
-                      _buildDropdown(
-                        value: _selectedFloor,
-                        items: _floors,
-                        onChanged: (v) =>
-                            setState(() => _selectedFloor = v ?? _selectedFloor),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLabel('Capacity'),
-                      const SizedBox(height: 8),
-                      _buildTextField(
-                        _capacityController,
-                        keyboardType: TextInputType.number,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-
-            // Department
-            _buildLabel('Department'),
-            const SizedBox(height: 8),
-            _buildTextField(_departmentController),
-            const SizedBox(height: 18),
-
-            // Room Type
-            _buildLabel('Room Type'),
-            const SizedBox(height: 8),
-            _buildDropdown(
-              value: _selectedRoomType,
-              items: _roomTypes,
-              onChanged: (v) =>
-                  setState(() => _selectedRoomType = v ?? _selectedRoomType),
-            ),
-            const SizedBox(height: 18),
-
-            // Status
-            _buildLabel('Status'),
-            const SizedBox(height: 10),
-            _buildStatusChips(),
-            const SizedBox(height: 24),
-
-            // Divider
-            Divider(color: Colors.grey.shade300),
-            const SizedBox(height: 16),
-
-            // QR Code Preview
-            Center(
-              child: Column(
-                children: [
-                  // QR Code placeholder
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: QrImageView(
-                      data: _qrData,
-                      version: QrVersions.auto,
-                      size: 104,
-                      gapless: true,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '${_nameController.text} - ${_buildingController.text.toLowerCase()}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                  Text(
-                    '$_selectedFloor • $_selectedRoomType',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: _regenerateQRCode,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.refresh,
-                            size: 14, color: const Color(0xFF4169E1)),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Regenerate QR Code',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF4169E1),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
+            // Room Information Header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 16, color: const Color(0xFF4169E1)),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Room Information',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF4169E1),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Room Name
+                  _buildLabel('Room Code'),
+                  const SizedBox(height: 8),
+                  _buildTextField(
+                    _roomCodeController,
+                    hint: 'Room code',
+                    readOnly: true,
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Room Name
+                  _buildLabel('Room Name'),
+                  const SizedBox(height: 8),
+                  _buildTextField(
+                    _nameController,
+                    hint: 'e.g., CLR 2',
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Building
+                  // Department
+                  _buildLabel('Department'),
+                  const SizedBox(height: 8),
+                  _buildDropdown(
+                    value: _selectedDepartment,
+                    items: [_noDepartmentOption, ..._departmentOptions],
+                    onChanged: (v) async {
+                      if (v == null) return;
+                      setState(() => _selectedDepartment = v);
+                      await _loadBuildingsByDepartment(v);
+                    },
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Building
+                  _buildLabel('Building'),
+                  const SizedBox(height: 8),
+                  _buildDropdown(
+                    value: _selectedBuilding,
+                    items: _buildingOptions,
+                    onChanged: _isDepartmentSelected
+                        ? (v) {
+                      if (v == null) return;
+                      setState(() => _selectedBuilding = v);
+                    }
+                        : null,
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Floor
+                  _buildLabel('Floor'),
+                  const SizedBox(height: 8),
+                  _buildDropdown(
+                    value: _selectedFloor,
+                    items: _floors,
+                    onChanged: (v) =>
+                        setState(() => _selectedFloor = v ?? _selectedFloor),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Capacity
+                  _buildLabel('Capacity'),
+                  const SizedBox(height: 8),
+                  _buildTextField(
+                    _capacityController,
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Room Type
+                  _buildLabel('Room Type'),
+                  const SizedBox(height: 8),
+                  _buildDropdown(
+                    value: _selectedRoomType,
+                    items: _roomTypes,
+                    onChanged: (v) =>
+                        setState(() => _selectedRoomType = v ?? _selectedRoomType),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Status
+                  _buildLabel('Status'),
+                  const SizedBox(height: 10),
+                  _buildStatusChips(),
+                ],
+              ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
+
+            // QR Code Preview
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 200,
+                      height: 200,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: QrImageView(
+                        data: _qrData,
+                        version: QrVersions.auto,
+                        size: 180,
+                        gapless: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '${_roomCodeController.text.trim()} - ${_nameController.text.trim()}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_selectedBuilding.isEmpty ? 'No building' : _selectedBuilding} • $_selectedFloor',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'QR code value is locked for existing rooms.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
 
             // Action Buttons
             Row(
@@ -429,7 +574,7 @@ class _EditRoomPageState extends State<EditRoomPage> {
                   child: SizedBox(
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: _showSaveConfirmation,
+                      onPressed: _isSaving ? null : _showSaveConfirmation,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF4169E1),
                         shape: RoundedRectangleBorder(
@@ -437,14 +582,25 @@ class _EditRoomPageState extends State<EditRoomPage> {
                         ),
                         elevation: 0,
                       ),
-                      child: const Text(
-                        'Save Changes',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            )
+                          : const Text(
+                              'Save Changes',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -470,7 +626,9 @@ class _EditRoomPageState extends State<EditRoomPage> {
 
   Widget _buildTextField(
     TextEditingController controller, {
+    String? hint,
     TextInputType keyboardType = TextInputType.text,
+    bool readOnly = false,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -480,12 +638,23 @@ class _EditRoomPageState extends State<EditRoomPage> {
       ),
       child: TextField(
         controller: controller,
+        readOnly: readOnly,
         keyboardType: keyboardType,
         onChanged: (_) => setState(() {}),
         style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
           border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          filled: false,
+          fillColor: Colors.transparent,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
       ),
     );
@@ -494,8 +663,12 @@ class _EditRoomPageState extends State<EditRoomPage> {
   Widget _buildDropdown({
     required String value,
     required List<String> items,
-    required ValueChanged<String?> onChanged,
+    required ValueChanged<String?>? onChanged,
   }) {
+    final normalizedItems = _uniqueNonEmpty(items);
+    final matchingCount = normalizedItems.where((item) => item == value).length;
+    final effectiveValue = matchingCount == 1 ? value : null;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -505,11 +678,12 @@ class _EditRoomPageState extends State<EditRoomPage> {
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: value,
+          value: effectiveValue,
+          hint: const Text('Select option'),
           isExpanded: true,
           icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade500),
           style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
-          items: items
+          items: normalizedItems
               .map((e) => DropdownMenuItem(value: e, child: Text(e)))
               .toList(),
           onChanged: onChanged,
@@ -518,11 +692,22 @@ class _EditRoomPageState extends State<EditRoomPage> {
     );
   }
 
+  List<String> _uniqueNonEmpty(List<String> values) {
+    final seen = <String>{};
+    final result = <String>[];
+    for (final value in values) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) continue;
+      if (seen.add(trimmed)) result.add(trimmed);
+    }
+    return result;
+  }
+
   Widget _buildStatusChips() {
     final statuses = [
-      {'key': 'available', 'label': 'Available', 'icon': Icons.check_circle},
-      {'key': 'reserved', 'label': 'Reserved', 'icon': Icons.bookmark},
-      {'key': 'maintenance', 'label': 'Under Maintenance', 'icon': Icons.build},
+      {'key': 'available', 'label': 'Available'},
+      {'key': 'reserved', 'label': 'Reserved'},
+      {'key': 'maintenance', 'label': 'Under Maintenance'},
     ];
 
     return Wrap(
@@ -531,7 +716,6 @@ class _EditRoomPageState extends State<EditRoomPage> {
       children: statuses.map((s) {
         final key = s['key'] as String;
         final label = s['label'] as String;
-        final icon = s['icon'] as IconData;
         final isSelected = _selectedStatus == key;
 
         return GestureDetector(
@@ -547,24 +731,13 @@ class _EditRoomPageState extends State<EditRoomPage> {
                     : Colors.grey.shade300,
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: 14,
-                  color: isSelected ? Colors.white : Colors.grey.shade600,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isSelected ? Colors.white : Colors.grey.shade700,
-                  ),
-                ),
-              ],
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: isSelected ? Colors.white : Colors.grey.shade700,
+              ),
             ),
           ),
         );

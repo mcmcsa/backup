@@ -1,3 +1,5 @@
+﻿import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'task_details_page.dart';
 import '../../../shared/widgets/common_app_bar.dart';
@@ -12,12 +14,12 @@ class MaintenanceReportsPage extends StatefulWidget {
   State<MaintenanceReportsPage> createState() => _MaintenanceReportsPageState();
 }
 
-class _MaintenanceReportsPageState extends State<MaintenanceReportsPage> {
+class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
+    with WidgetsBindingObserver {
   String _selectedCategory = 'All';
   final List<String> _categories = [
     'All',
     'Pending',
-    'Approved',
     'In Progress',
     'Under Maintenance',
     'Completed',
@@ -26,11 +28,28 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage> {
 
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRequests();
+    _startAutoRefresh();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadRequests();
+    }
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _loadRequests();
+    });
   }
 
   Future<void> _loadRequests() async {
@@ -40,11 +59,10 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage> {
           .where(
             (r) =>
                 r.status == 'pending' ||
-                r.status == 'approved' ||
                 r.status == 'in_progress' ||
                 r.status == 'under_maintenance' ||
                 r.status == 'completed' ||
-                r.status == 'done',
+                r.status == 'completed',
           )
           .toList();
 
@@ -64,12 +82,9 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage> {
     if (_selectedCategory == 'Pending') {
       return _requests.where((r) => r.status == 'pending').toList();
     }
-    if (_selectedCategory == 'Approved') {
-      return _requests.where((r) => r.status == 'approved').toList();
-    }
     if (_selectedCategory == 'In Progress') {
       return _requests
-          .where((r) => r.status == 'ongoing' || r.status == 'in_progress')
+          .where((r) => r.status == 'in_progress' || r.status == 'in_progress')
           .toList();
     }
     if (_selectedCategory == 'Under Maintenance') {
@@ -77,7 +92,7 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage> {
     }
     if (_selectedCategory == 'Completed') {
       return _requests
-          .where((r) => r.status == 'done' || r.status == 'completed')
+          .where((r) => r.status == 'completed' || r.status == 'completed')
           .toList();
     }
     if (_selectedCategory == 'High Priority') {
@@ -225,11 +240,15 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage> {
                         statusLabel = 'PENDING';
                         statusColor = Colors.orange;
                         break;
-                      case 'ongoing':
+                      case 'in_progress':
                         statusLabel = 'IN PROGRESS';
                         statusColor = const Color(0xFF00BFA5);
                         break;
-                      case 'done':
+                      case 'under_maintenance':
+                        statusLabel = 'UNDER MAINTENANCE';
+                        statusColor = const Color(0xFF9C27B0);
+                        break;
+                      case 'completed':
                         statusLabel = 'COMPLETED';
                         statusColor = Colors.green;
                         break;

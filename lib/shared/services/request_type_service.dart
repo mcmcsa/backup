@@ -1,16 +1,13 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/request_type_model.dart';
+import 'admin_audit_log_service.dart';
 
 class RequestTypeService {
   static SupabaseClient get _db => Supabase.instance.client;
   static const String _table = 'request_types';
 
   static Future<List<RequestType>> fetchAll() async {
-    final data = await _db
-        .from(_table)
-        .select()
-        .eq('is_active', true)
-        .order('name', ascending: true);
+    final data = await _db.from(_table).select().order('name', ascending: true);
     return (data as List).map((e) => RequestType.fromMap(e)).toList();
   }
 
@@ -33,13 +30,25 @@ class RequestTypeService {
 
   static Future<void> insert(RequestType requestType) async {
     await _db.from(_table).insert(requestType.toMap());
+    await AdminAuditLogService.logAction(
+      title: 'Added Request Type',
+      details: 'Request Type: ${requestType.name} (${requestType.id})',
+    );
   }
 
   static Future<void> update(RequestType requestType) async {
     await _db.from(_table).update(requestType.toMap()).eq('id', requestType.id);
+    await AdminAuditLogService.logAction(
+      title: 'Updated Request Type',
+      details: 'Request Type: ${requestType.name} (${requestType.id})',
+    );
   }
 
   static Future<void> delete(String id) async {
     await _db.from(_table).delete().eq('id', id);
+    await AdminAuditLogService.logAction(
+      title: 'Deleted Request Type',
+      details: 'Request Type ID: $id',
+    );
   }
 }

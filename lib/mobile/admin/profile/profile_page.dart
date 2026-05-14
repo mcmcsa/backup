@@ -1,13 +1,11 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
-import '../shared/notifications_page.dart';
-import '../../teacher/menu_pages/about_us_page.dart';
-import '../../teacher/menu_pages/contact_us_page.dart';
+import '../shared/admin_app_bar.dart';
 
 class ProfilePage extends StatefulWidget {
   final VoidCallback openDrawer;
@@ -297,93 +295,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthService>().currentUser;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: GestureDetector(
-            onTap: widget.openDrawer,
-            child: const Icon(Icons.menu, color: Colors.black87, size: 28),
-          ),
-        ),
-        title: Row(
-          children: [
-            SizedBox(
-              height: 35,
-              width: 35,
-              child: Image.asset(
-                'assets/images/PsuLogo.png',
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, _) => const Icon(
-                  Icons.school,
-                  color: Color(0xFF4169E1),
-                  size: 28,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'PSU',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    height: 1,
-                  ),
-                ),
-                Text(
-                  'CAMPUS ADMINISTRATOR',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.black54,
-                    height: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.notifications_outlined,
-                    color: Colors.black87,
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationsPage(),
-                      ),
-                    );
-                  },
-                ),
-                Positioned(
-                  right: 12,
-                  top: 12,
-                  child: Container(
-                    height: 8,
-                    width: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+      appBar: AdminAppBar(
+        openDrawer: widget.openDrawer,
+        subtitle: 'Campus Administrator',
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -464,6 +382,27 @@ class _ProfilePageState extends State<ProfilePage> {
                     _emailController.text,
                     style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                   ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: InkWell(
+                      onTap: _showEditProfileDialog,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4169E1).withOpacity(0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.edit,
+                          size: 18,
+                          color: Color(0xFF4169E1),
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -482,7 +421,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ? '...'
                             : _requests.isEmpty
                                 ? '0%'
-                                : '${(_requests.where((r) => r.status == 'done').length * 100 / _requests.length).round()}%',
+                                : '${(_requests.where((r) => r.status == 'completed').length * 100 / _requests.length).round()}%',
                         'Resolved',
                       ),
                     ],
@@ -491,81 +430,17 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
 
-            const SizedBox(height: 20),
-
-            // Menu Items
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  _buildMenuItem(
-                    icon: Icons.person_outline,
-                    title: 'Edit Profile',
-                    onTap: () => _showEditProfileDialog(),
-                  ),
-                  _buildDivider(),
-                  _buildMenuItem(
-                    icon: Icons.notifications_outlined,
-                    title: 'Notifications',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const NotificationsPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildDivider(),
-                  _buildMenuItem(
-                    icon: Icons.security_outlined,
-                    title: 'Security',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Security settings coming soon')),
-                      );
-                    },
-                  ),
-                  _buildDivider(),
-                  _buildMenuItem(
-                    icon: Icons.help_outline,
-                    title: 'Help & Support',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ContactUsPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildDivider(),
-                  _buildMenuItem(
-                    icon: Icons.info_outline,
-                    title: 'About',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AboutUsPage(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
+            const SizedBox(height: 24),
+            _buildInfoTile(
+              title: 'Information Detials',
+              fields: [
+                _ProfileFieldData('Role', user?.roleLabel ?? 'Administrator'),
+                _ProfileFieldData('Campus', _displayValue(user?.campus)),
+                _ProfileFieldData('Department', _displayValue(user?.department)),
+                _ProfileFieldData('Position', _displayValue(user?.position)),
+                _ProfileFieldData('User ID', _displayValue(user?.id)),
+              ],
             ),
-
             const SizedBox(height: 24),
           ],
         ),
@@ -593,40 +468,78 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildMenuItem({
-    required IconData icon,
+  String _displayValue(String? value) {
+    final trimmed = value?.trim() ?? '';
+    return trimmed.isEmpty ? 'Not set' : trimmed;
+  }
+
+  Widget _buildInfoTile({
     required String title,
-    required VoidCallback onTap,
+    required List<_ProfileFieldData> fields,
   }) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: Row(
-          children: [
-            Icon(icon, color: const Color(0xFF6B7280), size: 24),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF111827),
-                ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1F2937),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...fields.map(
+            (field) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 92,
+                    child: Text(
+                      field.label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Text(':  '),
+                  Expanded(
+                    child: Text(
+                      field.value,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF111827),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 24),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildDivider() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Divider(height: 1, color: Colors.grey.shade200),
-    );
-  }
 }
+
+class _ProfileFieldData {
+  final String label;
+  final String value;
+
+  const _ProfileFieldData(this.label, this.value);
+}
+
