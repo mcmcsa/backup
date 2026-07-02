@@ -133,7 +133,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final authService = context.watch<AuthService>();
-    final isAdmin = authService.currentUser?.role == UserRole.admin;
+    final isAdmin = authService.currentUser?.role == UserRole.admin ||
+        authService.currentUser?.role == UserRole.campadmin;
     
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,

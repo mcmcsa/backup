@@ -35,6 +35,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
   String _selectedRoomType = _allRoomTypesOption;
   List<Map<String, dynamic>> _rooms = [];
   bool _isLoading = true;
+  bool _isGridView = true;
 
   static const Color _primaryBlue = Color(0xFF3B82F6);
   static const Color _successGreen = Color(0xFF10B981);
@@ -82,8 +83,8 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
         final rawStatus = _lower(room.status);
         final statusLabel = rawStatus == 'available'
             ? 'Available'
-            : rawStatus == 'maintenance' || rawStatus == 'under maintenance'
-                ? 'Under Maintenance'
+            : rawStatus == 'maintenance' || rawStatus == 'under maintenance' || rawStatus == 'under_maintenance'
+                ? 'Unavailable'
                 : _text(room.status, fallback: 'Unknown');
 
         return {
@@ -117,7 +118,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
     if (_selectedFilter == 1) {
       filtered = filtered.where((r) => _lower(r['status']) == 'available').toList();
     } else if (_selectedFilter == 2) {
-      filtered = filtered.where((r) => _lower(r['status']) == 'under maintenance').toList();
+      filtered = filtered.where((r) => _lower(r['status']) == 'unavailable').toList();
     }
 
     if (_selectedDepartment != _allDepartmentsOption) {
@@ -171,7 +172,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
       case 1:
         return _rooms.where((room) => _lower(room['status']) == 'available').length;
       case 2:
-        return _rooms.where((room) => _lower(room['status']) == 'under maintenance').length;
+        return _rooms.where((room) => _lower(room['status']) == 'unavailable').length;
       default:
         return 0;
     }
@@ -182,7 +183,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
       case 1:
         return 'Available Rooms';
       case 2:
-        return 'Under Maintenance Rooms';
+        return 'Unavailable Rooms';
       default:
         return 'All Rooms';
     }
@@ -243,7 +244,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
         onTap: () => setState(() => _selectedFilter = 1),
       ),
       _StatCard(
-        title: 'Under Maintenance',
+        title: 'Unavailable',
         value: _countByFilter(2),
         icon: Icons.build_rounded,
         iconColor: _maintenanceRed,
@@ -571,34 +572,51 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                 )
               : Padding(
                   padding: EdgeInsets.fromLTRB(isMobile ? 14 : 24, 0, isMobile ? 14 : 24, 24),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final crossAxisCount = constraints.maxWidth > 1400
-                          ? 3
-                          : constraints.maxWidth > 900
-                              ? 2
-                              : 1;
+                  child: _isGridView
+                      ? LayoutBuilder(
+                          builder: (context, constraints) {
+                            final crossAxisCount = constraints.maxWidth > 1400
+                                ? 3
+                                : constraints.maxWidth > 900
+                                    ? 2
+                                    : 1;
 
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          crossAxisSpacing: 20,
-                          mainAxisSpacing: 20,
-                          mainAxisExtent: 174,
+                            return GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: 20,
+                                mainAxisSpacing: 20,
+                                mainAxisExtent: 174,
+                              ),
+                              itemCount: filteredRooms.length,
+                              itemBuilder: (context, index) {
+                                return _RoomCard(
+                                  room: filteredRooms[index],
+                                  onViewRoom: widget.onViewRoom,
+                                  onEditRoom: widget.onEditRoom,
+                                );
+                              },
+                            );
+                          },
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredRooms.length,
+                          separatorBuilder: (context, index) => const SizedBox(height: 16),
+                          itemBuilder: (context, index) {
+                            return SizedBox(
+                              height: 174,
+                              child: _RoomCard(
+                                room: filteredRooms[index],
+                                onViewRoom: widget.onViewRoom,
+                                onEditRoom: widget.onEditRoom,
+                              ),
+                            );
+                          },
                         ),
-                        itemCount: filteredRooms.length,
-                        itemBuilder: (context, index) {
-                          return _RoomCard(
-                            room: filteredRooms[index],
-                            onViewRoom: widget.onViewRoom,
-                            onEditRoom: widget.onEditRoom,
-                          );
-                        },
-                      );
-                    },
-                  ),
                 ),
         ],
       ),
@@ -667,19 +685,119 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
   }
 
   Widget _buildHeader() {
-    return Column(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Rooms Management',
-          style: AdminStyles.pageTitleStyle(),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Rooms Management',
+              style: AdminStyles.pageTitleStyle(),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Manage facilities and room information.',
+              style: AdminStyles.pageSubtitleStyle(),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Manage facilities and room information.',
-          style: AdminStyles.pageSubtitleStyle(),
-        ),
+        _buildViewToggle(),
       ],
+    );
+  }
+
+  Widget _buildViewToggle() {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => setState(() => _isGridView = true),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _isGridView ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: _isGridView
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.grid_view_rounded,
+                    size: 16,
+                    color: _isGridView ? _primaryBlue : _subtleText,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Grid',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _isGridView ? _primaryBlue : _subtleText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 2),
+          GestureDetector(
+            onTap: () => setState(() => _isGridView = false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: !_isGridView ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: !_isGridView
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.list_rounded,
+                    size: 16,
+                    color: !_isGridView ? _primaryBlue : _subtleText,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'List',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: !_isGridView ? _primaryBlue : _subtleText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

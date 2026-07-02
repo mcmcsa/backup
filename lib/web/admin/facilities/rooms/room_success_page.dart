@@ -27,7 +27,7 @@ class RoomSuccessPage extends StatelessWidget {
       case 'reserved':
         return 'RESERVED';
       case 'maintenance':
-        return 'UNDER MAINTENANCE';
+        return 'UNAVAILABLE';
       default:
         return status.toUpperCase();
     }

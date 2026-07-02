@@ -108,7 +108,7 @@ class _LoginPageState extends State<LoginPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Welcome, ${user.name}!'),
-          backgroundColor: const Color(0xFF4169E1),
+          backgroundColor: const Color(0xFF0F766E),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -148,18 +148,18 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // PSU Logo - without background container
+                      // PSU Logo - official circular seal
                       Container(
                         width: isMobile ? 120 : 140,
                         height: isMobile ? 120 : 140,
                         margin: const EdgeInsets.only(bottom: 32),
                         alignment: Alignment.center,
                         child: Image.asset(
-                          'assets/images/psummsIcon.png',
+                          'assets/images/psu_logo_v3.png',
                           fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const Icon(
+                          errorBuilder: (context, error, stackTrace) => const Icon(
                             Icons.school,
-                            color: Color(0xFF4169E1),
+                            color: Color(0xFF0F766E),
                             size: 60,
                           ),
                         ),
@@ -230,7 +230,7 @@ class _LoginPageState extends State<LoginPage> {
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   borderSide: const BorderSide(
-                                    color: Color(0xFF4169E1),
+                                    color: Color(0xFF0F766E),
                                     width: 2,
                                   ),
                                 ),
@@ -274,7 +274,7 @@ class _LoginPageState extends State<LoginPage> {
                                     'Forgot password?',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: Color(0xFF4169E1),
+                                      color: Color(0xFF0F766E),
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -321,7 +321,7 @@ class _LoginPageState extends State<LoginPage> {
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   borderSide: const BorderSide(
-                                    color: Color(0xFF4169E1),
+                                    color: Color(0xFF0F766E),
                                     width: 2,
                                   ),
                                 ),
@@ -347,7 +347,7 @@ class _LoginPageState extends State<LoginPage> {
                               child: ElevatedButton(
                                 onPressed: isLoading ? null : _handleLogin,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF4169E1),
+                                  backgroundColor: const Color(0xFF0F766E),
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -392,7 +392,7 @@ class _LoginPageState extends State<LoginPage> {
                               style: OutlinedButton.styleFrom(
                                 minimumSize: const Size(double.infinity, 48),
                                 side: const BorderSide(
-                                  color: Color(0xFF4169E1),
+                                  color: Color(0xFF0F766E),
                                 ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -401,7 +401,7 @@ class _LoginPageState extends State<LoginPage> {
                               child: const Text(
                                 'Register',
                                 style: TextStyle(
-                                  color: Color(0xFF4169E1),
+                                  color: Color(0xFF0F766E),
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -452,14 +452,14 @@ class _LoginPageState extends State<LoginPage> {
                                         height: 32,
                                         decoration: BoxDecoration(
                                           color: const Color(
-                                            0xFF4169E1,
+                                            0xFF0F766E,
                                           ).withValues(alpha: 0.1),
                                           shape: BoxShape.circle,
                                         ),
                                         child: const Icon(
                                           Icons.help_outline,
                                           size: 18,
-                                          color: Color(0xFF4169E1),
+                                          color: Color(0xFF0F766E),
                                         ),
                                       ),
                                       const SizedBox(width: 12),

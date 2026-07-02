@@ -92,16 +92,23 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
       );
     }
 
+    final width = MediaQuery.of(context).size.width;
+    final isCompact = width < 1024;
+    final isMobile = width < 768;
+
     return Container(
       color: _pageBg,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 16 : 32,
+          vertical: isMobile ? 16 : 32,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header Section
             _buildHeader(),
-            const SizedBox(height: 32),
+            SizedBox(height: isMobile ? 20 : 32),
 
             // Stat Cards Row
             _buildStatCardsRow(
@@ -109,32 +116,41 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
               inProgressCount,
               highPriorityCount,
               completedCount,
+              isMobile,
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: isMobile ? 20 : 32),
 
             // Main Content Layout
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left Column: Stats & Quick Actions
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    children: [
-                      _buildQuickActionsCard(),
-                      const SizedBox(height: 24),
-                      _buildWorkStatusBreakdown(),
-                    ],
+            if (isCompact) ...[
+              _buildQuickActionsCard(),
+              const SizedBox(height: 24),
+              _buildWorkStatusBreakdown(),
+              const SizedBox(height: 24),
+              _buildLatestRequestsCard(),
+            ] else ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Left Column: Stats & Quick Actions
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      children: [
+                        _buildQuickActionsCard(),
+                        const SizedBox(height: 24),
+                        _buildWorkStatusBreakdown(),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 32),
-                // Right Column: Latest Requests
-                Expanded(
-                  flex: 7,
-                  child: _buildLatestRequestsCard(),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 32),
+                  // Right Column: Latest Requests
+                  Expanded(
+                    flex: 7,
+                    child: _buildLatestRequestsCard(),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -172,43 +188,63 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
     int inProgressCount,
     int highPriorityCount,
     int completedCount,
+    bool isMobile,
   ) {
+    final cards = [
+      _StatCard(
+        title: 'Pending',
+        value: pendingCount,
+        icon: Icons.schedule_rounded,
+        color: _warningOrange,
+      ),
+      _StatCard(
+        title: 'In Progress',
+        value: inProgressCount,
+        icon: Icons.engineering_rounded,
+        color: _primaryBlue,
+      ),
+      _StatCard(
+        title: 'High Priority',
+        value: highPriorityCount,
+        icon: Icons.warning_amber_rounded,
+        color: _dangerRed,
+      ),
+      _StatCard(
+        title: 'Completed',
+        value: completedCount,
+        icon: Icons.check_circle_rounded,
+        color: _successGreen,
+      ),
+    ];
+
+    if (isMobile) {
+      return GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.35,
+        children: cards,
+      );
+    }
+
     return Row(
       children: [
         Expanded(
-          child: _StatCard(
-            title: 'Pending',
-            value: pendingCount,
-            icon: Icons.schedule_rounded,
-            color: _warningOrange,
-          ),
+          child: cards[0],
         ),
         const SizedBox(width: 24),
         Expanded(
-          child: _StatCard(
-            title: 'In Progress',
-            value: inProgressCount,
-            icon: Icons.engineering_rounded,
-            color: _primaryBlue,
-          ),
+          child: cards[1],
         ),
         const SizedBox(width: 24),
         Expanded(
-          child: _StatCard(
-            title: 'High Priority',
-            value: highPriorityCount,
-            icon: Icons.warning_amber_rounded,
-            color: _dangerRed,
-          ),
+          child: cards[2],
         ),
         const SizedBox(width: 24),
         Expanded(
-          child: _StatCard(
-            title: 'Completed',
-            value: completedCount,
-            icon: Icons.check_circle_rounded,
-            color: _successGreen,
-          ),
+          child: cards[3],
         ),
       ],
     );
@@ -519,92 +555,197 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
     final statusColor = _getStatusColor(request.status);
     final priorityColor = _getPriorityColor(request.priority);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _pageBg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobileRow = constraints.maxWidth < 600;
+
+        if (isMobileRow) {
+          return Container(
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
+              color: _pageBg,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              Icons.build_rounded,
-              color: statusColor,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  request.roomName ?? 'Unknown Room',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: _darkText,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.build_rounded,
+                        color: statusColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            request.roomName ?? 'Unknown Room',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _darkText,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            request.typeOfRequest,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _subtleText,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  request.typeOfRequest,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _subtleText,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: priorityColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        request.priority.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: priorityColor,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        request.status.replaceAll('_', ' ').toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: statusColor,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _pageBg,
+            borderRadius: BorderRadius.circular(8),
           ),
-          const SizedBox(width: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: priorityColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              request.priority.toUpperCase(),
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: priorityColor,
-                letterSpacing: 0.2,
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.build_rounded,
+                  color: statusColor,
+                  size: 22,
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              request.status.replaceAll('_', ' ').toUpperCase(),
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: statusColor,
-                letterSpacing: 0.2,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      request.roomName ?? 'Unknown Room',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _darkText,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      request.typeOfRequest,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _subtleText,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(width: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: priorityColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  request.priority.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: priorityColor,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  request.status.replaceAll('_', ' ').toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: statusColor,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      }
     );
   }
 

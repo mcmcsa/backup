@@ -707,7 +707,7 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
       case 'reserved':
         return 'RESERVED';
       case 'maintenance':
-        return 'UNDER MAINTENANCE';
+        return 'UNAVAILABLE';
       default:
         return status.toUpperCase();
     }
@@ -1675,7 +1675,7 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
     final statuses = [
       {'key': 'available', 'label': 'Available'},
       {'key': 'reserved', 'label': 'Reserved'},
-      {'key': 'maintenance', 'label': 'Under Maintenance'},
+      {'key': 'maintenance', 'label': 'Unavailable'},
     ];
 
     return Wrap(

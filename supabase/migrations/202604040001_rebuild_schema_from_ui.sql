@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email VARCHAR(255) NOT NULL UNIQUE,
   name VARCHAR(255) NOT NULL,
-  role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'teacher', 'maintenance')),
+  role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'campadmin', 'teacher', 'maintenance')),
   is_active BOOLEAN NOT NULL DEFAULT true,
   last_login TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS e_signatures (
   work_request_id TEXT NOT NULL REFERENCES work_requests(id) ON DELETE CASCADE,
   signer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   signer_name VARCHAR(255) NOT NULL,
-  signer_role VARCHAR(50) NOT NULL CHECK (signer_role IN ('admin', 'maintenance', 'teacher')),
+  signer_role VARCHAR(50) NOT NULL CHECK (signer_role IN ('admin', 'campadmin', 'maintenance', 'teacher')),
   signature_type VARCHAR(50) NOT NULL CHECK (signature_type IN ('approval', 'acceptance', 'pre_inspection', 'post_repair', 'completion')),
   signature_data TEXT NOT NULL,
   signed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -214,7 +214,7 @@ CREATE TABLE IF NOT EXISTS app_notifications (
   title VARCHAR(255) NOT NULL,
   message TEXT NOT NULL,
   type VARCHAR(50) NOT NULL DEFAULT 'info',
-  target_role VARCHAR(50) NOT NULL DEFAULT 'all' CHECK (target_role IN ('all', 'admin', 'teacher', 'maintenance')),
+  target_role VARCHAR(50) NOT NULL DEFAULT 'all' CHECK (target_role IN ('all', 'admin', 'campadmin', 'teacher', 'maintenance')),
   target_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   work_request_id TEXT REFERENCES work_requests(id) ON DELETE CASCADE,
   is_read BOOLEAN NOT NULL DEFAULT false,
@@ -383,7 +383,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT COALESCE(public.current_user_role() = 'admin', false)
+  SELECT COALESCE(public.current_user_role() IN ('admin', 'campadmin'), false)
 $$;
 
 -- Row Level Security baseline

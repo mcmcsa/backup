@@ -61,36 +61,59 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isCompact = width < 900;
+
     return Container(
       color: AdminStyles.bg,
-      padding: const EdgeInsets.all(40),
+      padding: EdgeInsets.all(isCompact ? 16 : 40),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Work Request Reports', style: AdminStyles.headingStyle(fontSize: 28)),
-                  const SizedBox(height: 8),
-                  Text('Track the history and real-time status of all your maintenance requests.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
-                ],
-              ),
-              _buildExportButton(),
-            ],
-          ),
-          const SizedBox(height: 40),
-          _buildFilters(),
+          _buildHeader(isCompact),
+          SizedBox(height: isCompact ? 24 : 40),
+          _buildFilters(isCompact),
           const SizedBox(height: 24),
           Expanded(
             child: _isLoading 
               ? const Center(child: CircularProgressIndicator(color: AdminStyles.primary))
-              : _buildTable(),
+              : _buildTable(isCompact),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHeader(bool isCompact) {
+    final titleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Work Request Reports', style: AdminStyles.headingStyle(fontSize: isCompact ? 22 : 28)),
+        const SizedBox(height: 8),
+        Text('Track the history and real-time status of all your maintenance requests.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+      ],
+    );
+
+    final exportButton = _buildExportButton();
+
+    if (isCompact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          titleWidget,
+          const SizedBox(height: 16),
+          SizedBox(width: double.infinity, child: exportButton),
+        ],
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(child: titleWidget),
+        const SizedBox(width: 16),
+        exportButton,
+      ],
     );
   }
 
@@ -108,60 +131,134 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb> {
     );
   }
 
-  Widget _buildFilters() {
+  Widget _buildFilters(bool isCompact) {
+    final searchField = Container(
+      height: 48,
+      decoration: BoxDecoration(color: AdminStyles.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AdminStyles.border)),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: TextField(
+        onChanged: (v) {
+          _searchQuery = v;
+          _applyFilters();
+        },
+        decoration: InputDecoration(
+          icon: Icon(Icons.search_rounded, color: AdminStyles.textMuted, size: 20),
+          hintText: 'Search by title or room...',
+          hintStyle: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
+          border: InputBorder.none,
+        ),
+      ),
+    );
+
+    final dropdownField = Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(color: AdminStyles.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AdminStyles.border)),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedStatus,
+          isExpanded: isCompact,
+          items: _statuses.map((s) => DropdownMenuItem(value: s, child: Text(s, style: AdminStyles.bodyStyle()))).toList(),
+          onChanged: (v) {
+            setState(() {
+              _selectedStatus = v!;
+              _applyFilters();
+            });
+          },
+        ),
+      ),
+    );
+
+    if (isCompact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          searchField,
+          const SizedBox(height: 12),
+          dropdownField,
+        ],
+      );
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: Container(
-            height: 48,
-            decoration: BoxDecoration(color: AdminStyles.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AdminStyles.border)),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              onChanged: (v) {
-                _searchQuery = v;
-                _applyFilters();
-              },
-              decoration: InputDecoration(
-                icon: Icon(Icons.search_rounded, color: AdminStyles.textMuted, size: 20),
-                hintText: 'Search by title or room...',
-                hintStyle: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
-                border: InputBorder.none,
-              ),
-            ),
-          ),
-        ),
+        Expanded(child: searchField),
         const SizedBox(width: 24),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(color: AdminStyles.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AdminStyles.border)),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedStatus,
-              items: _statuses.map((s) => DropdownMenuItem(value: s, child: Text(s, style: AdminStyles.bodyStyle()))).toList(),
-              onChanged: (v) {
-                setState(() {
-                  _selectedStatus = v!;
-                  _applyFilters();
-                });
-              },
-            ),
-          ),
-        ),
+        dropdownField,
       ],
     );
   }
 
-  Widget _buildTable() {
+  Widget _buildTable(bool isCompact) {
     if (_filteredRequests.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.search_off_rounded, size: 64, color: AdminStyles.textMuted.withOpacity(0.2)),
+            Icon(Icons.search_off_rounded, size: 64, color: AdminStyles.textMuted.withValues(alpha: 0.2)),
             const SizedBox(height: 16),
             Text('No requests found matching your filters', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
           ],
         ),
+      );
+    }
+
+    if (isCompact) {
+      return ListView.builder(
+        itemCount: _filteredRequests.length,
+        itemBuilder: (context, index) {
+          final request = _filteredRequests[index];
+          return Card(
+            color: Colors.white,
+            margin: const EdgeInsets.only(bottom: 12),
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => context.go('/request-details', extra: {'request': request}),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(request.title, style: AdminStyles.headingStyle(fontSize: 14)),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildStatusPill(request.status),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(request.typeOfRequest, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary)),
+                    const Divider(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textSecondary),
+                            const SizedBox(width: 4),
+                            Text(request.roomName ?? 'N/A', style: AdminStyles.bodyStyle(fontSize: 12)),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            Icon(Icons.calendar_today_outlined, size: 14, color: AdminStyles.textSecondary),
+                            const SizedBox(width: 4),
+                            Text(DateFormat('MMM dd, yyyy').format(request.dateSubmitted), style: AdminStyles.bodyStyle(fontSize: 12)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       );
     }
 

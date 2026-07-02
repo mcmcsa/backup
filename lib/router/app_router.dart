@@ -32,6 +32,8 @@ import '../web/teacher/menu/teacher_workflow_web.dart';
 import 'package:psu_maintsystem/web/teacher/reports/teacher_create_request_web.dart';
 import 'package:psu_maintsystem/web/teacher/reports/teacher_work_process_web.dart';
 import '../web/teacher/teacher_navigation_web.dart' as web_teacher;
+import '../web/system_admin/system_admin_main_navigation_web.dart' as web_sysadmin;
+import '../mobile/system_admin/system_admin_main_navigation.dart' as mobile_sysadmin;
 
 final GlobalKey<NavigatorState> rootNavigatorKey =
     GlobalKey<NavigatorState>();
@@ -49,60 +51,76 @@ const String teacherContactRoute = '/teacher/contact';
 const String teacherWorkflowRoute = '/teacher/workflow';
 const String teacherCreateRequestRoute = '/teacher/create-request';
 
+String? resolveAuthRedirect({
+  required String location,
+  required bool isSessionInitialized,
+  required bool isPostLoginSplashActive,
+  required AppUser? user,
+  required bool Function() consumeLoginRedirectPause,
+}) {
+  final isAtStartup = location == appStartupRoute;
+  final isAtLogin = location == '/login';
+
+  if (!isSessionInitialized) {
+    return isAtStartup ? null : appStartupRoute;
+  }
+
+  if (isPostLoginSplashActive) {
+    return null;
+  }
+
+  if (user == null) {
+    if (isAtStartup) {
+      return '/login';
+    }
+    return isAtLogin ? null : '/login';
+  }
+
+  final dashboardRoute = user.dashboardRoute;
+
+  if (isAtStartup) {
+    return dashboardRoute;
+  }
+
+  if (isAtLogin) {
+    if (consumeLoginRedirectPause()) {
+      return null;
+    }
+    return dashboardRoute;
+  }
+
+  if (location.startsWith('/admin') && user.role != UserRole.campadmin) {
+    return dashboardRoute;
+  }
+
+  if (location.startsWith('/system-admin') && user.role != UserRole.admin) {
+    return dashboardRoute;
+  }
+
+  if (location.startsWith('/teacher') && user.role != UserRole.teacher) {
+    return dashboardRoute;
+  }
+
+  if (location.startsWith('/maintenance') && user.role != UserRole.maintenance) {
+    return dashboardRoute;
+  }
+
+  return null;
+}
+
 GoRouter buildAppRouter(AuthService authService) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: appStartupRoute,
     refreshListenable: authService,
     redirect: (context, state) {
-      final location = state.matchedLocation;
-      final isAtStartup = location == appStartupRoute;
-      final isAtLogin = location == '/login';
-      final isInitialized = authService.isSessionInitialized;
-      final user = authService.currentUser;
-
-      if (!isInitialized) {
-        return isAtStartup ? null : appStartupRoute;
-      }
-
-      if (authService.isPostLoginSplashActive) {
-        return null;
-      }
-
-      if (user == null) {
-        if (isAtStartup) {
-          return '/login';
-        }
-        return isAtLogin ? null : '/login';
-      }
-
-      final dashboardRoute = user.dashboardRoute;
-
-      if (isAtStartup) {
-        return dashboardRoute;
-      }
-
-      if (isAtLogin) {
-        if (authService.consumeLoginRedirectPause()) {
-          return null;
-        }
-        return dashboardRoute;
-      }
-
-      if (location.startsWith('/admin') && user.role != UserRole.admin) {
-        return dashboardRoute;
-      }
-
-      if (location.startsWith('/teacher') && user.role != UserRole.teacher) {
-        return dashboardRoute;
-      }
-
-      if (location.startsWith('/maintenance') &&
-          user.role != UserRole.maintenance) {
-        return dashboardRoute;
-      }
-
-      return null;
+      return resolveAuthRedirect(
+        location: state.matchedLocation,
+        isSessionInitialized: authService.isSessionInitialized,
+        isPostLoginSplashActive: authService.isPostLoginSplashActive,
+        user: authService.currentUser,
+        consumeLoginRedirectPause: authService.consumeLoginRedirectPause,
+      );
     },
     observers: [appRouteObserver],
     routes: [
@@ -148,6 +166,12 @@ GoRouter buildAppRouter(AuthService authService) {
         builder: (context, state) => kIsWeb
             ? const web_admin.AdminMainNavigationWeb()
             : const mobile_admin.MainNavigation(),
+      ),
+      GoRoute(
+        path: '/system-admin/dashboard',
+        builder: (context, state) => kIsWeb
+            ? const web_sysadmin.SystemAdminMainNavigationWeb()
+            : const mobile_sysadmin.SystemAdminMainNavigation(),
       ),
       GoRoute(
         path: teacherDashboardRoute,

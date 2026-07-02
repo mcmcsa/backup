@@ -13,6 +13,7 @@ class AdminProfileWeb extends StatefulWidget {
 class _AdminProfileWebState extends State<AdminProfileWeb> {
   String _userName = 'Administrator';
   String _userEmail = 'admin@psu.edu';
+  String _userRoleLabel = 'Campus Administrator';
   String _userPhone = '+1 (555) 123-4567';
   bool _isEditing = false;
 
@@ -37,6 +38,7 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
       setState(() {
         _userName = user.name;
         _userEmail = user.email;
+        _userRoleLabel = user.roleLabel;
       });
     }
   }
@@ -102,7 +104,7 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
                   children: [
                     Text(_userName, style: AdminStyles.headingStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _darkText)),
                     const SizedBox(height: 4),
-                    Text('System Administrator', style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText)),
+                    Text(_userRoleLabel, style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText)),
                     const SizedBox(height: 12),
                     if (_isEditing)
                       ElevatedButton(

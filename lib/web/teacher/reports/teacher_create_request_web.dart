@@ -328,6 +328,21 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdownField(
+                    label: 'Floor',
+                    value: _selectedFloor,
+                    items: _floors,
+                    onChanged: (v) => setState(() => _selectedFloor = v!),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(child: SizedBox()),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 24),

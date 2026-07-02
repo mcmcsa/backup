@@ -61,64 +61,98 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
       return const Center(child: CircularProgressIndicator(color: AdminStyles.primary));
     }
 
+    final width = MediaQuery.of(context).size.width;
+    final isCompact = width < 900;
+
     return Container(
       color: AdminStyles.bg,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(40),
+        padding: EdgeInsets.all(isCompact ? 16 : 40),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(user?.name ?? 'Teacher'),
-            const SizedBox(height: 40),
-            _buildQuickStats(pendingCount, activeCount, completedCount),
-            const SizedBox(height: 40),
-            _buildRequestsSection(),
+            _buildHeader(user?.name ?? 'Teacher', isCompact),
+            SizedBox(height: isCompact ? 24 : 40),
+            _buildQuickStats(pendingCount, activeCount, completedCount, isCompact),
+            SizedBox(height: isCompact ? 24 : 40),
+            _buildRequestsSection(isCompact),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader(String userName) {
+  Widget _buildHeader(String userName, bool isCompact) {
+    final titleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Welcome back, $userName', style: AdminStyles.headingStyle(fontSize: isCompact ? 24 : 32)),
+        const SizedBox(height: 8),
+        Text('Here is what is happening with your maintenance requests today.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: isCompact ? 14 : 16)),
+      ],
+    );
+
+    final buttonWidget = ElevatedButton.icon(
+      onPressed: () => context.go('/teacher/create-request'),
+      icon: const Icon(Icons.add_rounded),
+      label: const Text('New Request'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AdminStyles.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+
+    if (isCompact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          titleWidget,
+          const SizedBox(height: 16),
+          SizedBox(width: double.infinity, child: buttonWidget),
+        ],
+      );
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Welcome back, $userName', style: AdminStyles.headingStyle(fontSize: 32)),
-            const SizedBox(height: 8),
-            Text('Here is what is happening with your maintenance requests today.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 16)),
-          ],
-        ),
-        ElevatedButton.icon(
-          onPressed: () => context.go('/teacher/create-request'),
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('New Request'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AdminStyles.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        ),
+        Expanded(child: titleWidget),
+        const SizedBox(width: 16),
+        buttonWidget,
       ],
     );
   }
 
-  Widget _buildQuickStats(int pending, int active, int completed) {
+  Widget _buildQuickStats(int pending, int active, int completed, bool isCompact) {
+    final cards = [
+      _StatCard(title: 'Pending Review', value: pending, icon: Icons.schedule_rounded, color: AdminStyles.warning),
+      _StatCard(title: 'In Progress', value: active, icon: Icons.engineering_rounded, color: AdminStyles.info),
+      _StatCard(title: 'Recently Completed', value: completed, icon: Icons.check_circle_rounded, color: AdminStyles.success),
+    ];
+
+    if (isCompact) {
+      return Column(
+        children: cards.map((card) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: card,
+        )).toList(),
+      );
+    }
+
     return Row(
       children: [
-        Expanded(child: _StatCard(title: 'Pending Review', value: pending, icon: Icons.schedule_rounded, color: AdminStyles.warning)),
+        Expanded(child: cards[0]),
         const SizedBox(width: 24),
-        Expanded(child: _StatCard(title: 'In Progress', value: active, icon: Icons.engineering_rounded, color: AdminStyles.info)),
+        Expanded(child: cards[1]),
         const SizedBox(width: 24),
-        Expanded(child: _StatCard(title: 'Recently Completed', value: completed, icon: Icons.check_circle_rounded, color: AdminStyles.success)),
+        Expanded(child: cards[2]),
       ],
     );
   }
 
-  Widget _buildRequestsSection() {
+  Widget _buildRequestsSection(bool isCompact) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -141,14 +175,14 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: isCompact ? 1 : 2,
               crossAxisSpacing: 24,
               mainAxisSpacing: 24,
-              mainAxisExtent: 140,
+              mainAxisExtent: isCompact ? 130 : 140,
             ),
             itemCount: _requests.take(4).length,
-            itemBuilder: (context, index) => _buildRequestCard(_requests[index]),
+            itemBuilder: (context, index) => _buildRequestCard(_requests[index], isCompact),
           ),
       ],
     );
@@ -174,7 +208,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
     );
   }
 
-  Widget _buildRequestCard(WorkRequest request) {
+  Widget _buildRequestCard(WorkRequest request, bool isCompact) {
     final statusColor = _getStatusColor(request.status);
     
     return Material(
@@ -183,38 +217,61 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
         onTap: () => context.go('/request-details', extra: {'request': request}),
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(isCompact ? 16 : 24),
           decoration: AdminStyles.cardDecoration(hasShadow: true),
           child: Row(
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: isCompact ? 44 : 56,
+                height: isCompact ? 44 : 56,
                 decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                child: Icon(Icons.assignment_rounded, color: statusColor, size: 28),
+                child: Icon(Icons.assignment_rounded, color: statusColor, size: isCompact ? 20 : 28),
               ),
-              const SizedBox(width: 20),
+              SizedBox(width: isCompact ? 12 : 20),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(request.title, style: AdminStyles.headingStyle(fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(request.roomName ?? 'Unknown Room', style: AdminStyles.bodyStyle(fontSize: 13)),
-                        const SizedBox(width: 16),
-                        Icon(Icons.calendar_today_outlined, size: 14, color: AdminStyles.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(DateFormat('MMM dd').format(request.dateSubmitted), style: AdminStyles.bodyStyle(fontSize: 13)),
-                      ],
-                    ),
+                    Text(request.title, style: AdminStyles.headingStyle(fontSize: isCompact ? 14 : 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 6),
+                    if (isCompact)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.location_on_outlined, size: 12, color: AdminStyles.textSecondary),
+                              const SizedBox(width: 4),
+                              Expanded(child: Text(request.roomName ?? 'Unknown Room', style: AdminStyles.bodyStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Icon(Icons.calendar_today_outlined, size: 12, color: AdminStyles.textSecondary),
+                              const SizedBox(width: 4),
+                              Text(DateFormat('MMM dd').format(request.dateSubmitted), style: AdminStyles.bodyStyle(fontSize: 12)),
+                            ],
+                          ),
+                        ],
+                      )
+                    else
+                      Row(
+                        children: [
+                          Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(request.roomName ?? 'Unknown Room', style: AdminStyles.bodyStyle(fontSize: 13)),
+                          const SizedBox(width: 16),
+                          Icon(Icons.calendar_today_outlined, size: 14, color: AdminStyles.textSecondary),
+                          const SizedBox(width: 4),
+                          Text(DateFormat('MMM dd').format(request.dateSubmitted), style: AdminStyles.bodyStyle(fontSize: 13)),
+                        ],
+                      ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               _buildStatusPill(request.status),
             ],
           ),

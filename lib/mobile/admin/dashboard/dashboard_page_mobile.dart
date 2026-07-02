@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../shared/admin_app_bar.dart';
@@ -81,7 +81,7 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(999),
-                  borderSide: const BorderSide(color: Color(0xFF4169E1)),
+                   borderSide: const BorderSide(color: Color(0xFF0F766E)),
                 ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),
@@ -126,8 +126,8 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
                       'Ongoing Repairs',
                       '$ongoingCount',
                       Icons.build_outlined,
-                      const Color(0xFF4169E1),
-                      const Color(0xFFEEF2FF),
+                       const Color(0xFF0F766E),
+                       const Color(0xFFE6FAF8),
                     ),
                     _buildStatCard(
                       'High Priority',

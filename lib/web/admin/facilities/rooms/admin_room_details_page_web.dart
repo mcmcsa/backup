@@ -40,7 +40,7 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
       case 'reserved':
         return 'RESERVED';
       default:
-        return 'UNDER MAINTENANCE';
+        return 'UNAVAILABLE';
     }
   }
 

@@ -1289,7 +1289,7 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
         return 'RESERVED';
       case 'maintenance':
       case 'under_maintenance':
-        return 'UNDER MAINTENANCE';
+        return 'UNAVAILABLE';
       default:
         return status.toUpperCase();
     }
@@ -1460,7 +1460,7 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
     final statuses = [
       {'key': 'available', 'label': 'Available'},
       {'key': 'reserved', 'label': 'Reserved'},
-      {'key': 'maintenance', 'label': 'Under Maintenance'},
+      {'key': 'maintenance', 'label': 'Unavailable'},
     ];
 
     return Wrap(

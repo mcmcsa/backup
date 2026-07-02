@@ -104,7 +104,7 @@ class LoginActivityService {
   }
 
   static Future<void> recordLogin(AppUser user) async {
-    if (user.role != UserRole.admin) return;
+    if (user.role != UserRole.admin && user.role != UserRole.campadmin) return;
 
     await _append({
       'user_id': user.id,
@@ -123,7 +123,7 @@ class LoginActivityService {
     String? details,
     String? workRequestId,
   }) async {
-    if (user.role != UserRole.admin) return;
+    if (user.role != UserRole.admin && user.role != UserRole.campadmin) return;
 
     await _append({
       'user_id': user.id,
@@ -184,7 +184,7 @@ class LoginActivityService {
           .select(
             'user_id, user_name, role, event_type, title, details, work_request_id, logged_at',
           )
-          .eq('role', UserRole.admin.name);
+          .or('role.eq.${UserRole.admin.name},role.eq.${UserRole.campadmin.name}');
 
       if (userId != null && userId.trim().isNotEmpty) {
         query = query.eq('user_id', userId);
@@ -209,7 +209,9 @@ class LoginActivityService {
           (item) =>
               LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)),
         )
-        .where((log) => log.role == UserRole.admin.name)
+        .where((log) =>
+            log.role == UserRole.admin.name ||
+            log.role == UserRole.campadmin.name)
         .toList();
 
     final merged = <LoginActivity>[...dbLogs];

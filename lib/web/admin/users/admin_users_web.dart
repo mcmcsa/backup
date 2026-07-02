@@ -77,26 +77,32 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 900;
+
     return Container(
       color: _pageBg,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 16 : 32,
+          vertical: isMobile ? 16 : 32,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
             _buildHeader(),
-            const SizedBox(height: 24),
+            SizedBox(height: isMobile ? 20 : 24),
 
             // Search and Add button
-            _buildSearchAndActions(),
-            const SizedBox(height: 32),
+            _buildSearchAndActions(isMobile),
+            SizedBox(height: isMobile ? 20 : 32),
 
             // Users Table
             if (_isLoading)
               const Center(child: CircularProgressIndicator(color: _primaryBlue))
             else
-              _buildUsersTable(),
+              _buildUsersTable(isMobile),
           ],
         ),
       ),
@@ -126,54 +132,69 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
     );
   }
 
-  Widget _buildSearchAndActions() {
+  Widget _buildSearchAndActions(bool isMobile) {
+    final searchField = Container(
+      height: 48,
+      decoration: AdminStyles.cardDecoration(borderRadius: 14),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          hintText: 'Search users by name or email...',
+          hintStyle: AdminStyles.bodyStyle(color: Colors.grey.shade400, fontSize: 13),
+          prefixIcon: Padding(
+            padding: const EdgeInsets.only(left: 12, right: 8),
+            child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      ),
+    );
+
+    final actionButton = SizedBox(
+      height: 48,
+      width: isMobile ? double.infinity : null,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Add user feature')),
+          );
+        },
+        icon: const Icon(Icons.add_rounded, size: 20),
+        label: Text('NEW OPERATOR', style: AdminStyles.headingStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _primaryBlue,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+
+    if (isMobile) {
+      return Column(
+        children: [
+          searchField,
+          const SizedBox(height: 12),
+          actionButton,
+        ],
+      );
+    }
+
     return Row(
       children: [
         Expanded(
-          child: Container(
-            height: 48,
-            decoration: AdminStyles.cardDecoration(borderRadius: 14),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Search users by name or email...',
-                hintStyle: AdminStyles.bodyStyle(color: Colors.grey.shade400, fontSize: 13),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
-              ),
-            ),
-          ),
+          child: searchField,
         ),
         const SizedBox(width: 16),
-        Container(
-          height: 48,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Add user feature')),
-              );
-            },
-            icon: const Icon(Icons.add_rounded, size: 20),
-            label: Text('NEW OPERATOR', style: AdminStyles.headingStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryBlue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
+        actionButton,
       ],
     );
   }
 
-  Widget _buildUsersTable() {
+  Widget _buildUsersTable(bool isMobile) {
     final filtered = _filteredUsers;
 
     if (filtered.isEmpty) {
@@ -191,6 +212,86 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
             ),
           ],
         ),
+      );
+    }
+
+    if (isMobile) {
+      return ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: filtered.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final user = filtered[index];
+          final statusColor = user['status'] == 'Active' ? AdminStyles.success : AdminStyles.textMuted;
+          return Container(
+            decoration: AdminStyles.cardDecoration(borderRadius: 16),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        user['name'],
+                        style: AdminStyles.bodyStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AdminStyles.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: AdminStyles.pillDecoration(color: statusColor, isSecondary: true),
+                      child: Text(
+                        user['status'].toUpperCase(),
+                        style: AdminStyles.headingStyle(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  user['email'],
+                  style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Dept: ${user['department']}',
+                      style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                    ),
+                    TextButton(
+                      onPressed: () {},
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(50, 30),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        'EDIT',
+                        style: AdminStyles.headingStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: AdminStyles.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
       );
     }
 

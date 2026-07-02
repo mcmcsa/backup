@@ -142,13 +142,17 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
 
       if (user == null) {
         final errorMsg = authService.loginError ?? 'Invalid email or password';
-        throw Exception(errorMsg);
+        _showLoginError(_friendlyLoginError(errorMsg));
+        return;
       }
 
       final String statusText;
 
       switch (user.role.name) {
         case 'admin':
+          statusText = 'Loading System Admin Console...';
+          break;
+        case 'campadmin':
           statusText = 'Loading Admin Dashboard...';
           break;
         case 'teacher':
@@ -169,17 +173,36 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Verification Failed: ${e.toString()}'),
-          backgroundColor: const Color(0xFFE11D48),
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(20),
-        ),
-      );
+      _showLoginError(_friendlyLoginError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showLoginError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Verification Failed: $message'),
+        backgroundColor: const Color(0xFFE11D48),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(20),
+      ),
+    );
+  }
+
+  String _friendlyLoginError(Object error) {
+    final rawMessage = error.toString();
+    final normalized = rawMessage.toLowerCase();
+
+    if (normalized.contains('database error querying schema') ||
+        normalized.contains('unexpected_failure')) {
+      return 'The authentication database needs repair. Please apply the latest Supabase migration and try again.';
+    }
+
+    return rawMessage
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .replaceFirst(RegExp(r'^AuthException:\s*'), '');
   }
 
   @override

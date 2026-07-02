@@ -378,7 +378,11 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                 Expanded(
                   child: Container(
                     decoration: const BoxDecoration(color: _contentBg),
-                    child: _getCurrentPage(),
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1400),
+                      child: _getCurrentPage(),
+                    ),
                   ),
                 ),
               ],
@@ -398,7 +402,11 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                     Expanded(
                       child: Container(
                         decoration: const BoxDecoration(color: _contentBg),
-                        child: _getCurrentPage(),
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1400),
+                          child: _getCurrentPage(),
+                        ),
                       ),
                     ),
                   ],

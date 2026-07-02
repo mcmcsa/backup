@@ -123,7 +123,8 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     final authService = context.watch<AuthService>();
-    final isAdmin = authService.currentUser?.role == UserRole.admin;
+    final isAdmin = authService.currentUser?.role == UserRole.admin ||
+        authService.currentUser?.role == UserRole.campadmin;
 
     return Container(
       color: Colors.white,

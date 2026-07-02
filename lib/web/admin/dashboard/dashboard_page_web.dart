@@ -114,47 +114,52 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
                 horizontal: width < 900 ? 16 : 28,
                 vertical: 22,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 20),
-                  _buildStatCardsGrid(
-                    pendingCount,
-                    inProgressCount,
-                    highPriorityCount,
-                    completedCount,
-                  ),
-                  const SizedBox(height: 20),
-                  if (isCompact)
-                    Column(
-                      children: [
-                        _buildQuickInsightsCard(),
-                        const SizedBox(height: 16),
-                        _buildLatestRequestsCard(),
-                        const SizedBox(height: 16),
-                        _buildAgingTicketsCard(),
-                      ],
-                    )
-                  else
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 4,
-                          child: Column(
-                            children: [
-                              _buildQuickInsightsCard(),
-                              const SizedBox(height: 16),
-                              _buildAgingTicketsCard(),
-                            ],
-                          ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1400),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 20),
+                      _buildStatCardsGrid(
+                        pendingCount,
+                        inProgressCount,
+                        highPriorityCount,
+                        completedCount,
+                      ),
+                      const SizedBox(height: 20),
+                      if (isCompact)
+                        Column(
+                          children: [
+                            _buildQuickInsightsCard(),
+                            const SizedBox(height: 16),
+                            _buildLatestRequestsCard(),
+                            const SizedBox(height: 16),
+                            _buildAgingTicketsCard(),
+                          ],
+                        )
+                      else
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 4,
+                              child: Column(
+                                children: [
+                                  _buildQuickInsightsCard(),
+                                  const SizedBox(height: 16),
+                                  _buildAgingTicketsCard(),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(flex: 7, child: _buildLatestRequestsCard()),
+                          ],
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(flex: 7, child: _buildLatestRequestsCard()),
-                      ],
-                    ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
     );
@@ -257,9 +262,9 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final perRow = constraints.maxWidth > 1400
+        final perRow = constraints.maxWidth > 1024
             ? 4
-            : constraints.maxWidth > 900
+            : constraints.maxWidth > 600
                 ? 2
                 : 1;
         final cardWidth = (constraints.maxWidth - ((perRow - 1) * 12)) / perRow;

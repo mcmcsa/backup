@@ -31,6 +31,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   final String _userRole = 'Faculty';
   int _hoveredIndex = -1;
   bool _isUserMenuHovered = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // Professional color palette
   static const _sidebarBg = Color(0xFF0F172A);
@@ -187,32 +188,72 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _contentBg,
-      body: Row(
-        children: [
-          _buildSidebar(),
-          Expanded(
-            child: Column(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 1100;
+
+        if (isCompact) {
+          return Scaffold(
+            key: _scaffoldKey,
+            backgroundColor: _contentBg,
+            drawer: Drawer(
+              width: 280,
+              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+              child: _buildSidebar(width: 280, closeDrawerOnTap: true),
+            ),
+            body: Column(
               children: [
-                _buildHeader(),
+                _buildHeader(
+                  isCompact: true,
+                  onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+                ),
                 Expanded(
                   child: Container(
-                    color: _contentBg,
-                    child: _getCurrentPage(),
+                    decoration: const BoxDecoration(color: _contentBg),
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1400),
+                      child: _getCurrentPage(),
+                    ),
                   ),
                 ),
               ],
             ),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: _contentBg,
+          body: Row(
+            children: [
+              _buildSidebar(),
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildHeader(),
+                    Expanded(
+                      child: Container(
+                        color: _contentBg,
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1400),
+                          child: _getCurrentPage(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildSidebar() {
+  Widget _buildSidebar({double width = 260, bool closeDrawerOnTap = false}) {
     return Container(
-      width: 260,
+      width: width,
       decoration: const BoxDecoration(color: _sidebarBg),
       child: Column(
         children: [
@@ -242,20 +283,20 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ListView(
                 children: [
-                  _buildNavItem(index: 0, icon: Icons.dashboard_rounded, title: 'Dashboard'),
-                  _buildNavItem(index: 1, icon: Icons.assessment_rounded, title: 'Reports'),
-                  _buildNavItem(index: 2, icon: Icons.history_rounded, title: 'Logs'),
-                  _buildNavItem(index: 3, icon: Icons.qr_code_2_rounded, title: 'Scanner'),
+                  _buildNavItem(index: 0, icon: Icons.dashboard_rounded, title: 'Dashboard', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 1, icon: Icons.assessment_rounded, title: 'Reports', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 2, icon: Icons.history_rounded, title: 'Logs', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 3, icon: Icons.qr_code_2_rounded, title: 'Scanner', closeDrawerOnTap: closeDrawerOnTap),
                   const SizedBox(height: 24),
                   _buildSectionTitle('Account'),
-                  _buildNavItem(index: 4, icon: Icons.person_rounded, title: 'Profile'),
-                  _buildNavItem(index: 5, icon: Icons.archive_rounded, title: 'Archives'),
-                  _buildNavItem(index: 6, icon: Icons.settings_rounded, title: 'Settings'),
+                  _buildNavItem(index: 4, icon: Icons.person_rounded, title: 'Profile', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 5, icon: Icons.archive_rounded, title: 'Archives', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 6, icon: Icons.settings_rounded, title: 'Settings', closeDrawerOnTap: closeDrawerOnTap),
                   const SizedBox(height: 24),
                   _buildSectionTitle('Information'),
-                  _buildNavItem(index: 7, icon: Icons.info_rounded, title: 'About'),
-                  _buildNavItem(index: 8, icon: Icons.mail_rounded, title: 'Contact'),
-                  _buildNavItem(index: 9, icon: Icons.schema_rounded, title: 'Workflow'),
+                  _buildNavItem(index: 7, icon: Icons.info_rounded, title: 'About', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 8, icon: Icons.mail_rounded, title: 'Contact', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 9, icon: Icons.schema_rounded, title: 'Workflow', closeDrawerOnTap: closeDrawerOnTap),
                   const SizedBox(height: 32),
                   _buildCreateRequestButton(),
                 ],
@@ -305,7 +346,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
     );
   }
 
-  Widget _buildNavItem({required int index, required IconData icon, required String title, int badge = 0}) {
+  Widget _buildNavItem({required int index, required IconData icon, required String title, int badge = 0, bool closeDrawerOnTap = false}) {
     final isSelected = _selectedIndex == index;
     final isHovered = _hoveredIndex == index;
 
@@ -316,7 +357,12 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
         onExit: (_) => setState(() => _hoveredIndex = -1),
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
-          onTap: () => context.go(_routeForIndex(index)),
+          onTap: () {
+            context.go(_routeForIndex(index));
+            if (closeDrawerOnTap && Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -369,39 +415,54 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader({bool isCompact = false, VoidCallback? onMenuTap}) {
     return Container(
       height: 70,
       decoration: BoxDecoration(color: _headerBg, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))]),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 24),
       child: Row(
         children: [
-          Container(
-            width: 320,
-            height: 42,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.grey.shade300)),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search...',
-                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                filled: true,
-                fillColor: Colors.white,
-                prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          if (isCompact) ...[
+            IconButton(
+              onPressed: onMenuTap,
+              icon: const Icon(Icons.menu_rounded, color: AdminStyles.textPrimary),
+              tooltip: 'Open menu',
+            ),
+            const SizedBox(width: 4),
+          ],
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 320),
+                height: 42,
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.grey.shade300)),
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search...',
+                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
               ),
             ),
           ),
-          const Spacer(),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('TEACHER PORTAL', style: AdminStyles.headingStyle(fontSize: 13, letterSpacing: 0.5)),
-              Text(_userRole, style: AdminStyles.bodyStyle(fontSize: 12)),
-            ],
-          ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 12),
+          if (!isCompact) ...[
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('TEACHER PORTAL', style: AdminStyles.headingStyle(fontSize: 13, letterSpacing: 0.5)),
+                Text(_userRole, style: AdminStyles.bodyStyle(fontSize: 12)),
+              ],
+            ),
+            const SizedBox(width: 20),
+          ],
           _HeaderIconButton(icon: Icons.notifications_outlined, badge: 0, onTap: () {}),
           const SizedBox(width: 12),
           _buildUserAvatar(),

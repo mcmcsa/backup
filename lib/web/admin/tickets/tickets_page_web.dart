@@ -23,6 +23,7 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
   bool _isRefreshing = false;
   Timer? _autoRefreshTimer;
   int _loadSequence = 0;
+  bool _isGridView = true;
 
   // Professional color palette mapping
   static const Color _primaryBlue = AdminStyles.primary;
@@ -353,9 +354,17 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                       const SizedBox(height: 14),
                       SizedBox(width: double.infinity, child: _buildSearchBar(width: double.infinity)),
                       const SizedBox(height: 10),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: _buildRefreshButton(),
+                      Row(
+                        children: [
+                          _buildViewToggle(),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: _buildRefreshButton(),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   )
@@ -404,6 +413,8 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                         children: [
                           SizedBox(width: 220, child: _buildSearchBar(width: 220)),
                           const SizedBox(width: 12),
+                          _buildViewToggle(),
+                          const SizedBox(width: 12),
                           _buildRefreshButton(),
                         ],
                       ),
@@ -436,30 +447,43 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                 )
               : Padding(
                   padding: EdgeInsets.fromLTRB(isMobile ? 14 : 24, 0, isMobile ? 14 : 24, 24),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final crossAxisCount = constraints.maxWidth > 1400 
-                          ? 3 
-                          : constraints.maxWidth > 900 
-                              ? 2 
-                              : 1;
-                      
-                      return GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: crossAxisCount,
-                          crossAxisSpacing: 20,
-                          mainAxisSpacing: 20,
-                          mainAxisExtent: 260,
+                  child: _isGridView
+                      ? LayoutBuilder(
+                          builder: (context, constraints) {
+                            final crossAxisCount = constraints.maxWidth > 1400 
+                                ? 3 
+                                : constraints.maxWidth > 900 
+                                    ? 2 
+                                    : 1;
+                            
+                            return GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: 20,
+                                mainAxisSpacing: 20,
+                                mainAxisExtent: 260,
+                              ),
+                              itemCount: filteredRequests.length,
+                              itemBuilder: (context, index) {
+                                return _TicketCard(request: filteredRequests[index]);
+                              },
+                            );
+                          },
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: filteredRequests.length,
+                          separatorBuilder: (context, index) => const SizedBox(height: 16),
+                          itemBuilder: (context, index) {
+                            return SizedBox(
+                              height: 260,
+                              child: _TicketCard(request: filteredRequests[index]),
+                            );
+                          },
                         ),
-                        itemCount: filteredRequests.length,
-                        itemBuilder: (context, index) {
-                          return _TicketCard(request: filteredRequests[index]);
-                        },
-                      );
-                    },
-                  ),
                 ),
         ],
       ),
@@ -540,6 +564,99 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                 )
               : const Icon(Icons.refresh_rounded, color: _primaryBlue, size: 20),
         ),
+      ),
+    );
+  }
+
+  Widget _buildViewToggle() {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => setState(() => _isGridView = true),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _isGridView ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: _isGridView
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.grid_view_rounded,
+                    size: 16,
+                    color: _isGridView ? _primaryBlue : _subtleText,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Grid',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _isGridView ? _primaryBlue : _subtleText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 2),
+          GestureDetector(
+            onTap: () => setState(() => _isGridView = false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: !_isGridView ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: !_isGridView
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.list_rounded,
+                    size: 16,
+                    color: !_isGridView ? _primaryBlue : _subtleText,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'List',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: !_isGridView ? _primaryBlue : _subtleText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

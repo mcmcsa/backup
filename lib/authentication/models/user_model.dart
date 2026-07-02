@@ -1,4 +1,4 @@
-enum UserRole { admin, teacher, maintenance }
+enum UserRole { admin, campadmin, teacher, maintenance }
 
 class AppUser {
   final String id;
@@ -88,6 +88,10 @@ class AppUser {
     switch (roleString) {
       case 'admin':
         return UserRole.admin;
+      case 'campadmin':
+      case 'camp_admin':
+      case 'campus_admin':
+        return UserRole.campadmin;
       case 'teacher':
         return UserRole.teacher;
       case 'maintenance':
@@ -100,7 +104,9 @@ class AppUser {
   String get roleLabel {
     switch (role) {
       case UserRole.admin:
-        return 'Administrator';
+        return 'System Administrator';
+      case UserRole.campadmin:
+        return 'Campus Administrator';
       case UserRole.teacher:
         return 'Teacher';
       case UserRole.maintenance:
@@ -111,6 +117,8 @@ class AppUser {
   String get dashboardRoute {
     switch (role) {
       case UserRole.admin:
+        return '/system-admin/dashboard';
+      case UserRole.campadmin:
         return '/admin/dashboard';
       case UserRole.teacher:
         return '/teacher/dashboard';

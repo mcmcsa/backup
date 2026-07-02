@@ -21,6 +21,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   final String _userRole = 'Staff';
   int _hoveredIndex = -1;
   bool _isUserMenuHovered = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   // Professional color palette - Slate theme for maintenance
   static const _sidebarBg = Color(0xFF1E293B); // Dark slate sidebar
@@ -187,38 +188,78 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _contentBg,
-      body: Row(
-        children: [
-          // Dark Sidebar
-          _buildSidebar(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 1100;
 
-          // Main Content Area
-          Expanded(
-            child: Column(
+        if (isCompact) {
+          return Scaffold(
+            key: _scaffoldKey,
+            backgroundColor: _contentBg,
+            drawer: Drawer(
+              width: 260,
+              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+              child: _buildSidebar(width: 260, closeDrawerOnTap: true),
+            ),
+            body: Column(
               children: [
-                // Header Bar
-                _buildHeader(),
-
-                // Page Content
+                _buildHeader(
+                  isCompact: true,
+                  onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+                ),
                 Expanded(
                   child: Container(
-                    color: _contentBg,
-                    child: _getCurrentPage(),
+                    decoration: const BoxDecoration(color: _contentBg),
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1400),
+                      child: _getCurrentPage(),
+                    ),
                   ),
                 ),
               ],
             ),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: _contentBg,
+          body: Row(
+            children: [
+              // Dark Sidebar
+              _buildSidebar(),
+
+              // Main Content Area
+              Expanded(
+                child: Column(
+                  children: [
+                    // Header Bar
+                    _buildHeader(),
+
+                    // Page Content
+                    Expanded(
+                      child: Container(
+                        color: _contentBg,
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1400),
+                          child: _getCurrentPage(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildSidebar() {
+  Widget _buildSidebar({double width = 240, bool closeDrawerOnTap = false}) {
     return Container(
-      width: 240,
+      width: width,
       decoration: const BoxDecoration(
         color: _sidebarBg,
       ),
@@ -279,16 +320,19 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                   index: 0,
                   icon: Icons.home_repair_service_rounded,
                   title: 'Dashboard',
+                  closeDrawerOnTap: closeDrawerOnTap,
                 ),
                 _buildNavItem(
                   index: 1,
                   icon: Icons.assignment_rounded,
                   title: 'Reports',
+                  closeDrawerOnTap: closeDrawerOnTap,
                 ),
                 _buildNavItem(
                   index: 2,
                   icon: Icons.history_rounded,
                   title: 'History',
+                  closeDrawerOnTap: closeDrawerOnTap,
                 ),
                 const SizedBox(height: 12),
                 Padding(
@@ -310,6 +354,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                   index: 3,
                   icon: Icons.person_rounded,
                   title: 'Profile',
+                  closeDrawerOnTap: closeDrawerOnTap,
                 ),
               ],
             ),
@@ -334,6 +379,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
     required IconData icon,
     required String title,
     int badge = 0,
+    bool closeDrawerOnTap = false,
   }) {
     final isSelected = _selectedIndex == index;
     final isHovered = _hoveredIndex == index;
@@ -345,7 +391,12 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
         onExit: (_) => setState(() => _hoveredIndex = -1),
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
-          onTap: () => setState(() => _selectedIndex = index),
+          onTap: () {
+            setState(() => _selectedIndex = index);
+            if (closeDrawerOnTap && Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
+          },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -440,7 +491,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader({bool isCompact = false, VoidCallback? onMenuTap}) {
     return Container(
       height: 70,
       decoration: BoxDecoration(
@@ -453,73 +504,87 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 24),
       child: Row(
         children: [
-          // Search Bar
-          Container(
-            width: 320,
-            height: 42,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.grey.shade300),
+          if (isCompact) ...[
+            IconButton(
+              onPressed: onMenuTap,
+              icon: const Icon(Icons.menu_rounded, color: Color(0xFF1E293B)),
+              tooltip: 'Open menu',
             ),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search requests...',
-                hintStyle: TextStyle(
-                  color: Colors.grey.shade400,
-                  fontSize: 14,
+            const SizedBox(width: 4),
+          ],
+          // Search Bar
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 320),
+                height: 42,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.grey.shade300),
                 ),
-                filled: true,
-                fillColor: Colors.white,
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: Icon(
-                    Icons.search_rounded,
-                    color: Colors.grey.shade400,
-                    size: 20,
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: 'Search requests...',
+                    hintStyle: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontSize: 14,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.only(left: 12, right: 8),
+                      child: Icon(
+                        Icons.search_rounded,
+                        color: Colors.grey.shade400,
+                        size: 20,
+                      ),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                 ),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 44,
-                  minHeight: 44,
-                ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),
             ),
           ),
 
-          const Spacer(),
+          const SizedBox(width: 12),
 
-          // USER ROLE section
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text(
-                'MAINTENANCE STAFF',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1E293B),
-                  letterSpacing: 0.5,
+          if (!isCompact) ...[
+            // USER ROLE section
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Text(
+                  'MAINTENANCE STAFF',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                    letterSpacing: 0.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _userRole,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF64748B),
+                const SizedBox(height: 2),
+                Text(
+                  _userRole,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                  ),
                 ),
-              ),
-            ],
-          ),
-
-          const SizedBox(width: 20),
+              ],
+            ),
+            const SizedBox(width: 20),
+          ],
 
           // Notification Bell
           _HeaderIconButton(
@@ -536,7 +601,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
             onExit: (_) => setState(() => _isUserMenuHovered = false),
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
-              onTap: () => setState(() => _selectedIndex = 1),
+              onTap: () => setState(() => _selectedIndex = 3),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.all(3),
