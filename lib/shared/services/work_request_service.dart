@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../models/work_request_model.dart';
 
 class WorkRequestService {
@@ -25,12 +27,39 @@ class WorkRequestService {
     return _uuid.v4();
   }
 
+  static const String _cacheKey = 'work_requests_cache';
+
   static Future<List<WorkRequest>> fetchAll() async {
-    final data = await _db
-        .from(_table)
-        .select(_selectWithRelations)
-        .order('date_submitted', ascending: false);
-    return (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+    try {
+      final data = await _db
+          .from(_table)
+          .select(_selectWithRelations)
+          .order('date_submitted', ascending: false);
+      
+      final results = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+      
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final jsonList = results.map((r) => r.toMap()).toList();
+        await prefs.setString(_cacheKey, json.encode(jsonList));
+      } catch (e) {
+        // Ignore cache save errors
+      }
+      
+      return results;
+    } catch (e) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cached = prefs.getString(_cacheKey);
+        if (cached != null) {
+          final List decoded = json.decode(cached);
+          return decoded.map((e) => WorkRequest.fromMap(e as Map<String, dynamic>)).toList();
+        }
+      } catch (cacheError) {
+        // Ignore cache read errors
+      }
+      rethrow;
+    }
   }
 
   static Future<List<WorkRequest>> fetchByStatus(String status) async {
@@ -295,7 +324,7 @@ class WorkRequestService {
   /// Get count by status
   static Future<int> getCountByStatus(String status) async {
     final data = await _db.from(_table).select('id').eq('status', status);
-    return (data as List).length;
+    return (data as List?)?.length ?? 0;
   }
 
   /// Get under maintenance count
@@ -333,7 +362,7 @@ class WorkRequestService {
   // Analytics methods
   static Future<int> getPendingCount() async {
     final data = await _db.from(_table).select('id').eq('status', 'pending');
-    return (data as List).length;
+    return (data as List?)?.length ?? 0;
   }
 
   static Future<int> getOngoingCount() async {
@@ -341,17 +370,17 @@ class WorkRequestService {
         .from(_table)
         .select('id')
         .eq('status', 'in_progress');
-    return (data as List).length;
+    return (data as List?)?.length ?? 0;
   }
 
   static Future<int> getCompletedCount() async {
     final data = await _db.from(_table).select('id').eq('status', 'completed');
-    return (data as List).length;
+    return (data as List?)?.length ?? 0;
   }
 
   static Future<int> getHighPriorityCount() async {
     final data = await _db.from(_table).select('id').eq('priority', 'high');
-    return (data as List).length;
+    return (data as List?)?.length ?? 0;
   }
 
   /// Set up real-time listener for all work request changes

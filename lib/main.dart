@@ -7,6 +7,9 @@ import 'authentication/services/auth_service.dart';
 import 'config/supabase_config.dart';
 import 'router/app_router.dart';
 import 'shared/providers/theme_provider.dart';
+import 'shared/providers/work_request_provider.dart';
+import 'shared/providers/room_provider.dart';
+import 'shared/providers/user_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +51,9 @@ class _MyAppState extends State<MyApp> {
   late final AuthService _authService;
   late final ThemeProvider _themeProvider;
   late final GoRouter _router;
+  late final WorkRequestProvider _workRequestProvider;
+  late final RoomProvider _roomProvider;
+  late final UserProvider _userProvider;
 
   @override
   void initState() {
@@ -56,6 +62,9 @@ class _MyAppState extends State<MyApp> {
       restoreSessionOnStartup: true,
     );
     _themeProvider = ThemeProvider();
+    _workRequestProvider = WorkRequestProvider();
+    _roomProvider = RoomProvider();
+    _userProvider = UserProvider();
     _router = buildAppRouter(_authService);
   }
 
@@ -63,6 +72,9 @@ class _MyAppState extends State<MyApp> {
   void dispose() {
     _authService.dispose();
     _themeProvider.dispose();
+    _workRequestProvider.dispose();
+    _roomProvider.dispose();
+    _userProvider.dispose();
     super.dispose();
   }
 
@@ -72,6 +84,9 @@ class _MyAppState extends State<MyApp> {
       providers: [
         ChangeNotifierProvider<AuthService>.value(value: _authService),
         ChangeNotifierProvider<ThemeProvider>.value(value: _themeProvider),
+        ChangeNotifierProvider<WorkRequestProvider>.value(value: _workRequestProvider),
+        ChangeNotifierProvider<RoomProvider>.value(value: _roomProvider),
+        ChangeNotifierProvider<UserProvider>.value(value: _userProvider),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
@@ -86,5 +101,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-
-

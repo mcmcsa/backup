@@ -391,7 +391,7 @@ class _AdminApprovalSignaturePageState
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF4169E1).withOpacity(0.1),
+                      color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -436,9 +436,9 @@ class _AdminApprovalSignaturePageState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF059669).withOpacity(0.1),
+        color: const Color(0xFF059669).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF059669).withOpacity(0.3)),
+        border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [

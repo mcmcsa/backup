@@ -31,6 +31,8 @@ import '../web/teacher/menu/teacher_settings_web.dart';
 import '../web/teacher/menu/teacher_workflow_web.dart';
 import 'package:psu_maintsystem/web/teacher/reports/teacher_create_request_web.dart';
 import 'package:psu_maintsystem/web/teacher/reports/teacher_work_process_web.dart';
+import 'package:psu_maintsystem/web/admin/tickets/admin_create_request_web.dart';
+import 'package:psu_maintsystem/web/teacher/reports/teacher_request_success_web.dart';
 import '../web/teacher/teacher_navigation_web.dart' as web_teacher;
 import '../web/system_admin/system_admin_main_navigation_web.dart' as web_sysadmin;
 import '../mobile/system_admin/system_admin_main_navigation.dart' as mobile_sysadmin;
@@ -286,6 +288,14 @@ GoRouter buildAppRouter(AuthService authService) {
         path: '/work-request-success',
         builder: (context, state) {
           final args = state.extra as Map<String, dynamic>?;
+          if (kIsWeb) {
+            return TeacherRequestSuccessWeb(
+              trackingNumber: args?['trackingNumber'] ?? '',
+              location: args?['location'] ?? '',
+              severity: args?['severity'] ?? '',
+              reportedDate: args?['reportedDate'] ?? DateTime.now(),
+            );
+          }
           return WorkRequestSuccessPage(
             trackingNumber: args?['trackingNumber'] ?? '',
             location: args?['location'] ?? '',
@@ -318,6 +328,17 @@ GoRouter buildAppRouter(AuthService authService) {
         builder: (context, state) {
           final args = state.extra as Map<String, dynamic>?;
           return TeacherCreateRequestWeb(
+            roomId: args?['roomId'],
+            roomName: args?['roomName'],
+            buildingName: args?['buildingName'],
+          );
+        },
+      ),
+      GoRoute(
+        path: '/admin/work-requests/create',
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>?;
+          return AdminCreateRequestWeb(
             roomId: args?['roomId'],
             roomName: args?['roomName'],
             buildingName: args?['buildingName'],

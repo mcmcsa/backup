@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../task/task_details_page.dart';
@@ -590,7 +590,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: (item['categoryColor'] as Color).withOpacity(0.1),
+                      color: (item['categoryColor'] as Color).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -628,7 +628,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: (item['statusColor'] as Color).withOpacity(0.1),
+                      color: (item['statusColor'] as Color).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -696,7 +696,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getPriorityColor(item['priority']).withOpacity(0.1),
+                      color: _getPriorityColor(item['priority']).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(

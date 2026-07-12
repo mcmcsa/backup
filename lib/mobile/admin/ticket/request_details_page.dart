@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -631,7 +631,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                               'This request is currently ongoing. Please wait for completion & do not exceed before finalizing',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFF8B5CF6).withOpacity(0.8),
+                                color: Color(0xFF8B5CF6).withValues(alpha: 0.8),
                                 height: 1.4,
                               ),
                             ),
@@ -1179,7 +1179,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                                 decoration: BoxDecoration(
                                   color: const Color(
                                     0xFF4169E1,
-                                  ).withOpacity(0.1),
+                                  ).withValues(alpha: 0.1),
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
@@ -1449,7 +1449,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4169E1).withOpacity(0.1),
+                    color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Center(

@@ -186,7 +186,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00BFA5).withOpacity(0.1),
+                    color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.camera_alt, color: Color(0xFF00BFA5)),
@@ -212,7 +212,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00BFA5).withOpacity(0.1),
+                    color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.photo_library, color: Color(0xFF00BFA5)),
@@ -241,7 +241,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
+                      color: Colors.red.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.delete, color: Colors.red),
@@ -286,14 +286,14 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [themeProvider.primaryColor, themeProvider.primaryColor.withOpacity(0.8)],
+                      colors: [themeProvider.primaryColor, themeProvider.primaryColor.withValues(alpha: 0.8)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: themeProvider.primaryColor.withOpacity(0.3),
+                        color: themeProvider.primaryColor.withValues(alpha: 0.3),
                         blurRadius: 15,
                         offset: const Offset(0, 5),
                       ),
@@ -328,7 +328,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                                   labelText: 'Bio',
                                   labelStyle: TextStyle(color: themeProvider.subtitleColor),
                                   hintText: 'Tell us about yourself...',
-                                  hintStyle: TextStyle(color: themeProvider.subtitleColor.withOpacity(0.6)),
+                                  hintStyle: TextStyle(color: themeProvider.subtitleColor.withValues(alpha: 0.6)),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -344,7 +344,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: _bioController.text.isEmpty 
-                                      ? themeProvider.subtitleColor.withOpacity(0.6)
+                                      ? themeProvider.subtitleColor.withValues(alpha: 0.6)
                                       : themeProvider.subtitleColor,
                                   height: 1.5,
                                 ),
@@ -387,7 +387,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                                   labelText: 'Birthday',
                                   labelStyle: TextStyle(color: themeProvider.subtitleColor),
                                   hintText: 'MM/DD/YYYY',
-                                  hintStyle: TextStyle(color: themeProvider.subtitleColor.withOpacity(0.6)),
+                                  hintStyle: TextStyle(color: themeProvider.subtitleColor.withValues(alpha: 0.6)),
                                   prefixIcon: Icon(Icons.cake, color: themeProvider.subtitleColor),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -442,7 +442,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     blurRadius: 20,
                     offset: const Offset(0, 8),
                   ),
@@ -465,7 +465,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                           height: 112,
                           errorBuilder:
                               (_, __, ___) => Container(
-                                color: themeProvider.primaryColor.withOpacity(
+                                color: themeProvider.primaryColor.withValues(alpha: 
                                   0.2,
                                 ),
                                 child: Icon(
@@ -476,7 +476,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                               ),
                         )
                         : Container(
-                          color: themeProvider.primaryColor.withOpacity(0.2),
+                          color: themeProvider.primaryColor.withValues(alpha: 0.2),
                           child: Icon(
                             Icons.person,
                             size: 60,
@@ -498,7 +498,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: 0.2),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -542,10 +542,10 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
+            color: Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -785,7 +785,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 borderRadius: BorderRadius.circular(12),
               ),
               filled: true,
-              fillColor: themeProvider.isDarkMode ? themeProvider.cardColor.withOpacity(0.5) : Colors.grey.shade100,
+              fillColor: themeProvider.isDarkMode ? themeProvider.cardColor.withValues(alpha: 0.5) : Colors.grey.shade100,
             ),
           ),
           const SizedBox(height: 12),
@@ -864,7 +864,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(themeProvider.isDarkMode ? 0.3 : 0.05),
+            color: Colors.black.withValues(alpha: themeProvider.isDarkMode ? 0.3 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -880,7 +880,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: themeProvider.primaryColor.withOpacity(0.1),
+                    color: themeProvider.primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -921,7 +921,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: themeProvider.primaryColor.withOpacity(0.1),
+            color: themeProvider.primaryColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
@@ -948,7 +948,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 value,
                 style: TextStyle(
                   fontSize: 14,
-                  color: isEmpty ? themeProvider.subtitleColor.withOpacity(0.6) : themeProvider.textColor,
+                  color: isEmpty ? themeProvider.subtitleColor.withValues(alpha: 0.6) : themeProvider.textColor,
                   fontWeight: FontWeight.w600,
                 ),
               ),

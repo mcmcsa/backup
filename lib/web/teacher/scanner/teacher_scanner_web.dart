@@ -25,7 +25,7 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
     });
 
     try {
-      final room = await RoomService.fetchByIdOrRoomNumber(code);
+      final room = await RoomService.fetchByCode(code);
       if (room != null) {
         if (mounted) {
           context.go('/teacher/create-request', extra: {
@@ -59,7 +59,7 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
               Container(
                 width: 80,
                 height: 80,
-                decoration: BoxDecoration(color: AdminStyles.primary.withOpacity(0.1), shape: BoxShape.circle),
+                decoration: BoxDecoration(color: AdminStyles.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
                 child: const Icon(Icons.qr_code_scanner_rounded, color: AdminStyles.primary, size: 40),
               ),
               const SizedBox(height: 24),

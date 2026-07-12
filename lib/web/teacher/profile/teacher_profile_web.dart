@@ -204,7 +204,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(
-            color: AdminStyles.primary.withOpacity(0.3),
+            color: AdminStyles.primary.withValues(alpha: 0.3),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -309,7 +309,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
             fillColor: enabled ? Colors.white : AdminStyles.bg,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AdminStyles.border)),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AdminStyles.border)),
-            disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AdminStyles.border.withOpacity(0.5))),
+            disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AdminStyles.border.withValues(alpha: 0.5))),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
         ),
@@ -342,7 +342,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
             child: Icon(icon, color: color, size: 18),
           ),
           const SizedBox(width: 16),

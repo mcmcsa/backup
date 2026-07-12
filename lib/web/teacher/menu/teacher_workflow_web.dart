@@ -68,7 +68,7 @@ class TeacherSystemWorkflowWeb extends StatelessWidget {
               Container(
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle, border: Border.all(color: color.withOpacity(0.3), width: 2)),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle, border: Border.all(color: color.withValues(alpha: 0.3), width: 2)),
                 child: Center(child: Text('$number', style: AdminStyles.headingStyle(fontSize: 18, color: color))),
               ),
               if (!isLast)

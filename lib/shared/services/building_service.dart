@@ -7,6 +7,8 @@ class BuildingService {
   static const String _table = 'buildings';
   static const String _selectWithJoins = '*, departments(name)';
 
+  // ─── Fetch ──────────────────────────────────────────────────────────────
+
   static Future<List<Building>> fetchAll() async {
     final data = await _db.from(_table).select(_selectWithJoins).order('name', ascending: true);
     return (data as List).map((e) => Building.fromMap(e)).toList();
@@ -48,6 +50,52 @@ class BuildingService {
     return Building.fromMap(data);
   }
 
+  // ─── Create ──────────────────────────────────────────────────────────────
+
+  static Future<String?> create({
+    required String name,
+    required String code,
+    required String departmentId,
+    required int numberOfFloors,
+  }) async {
+    try {
+      // Duplicate check for name or code
+      final existingName = await _db
+          .from(_table)
+          .select('id')
+          .ilike('name', name.trim())
+          .maybeSingle();
+      if (existingName != null) return 'A building named "$name" already exists.';
+
+      final existingCode = await _db
+          .from(_table)
+          .select('id')
+          .ilike('code', code.trim())
+          .maybeSingle();
+      if (existingCode != null) return 'A building with code "$code" already exists.';
+
+      final now = DateTime.now().toIso8601String();
+      await _db.from(_table).insert({
+        'name': name.trim(),
+        'code': code.trim().toUpperCase(),
+        if (departmentId.isNotEmpty) 'department_id': departmentId,
+        'number_of_floors': numberOfFloors,
+        'is_active': true,
+        'created_at': now,
+        'updated_at': now,
+      });
+
+      await AdminAuditLogService.logAction(
+        title: 'Created Building',
+        details: 'Building: $name ($code)',
+      );
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  // Legacy
   static Future<void> insert(Building building) async {
     await _db.from(_table).insert(building.toMap());
     await AdminAuditLogService.logAction(
@@ -56,6 +104,53 @@ class BuildingService {
     );
   }
 
+  // ─── Update ──────────────────────────────────────────────────────────────
+
+  static Future<String?> updateBuilding({
+    required String id,
+    required String name,
+    required String code,
+    required String departmentId,
+    required int numberOfFloors,
+    required bool isActive,
+    required List<Building> allBuildings,
+  }) async {
+    try {
+      // Duplicate checks — ignore self
+      final duplicateName = allBuildings.any(
+        (b) =>
+            b.id != id &&
+            b.name.trim().toLowerCase() == name.trim().toLowerCase(),
+      );
+      if (duplicateName) return 'A building named "$name" already exists.';
+
+      final duplicateCode = allBuildings.any(
+        (b) =>
+            b.id != id &&
+            b.code.trim().toLowerCase() == code.trim().toLowerCase(),
+      );
+      if (duplicateCode) return 'A building with code "$code" already exists.';
+
+      await _db.from(_table).update({
+        'name': name.trim(),
+        'code': code.trim().toUpperCase(),
+        'department_id': departmentId.isNotEmpty ? departmentId : null,
+        'number_of_floors': numberOfFloors,
+        'is_active': isActive,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', id);
+
+      await AdminAuditLogService.logAction(
+        title: 'Updated Building',
+        details: 'Building: $name ($code)',
+      );
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  // Legacy update
   static Future<void> update(Building building) async {
     await _db.from(_table).update(building.toMap()).eq('id', building.id);
     await AdminAuditLogService.logAction(
@@ -64,6 +159,41 @@ class BuildingService {
     );
   }
 
+  // ─── Toggle active ────────────────────────────────────────────────────────
+
+  static Future<String?> setActive(String id, {required bool active}) async {
+    try {
+      await _db.from(_table).update({
+        'is_active': active,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', id);
+
+      await AdminAuditLogService.logAction(
+        title: active ? 'Restored Building' : 'Disabled Building',
+        details: 'Building ID: $id',
+      );
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  // ─── Delete ──────────────────────────────────────────────────────────────
+
+  static Future<String?> deleteBuilding(String id, String name) async {
+    try {
+      await _db.from(_table).delete().eq('id', id);
+      await AdminAuditLogService.logAction(
+        title: 'Deleted Building',
+        details: 'Building: $name (ID: $id)',
+      );
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  // Legacy delete
   static Future<void> delete(String id) async {
     await _db.from(_table).delete().eq('id', id);
     await AdminAuditLogService.logAction(
@@ -72,7 +202,8 @@ class BuildingService {
     );
   }
 
-  /// Find a building by name, or create it if it doesn't exist.
+  // ─── Find or create ───────────────────────────────────────────────────────
+
   static Future<Building> findOrCreateByName(String name) async {
     final data = await _db
         .from(_table)
@@ -86,6 +217,8 @@ class BuildingService {
     final newBuilding = {
       'name': name,
       'code': '${code.substring(0, code.length > 10 ? 10 : code.length)}_${now.millisecondsSinceEpoch % 10000}',
+      'number_of_floors': 1,
+      'is_active': true,
       'created_at': now.toIso8601String(),
       'updated_at': now.toIso8601String(),
     };

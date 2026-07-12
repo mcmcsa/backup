@@ -119,7 +119,7 @@ class _MaintenanceProfileWebState extends State<MaintenanceProfileWeb> {
                 'This profile shows the maintenance account details originally created by the admin, and you can update them here.',
                 style: TextStyle(
                   fontSize: 15,
-                  color: _subtleText.withOpacity(0.8),
+                  color: _subtleText.withValues(alpha: 0.8),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -153,7 +153,7 @@ class _MaintenanceProfileWebState extends State<MaintenanceProfileWeb> {
         border: Border.all(color: _borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -175,7 +175,7 @@ class _MaintenanceProfileWebState extends State<MaintenanceProfileWeb> {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: _primaryBlue.withOpacity(0.3),
+                    color: _primaryBlue.withValues(alpha: 0.3),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
@@ -279,7 +279,7 @@ class _MaintenanceProfileWebState extends State<MaintenanceProfileWeb> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: _primaryBlue.withOpacity(0.1),
+        color: _primaryBlue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -452,7 +452,7 @@ class _MaintenanceProfileWebState extends State<MaintenanceProfileWeb> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(

@@ -41,7 +41,7 @@ class ThemeProvider extends ChangeNotifier {
   Color get drawerTextColor => Colors.white;
   
   // Shadow color
-  Color get shadowColor => _isDarkMode ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.08);
+  Color get shadowColor => _isDarkMode ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.08);
 
   ThemeData get themeData {
     return ThemeData(
@@ -63,6 +63,12 @@ class ThemeProvider extends ChangeNotifier {
           fontSize: 20,
           fontWeight: FontWeight.bold,
         ),
+      ),
+      
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: primaryColor,
+        selectionColor: primaryColor.withValues(alpha: 0.3),
+        selectionHandleColor: primaryColor,
       ),
       
       cardTheme: CardThemeData(

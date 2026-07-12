@@ -1,4 +1,4 @@
-﻿class WorkRequest {
+class WorkRequest {
   final String id;
   final String title;
   final String description;
@@ -27,6 +27,7 @@
   final String? assignedToId;
   final String? workEvidence;
   final String? maintenanceNotes;
+  final List<String>? attachmentUrls;
   // New workflow fields
   final String? acceptedById;
   final String? acceptedByName;
@@ -68,6 +69,7 @@
     this.assignedToId,
     this.workEvidence,
     this.maintenanceNotes,
+    this.attachmentUrls,
     this.acceptedById,
     this.acceptedByName,
     this.acceptedDate,
@@ -125,6 +127,9 @@
       assignedToId: map['assigned_to_id'],
       workEvidence: map['work_evidence'],
       maintenanceNotes: map['maintenance_notes'],
+      attachmentUrls: map['attachment_urls'] != null 
+          ? List<String>.from(map['attachment_urls'])
+          : null,
       acceptedById:
           map['accepted_by_id'] ??
           ((map['accepted_date'] != null) ? map['assigned_to_id'] : null),
@@ -179,6 +184,7 @@
       'accepted_date': acceptedDate?.toIso8601String(),
       'maintenance_start_time': maintenanceStartTime?.toIso8601String(),
       'maintenance_end_time': maintenanceEndTime?.toIso8601String(),
+      'attachment_urls': attachmentUrls,
       'rework_count': reworkCount,
       'rework_notes': reworkNotes,
       // Don't include created_at on INSERT - database provides default
@@ -213,6 +219,7 @@
     String? assignedToId,
     String? workEvidence,
     String? maintenanceNotes,
+    List<String>? attachmentUrls,
     String? acceptedById,
     String? acceptedByName,
     DateTime? acceptedDate,
@@ -253,6 +260,7 @@
       assignedToId: assignedToId ?? this.assignedToId,
       workEvidence: workEvidence ?? this.workEvidence,
       maintenanceNotes: maintenanceNotes ?? this.maintenanceNotes,
+      attachmentUrls: attachmentUrls ?? this.attachmentUrls,
       acceptedById: acceptedById ?? this.acceptedById,
       acceptedByName: acceptedByName ?? this.acceptedByName,
       acceptedDate: acceptedDate ?? this.acceptedDate,

@@ -719,19 +719,41 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
               await _navigateTo(AdminApprovalSignatureWeb(request: _request!));
             }),
           ],
-          if (_preInspection != null && _preInspection!.status == 'submitted') ...[
-            _buildActionButton('Review Pre-Inspection', Icons.fact_check_rounded, AdminStyles.warning, () async {
-              await _navigateTo(AdminPreInspectionReviewWeb(request: _request!));
-            }),
+          if (_preInspection != null) ...[
+            if (_preInspection!.status == 'submitted')
+              _buildActionButton('Review Pre-Inspection', Icons.fact_check_rounded, AdminStyles.warning, () async {
+                await _navigateTo(AdminPreInspectionReviewWeb(request: _request!));
+              })
+            else
+              _buildActionButton('View Pre-Inspection', Icons.visibility_rounded, AdminStyles.primary.withValues(alpha: 0.8), () async {
+                await _navigateTo(AdminPreInspectionReviewWeb(request: _request!));
+              }),
           ],
-          if (_postRepair != null && _postRepair!.status == 'submitted') ...[
-            _buildActionButton('Evaluate Post-Repair', Icons.rate_review_rounded, AdminStyles.success, () async {
-              await _navigateTo(AdminPostRepairEvaluationWeb(request: _request!));
-            }),
+          if (_postRepair != null) ...[
+            if (_postRepair!.status == 'submitted')
+              _buildActionButton('Evaluate Post-Repair', Icons.rate_review_rounded, AdminStyles.success, () async {
+                await _navigateTo(AdminPostRepairEvaluationWeb(request: _request!));
+              })
+            else
+              _buildActionButton('View Post-Repair', Icons.visibility_rounded, AdminStyles.primary.withValues(alpha: 0.8), () async {
+                await _navigateTo(AdminPostRepairEvaluationWeb(request: _request!));
+              }),
           ],
           if (status == 'completed') ...[
-            Text('This request has been successfully closed.', style: AdminStyles.bodyStyle(color: AdminStyles.success, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: AdminStyles.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_rounded, color: AdminStyles.success),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text('This request has been successfully closed.', style: AdminStyles.bodyStyle(color: AdminStyles.success, fontWeight: FontWeight.bold))),
+                ],
+              ),
+            ),
           ] else if (status != 'pending' && !(_preInspection != null && _preInspection!.status == 'submitted') && !(_postRepair != null && _postRepair!.status == 'submitted')) ...[
+            const SizedBox(height: 12),
             Text('No administrative actions required at this stage.', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
           ],
         ],

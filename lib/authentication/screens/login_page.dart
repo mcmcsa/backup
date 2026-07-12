@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
-import 'faculty_register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -376,36 +375,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
 
-                            const SizedBox(height: 16),
-                            OutlinedButton(
-                              onPressed: isLoading
-                                  ? null
-                                  : () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              const FacultyRegisterPage(),
-                                        ),
-                                      );
-                                    },
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size(double.infinity, 48),
-                                side: const BorderSide(
-                                  color: Color(0xFF0F766E),
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'Register',
-                                style: TextStyle(
-                                  color: Color(0xFF0F766E),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
+
 
                             const SizedBox(height: 40),
 

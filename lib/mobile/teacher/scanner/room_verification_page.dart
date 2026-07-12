@@ -62,7 +62,7 @@ class RoomVerificationPage extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00BFA5).withOpacity(0.15),
+                  color: const Color(0xFF00BFA5).withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -82,7 +82,7 @@ class RoomVerificationPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -113,7 +113,7 @@ class RoomVerificationPage extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF00BFA5).withOpacity(0.1),
+                          color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Icon(
@@ -150,7 +150,7 @@ class RoomVerificationPage extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: _statusColor(room?.status ?? 'available').withOpacity(0.15),
+                          color: _statusColor(room?.status ?? 'available').withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(

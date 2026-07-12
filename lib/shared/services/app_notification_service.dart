@@ -284,6 +284,6 @@ class AppNotificationService {
         .select('id')
         .eq('is_read', false)
         .or(_visibilityFilter(normalizedRole: normalizedRole, userId: userId));
-    return (data as List).length;
+    return (data as List?)?.length ?? 0;
   }
 }

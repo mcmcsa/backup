@@ -1,21 +1,32 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
-import '../shared/admin_app_bar.dart';
+import '../../../shared/models/room_model.dart';
+import '../../../shared/services/room_service.dart';
+import 'dart:math' as math;
+import '../../../web/admin/shared/admin_styles.dart';
 
 class AnalyticsPage extends StatefulWidget {
-  final VoidCallback openDrawer;
-  
-  const AnalyticsPage({super.key, required this.openDrawer});
+  const AnalyticsPage({super.key});
 
   @override
   State<AnalyticsPage> createState() => _AnalyticsPageState();
 }
 
 class _AnalyticsPageState extends State<AnalyticsPage> {
-  int _selectedPeriod = 1; // 0: Last 30 Days, 1: Quarterly, 2: Yearly
-  List<WorkRequest> _allRequests = [];
+  List<WorkRequest> _requests = [];
+  List<Room> _rooms = [];
   bool _isLoading = true;
+  String _selectedPeriod = 'This Month';
+
+  // Professional color palette mapping
+  static const Color _primaryBlue = AdminStyles.primary;
+  static const Color _successGreen = AdminStyles.success;
+  static const Color _warningYellow = AdminStyles.warning;
+  static const Color _dangerRed = AdminStyles.error;
+  static const Color _darkText = AdminStyles.textPrimary;
+  static const Color _subtleText = AdminStyles.textSecondary;
+  static const Color _pageBg = AdminStyles.bg;
 
   @override
   void initState() {
@@ -25,458 +36,750 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   Future<void> _loadData() async {
     try {
-      final data = await WorkRequestService.fetchAll();
-      if (mounted) setState(() { _allRequests = data; _isLoading = false; });
+      final requests = await WorkRequestService.fetchAll();
+      final rooms = await RoomService.fetchAll();
+      if (mounted) {
+        setState(() {
+          _requests = requests;
+          _rooms = rooms;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  List<WorkRequest> get _filteredByPeriod {
+  int get _totalRequests => _requests.length;
+  int get _completedRequests =>
+      _requests.where((r) => r.status.toLowerCase() == 'completed').length;
+  int get _pendingRequests =>
+      _requests.where((r) => r.status.toLowerCase() == 'pending').length;
+  int get _activeRequests => _requests
+      .where(
+        (r) =>
+            r.status.toLowerCase() == 'in_progress' ||
+            r.status.toLowerCase() == 'approved' ||
+            r.status.toLowerCase() == 'under_maintenance',
+      )
+      .length;
+  int get _highPriority =>
+      _requests.where((r) => r.priority.toLowerCase() == 'high').length;
+  double get _completionRate =>
+      _totalRequests > 0 ? (_completedRequests / _totalRequests * 100) : 0;
+
+  DateTime _periodStart(DateTime now) {
+    switch (_selectedPeriod) {
+      case 'Today':
+        return DateTime(now.year, now.month, now.day);
+      case 'This Week':
+        return DateTime(
+          now.year,
+          now.month,
+          now.day,
+        ).subtract(Duration(days: now.weekday - 1));
+      case 'This Year':
+        return DateTime(now.year, 1, 1);
+      case 'This Month':
+      default:
+        return DateTime(now.year, now.month, 1);
+    }
+  }
+
+  DateTime _previousPeriodStart(DateTime now) {
+    final start = _periodStart(now);
+    switch (_selectedPeriod) {
+      case 'Today':
+        return start.subtract(const Duration(days: 1));
+      case 'This Week':
+        return start.subtract(const Duration(days: 7));
+      case 'This Year':
+        return DateTime(start.year - 1, 1, 1);
+      case 'This Month':
+      default:
+        return DateTime(start.year, start.month - 1, 1);
+    }
+  }
+
+  DateTime _previousPeriodEnd(DateTime now) {
+    return _periodStart(now).subtract(const Duration(milliseconds: 1));
+  }
+
+  DateTime _currentPeriodEnd(DateTime now) {
+    switch (_selectedPeriod) {
+      case 'Today':
+        return DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      case 'This Week':
+        return _periodStart(now)
+            .add(const Duration(days: 7))
+            .subtract(const Duration(milliseconds: 1));
+      case 'This Year':
+        return DateTime(
+          now.year + 1,
+          1,
+          1,
+        ).subtract(const Duration(milliseconds: 1));
+      case 'This Month':
+      default:
+        return DateTime(
+          now.year,
+          now.month + 1,
+          1,
+        ).subtract(const Duration(milliseconds: 1));
+    }
+  }
+
+  int _countInRange(
+    DateTime start,
+    DateTime end,
+    bool Function(WorkRequest request) predicate,
+  ) {
+    return _requests.where((request) {
+      final submitted = request.dateSubmitted;
+      return !submitted.isBefore(start) &&
+          !submitted.isAfter(end) &&
+          predicate(request);
+    }).length;
+  }
+
+  double _trendPercent(int current, int previous) {
+    if (previous == 0) return current > 0 ? 100 : 0;
+    return ((current - previous) / previous) * 100;
+  }
+
+  List<double> _buildDailySubmissionSeries() {
     final now = DateTime.now();
-    return _allRequests.where((r) {
-      final diff = now.difference(r.dateSubmitted).inDays;
-      switch (_selectedPeriod) {
-        case 0: return diff <= 30;
-        case 1: return diff <= 90;
-        case 2: return diff <= 365;
-        default: return true;
-      }
+    final days = List<DateTime>.generate(7, (index) {
+      final day = now.subtract(Duration(days: 6 - index));
+      return DateTime(day.year, day.month, day.day);
+    });
+
+    return days.map((day) {
+      final nextDay = day.add(const Duration(days: 1));
+      return _requests
+          .where((request) {
+            return !request.dateSubmitted.isBefore(day) &&
+                request.dateSubmitted.isBefore(nextDay);
+          })
+          .length
+          .toDouble();
     }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
-      appBar: AdminAppBar(
-        openDrawer: widget.openDrawer,
-        subtitle: 'Campus Administrator',
-      ),
-      body: Column(
-        children: [
-          // Period Tabs
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _buildPeriodTab('Last 30 Days', 0),
-                _buildPeriodTab('Quarterly', 1),
-                _buildPeriodTab('Yearly', 2),
-              ],
-            ),
-          ),
-
-          // Content
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredByPeriod.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.analytics_outlined, size: 64, color: Colors.grey.shade300),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No data available',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade500),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Analytics will appear once work requests are submitted.',
-                              style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      )
-                    : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+    return Container(
+      color: _pageBg,
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Statistics Cards
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final stackCards = constraints.maxWidth < 500;
-
-                      if (stackCards) {
-                        return Column(
-                          children: [
-                            _buildStatCard(
-                              'TOTAL ISSUES',
-                              '${_filteredByPeriod.length}',
-                              '',
-                              Colors.blue,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildStatCard(
-                              'RESOLVED',
-                              _filteredByPeriod.isEmpty
-                                  ? '0%'
-                                  : '${(_filteredByPeriod.where((r) => r.status == 'completed').length * 100 / _filteredByPeriod.length).round()}%',
-                              '',
-                              Colors.orange,
-                            ),
-                          ],
-                        );
-                      }
-
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatCard(
-                              'TOTAL ISSUES',
-                              '${_filteredByPeriod.length}',
-                              '',
-                              Colors.blue,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildStatCard(
-                              'RESOLVED',
-                              _filteredByPeriod.isEmpty
-                                  ? '0%'
-                                  : '${(_filteredByPeriod.where((r) => r.status == 'completed').length * 100 / _filteredByPeriod.length).round()}%',
-                              '',
-                              Colors.orange,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Most Frequent Request Type
-                  _buildSectionCard(
-                    title: 'Most Frequent Request Type',
-                    icon: Icons.insert_chart_outlined,
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 24),
-                        Text(
-                          _getTopCategoryCount(),
-                          style: const TextStyle(
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF111827),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _getTopCategoryName(),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        _buildCategoryLegend(),
-                      ],
-                    ),
-                  ),
-
+                  // Header with period selector
+                  _buildHeader(),
                   const SizedBox(height: 16),
 
-                  // Most Active Rooms
-                  _buildSectionCard(
-                    title: 'Most Active Rooms',
-                    icon: Icons.meeting_room_outlined,
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 16),
-                        ..._getTopRooms().map((entry) =>
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildRoomBar(entry.key, entry.value, const Color(0xFF4169E1)),
-                          ),
-                        ),
-                        if (_getTopRooms().isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text('No room data yet', style: TextStyle(color: Colors.grey.shade400)),
-                          ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Request Types Breakdown
-                  _buildSectionCard(
-                    title: 'Request Types Breakdown',
-                    icon: Icons.build_outlined,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isCompact = constraints.maxWidth < 500;
-                        final entries = _getRequestTypeCounts().entries.take(5).toList();
-
-                        if (entries.isEmpty) {
-                          return Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text(
-                              'No request type data yet',
-                              style: TextStyle(color: Colors.grey.shade400),
-                            ),
-                          );
-                        }
-
-                        if (isCompact) {
-                          final maxCount = _getRequestTypeCounts().values.fold<int>(1, (a, b) => a > b ? a : b);
-
-                          return Column(
-                            children: [
-                              const SizedBox(height: 16),
-                              ...entries.map((entry) => Padding(
-                                padding: const EdgeInsets.only(bottom: 14),
-                                child: _buildTypeProgressRow(
-                                  entry.key.toUpperCase(),
-                                  entry.value,
-                                  maxCount,
-                                ),
-                              )),
-                              const SizedBox(height: 2),
-                            ],
-                          );
-                        }
-
-                        return Column(
-                          children: [
-                            const SizedBox(height: 24),
-                            SizedBox(
-                              height: 150,
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                children: entries
-                                    .map((entry) => _buildEquipmentBar(entry.key.toUpperCase(), entry.value))
-                                    .toList(),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-
+                  // Stats Cards Row
+                  _buildStatsRow(),
                   const SizedBox(height: 24),
+
+                  // Charts Column (Mobile)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildPerformanceCard(),
+                      const SizedBox(height: 16),
+                      _buildStatusDistributionCard(),
+                      const SizedBox(height: 16),
+                      _buildPriorityCard(),
+                      const SizedBox(height: 16),
+                      _buildRoomStatsCard(),
+                    ],
+                  ),
                 ],
               ),
             ),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildPeriodTab(String label, int index) {
-    final isSelected = _selectedPeriod == index;
-    return SizedBox(
-      width: 112,
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedPeriod = index),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+  Widget _buildHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _primaryBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.bar_chart_rounded,
+                color: _primaryBlue,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Analytics Dashboard',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: _darkText,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  Text(
+                    'Performance metrics and insights',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _subtleText,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Period Selector
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF4169E1) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected ? const Color(0xFF4169E1) : Colors.grey.shade300,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AdminStyles.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: _selectedPeriod,
+              icon: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: _subtleText,
+              ),
+              items: [
+                'Today',
+                'This Week',
+                'This Month',
+                'This Year',
+              ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _selectedPeriod = value);
+              },
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _darkText,
+              ),
             ),
           ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: isSelected ? Colors.white : Colors.grey.shade600,
-            ),
-          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsRow() {
+    final now = DateTime.now();
+    final currentStart = _periodStart(now);
+    final currentEnd = _currentPeriodEnd(now);
+    final previousStart = _previousPeriodStart(now);
+    final previousEnd = _previousPeriodEnd(now);
+
+    final currentTotal = _countInRange(currentStart, currentEnd, (_) => true);
+    final previousTotal = _countInRange(
+      previousStart,
+      previousEnd,
+      (_) => true,
+    );
+    final totalTrend = _trendPercent(currentTotal, previousTotal);
+
+    final currentPending = _countInRange(
+      currentStart,
+      currentEnd,
+      (request) => request.status.toLowerCase() == 'pending',
+    );
+    final previousPending = _countInRange(
+      previousStart,
+      previousEnd,
+      (request) => request.status.toLowerCase() == 'pending',
+    );
+    final pendingTrend = _trendPercent(currentPending, previousPending);
+
+    final currentHighPriority = _countInRange(
+      currentStart,
+      currentEnd,
+      (request) => request.priority.toLowerCase() == 'high',
+    );
+    final previousHighPriority = _countInRange(
+      previousStart,
+      previousEnd,
+      (request) => request.priority.toLowerCase() == 'high',
+    );
+    final highPriorityTrend = _trendPercent(
+      currentHighPriority,
+      previousHighPriority,
+    );
+
+    final currentCompleted = _countInRange(
+      currentStart,
+      currentEnd,
+      (request) => request.status.toLowerCase() == 'completed',
+    );
+    final previousCompleted = _countInRange(
+      previousStart,
+      previousEnd,
+      (request) => request.status.toLowerCase() == 'completed',
+    );
+    final currentCompletionRate = currentTotal == 0
+        ? 0
+        : (currentCompleted / currentTotal) * 100;
+    final previousCompletionRate = previousTotal == 0
+        ? 0
+        : (previousCompleted / previousTotal) * 100;
+    final completionRateTrend = currentCompletionRate - previousCompletionRate;
+
+    return Column(
+      children: [
+        _StatCard(
+          title: 'Total Requests',
+          value: '$_totalRequests',
+          icon: Icons.description_rounded,
+          iconColor: _primaryBlue,
+          trend: '${totalTrend >= 0 ? '+' : ''}${totalTrend.toStringAsFixed(1)}%',
+          trendUp: totalTrend >= 0,
+        ),
+        const SizedBox(height: 12),
+        _StatCard(
+          title: 'Completion Rate',
+          value: '${_completionRate.toStringAsFixed(1)}%',
+          icon: Icons.check_circle_rounded,
+          iconColor: _successGreen,
+          trend: '${completionRateTrend >= 0 ? '+' : ''}${completionRateTrend.toStringAsFixed(1)}%',
+          trendUp: completionRateTrend >= 0,
+        ),
+        const SizedBox(height: 12),
+        _StatCard(
+          title: 'Pending',
+          value: '$_pendingRequests',
+          icon: Icons.hourglass_empty_rounded,
+          iconColor: _warningYellow,
+          trend: '${pendingTrend >= 0 ? '+' : ''}${pendingTrend.toStringAsFixed(1)}%',
+          trendUp: pendingTrend <= 0,
+        ),
+        const SizedBox(height: 12),
+        _StatCard(
+          title: 'High Priority',
+          value: '$_highPriority',
+          icon: Icons.priority_high_rounded,
+          iconColor: _dangerRed,
+          trend: '${highPriorityTrend >= 0 ? '+' : ''}${highPriorityTrend.toStringAsFixed(1)}%',
+          trendUp: highPriorityTrend <= 0,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPerformanceCard() {
+    final chartData = _buildDailySubmissionSeries();
+
+    return _Card(
+      title: 'Performance Overview',
+      icon: Icons.trending_up_rounded,
+      child: SizedBox(
+        height: 200,
+        child: CustomPaint(
+          size: const Size(double.infinity, 200),
+          painter: _LineChartPainter(data: chartData, color: _primaryBlue),
         ),
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String value, String change, Color changeColor) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  Widget _buildStatusDistributionCard() {
+    return _Card(
+      title: 'Request Status',
+      icon: Icons.pie_chart_rounded,
+      child: Column(
+        children: [
+          // Chart
+          SizedBox(
+            width: 160,
+            height: 160,
+            child: CustomPaint(
+              painter: _DonutChartPainter(
+                completed: _completedRequests.toDouble(),
+                active: _activeRequests.toDouble(),
+                pending: _pendingRequests.toDouble(),
+              ),
+            ),
           ),
+          const SizedBox(height: 24),
+          // Legend
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _LegendItem(
+                  color: _successGreen,
+                  label: 'Completed',
+                  value: _completedRequests,
+                ),
+                const SizedBox(height: 12),
+                _LegendItem(
+                  color: _primaryBlue,
+                  label: 'Active',
+                  value: _activeRequests,
+                ),
+                const SizedBox(height: 12),
+                _LegendItem(
+                  color: _warningYellow,
+                  label: 'Pending',
+                  value: _pendingRequests,
+                ),
+              ],
+            ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPriorityCard() {
+    final high = _requests
+        .where((r) => r.priority.toLowerCase() == 'high')
+        .length;
+    final medium = _requests
+        .where((r) => r.priority.toLowerCase() == 'medium')
+        .length;
+    final low = _requests
+        .where((r) => r.priority.toLowerCase() == 'low')
+        .length;
+    final total = high + medium + low;
+
+    return _Card(
+      title: 'Priority Distribution',
+      icon: Icons.flag_rounded,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade600,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  change,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.green.shade700,
-                  ),
-                ),
-              ),
-            ],
+          _PriorityBar(
+            label: 'High',
+            value: high,
+            total: total,
+            color: _dangerRed,
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: changeColor,
-              height: 1,
-            ),
+          const SizedBox(height: 16),
+          _PriorityBar(
+            label: 'Medium',
+            value: medium,
+            total: total,
+            color: _warningYellow,
+          ),
+          const SizedBox(height: 16),
+          _PriorityBar(
+            label: 'Low',
+            value: low,
+            total: total,
+            color: _successGreen,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionCard({
-    required String title,
-    required IconData icon,
-    required Widget child,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+  Widget _buildRoomStatsCard() {
+    final available = _rooms
+        .where((r) => r.status.toLowerCase() == 'available')
+        .length;
+    final reserved = _rooms
+        .where((r) => r.status.toLowerCase() == 'reserved')
+        .length;
+    final maintenance = _rooms
+        .where((r) => r.status.toLowerCase() == 'maintenance')
+        .length;
+
+    return _Card(
+      title: 'Room Status',
+      icon: Icons.meeting_room_rounded,
+      child: Column(
+        children: [
+          _RoomStatRow(
+            icon: Icons.check_circle_rounded,
+            color: _successGreen,
+            label: 'Available',
+            value: available,
+          ),
+          const SizedBox(height: 14),
+          _RoomStatRow(
+            icon: Icons.event_busy_rounded,
+            color: _warningYellow,
+            label: 'Reserved',
+            value: reserved,
+          ),
+          const SizedBox(height: 14),
+          _RoomStatRow(
+            icon: Icons.build_rounded,
+            color: _dangerRed,
+            label: 'Maintenance',
+            value: maintenance,
           ),
         ],
       ),
+    );
+  }
+}
+
+// ==================== WIDGETS ====================
+
+class _StatCard extends StatefulWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color iconColor;
+  final String trend;
+  final bool trendUp;
+
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.iconColor,
+    required this.trend,
+    required this.trendUp,
+  });
+
+  @override
+  State<_StatCard> createState() => _StatCardState();
+}
+
+class _StatCardState extends State<_StatCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.all(20),
+        transform: Matrix4.identity()
+          ..setTranslationRaw(0.0, _isHovered ? -2.0 : 0.0, 0.0),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isHovered
+                ? widget.iconColor.withValues(alpha: 0.5)
+                : AdminStyles.border,
+            width: _isHovered ? 1.5 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _isHovered
+                  ? widget.iconColor.withValues(alpha: 0.12)
+                  : Colors.black.withValues(alpha: 0.03),
+              blurRadius: _isHovered ? 20 : 10,
+              offset: Offset(0, _isHovered ? 6 : 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: widget.iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(widget.icon, color: widget.iconColor, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.value,
+                    style: AdminStyles.headingStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: AdminStyles.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    widget.title,
+                    style: AdminStyles.bodyStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AdminStyles.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: widget.trendUp
+                    ? const Color(0xFF22C55E).withValues(alpha: 0.1)
+                    : const Color(0xFFEF4444).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.trendUp
+                        ? Icons.trending_up_rounded
+                        : Icons.trending_down_rounded,
+                    size: 14,
+                    color: widget.trendUp
+                        ? const Color(0xFF22C55E)
+                        : const Color(0xFFEF4444),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    widget.trend,
+                    style: AdminStyles.dataStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: widget.trendUp
+                          ? AdminStyles.success
+                          : AdminStyles.error,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Card extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  const _Card({required this.title, required this.icon, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: AdminStyles.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                size: 18,
-                color: const Color(0xFF4169E1),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: const Color(0xFF3B82F6), size: 18),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF111827),
+                style: AdminStyles.headingStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AdminStyles.textPrimary,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 20),
           child,
         ],
       ),
     );
   }
+}
 
-  Widget _buildCategoryLegend() {
-    final typeCounts = _getRequestTypeCounts();
-    final total = _filteredByPeriod.length;
-    final colors = [Colors.blue, Colors.orange, Colors.grey.shade700, Colors.grey.shade400, Colors.green];
-    final entries = typeCounts.entries.take(4).toList();
-    
-    if (entries.isEmpty) {
-      return Text('No data', style: TextStyle(fontSize: 12, color: Colors.grey.shade400));
-    }
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+  final int value;
 
-    final rows = <Widget>[];
-    for (var i = 0; i < entries.length; i += 2) {
-      rows.add(Row(
-        children: [
-          _buildLegendItem(
-            colors[i % colors.length],
-            entries[i].key,
-            total > 0 ? '${(entries[i].value * 100 / total).round()}%' : '0%',
-          ),
-          const SizedBox(width: 24),
-          if (i + 1 < entries.length)
-            _buildLegendItem(
-              colors[(i + 1) % colors.length],
-              entries[i + 1].key,
-              total > 0 ? '${(entries[i + 1].value * 100 / total).round()}%' : '0%',
-            )
-          else
-            const Expanded(child: SizedBox()),
-        ],
-      ));
-      if (i + 2 < entries.length) rows.add(const SizedBox(height: 8));
-    }
-    return Column(children: rows);
-  }
+  const _LegendItem({
+    required this.color,
+    required this.label,
+    required this.value,
+  });
 
-  Widget _buildLegendItem(Color color, String label, String percentage) {
-    return Expanded(
-      child: Row(
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(3),
           ),
-          const SizedBox(width: 8),
-          Text(
-            '$label ($percentage)',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade700,
-            ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
           ),
-        ],
-      ),
+        ),
+        Text(
+          '$value',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+      ],
     );
   }
+}
 
-  Widget _buildRoomBar(String label, int count, Color color) {
-    final topRooms = _getTopRooms();
-    final maxCount = topRooms.isNotEmpty ? topRooms.first.value : 1;
-    final percentage = (count / maxCount).clamp(0.0, 1.0);
+class _PriorityBar extends StatelessWidget {
+  final String label;
+  final int value;
+  final int total;
+  final Color color;
 
+  const _PriorityBar({
+    required this.label,
+    required this.value,
+    required this.total,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final percentage = total > 0 ? value / total : 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -487,158 +790,251 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               label,
               style: const TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF111827),
-              ),
-            ),
-            Text(
-              '$count Issues',
-              style: TextStyle(
-                fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade600,
+                color: Color(0xFF64748B),
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: percentage,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            minHeight: 8,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEquipmentBar(String label, int count) {
-    final typeCounts = _getRequestTypeCounts();
-    final maxCount = typeCounts.isNotEmpty ? typeCounts.values.reduce((a, b) => a > b ? a : b) : 1;
-    final heightPercentage = maxCount > 0 ? (count / maxCount).clamp(0.1, 1.0) : 0.1;
-
-    return Expanded(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Text(
-            '$count',
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF111827),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Container(
-            height: 110 * heightPercentage,
-            decoration: BoxDecoration(
-              color: const Color(0xFF4169E1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 8,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTypeProgressRow(String label, int count, int maxCount) {
-    final percentage = maxCount > 0 ? count / maxCount : 0.0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF111827),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
             Text(
-              '$count',
+              '$value',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: Colors.grey.shade700,
+                color: color,
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: percentage,
-            minHeight: 10,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4169E1)),
+        Container(
+          height: 8,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: percentage,
+            child: Container(
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
           ),
         ),
       ],
     );
-  }
-
-  // Data methods computed from real requests
-  String _getTopCategoryCount() {
-    final typeCounts = _getRequestTypeCounts();
-    if (typeCounts.isEmpty) return '0';
-    return '${typeCounts.values.first}';
-  }
-
-  String _getTopCategoryName() {
-    final typeCounts = _getRequestTypeCounts();
-    if (typeCounts.isEmpty) return 'N/A';
-    return typeCounts.keys.first.toUpperCase();
-  }
-
-  Map<String, int> _getRequestTypeCounts() {
-    final counts = <String, int>{};
-    for (final r in _filteredByPeriod) {
-      counts[r.typeOfRequest] = (counts[r.typeOfRequest] ?? 0) + 1;
-    }
-    final sorted = counts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    return Map.fromEntries(sorted);
-  }
-
-  List<MapEntry<String, int>> _getTopRooms() {
-    final counts = <String, int>{};
-    for (final r in _filteredByPeriod) {
-      final room = (r.officeRoom?.isNotEmpty ?? false) ? r.officeRoom! : 'Unknown';
-      counts[room] = (counts[room] ?? 0) + 1;
-    }
-    final sorted = counts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    return sorted.take(3).toList();
   }
 }
 
+class _RoomStatRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final int value;
 
+  const _RoomStatRow({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.value,
+  });
 
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+          ),
+        ),
+        Text(
+          '$value',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
+// ==================== PAINTERS ====================
 
+class _LineChartPainter extends CustomPainter {
+  final List<double> data;
+  final Color color;
 
+  _LineChartPainter({required this.data, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.isEmpty) return;
+
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [color.withValues(alpha: 0.3), color.withValues(alpha: 0.0)],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+
+    final maxVal = data.reduce(math.max);
+    final minVal = data.reduce(math.min);
+    final range = maxVal - minVal;
+    final normalizedRange = range == 0 ? 1.0 : range;
+    final stepX = size.width / (data.length - 1);
+
+    final path = Path();
+    final fillPath = Path();
+
+    for (int i = 0; i < data.length; i++) {
+      final x = i * stepX;
+      final y =
+          size.height -
+          ((data[i] - minVal) / normalizedRange * size.height * 0.8 +
+              size.height * 0.1);
+      if (i == 0) {
+        path.moveTo(x, y);
+        fillPath.moveTo(x, size.height);
+        fillPath.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+    }
+
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, paint);
+
+    // Draw dots
+    final dotPaint = Paint()..color = color;
+    for (int i = 0; i < data.length; i++) {
+      final x = i * stepX;
+      final y =
+          size.height -
+          ((data[i] - minVal) / normalizedRange * size.height * 0.8 +
+              size.height * 0.1);
+      canvas.drawCircle(Offset(x, y), 4, dotPaint);
+      canvas.drawCircle(Offset(x, y), 2, Paint()..color = Colors.white);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class _DonutChartPainter extends CustomPainter {
+  final double completed;
+  final double active;
+  final double pending;
+
+  _DonutChartPainter({
+    required this.completed,
+    required this.active,
+    required this.pending,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final total = completed + active + pending;
+    if (total == 0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2 - 10;
+    final strokeWidth = 24.0;
+
+    final bgPaint = Paint()
+      ..color = const Color(0xFFF1F5F9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    double startAngle = -math.pi / 2;
+
+    // Completed (green)
+    _drawArc(
+      canvas,
+      center,
+      radius,
+      strokeWidth,
+      startAngle,
+      completed / total,
+      const Color(0xFF22C55E),
+    );
+    startAngle += (completed / total) * 2 * math.pi;
+
+    // Active (blue)
+    _drawArc(
+      canvas,
+      center,
+      radius,
+      strokeWidth,
+      startAngle,
+      active / total,
+      const Color(0xFF3B82F6),
+    );
+    startAngle += (active / total) * 2 * math.pi;
+
+    // Pending (yellow)
+    _drawArc(
+      canvas,
+      center,
+      radius,
+      strokeWidth,
+      startAngle,
+      pending / total,
+      const Color(0xFFFBBF24),
+    );
+  }
+
+  void _drawArc(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    double strokeWidth,
+    double startAngle,
+    double fraction,
+    Color color,
+  ) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      startAngle,
+      fraction * 2 * math.pi,
+      false,
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}

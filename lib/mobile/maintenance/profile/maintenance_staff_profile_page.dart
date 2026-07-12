@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -151,7 +151,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4169E1).withOpacity(0.1),
+                    color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.camera_alt, color: Color(0xFF4169E1)),
@@ -177,7 +177,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4169E1).withOpacity(0.1),
+                    color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.photo_library, color: Color(0xFF4169E1)),
@@ -204,7 +204,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
+                      color: Colors.red.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.delete, color: Colors.red),
@@ -250,7 +250,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -269,7 +269,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: themeProvider.primaryColor.withOpacity(0.3),
+                              color: themeProvider.primaryColor.withValues(alpha: 0.3),
                               blurRadius: 15,
                               offset: const Offset(0, 5),
                             ),
@@ -348,7 +348,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF4169E1).withOpacity(0.1),
+                                color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: const Icon(
@@ -447,7 +447,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4169E1).withOpacity(0.1),
+                              color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -548,7 +548,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -605,7 +605,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -676,7 +676,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -840,7 +840,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+                color: iconColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(

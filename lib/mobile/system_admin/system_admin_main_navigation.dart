@@ -204,7 +204,7 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                                     children: [
                                       CircleAvatar(
                                         radius: 18,
-                                        backgroundColor: _primaryTeal.withOpacity(0.1),
+                                        backgroundColor: _primaryTeal.withValues(alpha: 0.1),
                                         child: Text(
                                           user.name.isNotEmpty
                                               ? user.name[0].toUpperCase()

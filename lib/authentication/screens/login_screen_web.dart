@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
-import '../widgets/faculty_register_form_web.dart';
 
 class LoginScreenWeb extends StatefulWidget {
   const LoginScreenWeb({super.key});
@@ -27,7 +26,6 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
 
   bool _isPasswordVisible = false;
   bool _isLoading = false;
-  bool _showRegisterForm = false;
 
   late final AnimationController _animController;
   late final Animation<double> _fadeHeader;
@@ -39,11 +37,7 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
   late final AnimationController _pulseController;
   late final Animation<double> _pulse;
 
-  // Transitions for Register Swapping
-  late final AnimationController _formSwapController;
-  late final Animation<double> _loginFade;
-  late final Animation<double> _registerFade;
-  late final Animation<Offset> _panelSlide;
+
 
   @override
   void initState() {
@@ -89,23 +83,6 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
       parent: _pulseController,
       curve: Curves.easeInOut,
     );
-
-    _formSwapController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-
-    final swapCurve = CurvedAnimation(parent: _formSwapController, curve: Curves.easeInOutCubic);
-
-    _loginFade = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(parent: _formSwapController, curve: const Interval(0.0, 0.4, curve: Curves.easeIn)),
-    );
-
-    _registerFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _formSwapController, curve: const Interval(0.4, 1.0, curve: Curves.easeOut)),
-    );
-
-    _panelSlide = Tween<Offset>(begin: Offset.zero, end: const Offset(-1.0, 0.0)).animate(swapCurve);
   }
 
   @override
@@ -113,21 +90,9 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
     _animController.dispose();
     _floatController.dispose();
     _pulseController.dispose();
-    _formSwapController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
-  }
-
-  void _toggleRegistration(bool show) {
-    if (show) {
-      setState(() => _showRegisterForm = true);
-      _formSwapController.forward();
-    } else {
-      _formSwapController.reverse().then((_) {
-        setState(() => _showRegisterForm = false);
-      });
-    }
   }
 
   Future<void> _handleLogin() async {
@@ -285,11 +250,7 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
                         // Left Column (Login Form)
                         Expanded(
                           flex: 1,
-                          child: SlideTransition(
-                            position: _panelSlide,
-                            child: FadeTransition(
-                              opacity: _loginFade,
-                              child: Padding(
+                          child: Padding(
                                 padding: EdgeInsets.symmetric(
                                   horizontal: isDesktop ? 64 : (isTablet ? 44 : 24),
                                   vertical: 22,
@@ -305,47 +266,19 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
                                     _buildFooter(),
                                   ],
                                 ),
-                              ),
                             ),
                           ),
-                        ),
                         
                         // Right Column (Value Panel)
                         if (isDesktop)
                           Expanded(
                             flex: 1,
-                            child: SlideTransition(
-                              position: _panelSlide,
-                              child: _buildValuePanel(),
-                            ),
+                            child: _buildValuePanel(),
                           ),
                       ],
                     ),
 
-                    // Overlay Layer: Registration Form
-                    if (_showRegisterForm)
-                      Positioned.fill(
-                        child: Row(
-                          children: [
-                            // Spacer to align with where the Value Panel moves to
-                            if (isDesktop) const Expanded(flex: 1, child: SizedBox.shrink()),
-                            
-                            // The Registration Form Area
-                            Expanded(
-                              flex: 1,
-                              child: FadeTransition(
-                                opacity: _registerFade,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 20),
-                                  child: FacultyRegisterFormWeb(
-                                    onCancel: () => _toggleRegistration(false),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+
                   ],
                 ),
               ),
@@ -442,8 +375,6 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
                     ),
                     const SizedBox(height: 14),
                     _buildSubmitButton(),
-                    const SizedBox(height: 16),
-                    _buildRegisterButton(),
                   ],
                 ),
               ),
@@ -480,23 +411,7 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
     );
   }
 
-  Widget _buildRegisterButton() {
-    return SizedBox(
-      height: 44, // Reduced from 52
-      child: OutlinedButton(
-        onPressed: () => _toggleRegistration(true),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: _brandBlue, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          foregroundColor: _brandBlue,
-        ),
-        child: const Text(
-          'Register',
-          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 0.5),
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildValuePanel() {
     return Container(

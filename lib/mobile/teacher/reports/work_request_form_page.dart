@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/models/room_model.dart';
 import '../../../shared/models/work_request_model.dart';
@@ -48,8 +50,12 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
+  String _selectedPriority = 'medium';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
+
+  final List<File> _selectedImages = [];
+  final ImagePicker _imagePicker = ImagePicker();
 
   List<String> _buildings = [];
   List<String> _filteredBuildings = [];
@@ -217,6 +223,21 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     );
   }
 
+  Future<void> _pickImages() async {
+    try {
+      final List<XFile> images = await _imagePicker.pickMultiImage(
+        imageQuality: 80,
+      );
+      if (images.isNotEmpty) {
+        setState(() {
+          _selectedImages.addAll(images.map((img) => File(img.path)));
+        });
+      }
+    } catch (e) {
+      if (mounted) _showErrorDialog('Failed to pick images: $e');
+    }
+  }
+
   Future<void> _submitRequest() async {
     if (_formKey.currentState!.validate()) {
       try {
@@ -246,12 +267,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
             : _officeRoomNameController.text.trim();
 
         var selectedRoom = verifiedRoom;
-        selectedRoom ??= await RoomService.fetchByIdOrRoomNumber(
-          submittedRoomCode,
-        );
-        if (selectedRoom == null && submittedRoomName.isNotEmpty) {
-          selectedRoom = await RoomService.fetchByName(submittedRoomName);
-        }
+        selectedRoom ??= await RoomService.fetchByCode(submittedRoomCode);
 
         if (selectedRoom == null) {
           if (!mounted) return;
@@ -299,7 +315,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           title: 'Work Request – $typeLabel',
           description: _issueDetailsController.text.trim(),
           status: 'pending',
-          priority: 'medium',
+          priority: _selectedPriority,
           buildingName: _selectedBuilding,
           buildingId: selectedBuildingRecord?.id,
           departmentName: _selectedCollege,
@@ -316,6 +332,29 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         );
 
         final insertedRequest = await WorkRequestService.insert(request);
+
+        List<String> uploadedUrls = [];
+        for (var i = 0; i < _selectedImages.length; i++) {
+          final file = _selectedImages[i];
+          final extension = file.path.split('.').last;
+          final fileName = '${insertedRequest.id}/image_$i.$extension';
+          try {
+            await Supabase.instance.client.storage
+                .from('work-request-attachments')
+                .upload(fileName, file);
+            final url = Supabase.instance.client.storage
+                .from('work-request-attachments')
+                .getPublicUrl(fileName);
+            uploadedUrls.add(url);
+          } catch (e) {
+            // ignore upload errors
+          }
+        }
+
+        if (uploadedUrls.isNotEmpty) {
+          final updatedRequest = insertedRequest.copyWith(attachmentUrls: uploadedUrls);
+          await WorkRequestService.update(updatedRequest);
+        }
 
         if (authUser != null) {
           await ESignatureService.insert(
@@ -413,10 +452,10 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                       margin: const EdgeInsets.only(bottom: 16),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00BFA5).withOpacity(0.08),
+                        color: const Color(0xFF00BFA5).withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: const Color(0xFF00BFA5).withOpacity(0.35),
+                          color: const Color(0xFF00BFA5).withValues(alpha: 0.35),
                         ),
                       ),
                       child: const Text(
@@ -529,9 +568,29 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                 ],
               ),
               const SizedBox(height: 20),
+              // Priority Level Section
+              _buildSectionCard(
+                title: '3. Priority Level',
+                children: [
+                  const SizedBox(height: 16),
+                  _buildDropdown(
+                    value: _selectedPriority,
+                    items: const ['low', 'medium', 'high'],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _selectedPriority = value;
+                        });
+                      }
+                    },
+                    enabled: true,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
               // Issue Details Section
               _buildSectionCard(
-                title: '3. Issue Details',
+                title: '4. Issue Details',
                 children: [
                   const SizedBox(height: 16),
                   _buildLabel('Describe the issue in detail'),
@@ -567,50 +626,98 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   const SizedBox(height: 16),
                   _buildLabel('Upload Photos (optional)'),
                   const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(32),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.grey.shade300,
-                        width: 1.5,
-                        style: BorderStyle.solid,
+                  GestureDetector(
+                    onTap: _pickImages,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(32),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 1.5,
+                          style: BorderStyle.solid,
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.cloud_upload_outlined,
-                          size: 48,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Drag & drop or click to upload',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'PNG, JPG up to 10MB',
-                          style: TextStyle(
-                            fontSize: 11,
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.cloud_upload_outlined,
+                            size: 48,
                             color: Colors.grey.shade400,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          Text(
+                            'Tap to upload photos',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'PNG, JPG up to 10MB',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
+                  if (_selectedImages.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _selectedImages.asMap().entries.map((entry) {
+                        return Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                entry.value,
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedImages.removeAt(entry.key);
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 20),
               // Requester Info Section
               _buildSectionCard(
-                title: '4. Requester Info',
+                title: '5. Requester Info',
                 children: [
                   const SizedBox(height: 16),
                   _buildLabel('Full Name'),
@@ -775,7 +882,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                         elevation: 0,
                         disabledBackgroundColor: const Color(
                           0xFF00BFA5,
-                        ).withOpacity(0.5),
+                        ).withValues(alpha: 0.5),
                       ),
                       child: _isSubmitting
                           ? const SizedBox(
@@ -823,7 +930,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00BFA5).withOpacity(0.1),
+            color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),

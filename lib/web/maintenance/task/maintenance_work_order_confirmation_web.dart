@@ -36,7 +36,7 @@ class MaintenanceWorkOrderConfirmationWeb extends StatelessWidget {
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: _successGreen.withOpacity(0.1),
+                color: _successGreen.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(50),
               ),
               child: Icon(
@@ -62,7 +62,7 @@ class MaintenanceWorkOrderConfirmationWeb extends StatelessWidget {
               'The maintenance task has been successfully completed.',
               style: TextStyle(
                 fontSize: 15,
-                color: _subtleText.withOpacity(0.8),
+                color: _subtleText.withValues(alpha: 0.8),
                 fontWeight: FontWeight.w500,
               ),
             ),

@@ -449,7 +449,7 @@ class ViewWorkRequestPage extends StatelessWidget {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4169E1).withOpacity(0.1),
+                  color: const Color(0xFF4169E1).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Center(

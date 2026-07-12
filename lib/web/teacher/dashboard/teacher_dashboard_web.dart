@@ -195,7 +195,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
       decoration: AdminStyles.cardDecoration(hasShadow: false, borderColor: AdminStyles.border),
       child: Column(
         children: [
-          Icon(Icons.assignment_outlined, size: 64, color: AdminStyles.textMuted.withOpacity(0.2)),
+          Icon(Icons.assignment_outlined, size: 64, color: AdminStyles.textMuted.withValues(alpha: 0.2)),
           const SizedBox(height: 16),
           Text('No work requests yet', style: AdminStyles.headingStyle(fontSize: 18, color: AdminStyles.textMuted)),
           const SizedBox(height: 8),
@@ -224,7 +224,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
               Container(
                 width: isCompact ? 44 : 56,
                 height: isCompact ? 44 : 56,
-                decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
                 child: Icon(Icons.assignment_rounded, color: statusColor, size: isCompact ? 20 : 28),
               ),
               SizedBox(width: isCompact ? 12 : 20),
@@ -320,7 +320,7 @@ class _StatCardState extends State<_StatCard> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(24),
-        decoration: AdminStyles.cardDecoration(borderColor: _isHovered ? widget.color.withOpacity(0.5) : null),
+        decoration: AdminStyles.cardDecoration(borderColor: _isHovered ? widget.color.withValues(alpha: 0.5) : null),
         child: Row(
           children: [
             Expanded(
@@ -336,7 +336,7 @@ class _StatCardState extends State<_StatCard> {
             Container(
               width: 56,
               height: 56,
-              decoration: BoxDecoration(color: widget.color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: widget.color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
               child: Icon(widget.icon, color: widget.color, size: 28),
             ),
           ],

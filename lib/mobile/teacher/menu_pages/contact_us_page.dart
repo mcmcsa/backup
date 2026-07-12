@@ -97,7 +97,7 @@ class _ContactUsPageState extends State<ContactUsPage> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00BFA5).withOpacity(0.1),
+                        color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
@@ -309,7 +309,7 @@ class _ContactUsPageState extends State<ContactUsPage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
+              color: iconColor.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(

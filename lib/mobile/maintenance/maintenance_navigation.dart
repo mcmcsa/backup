@@ -52,7 +52,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, -3),
           ),
@@ -110,7 +110,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected 
-              ? const Color(0xFF4169E1).withOpacity(0.1)
+              ? const Color(0xFF4169E1).withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),

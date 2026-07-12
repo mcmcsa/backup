@@ -145,7 +145,6 @@ class _AdminRoomTypesWebState extends State<AdminRoomTypesWeb> {
                             final roomType = RoomType(
                               id: const Uuid().v4(),
                               name: name,
-                              code: _generateRoomTypeCode(name, now),
                               createdAt: now,
                               updatedAt: now,
                             );
@@ -289,14 +288,7 @@ class _AdminRoomTypesWebState extends State<AdminRoomTypesWeb> {
     nameController.dispose();
   }
 
-  String _generateRoomTypeCode(String name, DateTime timestamp) {
-    final codeBase = name.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '_');
-    final truncated = codeBase.substring(
-      0,
-      codeBase.length > 10 ? 10 : codeBase.length,
-    );
-    return '${truncated.isEmpty ? 'ROOM' : truncated}_${timestamp.millisecondsSinceEpoch % 10000}';
-  }
+
 
   List<Map<String, dynamic>> get _filteredRoomTypes {
     final query = _searchController.text.toLowerCase();

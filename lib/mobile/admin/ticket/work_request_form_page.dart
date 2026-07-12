@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/building_service.dart';
+import '../../../shared/services/request_type_service.dart';
 
 class WorkRequestFormPage extends StatefulWidget {
   final WorkRequest? existingRequest;
@@ -44,6 +46,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   void initState() {
     super.initState();
     _loadBuildings();
+    _loadRequestTypes();
     if (widget.existingRequest != null) {
       final request = widget.existingRequest!;
       _buildingController.text = request.buildingName ?? '';
@@ -67,6 +70,20 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
       if (mounted) {
         setState(() {
           _buildings = ['Select Building', ...buildings.map((b) => b.name)];
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadRequestTypes() async {
+    try {
+      final types = await RequestTypeService.fetchAll();
+      if (mounted && types.isNotEmpty) {
+        setState(() {
+          _requestTypes = types.map((t) => t.name).toList();
+          if (!_requestTypes.contains(_requestType) && _requestTypes.isNotEmpty) {
+            _requestType = _requestTypes.first;
+          }
         });
       }
     } catch (_) {}
@@ -148,7 +165,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                           _buildLabel('Date'),
                           const SizedBox(height: 8),
                           Text(
-                            '${_selectedDate.month < 10 ? 'October' : 'November'} ${_selectedDate.day}, ${_selectedDate.year}',
+                            DateFormat('MMMM d, yyyy').format(_selectedDate),
                             style: const TextStyle(
                               fontSize: 14,
                               color: Color(0xFF6B7280),
@@ -289,8 +306,8 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                           
                           _buildSignatureArea(
                             controller: _requestorNameController,
-                            hintText: 'When user hits requestor',
-                            label: 'Human',
+                            hintText: 'No signature',
+                            label: _requestorNameController.text.isNotEmpty ? _requestorNameController.text : 'Requestor Name',
                             sublabel: 'REQUESTOR OVER PRINTED NAME',
                             enabled: !isViewMode,
                           ),
@@ -300,7 +317,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                           const SizedBox(height: 8),
                           _buildTextField(
                             controller: _requestorPositionController,
-                            hintText: 'IT Staff',
+                            hintText: 'e.g., IT Staff',
                             enabled: !isViewMode,
                           ),
                           const SizedBox(height: 20),
@@ -328,9 +345,9 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                           
                           _buildSignatureArea(
                             controller: _approvedByController,
-                            hintText: 'signature of user 2',
-                            label: 'Ramon admin',
-                            sublabel: 'REQUESTOR OVER PRINTED NAME',
+                            hintText: 'No signature',
+                            label: _approvedByController.text.isNotEmpty ? _approvedByController.text : 'Admin Name',
+                            sublabel: 'ADMIN OVER PRINTED NAME',
                             enabled: !isViewMode,
                           ),
                           const SizedBox(height: 16),
@@ -338,7 +355,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                           _buildLabel('Date:'),
                           const SizedBox(height: 8),
                           Text(
-                            '${_selectedDate.month < 10 ? 'October' : 'November'} ${_selectedDate.day}, ${_selectedDate.year}',
+                            DateFormat('MMMM d, yyyy').format(_selectedDate),
                             style: const TextStyle(
                               fontSize: 14,
                               color: Color(0xFF6B7280),

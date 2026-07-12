@@ -1,11 +1,12 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/qr_code_history_model.dart';
+import 'admin_audit_log_service.dart';
 
 class QRCodeHistoryService {
   static SupabaseClient get _db => Supabase.instance.client;
   static const String _table = 'qr_code_history';
 
-  // Get all QR codes from database
+  // Get all QR codes from database (active only, for legacy compatibility)
   static Future<List<QRCodeHistory>> getHistory({String? roomId}) async {
     try {
       late final List<dynamic> data;
@@ -31,6 +32,19 @@ class QRCodeHistoryService {
     }
   }
 
+  // Get ALL QR codes from database (including inactive, for admin view)
+  static Future<List<QRCodeHistory>> fetchAllHistory() async {
+    try {
+      final data = await _db
+          .from(_table)
+          .select()
+          .order('created_at', ascending: false);
+      return (data as List).map((e) => QRCodeHistory.fromMap(e)).toList();
+    } catch (e) {
+      throw Exception('Error fetching all QR code history: $e');
+    }
+  }
+
   // Save QR code to database
   static Future<QRCodeHistory> saveQRCode({
     required String roomId,
@@ -53,6 +67,11 @@ class QRCodeHistoryService {
         'scanned_count': 0,
       }).select().single();
 
+      await AdminAuditLogService.logAction(
+        title: 'Generated QR Code',
+        details: 'QR Value: $qrCodeValue',
+      );
+
       return QRCodeHistory.fromMap(response);
     } catch (e) {
       throw Exception('Error saving QR code: $e');
@@ -60,15 +79,12 @@ class QRCodeHistoryService {
   }
 
   // Update display metadata for active QR history entries of a room.
-  // The QR value remains unchanged.
   static Future<void> updateRoomMetadata({
     required String roomId,
     required String roomName,
     required String building,
     required String department,
   }) async {
-    // Metadata snapshot columns were removed from qr_code_history in 3NF migration.
-    // Keep this method for call-site compatibility and future extension.
     return;
   }
 
@@ -116,6 +132,10 @@ class QRCodeHistoryService {
   static Future<void> deleteQRCode(String id) async {
     try {
       await _db.from(_table).delete().eq('id', id);
+      await AdminAuditLogService.logAction(
+        title: 'Deleted QR Code',
+        details: 'QR Code ID: $id',
+      );
     } catch (e) {
       throw Exception('Error deleting QR code: $e');
     }
@@ -125,6 +145,10 @@ class QRCodeHistoryService {
   static Future<void> deactivateQRCode(String id) async {
     try {
       await _db.from(_table).update({'is_active': false}).eq('id', id);
+      await AdminAuditLogService.logAction(
+        title: 'Deactivated QR Code',
+        details: 'QR Code ID: $id',
+      );
     } catch (e) {
       throw Exception('Error deactivating QR code: $e');
     }
@@ -147,7 +171,7 @@ class QRCodeHistoryService {
           .select()
           .eq('is_active', true);
       
-      return (data as List).length;
+      return (data as List?)?.length ?? 0;
     } catch (e) {
       throw Exception('Error getting history count: $e');
     }

@@ -121,7 +121,7 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00BFA5).withOpacity(0.1),
+                    color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.camera_alt, color: Color(0xFF00BFA5)),
@@ -147,7 +147,7 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00BFA5).withOpacity(0.1),
+                    color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.photo_library, color: Color(0xFF00BFA5)),
@@ -176,7 +176,7 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
+                      color: Colors.red.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(Icons.delete, color: Colors.red),
@@ -235,7 +235,7 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                               color: Colors.white,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.06),
+                                  color: Colors.black.withValues(alpha: 0.06),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                 ),
@@ -336,7 +336,7 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
+                        color: Colors.black.withValues(alpha: 0.03),
                         blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),
@@ -388,7 +388,7 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
+                        color: Colors.black.withValues(alpha: 0.03),
                         blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),
@@ -576,7 +576,7 @@ class _LogoutTile extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
+                color: Colors.red.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(

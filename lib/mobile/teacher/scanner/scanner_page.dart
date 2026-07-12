@@ -138,7 +138,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     await _stopScanner();
 
     try {
-      final room = await RoomService.fetchByScanValue(code);
+      final room = await RoomService.fetchByCode(code);
       if (!mounted) return;
 
       if (room != null) {
@@ -285,13 +285,13 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                                         Icon(
                                           Icons.qr_code_scanner_rounded,
                                           size: 48,
-                                          color: Colors.white.withOpacity(0.7),
+                                          color: Colors.white.withValues(alpha: 0.7),
                                         ),
                                         const SizedBox(height: 12),
                                         Text(
                                           'Open the Scanner tab to use the camera',
                                           style: TextStyle(
-                                            color: Colors.white.withOpacity(0.75),
+                                            color: Colors.white.withValues(alpha: 0.75),
                                             fontSize: 13,
                                             fontWeight: FontWeight.w500,
                                           ),

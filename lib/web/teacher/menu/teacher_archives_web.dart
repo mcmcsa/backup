@@ -141,7 +141,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.archive_outlined, size: 64, color: AdminStyles.textMuted.withOpacity(0.2)),
+            Icon(Icons.archive_outlined, size: 64, color: AdminStyles.textMuted.withValues(alpha: 0.2)),
             const SizedBox(height: 16),
             Text('No archived requests found', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
           ],
@@ -169,7 +169,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
           Container(
             width: 56,
             height: 56,
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
             child: Icon(isCompleted ? Icons.check_circle_rounded : Icons.cancel_rounded, color: color, size: 28),
           ),
           const SizedBox(width: 24),

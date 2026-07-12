@@ -70,9 +70,9 @@ class _MaintenanceRequestReworkWebState extends State<MaintenanceRequestReworkWe
             // Warning Banner
             Container(
               decoration: BoxDecoration(
-                color: _warningOrange.withOpacity(0.1),
+                color: _warningOrange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _warningOrange.withOpacity(0.3)),
+                border: Border.all(color: _warningOrange.withValues(alpha: 0.3)),
               ),
               padding: const EdgeInsets.all(16),
               child: Row(

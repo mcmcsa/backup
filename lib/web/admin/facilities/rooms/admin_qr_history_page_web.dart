@@ -748,7 +748,7 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: accent.withOpacity(0.12),
+              color: accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(11),
             ),
             child: Icon(icon, color: accent, size: 22),

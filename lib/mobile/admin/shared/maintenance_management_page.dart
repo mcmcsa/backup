@@ -672,7 +672,7 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
                                             radius: 22,
                                             backgroundColor: const Color(
                                               0xFF4169E1,
-                                            ).withOpacity(0.12),
+                                            ).withValues(alpha: 0.12),
                                             child: const Icon(
                                               Icons.engineering,
                                               color: Color(0xFF4169E1),

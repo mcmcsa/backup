@@ -13,6 +13,8 @@ import '../../../shared/services/room_service.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
 
 class TeacherCreateRequestWeb extends StatefulWidget {
   final String? roomId;
@@ -43,8 +45,12 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
+  String _selectedPriority = 'medium';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
+
+  final List<XFile> _selectedImages = [];
+  final ImagePicker _imagePicker = ImagePicker();
 
   List<String> _buildings = [];
   List<String> _colleges = [];
@@ -107,6 +113,21 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
     }
   }
 
+  Future<void> _pickImages() async {
+    try {
+      final List<XFile> images = await _imagePicker.pickMultiImage(
+        imageQuality: 80,
+      );
+      if (images.isNotEmpty) {
+        setState(() {
+          _selectedImages.addAll(images);
+        });
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to pick images: $e'), backgroundColor: AdminStyles.error));
+    }
+  }
+
   Future<void> _submitRequest() async {
     if (!_formKey.currentState!.validate()) return;
     
@@ -119,10 +140,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
 
     try {
       final roomCode = _roomNumberController.text.trim();
-      var room = await RoomService.fetchByIdOrRoomNumber(roomCode);
-      if (room == null && _officeRoomNameController.text.isNotEmpty) {
-        room = await RoomService.fetchByName(_officeRoomNameController.text.trim());
-      }
+      var room = await RoomService.fetchByCode(roomCode);
 
       if (room == null) {
         throw 'Room not found. Please verify the room code.';
@@ -133,6 +151,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         throw 'This room already has an active maintenance request.';
       }
 
+      if (!mounted) return;
       final authService = context.read<AuthService>();
       final user = authService.currentUser;
       final helper = DropdownDataHelper();
@@ -152,7 +171,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         title: 'Maintenance: $typeLabel',
         description: _issueDetailsController.text.trim(),
         status: 'pending',
-        priority: 'medium',
+        priority: _selectedPriority,
         buildingName: _selectedBuilding,
         buildingId: building?.id,
         departmentName: _selectedCollege,
@@ -169,6 +188,30 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       );
 
       final inserted = await WorkRequestService.insert(request);
+
+      List<String> uploadedUrls = [];
+      for (var i = 0; i < _selectedImages.length; i++) {
+        final file = _selectedImages[i];
+        final extension = file.name.split('.').last;
+        final fileName = '${inserted.id}/image_$i.$extension';
+        try {
+          final bytes = await file.readAsBytes();
+          await Supabase.instance.client.storage
+              .from('work-request-attachments')
+              .uploadBinary(fileName, bytes);
+          final url = Supabase.instance.client.storage
+              .from('work-request-attachments')
+              .getPublicUrl(fileName);
+          uploadedUrls.add(url);
+        } catch (e) {
+          // ignore upload errors
+        }
+      }
+
+      if (uploadedUrls.isNotEmpty) {
+        final updatedRequest = inserted.copyWith(attachmentUrls: uploadedUrls);
+        await WorkRequestService.update(updatedRequest);
+      }
 
       if (user != null) {
         await ESignatureService.insert(ESignature(
@@ -192,8 +235,12 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       );
 
       if (mounted) {
-        context.go('/teacher/reports');
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Request submitted successfully!'), backgroundColor: AdminStyles.success));
+        context.go('/work-request-success', extra: {
+          'trackingNumber': inserted.id,
+          'location': '${inserted.roomName} - ${inserted.buildingName}',
+          'severity': inserted.priority.toUpperCase(),
+          'reportedDate': inserted.dateSubmitted,
+        });
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AdminStyles.error));
@@ -369,6 +416,13 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
               ),
             ],
             const SizedBox(height: 24),
+            _buildDropdownField(
+              label: 'Priority Level',
+              value: _selectedPriority,
+              items: const ['low', 'medium', 'high'],
+              onChanged: (v) => setState(() => _selectedPriority = v!),
+            ),
+            const SizedBox(height: 24),
             _buildInputField(
               label: 'Description of the Problem',
               controller: _issueDetailsController,
@@ -376,6 +430,86 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
               maxLines: 5,
               validator: (v) => v!.isEmpty ? 'Required' : null,
             ),
+            const SizedBox(height: 24),
+            _buildLabel('Upload Photos (optional)'),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: _pickImages,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(32),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AdminStyles.border, width: 1.5),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.cloud_upload_outlined, size: 48, color: Colors.grey.shade400),
+                    const SizedBox(height: 12),
+                    Text('Tap to upload photos', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+                    const SizedBox(height: 4),
+                    Text('PNG, JPG up to 10MB', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                  ],
+                ),
+              ),
+            ),
+            if (_selectedImages.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: _selectedImages.asMap().entries.map((entry) {
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AdminStyles.border),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: FutureBuilder<Uint8List>(
+                            future: entry.value.readAsBytes(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                              }
+                              if (snapshot.hasData) {
+                                return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                              }
+                              return const Icon(Icons.error_outline, color: AdminStyles.error);
+                            },
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedImages.removeAt(entry.key);
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: AdminStyles.error,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close, size: 14, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ],
           ],
         ),
       ],
@@ -499,7 +633,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       label: Text(label),
       selected: isSelected,
       onSelected: (s) => setState(() => _selectedRequestType = label),
-      selectedColor: AdminStyles.primary.withOpacity(0.1),
+      selectedColor: AdminStyles.primary.withValues(alpha: 0.1),
       labelStyle: AdminStyles.bodyStyle(color: isSelected ? AdminStyles.primary : AdminStyles.textSecondary, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: isSelected ? AdminStyles.primary : AdminStyles.border)),
       backgroundColor: AdminStyles.surface,

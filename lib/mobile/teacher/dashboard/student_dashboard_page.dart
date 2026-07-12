@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/providers/theme_provider.dart';
@@ -250,7 +250,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                 child: _buildReportCard(
                   icon: Icons.build_outlined,
                   iconColor: themeProvider.primaryColor,
-                  iconBgColor: themeProvider.primaryColor.withOpacity(0.1),
+                  iconBgColor: themeProvider.primaryColor.withValues(alpha: 0.1),
                   title: r.title,
                   location: '${r.officeRoom}, ${r.buildingName}',
                   date: DateFormat('MMM dd, yyyy â€¢ hh:mm a').format(r.dateSubmitted).toUpperCase(),
@@ -395,7 +395,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
+              color: statusColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(

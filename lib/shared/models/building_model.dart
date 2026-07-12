@@ -4,6 +4,8 @@ class Building {
   final String code;
   final String departmentId;
   final String department;
+  final int numberOfFloors;
+  final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -13,6 +15,8 @@ class Building {
     required this.code,
     this.departmentId = '',
     this.department = '',
+    this.numberOfFloors = 1,
+    this.isActive = true,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -29,8 +33,12 @@ class Building {
       code: map['code'] ?? '',
       departmentId: map['department_id']?.toString() ?? '',
       department: departmentName,
-      createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
+      numberOfFloors: map['number_of_floors'] ?? 1,
+      isActive: map['is_active'] ?? true,
+      createdAt: DateTime.parse(
+          map['created_at'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(
+          map['updated_at'] ?? DateTime.now().toIso8601String()),
     );
   }
 
@@ -40,6 +48,8 @@ class Building {
       'name': name,
       'code': code,
       if (departmentId.isNotEmpty) 'department_id': departmentId,
+      'number_of_floors': numberOfFloors,
+      'is_active': isActive,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
@@ -51,6 +61,8 @@ class Building {
     String? code,
     String? departmentId,
     String? department,
+    int? numberOfFloors,
+    bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -60,6 +72,8 @@ class Building {
       code: code ?? this.code,
       departmentId: departmentId ?? this.departmentId,
       department: department ?? this.department,
+      numberOfFloors: numberOfFloors ?? this.numberOfFloors,
+      isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

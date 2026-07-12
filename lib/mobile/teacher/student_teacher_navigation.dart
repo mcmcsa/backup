@@ -196,7 +196,7 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: themeProvider.primaryColor.withOpacity(0.3),
+                  color: themeProvider.primaryColor.withValues(alpha: 0.3),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),

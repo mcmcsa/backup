@@ -3,10 +3,10 @@ import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
 import '../../shared/models/room_model.dart';
 import 'shared/admin_styles.dart';
-import 'dashboard/dashboard_page_web.dart';
+import '../../shared/screens/unified_dashboard_page.dart';
 import 'users/admin_users_web.dart';
 import 'profile/admin_profile_web.dart';
-import 'analytics/analytics_page_web.dart';
+import '../../../shared/screens/unified_analytics_page.dart';
 import 'work_requests/admin_work_requests_web.dart';
 import 'tickets/maintenance/maintenance_management_page_web.dart';
 import 'facilities/rooms/add_room_page.dart';
@@ -231,9 +231,15 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   Widget _getCurrentPage() {
     switch (_selectedIndex) {
       case _dashboardIndex:
-        return const DashboardPageWeb();
+        return UnifiedDashboardPage(
+          onViewAllWorkRequests: () {
+            setState(() {
+              _selectedIndex = _workRequestsIndex; // Switch to Tickets tab
+            });
+          },
+        );
       case _analyticsIndex:
-        return const AnalyticsPageWeb();
+        return const UnifiedAnalyticsPage();
       case _workRequestsIndex:
         return const AdminWorkRequestsWeb();
       case _ticketsIndex:
@@ -309,7 +315,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
       case _qrHistoryIndex:
         return const AdminQrHistoryPageWeb();
       default:
-        return const DashboardPageWeb();
+        return Container(); // Fallback
     }
   }
 

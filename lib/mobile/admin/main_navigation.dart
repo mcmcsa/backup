@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dashboard/dashboard_page_mobile.dart';
+import '../../shared/screens/unified_dashboard_page.dart';
 import 'rooms/room_management_page.dart';
 import 'ticket/work_requests_page.dart';
-import 'analytics/analytics_page.dart';
+import '../../shared/screens/unified_analytics_page.dart';
 import 'profile/profile_page.dart';
 import 'shared/menu_drawer.dart';
 
@@ -42,10 +42,10 @@ class _MainNavigationState extends State<MainNavigation> {
     final isCompactMobile = screenWidth <= 430;
 
     final List<Widget> pages = [
-      DashboardPageMobile(openDrawer: _openDrawer),
+      UnifiedDashboardPage(openDrawer: _openDrawer),
       RoomManagementPage(openDrawer: _openDrawer),
       WorkRequestsPage(openDrawer: _openDrawer),
-      AnalyticsPage(openDrawer: _openDrawer),
+      UnifiedAnalyticsPage(openDrawer: _openDrawer),
       ProfilePage(openDrawer: _openDrawer),
     ];
 
@@ -127,7 +127,7 @@ class _MainNavigationState extends State<MainNavigation> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 12,
             offset: const Offset(0, -3),
           ),
@@ -203,7 +203,7 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
         decoration: BoxDecoration(
           color: isSelected 
-              ? const Color(0xFF4169E1).withOpacity(0.1)
+              ? const Color(0xFF4169E1).withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(isCompact ? 10 : 12),
         ),

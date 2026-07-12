@@ -513,8 +513,8 @@ class _AdminPostRepairEvaluationPageState
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: report.adminEvaluation == 'satisfied'
-                          ? const Color(0xFF059669).withOpacity(0.1)
-                          : const Color(0xFFDC2626).withOpacity(0.1),
+                          ? const Color(0xFF059669).withValues(alpha: 0.1)
+                          : const Color(0xFFDC2626).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(

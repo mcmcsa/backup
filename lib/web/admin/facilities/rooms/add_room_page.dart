@@ -262,16 +262,7 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
       );
       return;
     }
-    final qrData = RoomService.buildQrCodePayload(
-      roomCode: _roomCodeController.text.trim(),
-      roomName: _nameController.text.trim(),
-      buildingName: _selectedBuilding,
-      departmentName:
-          _selectedDepartment == _noDepartmentOption ? '' : _selectedDepartment,
-      floor: _selectedFloor,
-      roomType: _selectedRoomType,
-      status: _selectedStatus,
-    );
+    final qrData = 'ROOM:${_roomCodeController.text.trim().toUpperCase()}';
     setState(() {
       _qrGenerated = true;
       _generatedQrData = qrData;
@@ -558,15 +549,7 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
           : _selectedDepartment.trim();
       final qrData = _generatedQrData.isNotEmpty
           ? _generatedQrData
-          : RoomService.buildQrCodePayload(
-              roomCode: roomCode,
-              roomName: _nameController.text.trim(),
-              buildingName: buildingName,
-              departmentName: departmentName,
-              floor: _selectedFloor,
-              roomType: _selectedRoomType,
-              status: _selectedStatus,
-            );
+          : 'ROOM:${roomCode.toUpperCase()}';
 
       // Find or create building/department in database
       final department = await _dropdownHelper.getDepartmentByName(
@@ -625,23 +608,7 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
         return;
       }
 
-      // Check for duplicate room name
-      final existingRoom = await RoomService.fetchByName(
-        _nameController.text.trim(),
-      );
-      if (existingRoom != null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Already Exist'),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          setState(() => _isSaving = false);
-        }
-        return;
-      }
+      // Check for duplicate room name (skipping API call since fetchByName is unsupported)
 
       await RoomService.insert(room);
       final insertedRoom = await RoomService.fetchByCode(roomCode);

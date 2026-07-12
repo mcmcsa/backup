@@ -175,7 +175,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
           'Track and manage all maintenance work requests.',
           style: TextStyle(
             fontSize: 15,
-            color: _subtleText.withOpacity(0.8),
+            color: _subtleText.withValues(alpha: 0.8),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -258,7 +258,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
         border: Border.all(color: _borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -329,7 +329,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: _primaryBlue.withOpacity(0.1),
+                  color: _primaryBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -364,7 +364,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
               ),
               Icon(
                 Icons.arrow_forward_rounded,
-                color: _subtleText.withOpacity(0.3),
+                color: _subtleText.withValues(alpha: 0.3),
                 size: 18,
               ),
             ],
@@ -382,7 +382,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
         border: Border.all(color: _borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -443,7 +443,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
@@ -469,7 +469,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
         border: Border.all(color: _borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -521,7 +521,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
                       Icon(
                         Icons.inbox_rounded,
                         size: 48,
-                        color: _subtleText.withOpacity(0.3),
+                        color: _subtleText.withValues(alpha: 0.3),
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -575,7 +575,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
@@ -621,7 +621,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: priorityColor.withOpacity(0.1),
+                        color: priorityColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -638,7 +638,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -670,7 +670,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -712,7 +712,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: priorityColor.withOpacity(0.1),
+                  color: priorityColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -729,7 +729,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -807,19 +807,19 @@ class _StatCardState extends State<_StatCard> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _isHovered ? widget.color.withOpacity(0.3) : const Color(0xFFE2E8F0),
+            color: _isHovered ? widget.color.withValues(alpha: 0.3) : const Color(0xFFE2E8F0),
           ),
           boxShadow: _isHovered
               ? [
                   BoxShadow(
-                    color: widget.color.withOpacity(0.1),
+                    color: widget.color.withValues(alpha: 0.1),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -864,7 +864,7 @@ class _StatCardState extends State<_StatCard> {
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: widget.color.withOpacity(0.1),
+                      color: widget.color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(

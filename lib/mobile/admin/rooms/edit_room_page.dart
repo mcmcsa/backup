@@ -58,15 +58,7 @@ class _EditRoomPageState extends State<EditRoomPage> {
     _selectedStatus = widget.room.status;
     _qrData = (widget.room.qrCodeData != null && widget.room.qrCodeData!.trim().isNotEmpty)
         ? widget.room.qrCodeData!.trim()
-        : RoomService.buildQrCodePayload(
-            roomCode: roomCode,
-            roomName: widget.room.name,
-            buildingName: widget.room.building,
-            departmentName: widget.room.department,
-            floor: widget.room.floor,
-            roomType: widget.room.roomType,
-            status: widget.room.status,
-          );
+        : 'ROOM:$roomCode';
     _loadDropdownOptions();
   }
 
@@ -267,15 +259,7 @@ class _EditRoomPageState extends State<EditRoomPage> {
         throw Exception('Selected room type was not found');
       }
 
-      final qrData = RoomService.buildQrCodePayload(
-        roomCode: _roomCodeController.text.trim(),
-        roomName: _nameController.text.trim(),
-        buildingName: building.name,
-        departmentName: departmentName,
-        floor: _selectedFloor,
-        roomType: _selectedRoomType,
-        status: _selectedStatus,
-      );
+      final qrData = 'ROOM:${_roomCodeController.text.trim().toUpperCase()}';
 
       final updatedRoom = Room(
         id: widget.room.id,

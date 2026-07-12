@@ -37,7 +37,7 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
     });
 
     try {
-      final room = await RoomService.fetchByScanValue(code);
+      final room = await RoomService.fetchByCode(code);
 
       if (!mounted) return;
 
@@ -223,7 +223,7 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       elevation: 0,
-                      disabledBackgroundColor: const Color(0xFF00BFA5).withOpacity(0.5),
+                      disabledBackgroundColor: const Color(0xFF00BFA5).withValues(alpha: 0.5),
                     ),
                     child: _isVerifying
                         ? const SizedBox(
@@ -308,7 +308,7 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
                 color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, -2),
                   ),

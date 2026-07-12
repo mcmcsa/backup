@@ -177,7 +177,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: _hasSigned
-                    ? const Color(0xFF4169E1).withOpacity(0.3)
+                    ? const Color(0xFF4169E1).withValues(alpha: 0.3)
                     : const Color(0xFFE5E7EB),
                 width: _hasSigned ? 2 : 1,
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../shared/models/work_request_model.dart';
-import '../../../shared/services/work_request_service.dart';
+import '../../../shared/providers/work_request_provider.dart';
 
 import '../shared/admin_styles.dart';
 
@@ -16,37 +17,30 @@ const Color _accentAmber = AdminStyles.warning;
 const Color _accentRed = AdminStyles.error;
 
 class DashboardPageWeb extends StatefulWidget {
-  const DashboardPageWeb({super.key});
+  final VoidCallback? onViewAllWorkRequests;
+
+  const DashboardPageWeb({super.key, this.onViewAllWorkRequests});
 
   @override
   State<DashboardPageWeb> createState() => _DashboardPageWebState();
 }
 
 class _DashboardPageWebState extends State<DashboardPageWeb> {
-  List<WorkRequest> _allRequests = [];
-  bool _isLoading = true;
-
   @override
   void initState() {
     super.initState();
-    _loadRequests();
   }
 
-  Future<void> _loadRequests() async {
-    try {
-      final data = await WorkRequestService.fetchAll();
-      data.sort((left, right) => right.dateSubmitted.compareTo(left.dateSubmitted));
-      if (mounted) {
-        setState(() {
-          _allRequests = data;
-          _isLoading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+  List<WorkRequest> get _allRequests {
+    return Provider.of<WorkRequestProvider>(context).requests;
+  }
+  
+  bool get _isLoading {
+    return Provider.of<WorkRequestProvider>(context).isLoading;
+  }
+  
+  String? get _error {
+    return Provider.of<WorkRequestProvider>(context).error;
   }
 
   int _getCountByStatus(String status) {
@@ -90,6 +84,16 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
 
   @override
   Widget build(BuildContext context) {
+    if (_error != null) {
+      return Center(
+        child: Text('Error loading dashboard: $_error', style: const TextStyle(color: _accentRed)),
+      );
+    }
+    
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: AdminStyles.primary));
+    }
+    
     final width = MediaQuery.of(context).size.width;
     final isCompact = width < 1280;
 
@@ -396,7 +400,7 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
       title: 'Recent Requests',
       icon: Icons.assignment_rounded,
       action: TextButton(
-        onPressed: () {},
+        onPressed: widget.onViewAllWorkRequests ?? () {},
         style: TextButton.styleFrom(
           foregroundColor: _accentCyan,
           minimumSize: const Size(44, 36),

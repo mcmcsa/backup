@@ -189,6 +189,8 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
 
                           setDialogState(() => isSaving = false);
 
+                          if (!context.mounted) return;
+                          
                           if (error != null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text(error), backgroundColor: Colors.red),
@@ -198,8 +200,10 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
 
                           Navigator.of(dialogContext).pop();
 
+                          if (!mounted) return;
+
                           await showDialog<void>(
-                            context: this.context,
+                            context: context,
                             barrierDismissible: false,
                             builder: (okContext) => AlertDialog(
                               title: const Text('Password Updated'),
@@ -213,8 +217,8 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                             ),
                           );
 
-                          if (this.mounted) {
-                            await authService.handleLogoutButton(this.context);
+                          if (mounted) {
+                            await authService.handleLogoutButton(context);
                           }
                         },
                   child: isSaving
@@ -346,7 +350,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
           secondary: Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
             child: Icon(icon, color: color, size: 20),
           ),
           title: Text(title, style: AdminStyles.headingStyle(fontSize: 15)),
@@ -373,7 +377,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
             Container(
               width: 40,
               height: 40,
-              decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
               child: Icon(icon, color: color, size: 20),
             ),
             const SizedBox(width: 20),

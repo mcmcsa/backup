@@ -1,11 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../authentication/models/user_model.dart';
 import '../../authentication/services/auth_service.dart';
-import '../../shared/models/department_model.dart';
-import '../../shared/services/department_service.dart';
-import '../../shared/services/system_admin_service.dart';
 import '../admin/shared/admin_styles.dart';
+
+import 'screens/system_admin_dashboard_view.dart';
+import 'screens/system_admin_users_view.dart';
+import 'screens/system_admin_departments_view.dart';
+import 'screens/system_admin_buildings_view.dart';
+import 'screens/system_admin_rooms_view.dart';
+import 'screens/system_admin_qr_management_view.dart';
+import 'screens/system_admin_request_types_view.dart';
+import 'screens/system_admin_specializations_view.dart';
+import 'screens/system_admin_reports_view.dart';
+import 'screens/system_admin_feedback_view.dart';
+import 'screens/system_admin_announcements_view.dart';
+import 'screens/system_admin_audit_logs_view.dart';
+import 'screens/system_admin_system_health_view.dart';
+import 'screens/system_admin_backup_restore_view.dart';
+import 'screens/system_admin_settings_view.dart';
 
 class SystemAdminMainNavigationWeb extends StatefulWidget {
   const SystemAdminMainNavigationWeb({super.key});
@@ -22,14 +34,6 @@ class _SystemAdminMainNavigationWebState
   bool _isMenuExpanded = true;
   String _userName = 'System Administrator';
 
-  // Users State
-  List<AppUser> _allUsers = [];
-  List<Department> _departments = [];
-  bool _isLoading = true;
-  String _searchQuery = '';
-  String _selectedRoleFilter = 'all';
-  String _selectedStatusFilter = 'all';
-
   // Colors
   static const _sidebarBg = Color(0xFF0F172A);
   static const _sidebarBorder = Color(0xFF1E293B);
@@ -41,7 +45,6 @@ class _SystemAdminMainNavigationWebState
   void initState() {
     super.initState();
     _loadUserInfo();
-    _loadData();
   }
 
   Future<void> _loadUserInfo() async {
@@ -54,53 +57,28 @@ class _SystemAdminMainNavigationWebState
     }
   }
 
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    try {
-      final users = await SystemAdminService.fetchAllUsers();
-      final depts = await DepartmentService.fetchAll();
-      if (mounted) {
-        setState(() {
-          _allUsers = users;
-          _departments = depts;
-          _isLoading = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  List<AppUser> get _filteredUsers {
-    return _allUsers.where((user) {
-      // 1. Search Query filter
-      final query = _searchQuery.trim().toLowerCase();
-      if (query.isNotEmpty) {
-        final matchesName = user.name.toLowerCase().contains(query);
-        final matchesEmail = user.email.toLowerCase().contains(query);
-        final matchesId = (user.employeeId ?? '').toLowerCase().contains(query);
-        if (!matchesName && !matchesEmail && !matchesId) return false;
-      }
-
-      // 2. Role filter
-      if (_selectedRoleFilter != 'all') {
-        if (user.role.name != _selectedRoleFilter) return false;
-      }
-
-      // 3. Status filter
-      if (_selectedStatusFilter != 'all') {
-        final checkActive = _selectedStatusFilter == 'active';
-        if (user.isActive != checkActive) return false;
-      }
-
-      return true;
-    }).toList();
-  }
-
   void _handleLogout() async {
     final authService = context.read<AuthService>();
     await authService.handleLogoutButton(context);
   }
+
+  final List<Map<String, dynamic>> _menuItems = [
+    {'icon': Icons.dashboard_rounded, 'label': 'Dashboard'},
+    {'icon': Icons.people_outline, 'label': 'Users Management'},
+    {'icon': Icons.account_tree_outlined, 'label': 'Departments'},
+    {'icon': Icons.business_outlined, 'label': 'Buildings'},
+    {'icon': Icons.meeting_room_outlined, 'label': 'Rooms'},
+    {'icon': Icons.qr_code_scanner_outlined, 'label': 'QR Management'},
+    {'icon': Icons.build_circle_outlined, 'label': 'Request Types'},
+    {'icon': Icons.psychology_outlined, 'label': 'Specializations'},
+    {'icon': Icons.bar_chart_rounded, 'label': 'Reports'},
+    {'icon': Icons.feedback_outlined, 'label': 'Feedback'},
+    {'icon': Icons.campaign_outlined, 'label': 'Announcements'},
+    {'icon': Icons.history_edu, 'label': 'Audit Logs'},
+    {'icon': Icons.monitor_heart_outlined, 'label': 'System Health'},
+    {'icon': Icons.backup_outlined, 'label': 'Backup & Restore'},
+    {'icon': Icons.settings_outlined, 'label': 'Settings'},
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -118,9 +96,7 @@ class _SystemAdminMainNavigationWebState
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1400),
-                      child: _selectedIndex == 0
-                          ? _buildUserManagementContent()
-                          : _buildAuditLogsContent(),
+                      child: _buildBodyContent(),
                     ),
                   ),
                 ),
@@ -130,6 +106,45 @@ class _SystemAdminMainNavigationWebState
         ],
       ),
     );
+  }
+
+  Widget _buildBodyContent() {
+    switch (_selectedIndex) {
+      case 0:
+        return SystemAdminDashboardView(
+          onCreateUser: () => setState(() => _selectedIndex = 1),
+        );
+      case 1:
+        return const SystemAdminUsersView();
+      case 2:
+        return const SystemAdminDepartmentsView();
+      case 3:
+        return const SystemAdminBuildingsView();
+      case 4:
+        return const SystemAdminRoomsView();
+      case 5:
+        return const SystemAdminQrManagementView();
+      case 6:
+        return const SystemAdminRequestTypesView();
+      case 7:
+        return const SystemAdminSpecializationsView();
+      case 8:
+        return const SystemAdminReportsView();
+      case 9:
+        return const SystemAdminFeedbackView();
+      case 10:
+        return const SystemAdminAnnouncementsView();
+      case 11:
+        return const SystemAdminAuditLogsView();
+      case 12:
+        return const SystemAdminSystemHealthView();
+      case 13:
+        return const SystemAdminBackupRestoreView();
+      case 14:
+        return const SystemAdminSettingsView();
+      default:
+        return const Center(child: Text('Page not found'));
+    }
   }
 
   Widget _buildSidebar() {
@@ -170,20 +185,17 @@ class _SystemAdminMainNavigationWebState
           ),
           // Nav Items
           Expanded(
-            child: ListView(
+            child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-              children: [
-                _buildSidebarNavItem(
-                  index: 0,
-                  icon: Icons.people_outline,
-                  label: 'Users Management',
-                ),
-                _buildSidebarNavItem(
-                  index: 1,
-                  icon: Icons.history_edu,
-                  label: 'Audit & Activity Logs',
-                ),
-              ],
+              itemCount: _menuItems.length,
+              itemBuilder: (context, index) {
+                final item = _menuItems[index];
+                return _buildSidebarNavItem(
+                  index: index,
+                  icon: item['icon'] as IconData,
+                  label: item['label'] as String,
+                );
+              },
             ),
           ),
           // Collapse Toggle
@@ -236,6 +248,7 @@ class _SystemAdminMainNavigationWebState
                     fontSize: 14,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -277,636 +290,6 @@ class _SystemAdminMainNavigationWebState
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildUserManagementContent() {
-    final filtered = _filteredUsers;
-
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header Row
-          Row(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Users Console',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Configure credentials, roles, and status profiles.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: () => _showAddUserDialog(),
-                icon: const Icon(Icons.add_rounded, color: Colors.white),
-                label: const Text(
-                  'CREATE NEW USER',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryBlue,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          // Search & Filter Panel
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    onChanged: (val) => setState(() => _searchQuery = val),
-                    decoration: InputDecoration(
-                      hintText: 'Search by name, email or employee ID...',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                DropdownButton<String>(
-                  value: _selectedRoleFilter,
-                  onChanged: (val) =>
-                      setState(() => _selectedRoleFilter = val ?? 'all'),
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All Roles')),
-                    DropdownMenuItem(value: 'admin', child: Text('System Admin')),
-                    DropdownMenuItem(
-                        value: 'campadmin', child: Text('Campus Admin')),
-                    DropdownMenuItem(value: 'teacher', child: Text('Teacher')),
-                    DropdownMenuItem(
-                        value: 'maintenance', child: Text('Maintenance')),
-                  ],
-                ),
-                const SizedBox(width: 16),
-                DropdownButton<String>(
-                  value: _selectedStatusFilter,
-                  onChanged: (val) =>
-                      setState(() => _selectedStatusFilter = val ?? 'all'),
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('All Status')),
-                    DropdownMenuItem(value: 'active', child: Text('Active Only')),
-                    DropdownMenuItem(
-                        value: 'inactive', child: Text('Inactive Only')),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Users List
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : filtered.isEmpty
-                      ? const Center(child: Text('No users found.'))
-                      : ListView.separated(
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, __) =>
-                              const Divider(height: 1),
-                          itemBuilder: (context, idx) {
-                            final user = filtered[idx];
-                            return ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
-                              ),
-                              leading: CircleAvatar(
-                                radius: 22,
-                                backgroundColor: _primaryBlue.withOpacity(0.1),
-                                child: Text(
-                                  user.name.isNotEmpty
-                                      ? user.name[0].toUpperCase()
-                                      : '?',
-                                  style: const TextStyle(
-                                    color: _primaryBlue,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              title: Row(
-                                children: [
-                                  Text(
-                                    user.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _buildRoleBadge(user.role),
-                                ],
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Text(user.email),
-                                  if (user.employeeId != null) ...[
-                                    const SizedBox(height: 2),
-                                    Text('Employee ID: ${user.employeeId}'),
-                                  ],
-                                  if (user.role == UserRole.teacher &&
-                                      user.department != null) ...[
-                                    const SizedBox(height: 2),
-                                    Text('Department: ${user.department}'),
-                                  ],
-                                  if (user.role == UserRole.maintenance &&
-                                      user.position != null) ...[
-                                    const SizedBox(height: 2),
-                                    Text('Specialization: ${user.position}'),
-                                  ],
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Status Indicator
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: user.isActive
-                                          ? const Color(0xFFDCFCE7)
-                                          : const Color(0xFFFEE2E2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      user.isActive ? 'Active' : 'Inactive',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: user.isActive
-                                            ? const Color(0xFF16A34A)
-                                            : const Color(0xFFDC2626),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  IconButton(
-                                    onPressed: () => _showEditUserDialog(user),
-                                    icon: const Icon(Icons.edit_outlined),
-                                    tooltip: 'Edit / Configure Account',
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRoleBadge(UserRole role) {
-    Color bg;
-    Color text;
-    String label;
-
-    switch (role) {
-      case UserRole.admin:
-        bg = const Color(0xFFFEE2E2);
-        text = const Color(0xFF991B1B);
-        label = 'System Admin';
-        break;
-      case UserRole.campadmin:
-        bg = const Color(0xFFFEF9C3);
-        text = const Color(0xFF854D0E);
-        label = 'Campus Admin';
-        break;
-      case UserRole.teacher:
-        bg = const Color(0xFFE0F2FE);
-        text = const Color(0xFF075985);
-        label = 'Teacher';
-        break;
-      case UserRole.maintenance:
-        bg = const Color(0xFFF3E8FF);
-        text = const Color(0xFF6B21A8);
-        label = 'Maintenance';
-        break;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-          color: text,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAuditLogsContent() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.history_edu, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text(
-            'Activity Logs Console',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 8),
-          Text('All admin actions and login tracking records are logged in DB.'),
-        ],
-      ),
-    );
-  }
-
-  // DIALOGS & MUTATIONS
-
-  void _showAddUserDialog() {
-    final formKey = GlobalKey<FormState>();
-    final emailController = TextEditingController();
-    final nameController = TextEditingController();
-    final passwordController = TextEditingController();
-    final empIdController = TextEditingController();
-    final phoneController = TextEditingController();
-    final specController = TextEditingController();
-    final posController = TextEditingController();
-    String selectedRole = 'teacher';
-    String? selectedDeptId =
-        _departments.isNotEmpty ? _departments.first.id : null;
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Create New Account'),
-              content: Form(
-                key: formKey,
-                child: SingleChildScrollView(
-                  child: Container(
-                    width: 480,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextFormField(
-                          controller: nameController,
-                          decoration:
-                              const InputDecoration(labelText: 'Full Name'),
-                          validator: (v) =>
-                              v?.isEmpty ?? true ? 'Required' : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: emailController,
-                          decoration:
-                              const InputDecoration(labelText: 'Email Address'),
-                          validator: (v) =>
-                              v?.isEmpty ?? true ? 'Required' : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: passwordController,
-                          obscureText: true,
-                          decoration: const InputDecoration(labelText: 'Password'),
-                          validator: (v) => (v?.length ?? 0) < 6
-                              ? 'Must be at least 6 characters'
-                              : null,
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          value: selectedRole,
-                          onChanged: (val) =>
-                              setState(() => selectedRole = val ?? 'teacher'),
-                          decoration: const InputDecoration(labelText: 'Role'),
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'admin', child: Text('System Admin')),
-                            DropdownMenuItem(
-                                value: 'campadmin', child: Text('Campus Admin')),
-                            DropdownMenuItem(
-                                value: 'teacher', child: Text('Teacher')),
-                            DropdownMenuItem(
-                                value: 'maintenance',
-                                child: Text('Maintenance')),
-                          ],
-                        ),
-                        if (selectedRole == 'teacher') ...[
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            value: selectedDeptId,
-                            onChanged: (val) =>
-                                setState(() => selectedDeptId = val),
-                            decoration:
-                                const InputDecoration(labelText: 'Department'),
-                            items: _departments
-                                .map((d) => DropdownMenuItem(
-                                      value: d.id,
-                                      child: Text(d.name),
-                                    ))
-                                .toList(),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: posController,
-                            decoration: const InputDecoration(
-                                labelText: 'Position (e.g. Faculty)'),
-                          ),
-                        ],
-                        if (selectedRole == 'maintenance') ...[
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: specController,
-                            decoration: const InputDecoration(
-                                labelText:
-                                    'Specialization (e.g. Plumber, Electrician)'),
-                          ),
-                        ],
-                        if (selectedRole == 'teacher' ||
-                            selectedRole == 'maintenance') ...[
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: empIdController,
-                            decoration:
-                                const InputDecoration(labelText: 'Employee ID'),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: phoneController,
-                            decoration: const InputDecoration(
-                                labelText: 'Contact Phone Number'),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: _primaryBlue),
-                  onPressed: () async {
-                    if (formKey.currentState?.validate() ?? false) {
-                      final err = await SystemAdminService.createUserAccount(
-                        email: emailController.text,
-                        password: passwordController.text,
-                        name: nameController.text,
-                        role: selectedRole,
-                        departmentId: selectedDeptId,
-                        position: posController.text,
-                        employeeId: empIdController.text,
-                        phone: phoneController.text,
-                        specialization: specController.text,
-                      );
-                      Navigator.pop(ctx);
-                      if (err == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Account Created Successfully!')),
-                        );
-                        _loadData();
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text(err), backgroundColor: Colors.red),
-                        );
-                      }
-                    }
-                  },
-                  child: const Text('Create', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showEditUserDialog(AppUser user) {
-    final formKey = GlobalKey<FormState>();
-    final emailController = TextEditingController(text: user.email);
-    final nameController = TextEditingController(text: user.name);
-    final empIdController = TextEditingController(text: user.employeeId);
-    final phoneController = TextEditingController(text: user.phone);
-    final specController =
-        TextEditingController(text: user.role == UserRole.maintenance ? user.position : '');
-    final posController =
-        TextEditingController(text: user.role == UserRole.teacher ? user.position : '');
-    String selectedRole = user.role.name;
-    bool isActive = user.isActive;
-    String? selectedDeptId = _departments.isNotEmpty ? _departments.first.id : null;
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text('Edit Profile: ${user.name}'),
-              content: Form(
-                key: formKey,
-                child: SingleChildScrollView(
-                  child: Container(
-                    width: 480,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        TextFormField(
-                          controller: nameController,
-                          decoration:
-                              const InputDecoration(labelText: 'Full Name'),
-                          validator: (v) =>
-                              v?.isEmpty ?? true ? 'Required' : null,
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: emailController,
-                          decoration:
-                              const InputDecoration(labelText: 'Email Address'),
-                          validator: (v) =>
-                              v?.isEmpty ?? true ? 'Required' : null,
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          value: selectedRole,
-                          onChanged: (val) =>
-                              setState(() => selectedRole = val ?? 'teacher'),
-                          decoration: const InputDecoration(labelText: 'Role'),
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'admin', child: Text('System Admin')),
-                            DropdownMenuItem(
-                                value: 'campadmin', child: Text('Campus Admin')),
-                            DropdownMenuItem(
-                                value: 'teacher', child: Text('Teacher')),
-                            DropdownMenuItem(
-                                value: 'maintenance',
-                                child: Text('Maintenance')),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        SwitchListTile.adaptive(
-                          title: const Text('Account Active'),
-                          value: isActive,
-                          onChanged: (val) => setState(() => isActive = val),
-                        ),
-                        if (selectedRole == 'teacher') ...[
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            value: selectedDeptId,
-                            onChanged: (val) =>
-                                setState(() => selectedDeptId = val),
-                            decoration:
-                                const InputDecoration(labelText: 'Department'),
-                            items: _departments
-                                .map((d) => DropdownMenuItem(
-                                      value: d.id,
-                                      child: Text(d.name),
-                                    ))
-                                .toList(),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: posController,
-                            decoration: const InputDecoration(
-                                labelText: 'Position (e.g. Faculty)'),
-                          ),
-                        ],
-                        if (selectedRole == 'maintenance') ...[
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: specController,
-                            decoration: const InputDecoration(
-                                labelText:
-                                    'Specialization (e.g. Plumber, Electrician)'),
-                          ),
-                        ],
-                        if (selectedRole == 'teacher' ||
-                            selectedRole == 'maintenance') ...[
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: empIdController,
-                            decoration:
-                                const InputDecoration(labelText: 'Employee ID'),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: phoneController,
-                            decoration: const InputDecoration(
-                                labelText: 'Contact Phone Number'),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: _primaryBlue),
-                  onPressed: () async {
-                    if (formKey.currentState?.validate() ?? false) {
-                      final err = await SystemAdminService.updateUserAccount(
-                        id: user.id,
-                        email: emailController.text,
-                        name: nameController.text,
-                        role: selectedRole,
-                        isActive: isActive,
-                        departmentId: selectedDeptId,
-                        position: posController.text,
-                        employeeId: empIdController.text,
-                        phone: phoneController.text,
-                        specialization: specController.text,
-                      );
-                      Navigator.pop(ctx);
-                      if (err == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Account Configured Successfully!')),
-                        );
-                        _loadData();
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text(err), backgroundColor: Colors.red),
-                        );
-                      }
-                    }
-                  },
-                  child: const Text('Save Changes', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            );
-          },
-        );
-      },
     );
   }
 }

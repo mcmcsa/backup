@@ -326,7 +326,7 @@ class _AdminWorkProcessPageState extends State<AdminWorkProcessPage> {
                       : null,
             ),
             if (!isLast)
-              Container(width: 2, height: 40, color: dotColor.withOpacity(0.3)),
+              Container(width: 2, height: 40, color: dotColor.withValues(alpha: 0.3)),
           ],
         ),
         const SizedBox(width: 12),

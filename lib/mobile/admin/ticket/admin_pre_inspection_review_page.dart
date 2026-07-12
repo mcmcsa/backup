@@ -705,8 +705,8 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: report.status == 'approved'
-                          ? const Color(0xFF059669).withOpacity(0.1)
-                          : const Color(0xFFDC2626).withOpacity(0.1),
+                          ? const Color(0xFF059669).withValues(alpha: 0.1)
+                          : const Color(0xFFDC2626).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -771,9 +771,9 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
