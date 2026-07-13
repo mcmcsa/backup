@@ -8,6 +8,7 @@ import '../../router/app_router.dart';
 import '../models/user_model.dart';
 import '../../shared/services/department_service.dart';
 import '../../shared/services/login_activity_service.dart';
+import '../../shared/services/maintenance_status_service.dart';
 
 class AuthService extends ChangeNotifier {
   AppUser? _currentUser;
@@ -168,6 +169,9 @@ class AuthService extends ChangeNotifier {
       _isPostLoginSplashActive = true;
       try {
         await LoginActivityService.recordLogin(profile);
+        if (profile.role == UserRole.maintenance) {
+          await MaintenanceStatusService.setOnlineOnLogin(profile.id);
+        }
       } catch (e) {
         // Login should still succeed even if local activity logging fails.
         debugPrint('Login activity recording failed: $e');
@@ -579,6 +583,9 @@ class AuthService extends ChangeNotifier {
     if (_isHandlingLogout) return;
     _isHandlingLogout = true;
     try {
+      if (_currentUser?.role == UserRole.maintenance) {
+        await MaintenanceStatusService.setOfflineOnLogout(_currentUser!.id);
+      }
       await logout();
 
       final routerContext =

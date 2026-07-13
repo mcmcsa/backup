@@ -5,6 +5,8 @@ import '../../../../shared/models/work_request_model.dart';
 import '../../../../shared/services/maintenance_account_service.dart';
 import '../../../../shared/services/work_request_service.dart';
 import '../../shared/admin_styles.dart';
+import '../../../../authentication/models/user_model.dart';
+import '../../../../shared/widgets/availability_status_badge.dart';
 import '../admin_work_process_web.dart';
 
 class MaintenanceManagementPageWeb extends StatefulWidget {
@@ -761,13 +763,22 @@ class _MaintenanceManagementPageWebState
                           color: AdminStyles.primary,
                         ),
                       ),
-                      title: Text(
-                        account.fullName,
-                        style: AdminStyles.bodyStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AdminStyles.textPrimary,
-                        ),
+                      title: Row(
+                        children: [
+                          Text(
+                            account.fullName,
+                            style: AdminStyles.bodyStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AdminStyles.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          AvailabilityStatusBadge(
+                            status: account.availabilityStatus,
+                            size: BadgeSize.small,
+                          ),
+                        ],
                       ),
                       subtitle: Padding(
                         padding: const EdgeInsets.only(top: 4),

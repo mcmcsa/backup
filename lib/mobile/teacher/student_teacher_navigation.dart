@@ -7,6 +7,7 @@ import 'scanner/scanner_page.dart';
 import 'reports/student_reports_page.dart';
 import 'profile/student_profile_page.dart';
 import 'widgets/student_drawer.dart';
+import 'chat/teacher_chat_page.dart';
 
 class StudentTeacherNavigation extends StatefulWidget {
   final int initialIndex;
@@ -53,6 +54,7 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
       ),
       StudentReportsPage(scaffoldKey: _scaffoldKey),
       StudentProfilePage(scaffoldKey: _scaffoldKey),
+      const TeacherChatPage(),
     ];
 
     return WillPopScope(
@@ -116,10 +118,10 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
                 themeProvider: themeProvider,
               ),
               _buildNavItem(
-                icon: Icons.person_outline_rounded,
-                activeIcon: Icons.person_rounded,
-                label: 'Profile',
-                index: 4,
+                icon: Icons.chat_bubble_outline_rounded,
+                activeIcon: Icons.chat_bubble_rounded,
+                label: 'Chat',
+                index: 5,
                 themeProvider: themeProvider,
               ),
             ],
@@ -157,8 +159,8 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
               child: Icon(
                 isSelected ? activeIcon : icon,
                 key: ValueKey(isSelected),
-                color: isSelected 
-                    ? themeProvider.primaryColor 
+                color: isSelected
+                    ? themeProvider.primaryColor
                     : themeProvider.navBarTextColor,
                 size: isSelected ? 26 : 24,
               ),
@@ -169,8 +171,8 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected 
-                    ? themeProvider.primaryColor 
+                color: isSelected
+                    ? themeProvider.primaryColor
                     : themeProvider.navBarTextColor,
                 letterSpacing: 0.3,
               ),
@@ -214,8 +216,8 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected 
-                  ? themeProvider.primaryColor 
+              color: isSelected
+                  ? themeProvider.primaryColor
                   : themeProvider.navBarTextColor,
               letterSpacing: 0.3,
             ),

@@ -6,10 +6,16 @@ import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/models/request_type_model.dart';
 import '../../../shared/models/e_signature_model.dart';
+import '../../../shared/services/system_settings_service.dart';
+import '../../../shared/services/connectivity_service.dart';
+import '../../../shared/services/offline_sync_service.dart';
 import '../../../shared/services/work_request_service.dart';
+import 'package:uuid/uuid.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/room_service.dart';
+import '../../../shared/services/duplicate_detection_service.dart';
+import '../../../shared/widgets/duplicate_detection_dialog.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
@@ -146,10 +152,53 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         throw 'Room not found. Please verify the room code.';
       }
 
-      final hasActive = await WorkRequestService.hasActiveRequestForRoom(room.id);
-      if (hasActive) {
-        throw 'This room already has an active maintenance request.';
+      // ── Duplicate detection ─────────────────────────────────────────────
+      final typeLabel = _selectedRequestType == 'Others'
+          ? _otherRequestTypeController.text.trim()
+          : _selectedRequestType;
+
+      final duplicates = await DuplicateDetectionService.detect(
+        roomId: room.id,
+        issueType: typeLabel,
+        description: _issueDetailsController.text.trim(),
+      );
+
+      if (duplicates.isNotEmpty && mounted) {
+        final result = await showDuplicateDetectionDialog(context, duplicates);
+        if (!mounted) return;
+
+        if (result == null) return; // dialog dismissed
+
+        if (result.choice == DuplicateDialogChoice.viewExisting) {
+          final req = result.selectedRequest!;
+          context.push('/work-request/${req.id}');
+          return;
+        }
+
+        if (result.choice == DuplicateDialogChoice.joinExisting) {
+          final authService = context.read<AuthService>();
+          final user = authService.currentUser;
+          if (user != null) {
+            await DuplicateDetectionService.joinRequest(
+              workRequestId: result.selectedRequest!.id,
+              reporterId: user.id,
+              reporterName: _fullNameController.text.trim(),
+            );
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('You have been added as a co-reporter to the existing request.'),
+                backgroundColor: Color(0xFF22C55E),
+              ),
+            );
+            context.pop();
+          }
+          return;
+        }
+        // DuplicateDialogChoice.continueAnyway → fall through to submit
       }
+      // ── End duplicate detection ─────────────────────────────────────────
 
       if (!mounted) return;
       final authService = context.read<AuthService>();
@@ -159,7 +208,6 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       final building = await helper.getBuildingByName(_selectedBuilding);
       final dept = await helper.getDepartmentByName(_selectedCollege);
       
-      final typeLabel = _selectedRequestType == 'Others' ? _otherRequestTypeController.text.trim() : _selectedRequestType;
       var typeRecord = await helper.getRequestTypeByName(typeLabel);
       if (typeRecord == null) {
          final res = await Supabase.instance.client.from('request_types').insert({'name': typeLabel}).select().maybeSingle();
@@ -186,6 +234,41 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         reportedByName: _fullNameController.text.trim(),
         requestorId: user?.id,
       );
+
+      if (!ConnectivityService().isConnected.value) {
+        // Queue action for offline sync
+        List<String> offlineImagePaths = [];
+        for (int i = 0; i < _selectedImages.length; i++) {
+          final file = _selectedImages[i];
+          final bytes = await file.readAsBytes();
+          final ext = file.name.split('.').last;
+          final path = await OfflineSyncService().saveFileOffline(
+            'offline_img_${DateTime.now().millisecondsSinceEpoch}_$i.$ext', 
+            bytes
+          );
+          if (path != null) offlineImagePaths.add(path);
+        }
+
+        final payload = {
+          'request': request.toMap(),
+          'signature': _requesterSignatureBase64,
+          'images': offlineImagePaths,
+        };
+
+        await OfflineSyncService().queueAction('submit_work_request', payload);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Saved offline. Will submit when internet is restored.'),
+              backgroundColor: AdminStyles.warning,
+            ),
+          );
+          context.go('/teacher/dashboard');
+        }
+        setState(() => _isSubmitting = false);
+        return;
+      }
 
       final inserted = await WorkRequestService.insert(request);
 

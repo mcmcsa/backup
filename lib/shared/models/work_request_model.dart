@@ -28,6 +28,7 @@ class WorkRequest {
   final String? workEvidence;
   final String? maintenanceNotes;
   final List<String>? attachmentUrls;
+  final List<String>? voiceNotes;
   // New workflow fields
   final String? acceptedById;
   final String? acceptedByName;
@@ -70,6 +71,7 @@ class WorkRequest {
     this.workEvidence,
     this.maintenanceNotes,
     this.attachmentUrls,
+    this.voiceNotes,
     this.acceptedById,
     this.acceptedByName,
     this.acceptedDate,
@@ -129,6 +131,9 @@ class WorkRequest {
       maintenanceNotes: map['maintenance_notes'],
       attachmentUrls: map['attachment_urls'] != null 
           ? List<String>.from(map['attachment_urls'])
+          : null,
+      voiceNotes: map['voice_notes'] != null 
+          ? List<String>.from(map['voice_notes'])
           : null,
       acceptedById:
           map['accepted_by_id'] ??
@@ -220,6 +225,7 @@ class WorkRequest {
     String? workEvidence,
     String? maintenanceNotes,
     List<String>? attachmentUrls,
+    List<String>? voiceNotes,
     String? acceptedById,
     String? acceptedByName,
     DateTime? acceptedDate,
@@ -261,6 +267,7 @@ class WorkRequest {
       workEvidence: workEvidence ?? this.workEvidence,
       maintenanceNotes: maintenanceNotes ?? this.maintenanceNotes,
       attachmentUrls: attachmentUrls ?? this.attachmentUrls,
+      voiceNotes: voiceNotes ?? this.voiceNotes,
       acceptedById: acceptedById ?? this.acceptedById,
       acceptedByName: acceptedByName ?? this.acceptedByName,
       acceptedDate: acceptedDate ?? this.acceptedDate,

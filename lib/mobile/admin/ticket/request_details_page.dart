@@ -11,8 +11,16 @@ import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/services/maintenance_account_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/widgets/availability_status_badge.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'work_request_completion_page.dart';
 import 'admin_approval_signature_page.dart';
+import 'package:printing/printing.dart';
+import '../../../shared/services/iso_pdf_service.dart';
+import '../../../shared/models/cost_tracking_model.dart';
+import '../../../shared/services/cost_tracking_service.dart';
+import '../../../web/admin/tickets/admin_cost_tracking_form.dart';
+import '../../../shared/widgets/voice_player_widget.dart';
 
 class RequestDetailsPage extends StatefulWidget {
   final WorkRequest request;
@@ -29,6 +37,8 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
   final List<ESignature> _signatures = [];
   final Map<String, String> _maintenanceNamesById = {};
   final Map<String, String> _maintenanceSpecializationsById = {};
+  final Map<String, String> _maintenanceStatusById = {};
+  RealtimeChannel? _realtimeChannel;
   Timer? _autoRefreshTimer;
   bool _isAssigningMaintenance = false;
   bool _isSubmittingAdminCompletionSignature = false;
@@ -74,6 +84,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
               (m) => MapEntry(m.userId, (m.specialization ?? '').trim()),
             ),
           );
+        _maintenanceStatusById
+          ..clear()
+          ..addEntries(maintenance.map((m) => MapEntry(m.userId, m.availabilityStatus)));
       });
     } catch (_) {}
   }
@@ -501,6 +514,30 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     _recordViewedRequest();
     _loadWorkflowData();
     _startAutoRefresh();
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel = Supabase.instance.client
+        .channel('public:maintenance_users_mobile')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'maintenance_users',
+          callback: (payload) {
+            final updatedRecord = payload.newRecord;
+            final userId = updatedRecord['user_id'] as String?;
+            final newStatus = updatedRecord['availability_status'] as String?;
+            if (userId != null && newStatus != null) {
+              if (mounted) {
+                setState(() {
+                  _maintenanceStatusById[userId] = newStatus;
+                });
+              }
+            }
+          },
+        )
+        .subscribe();
   }
 
   @override
@@ -512,6 +549,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
 
   @override
   void dispose() {
+    Supabase.instance.client.removeChannel(_realtimeChannel!);
     _autoRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -587,6 +625,41 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.group_rounded, color: Color(0xFF8B5CF6)),
+            tooltip: 'Collaboration Workspace',
+            onPressed: () {
+              // Note: For a real app, we'd open a bottom sheet or push a new page
+              // with the mobile equivalent of AdminCollaborationWorkspaceWidget
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Collaboration Workspace is primarily managed via Web Interface.')),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.attach_money_rounded, color: Color(0xFF10B981)),
+            tooltip: 'Manage Costs',
+            onPressed: () async {
+              final existingCost = await CostTrackingService.fetchByWorkRequestId(request.id);
+              if (!mounted) return;
+              await showDialog(
+                context: context,
+                builder: (context) => AdminCostTrackingForm(
+                  workRequest: request,
+                  existingCost: existingCost,
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.print_rounded, color: Color(0xFF4169E1)),
+            onPressed: () async {
+              final pdfBytes = await IsoPdfService.generateWorkRequestPdf(request);
+              await Printing.layoutPdf(onLayout: (_) => pdfBytes);
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -860,6 +933,22 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                       'Date Submitted',
                       request.dateSubmitted.toString().substring(0, 10),
                     ),
+                    if (request.voiceNotes != null && request.voiceNotes!.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Voice Notes',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...request.voiceNotes!.map((url) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: VoicePlayerWidget(audioUrl: url),
+                          )),
+                    ],
                   ],
                 ),
               ),
@@ -1068,18 +1157,28 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                           .map(
                             (entry) => DropdownMenuItem<String>(
                               value: entry.key,
-                              child: Text(
-                                (() {
-                                  final specialization =
-                                      (_maintenanceSpecializationsById[entry
-                                                  .key] ??
-                                              '')
-                                          .trim();
-                                  if (specialization.isNotEmpty) {
-                                    return '${entry.value} ($specialization)';
-                                  }
-                                  return entry.value;
-                                })(),
+                              child: Row(
+                                children: [
+                                  AvailabilityStatusBadge(
+                                    status: _maintenanceStatusById[entry.key] ?? 'offline',
+                                    size: BadgeSize.small,
+                                    showLabel: false,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    (() {
+                                      final specialization =
+                                          (_maintenanceSpecializationsById[entry
+                                                      .key] ??
+                                                  '')
+                                              .trim();
+                                      if (specialization.isNotEmpty) {
+                                        return '${entry.value} ($specialization)';
+                                      }
+                                      return entry.value;
+                                    })(),
+                                  ),
+                                ],
                               ),
                             ),
                           )

@@ -85,17 +85,19 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
       context: context,
       builder: (_) => _AnnouncementFormDialog(
         announcement: announcement,
-        onSave: (title, content, priority, status, scheduledFor, expiresAt) async {
+        onSave: (title, content, priority, status, scheduledFor, expiresAt, isPinned, targetAudience, displayType) async {
           String? err;
           if (announcement == null) {
             err = await SystemAnnouncementService.create(
               title: title, content: content, priority: priority, status: status,
               scheduledFor: scheduledFor, expiresAt: expiresAt,
+              isPinned: isPinned, targetAudience: targetAudience, displayType: displayType,
             );
           } else {
             err = await SystemAnnouncementService.updateAnnouncement(
               id: announcement.id, title: title, content: content, priority: priority, status: status,
               scheduledFor: scheduledFor, expiresAt: expiresAt,
+              isPinned: isPinned, targetAudience: targetAudience, displayType: displayType,
             );
           }
           return err;
@@ -457,7 +459,25 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _PriorityBadge(priority: a.priority),
+              Row(
+                children: [
+                  _PriorityBadge(priority: a.priority),
+                  if (a.isPinned) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(color: AdminStyles.warning.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.push_pin_rounded, size: 10, color: AdminStyles.warning),
+                          const SizedBox(width: 4),
+                          const Text('PINNED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AdminStyles.warning)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
@@ -564,7 +584,7 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
 
 class _AnnouncementFormDialog extends StatefulWidget {
   final SystemAnnouncement? announcement;
-  final Future<String?> Function(String title, String content, String priority, String status, DateTime? scheduledFor, DateTime? expiresAt) onSave;
+  final Future<String?> Function(String title, String content, String priority, String status, DateTime? scheduledFor, DateTime? expiresAt, bool isPinned, List<String> targetAudience, String displayType) onSave;
   final VoidCallback onSuccess;
 
   const _AnnouncementFormDialog({this.announcement, required this.onSave, required this.onSuccess});
@@ -581,6 +601,9 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
   String _status = 'draft';
   DateTime? _scheduledFor;
   DateTime? _expiresAt;
+  bool _isPinned = false;
+  String _displayType = 'notification';
+  final List<String> _targetAudience = [];
 
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
@@ -594,6 +617,11 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
       _status = widget.announcement!.status;
       _scheduledFor = widget.announcement!.scheduledFor;
       _expiresAt = widget.announcement!.expiresAt;
+      _isPinned = widget.announcement!.isPinned;
+      _displayType = widget.announcement!.displayType;
+      _targetAudience.addAll(widget.announcement!.targetAudience);
+    } else {
+      _targetAudience.add('all'); // Default to all for new
     }
   }
 
@@ -615,6 +643,9 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
       _status,
       _scheduledFor,
       _expiresAt,
+      _isPinned,
+      _targetAudience.isEmpty ? ['all'] : _targetAudience,
+      _displayType,
     );
 
     if (!mounted) return;
@@ -788,6 +819,56 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('Display Type'),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: _displayType,
+                            decoration: _inputDecor(Icons.web_asset_rounded),
+                            items: const [
+                              DropdownMenuItem(value: 'notification', child: Text('Standard Notification')),
+                              DropdownMenuItem(value: 'banner', child: Text('Top Banner')),
+                              DropdownMenuItem(value: 'popup', child: Text('Modal Popup')),
+                            ],
+                            onChanged: (v) => setState(() => _displayType = v ?? 'notification'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Switch(
+                            value: _isPinned,
+                            onChanged: (v) => setState(() => _isPinned = v),
+                            activeColor: AdminStyles.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(child: Text('Pin to top of lists', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _label('Target Audience (Select all that apply)'),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8, runSpacing: 8,
+                  children: [
+                    _buildAudienceChip('all', 'Everyone'),
+                    _buildAudienceChip('faculty', 'Faculty'),
+                    _buildAudienceChip('maintenance', 'Maintenance'),
+                    _buildAudienceChip('campus_admin', 'Campus Admin'),
+                  ],
+                ),
 
                 if (_serverError != null) ...[
                   const SizedBox(height: 16),
@@ -834,6 +915,34 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAudienceChip(String role, String label) {
+    final selected = _targetAudience.contains(role);
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (bool isSelected) {
+        setState(() {
+          if (role == 'all') {
+            _targetAudience.clear();
+            if (isSelected) _targetAudience.add('all');
+          } else {
+            _targetAudience.remove('all');
+            if (isSelected) {
+              _targetAudience.add(role);
+            } else {
+              _targetAudience.remove(role);
+            }
+            if (_targetAudience.isEmpty) _targetAudience.add('all');
+          }
+        });
+      },
+      selectedColor: AdminStyles.primary.withValues(alpha: 0.1),
+      checkmarkColor: AdminStyles.primary,
+      labelStyle: TextStyle(color: selected ? AdminStyles.primary : AdminStyles.textSecondary, fontWeight: selected ? FontWeight.w600 : FontWeight.normal),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: selected ? AdminStyles.primary : AdminStyles.border)),
     );
   }
 

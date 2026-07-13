@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/widgets/status_selector_widget.dart';
+import '../../../shared/services/maintenance_account_service.dart';
 
 class MaintenanceDashboardWeb extends StatefulWidget {
   const MaintenanceDashboardWeb({super.key});
@@ -13,6 +15,7 @@ class MaintenanceDashboardWeb extends StatefulWidget {
 
 class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
   List<WorkRequest> _requests = [];
+  String _currentStatus = 'offline';
   bool _isLoading = true;
 
   // Professional color palette
@@ -30,6 +33,18 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
   void initState() {
     super.initState();
     _loadRequests();
+    _loadStatus();
+  }
+  
+  Future<void> _loadStatus() async {
+    final user = context.read<AuthService>().currentUser;
+    if (user != null) {
+      try {
+        final accounts = await MaintenanceAccountService.fetchCreatedByCurrentAdmin();
+        final match = accounts.firstWhere((a) => a.userId == user.id);
+        if (mounted) setState(() => _currentStatus = match.availabilityStatus);
+      } catch (_) {}
+    }
   }
 
   Future<void> _loadRequests() async {
@@ -158,26 +173,40 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
   }
 
   Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    final user = context.read<AuthService>().currentUser;
+    final userName = user?.name.split(' ').first ?? 'Maintenance';
+    
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text(
-          'Maintenance Dashboard',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.w800,
-            color: _darkText,
-            letterSpacing: -0.5,
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Welcome back, $userName',
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: _darkText,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Track and manage all maintenance work requests.',
+              style: TextStyle(
+                fontSize: 15,
+                color: _subtleText.withValues(alpha: 0.8),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          'Track and manage all maintenance work requests.',
-          style: TextStyle(
-            fontSize: 15,
-            color: _subtleText.withValues(alpha: 0.8),
-            fontWeight: FontWeight.w500,
-          ),
+        StatusSelectorWidget(
+          currentStatus: _currentStatus,
+          onStatusChanged: (newStatus) {
+            setState(() => _currentStatus = newStatus);
+          },
         ),
       ],
     );
@@ -254,13 +283,13 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
     return Container(
       decoration: BoxDecoration(
         color: _cardBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -277,23 +306,23 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
                 color: _darkText,
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             _buildActionButton(
-              icon: Icons.edit_road_rounded,
-              title: 'Start Work',
-              description: 'Begin a new maintenance task',
+              icon: Icons.map_rounded,
+              title: 'Maintenance Map',
+              description: 'View facility layout & active tasks',
             ),
             const SizedBox(height: 12),
             _buildActionButton(
-              icon: Icons.check_box_rounded,
-              title: 'Complete Task',
-              description: 'Mark a task as finished',
+              icon: Icons.assessment_rounded,
+              title: 'Daily Report',
+              description: 'Generate end-of-day summary',
             ),
             const SizedBox(height: 12),
             _buildActionButton(
-              icon: Icons.report_problem_rounded,
-              title: 'Report Issue',
-              description: 'Log a problem or delay',
+              icon: Icons.qr_code_scanner_rounded,
+              title: 'Generate QR',
+              description: 'Create new facility codes',
             ),
           ],
         ),
@@ -375,16 +404,17 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
   }
 
   Widget _buildWorkStatusBreakdown() {
+    final total = _requests.length;
     return Container(
       decoration: BoxDecoration(
         color: _cardBg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -401,57 +431,103 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
                 color: _darkText,
               ),
             ),
+            const SizedBox(height: 24),
+            _buildStatusItem('Pending', _getCountByStatus('pending'), total, _warningOrange),
             const SizedBox(height: 20),
-            _buildStatusItem('Pending', _getCountByStatus('pending'), _warningOrange),
-            const SizedBox(height: 16),
-            _buildStatusItem('In Progress', _getCountByStatus('in_progress'), _primaryBlue),
-            const SizedBox(height: 16),
-            _buildStatusItem('Completed', _getCountByStatus('completed'), _successGreen),
-            const SizedBox(height: 16),
-            _buildStatusItem('Under Review', _getCountByStatus('under_maintenance'), _infoBlue),
+            _buildStatusItem('In Progress', _getCountByStatus('in_progress'), total, _primaryBlue),
+            const SizedBox(height: 20),
+            _buildStatusItem('Completed', _getCountByStatus('completed'), total, _successGreen),
+            const SizedBox(height: 20),
+            _buildStatusItem('Under Review', _getCountByStatus('under_maintenance'), total, _infoBlue),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatusItem(String status, int count, Color color) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildStatusItem(String status, int count, int total, Color color) {
+    final double percentage = total > 0 ? count / total : 0.0;
+    
+    return Column(
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.4),
+                        blurRadius: 4,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  status,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _darkText,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Text(
-              status,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: _darkText,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
               ),
             ),
           ],
         ),
+        const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          height: 6,
+          width: double.infinity,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(6),
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(3),
           ),
-          child: Text(
-            '$count',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: color,
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: percentage,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 1000),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) {
+                return Container(
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.3),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -541,7 +617,11 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
                 children: latestRequests.map((request) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildRequestRow(request),
+                    child: _RequestRow(
+                      request: request,
+                      statusColor: _getStatusColor(request.status),
+                      priorityColor: _getPriorityColor(request.priority),
+                    ),
                   );
                 }).toList(),
               ),
@@ -551,203 +631,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
     );
   }
 
-  Widget _buildRequestRow(WorkRequest request) {
-    final statusColor = _getStatusColor(request.status);
-    final priorityColor = _getPriorityColor(request.priority);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobileRow = constraints.maxWidth < 600;
-
-        if (isMobileRow) {
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _pageBg,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.build_rounded,
-                        color: statusColor,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            request.roomName ?? 'Unknown Room',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: _darkText,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            request.typeOfRequest,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: _subtleText,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: priorityColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        request.priority.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: priorityColor,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        request.status.replaceAll('_', ' ').toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: statusColor,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        }
-
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _pageBg,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.build_rounded,
-                  color: statusColor,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      request.roomName ?? 'Unknown Room',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: _darkText,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      request.typeOfRequest,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _subtleText,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: priorityColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  request.priority.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: priorityColor,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  request.status.replaceAll('_', ' ').toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: statusColor,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-    );
-  }
+  // Replaced by _RequestRow class below
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
@@ -802,26 +686,38 @@ class _StatCardState extends State<_StatCard> {
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.identity()..scale(_isHovered ? 1.02 : 1.0),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: _isHovered ? widget.color.withValues(alpha: 0.3) : const Color(0xFFE2E8F0),
+            color: _isHovered ? widget.color.withValues(alpha: 0.4) : const Color(0xFFE2E8F0),
+            width: _isHovered ? 1.5 : 1.0,
           ),
+          gradient: _isHovered ? LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white,
+              widget.color.withValues(alpha: 0.05),
+            ],
+          ) : null,
           boxShadow: _isHovered
               ? [
                   BoxShadow(
-                    color: widget.color.withValues(alpha: 0.1),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    color: widget.color.withValues(alpha: 0.15),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 8),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
         ),
@@ -841,17 +737,17 @@ class _StatCardState extends State<_StatCard> {
                         Text(
                           widget.title,
                           style: const TextStyle(
-                            fontSize: 13,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: Color(0xFF64748B),
                             letterSpacing: 0.3,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         Text(
                           '${widget.value}',
                           style: TextStyle(
-                            fontSize: 36,
+                            fontSize: 38,
                             fontWeight: FontWeight.w800,
                             color: widget.color,
                             letterSpacing: -1,
@@ -861,16 +757,23 @@ class _StatCardState extends State<_StatCard> {
                     ),
                   ),
                   Container(
-                    width: 56,
-                    height: 56,
+                    width: 60,
+                    height: 60,
                     decoration: BoxDecoration(
                       color: widget.color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: widget.color.withValues(alpha: _isHovered ? 0.2 : 0.0),
+                          blurRadius: 12,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
                     child: Icon(
                       widget.icon,
                       color: widget.color,
-                      size: 28,
+                      size: 30,
                     ),
                   ),
                 ],
@@ -885,3 +788,188 @@ class _StatCardState extends State<_StatCard> {
 
 // Color constants for reference
 const Color _infoBlue = Color(0xFF3B82F6);
+
+class _RequestRow extends StatefulWidget {
+  final WorkRequest request;
+  final Color statusColor;
+  final Color priorityColor;
+
+  const _RequestRow({
+    required this.request,
+    required this.statusColor,
+    required this.priorityColor,
+  });
+
+  @override
+  State<_RequestRow> createState() => _RequestRowState();
+}
+
+class _RequestRowState extends State<_RequestRow> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _isHovered ? Colors.white : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _isHovered ? const Color(0xFF0EA5E9).withValues(alpha: 0.3) : Colors.transparent,
+          ),
+          boxShadow: _isHovered
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : [],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isMobileRow = constraints.maxWidth < 600;
+            if (isMobileRow) {
+              return _buildMobileLayout();
+            }
+            return _buildDesktopLayout();
+          }
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            _buildIcon(),
+            const SizedBox(width: 12),
+            Expanded(child: _buildDetails()),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                _buildBadge(widget.request.priority, widget.priorityColor),
+                const SizedBox(width: 8),
+                _buildBadge(widget.request.status.replaceAll('_', ' '), widget.statusColor),
+              ],
+            ),
+            if (_isHovered) _buildActionIcon(),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopLayout() {
+    return Row(
+      children: [
+        _buildIcon(),
+        const SizedBox(width: 16),
+        Expanded(child: _buildDetails()),
+        const SizedBox(width: 16),
+        _buildBadge(widget.request.priority, widget.priorityColor),
+        const SizedBox(width: 12),
+        _buildBadge(widget.request.status.replaceAll('_', ' '), widget.statusColor),
+        const SizedBox(width: 16),
+        SizedBox(
+          width: 40,
+          child: _isHovered ? _buildActionIcon() : const SizedBox(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildIcon() {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: widget.statusColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        Icons.build_circle_rounded,
+        color: widget.statusColor,
+        size: 24,
+      ),
+    );
+  }
+
+  Widget _buildDetails() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.request.roomName ?? 'Unknown Room',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF0F172A),
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          widget.request.typeOfRequest,
+          style: const TextStyle(
+            fontSize: 13,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionIcon() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF0EA5E9),
+        shape: BoxShape.circle,
+      ),
+      padding: const EdgeInsets.all(6),
+      child: const Icon(
+        Icons.arrow_forward_ios_rounded,
+        color: Colors.white,
+        size: 14,
+      ),
+    );
+  }
+}

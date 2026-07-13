@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/work_request_model.dart';
+import 'maintenance_status_service.dart';
 
 class WorkRequestService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -188,6 +190,15 @@ class WorkRequestService {
     }
   }
 
+  static Future<String> uploadVoiceNote(String filePath, String requestId) async {
+    final file = File(filePath);
+    final ext = filePath.split('.').last;
+    final fileName = '${requestId}_voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    
+    await _db.storage.from('voice_recordings').upload(fileName, file);
+    return _db.storage.from('voice_recordings').getPublicUrl(fileName);
+  }
+
   static Future<void> updateMaintenanceNote(String id, String? note) async {
     final normalized = note?.trim();
     final updateData = {
@@ -241,6 +252,12 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update(updateData).eq('id', id);
     }
+    
+    // Fetch to find who was assigned, so we can free them
+    final request = await fetchById(id);
+    if (request?.assignedToId != null) {
+      await MaintenanceStatusService.setAvailableOnCompletion(request!.assignedToId!);
+    }
   }
 
   /// Maintenance accepts the work request and starts work (sets to under_maintenance)
@@ -260,6 +277,8 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update(updateData).eq('id', id);
     }
+    
+    await MaintenanceStatusService.setBusyOnAssignment(maintenanceId, id);
   }
 
   /// Set status to under_maintenance (after admin approves pre-inspection)

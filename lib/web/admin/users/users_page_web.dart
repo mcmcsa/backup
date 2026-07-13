@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/services/faculty_user_service.dart';
 import '../shared/admin_styles.dart';
 
@@ -14,10 +15,35 @@ class _UsersPageWebState extends State<UsersPageWeb> {
   List<FacultyUserAccount> _facultyUsers = [];
   bool _isLoading = true;
 
+  RealtimeChannel? _syncChannel;
+
   @override
   void initState() {
     super.initState();
     _loadUsers();
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    _syncChannel = Supabase.instance.client
+        .channel('campus_admin_users_sync')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'users',
+          callback: (payload) {
+            if (mounted) _loadUsers();
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'teacher_users',
+          callback: (payload) {
+            if (mounted) _loadUsers();
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _loadUsers() async {
@@ -49,8 +75,87 @@ class _UsersPageWebState extends State<UsersPageWeb> {
 
   @override
   void dispose() {
+    _syncChannel?.unsubscribe();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _showEditDialog(BuildContext context, FacultyUserAccount user) {
+    final nameCtrl = TextEditingController(text: user.fullName);
+    final deptCtrl = TextEditingController(text: user.department ?? '');
+    final empIdCtrl = TextEditingController(text: user.employeeId ?? '');
+    bool isActive = user.isActive;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Edit Faculty User'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(labelText: 'Full Name'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: deptCtrl,
+                      decoration: const InputDecoration(labelText: 'Department (e.g. CS, IT)'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: empIdCtrl,
+                      decoration: const InputDecoration(labelText: 'Employee ID'),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      title: const Text('Active Account'),
+                      value: isActive,
+                      onChanged: (val) => setDialogState(() => isActive = val),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (nameCtrl.text.trim().isEmpty) return;
+                    Navigator.pop(context);
+                    setState(() => _isLoading = true);
+                    try {
+                      await FacultyUserService.updateFacultyUser(
+                        userId: user.userId,
+                        fullName: nameCtrl.text.trim(),
+                        department: deptCtrl.text.trim(),
+                        employeeId: empIdCtrl.text.trim(),
+                        isActive: isActive,
+                      );
+                      _loadUsers();
+                    } catch (e) {
+                      setState(() => _isLoading = false);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: $e')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -81,8 +186,6 @@ class _UsersPageWebState extends State<UsersPageWeb> {
                       color: Colors.grey.shade400,
                       fontSize: 14,
                     ),
-                    filled: true,
-                    fillColor: Colors.white,
                     prefixIcon: Padding(
                       padding: const EdgeInsets.only(left: 12, right: 8),
                       child: Icon(
@@ -95,6 +198,7 @@ class _UsersPageWebState extends State<UsersPageWeb> {
                       minWidth: 44,
                       minHeight: 44,
                     ),
+                    filled: false,
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: Icon(
@@ -219,27 +323,38 @@ class _UsersPageWebState extends State<UsersPageWeb> {
                                   ),
                                 ],
                               ),
-                              trailing: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: user.isActive
-                                      ? const Color(0xFFDCFCE7)
-                                      : const Color(0xFFFFF7ED),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  user.isActive ? 'Active' : 'Inactive',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: user.isActive
-                                        ? const Color(0xFF22C55E)
-                                        : const Color(0xFFF97316),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: user.isActive
+                                          ? const Color(0xFFDCFCE7)
+                                          : const Color(0xFFFFF7ED),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      user.isActive ? 'Active' : 'Inactive',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: user.isActive
+                                            ? const Color(0xFF22C55E)
+                                            : const Color(0xFFF97316),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_rounded, color: Color(0xFF64748B), size: 20),
+                                    onPressed: () => _showEditDialog(context, user),
+                                    tooltip: 'Edit Faculty',
+                                  ),
+                                ],
                               ),
                             );
                           },

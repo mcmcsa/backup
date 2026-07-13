@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../router/app_router.dart';
+import '../../shared/widgets/announcements/global_announcement_listener.dart';
 import '../../authentication/services/auth_service.dart';
 import '../../shared/models/room_model.dart';
 import 'shared/admin_styles.dart';
@@ -7,6 +9,7 @@ import '../../shared/screens/unified_dashboard_page.dart';
 import 'users/admin_users_web.dart';
 import 'profile/admin_profile_web.dart';
 import '../../../shared/screens/unified_analytics_page.dart';
+import 'analytics/admin_cost_tracking_dashboard_web.dart';
 import 'work_requests/admin_work_requests_web.dart';
 import 'tickets/maintenance/maintenance_management_page_web.dart';
 import 'facilities/rooms/add_room_page.dart';
@@ -26,6 +29,7 @@ import 'shared/admin_logs_web.dart';
 import 'shared/admin_notifications_web.dart';
 import 'shared/about_system_page.dart';
 import 'shared/settings_page_web.dart';
+import 'chat/admin_chat_page_web.dart';
 
 class AdminMainNavigationWeb extends StatefulWidget {
   final int initialIndex;
@@ -56,6 +60,8 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   static const int _settingsIndex = 16;
   static const int _aboutIndex = 17;
   static const int _qrHistoryIndex = 18;
+  static const int _costTrackingIndex = 19;
+  static const int _chatIndex = 20;
   static const int _roomsSubviewList = 0;
   static const int _roomsSubviewAdd = 1;
   static const int _roomsSubviewEdit = 2;
@@ -240,6 +246,8 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
         );
       case _analyticsIndex:
         return const UnifiedAnalyticsPage();
+      case _costTrackingIndex:
+        return const AdminCostTrackingDashboardWeb();
       case _workRequestsIndex:
         return const AdminWorkRequestsWeb();
       case _ticketsIndex:
@@ -314,6 +322,8 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
         return const AboutSystemPage();
       case _qrHistoryIndex:
         return const AdminQrHistoryPageWeb();
+      case _chatIndex:
+        return const AdminChatPageWeb();
       default:
         return Container(); // Fallback
     }
@@ -362,9 +372,10 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 1100;
+    return GlobalAnnouncementListener(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 1100;
 
         if (isCompact) {
           return Scaffold(
@@ -422,6 +433,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
           ),
         );
       },
+      ),
     );
   }
 
@@ -502,6 +514,12 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                       closeDrawerOnTap: closeDrawerOnTap,
                     ),
                     _buildNavItem(
+                      index: _costTrackingIndex,
+                      icon: Icons.monetization_on_rounded,
+                      title: 'Cost Tracking',
+                      closeDrawerOnTap: closeDrawerOnTap,
+                    ),
+                    _buildNavItem(
                       index: _roomsIndex,
                       icon: Icons.meeting_room_rounded,
                       title: 'Rooms',
@@ -523,6 +541,12 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                       index: _analyticsIndex,
                       icon: Icons.query_stats_rounded,
                       title: 'Stats',
+                      closeDrawerOnTap: closeDrawerOnTap,
+                    ),
+                    _buildNavItem(
+                      index: _chatIndex,
+                      icon: Icons.chat_bubble_outline_rounded,
+                      title: 'Chat',
                       closeDrawerOnTap: closeDrawerOnTap,
                     ),
 

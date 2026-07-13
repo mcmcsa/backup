@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class MaintenanceAccount {
   final String userId;
@@ -10,6 +11,16 @@ class MaintenanceAccount {
   final bool isActive;
   final DateTime? archivedAt;
   final DateTime createdAt;
+  
+  // Availability Fields
+  final String availabilityStatus;
+  final String? currentLocation;
+  final String? currentAssignmentId;
+  final DateTime? estimatedCompletionTime;
+  final DateTime? lastActiveAt;
+  final String? workingHoursStart;
+  final String? workingHoursEnd;
+  final DateTime? statusUpdatedAt;
 
   const MaintenanceAccount({
     required this.userId,
@@ -21,8 +32,17 @@ class MaintenanceAccount {
     required this.isActive,
     required this.archivedAt,
     required this.createdAt,
+    this.availabilityStatus = 'offline',
+    this.currentLocation,
+    this.currentAssignmentId,
+    this.estimatedCompletionTime,
+    this.lastActiveAt,
+    this.workingHoursStart,
+    this.workingHoursEnd,
+    this.statusUpdatedAt,
   });
 }
+
 
 class MaintenanceAccountService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -35,18 +55,23 @@ class MaintenanceAccountService {
     String? contactNo,
     required String password,
   }) async {
+    final isolatedClient = SupabaseClient(
+      dotenv.env['SUPABASE_URL']!,
+      dotenv.env['SUPABASE_ANON_KEY']!,
+      authOptions: const AuthClientOptions(
+        authFlowType: AuthFlowType.implicit,
+        autoRefreshToken: false,
+      ),
+    );
+
     try {
       final currentUser = _db.auth.currentUser;
-      final currentSession = _db.auth.currentSession;
 
-      if (currentUser == null || currentSession == null) {
+      if (currentUser == null) {
         return 'Admin session not found. Please login again.';
       }
 
-      // The auth.users record exists but public.users profile is missing.
-      // Try to sign in with the credentials to get the user object,
-      // then create the public profile records.
-      final authResponse = await _db.auth.signInWithPassword(
+      final authResponse = await isolatedClient.auth.signInWithPassword(
         email: email,
         password: password,
       );
@@ -56,15 +81,6 @@ class MaintenanceAccountService {
         return 'Could not recover account. Password may be incorrect.';
       }
 
-      // Restore admin session before writing profile data
-      await _db.auth.setSession(currentSession.refreshToken ?? '');
-
-      final restoredAdminId = _db.auth.currentUser?.id;
-      if (restoredAdminId == null || restoredAdminId != currentUser.id) {
-        return 'Admin session expired while recovering account. Please login again.';
-      }
-
-      // Create the public.users record
       await _db.from('users').upsert({
         'id': orphanedUser.id,
         'email': email,
@@ -73,7 +89,6 @@ class MaintenanceAccountService {
         'is_active': true,
       }, onConflict: 'id');
 
-      // Create the maintenance_users profile
       try {
         await _db.from('maintenance_users').insert({
           'user_id': orphanedUser.id,
@@ -84,11 +99,9 @@ class MaintenanceAccountService {
           'phone': ((contactNo ?? '').trim().isEmpty
               ? null
               : contactNo!.trim()),
-          'created_by_admin_id': restoredAdminId,
+          'created_by_admin_id': currentUser.id,
         });
       } catch (profileErr) {
-        // Profile creation failed, but user record was created.
-        // User can log in and update profile later if needed.
         print('Warning: Could not create maintenance profile: $profileErr');
       }
 
@@ -96,6 +109,8 @@ class MaintenanceAccountService {
     } catch (err) {
       print('Error recovering orphaned account: $err');
       return 'Unable to recover account: $err';
+    } finally {
+      isolatedClient.dispose();
     }
   }
 
@@ -212,6 +227,14 @@ class MaintenanceAccountService {
             createdAt:
                 DateTime.tryParse(map['created_at']?.toString() ?? '') ??
                 DateTime.now(),
+            availabilityStatus: map['availability_status']?.toString() ?? 'offline',
+            currentLocation: map['current_location']?.toString(),
+            currentAssignmentId: map['current_assignment_id']?.toString(),
+            estimatedCompletionTime: DateTime.tryParse(map['estimated_completion_time']?.toString() ?? ''),
+            lastActiveAt: DateTime.tryParse(map['last_active_at']?.toString() ?? ''),
+            workingHoursStart: map['working_hours_start']?.toString(),
+            workingHoursEnd: map['working_hours_end']?.toString(),
+            statusUpdatedAt: DateTime.tryParse(map['status_updated_at']?.toString() ?? ''),
           ),
         );
       }
@@ -240,7 +263,7 @@ class MaintenanceAccountService {
     final rows = await _db
         .from('users')
         .select(
-          'id, email, name, is_active, created_at, maintenance:maintenance_users!maintenance_users_user_id_fkey(employee_id, specialization, phone, created_at)',
+          'id, email, name, is_active, created_at, maintenance:maintenance_users!maintenance_users_user_id_fkey(employee_id, specialization, phone, created_at, availability_status, current_location, current_assignment_id, estimated_completion_time, last_active_at, working_hours_start, working_hours_end, status_updated_at)',
         )
         .eq('role', 'maintenance')
         .eq('is_active', true)
@@ -271,6 +294,14 @@ class MaintenanceAccountService {
                     '',
               ) ??
               DateTime.now(),
+          availabilityStatus: maintenance?['availability_status']?.toString() ?? 'offline',
+          currentLocation: maintenance?['current_location']?.toString(),
+          currentAssignmentId: maintenance?['current_assignment_id']?.toString(),
+          estimatedCompletionTime: DateTime.tryParse(maintenance?['estimated_completion_time']?.toString() ?? ''),
+          lastActiveAt: DateTime.tryParse(maintenance?['last_active_at']?.toString() ?? ''),
+          workingHoursStart: maintenance?['working_hours_start']?.toString(),
+          workingHoursEnd: maintenance?['working_hours_end']?.toString(),
+          statusUpdatedAt: DateTime.tryParse(maintenance?['status_updated_at']?.toString() ?? ''),
         ),
       );
     }
@@ -282,7 +313,7 @@ class MaintenanceAccountService {
     final rows = await _db
         .from('users')
         .select(
-          'id, email, name, is_active, created_at, maintenance:maintenance_users!maintenance_users_user_id_fkey(employee_id, specialization, phone, created_at)',
+          'id, email, name, is_active, created_at, maintenance:maintenance_users!maintenance_users_user_id_fkey(employee_id, specialization, phone, created_at, availability_status, current_location, current_assignment_id, estimated_completion_time, last_active_at, working_hours_start, working_hours_end, status_updated_at)',
         )
         .eq('role', 'maintenance')
         .eq('is_active', false)
@@ -313,6 +344,14 @@ class MaintenanceAccountService {
                     '',
               ) ??
               DateTime.now(),
+          availabilityStatus: maintenance?['availability_status']?.toString() ?? 'offline',
+          currentLocation: maintenance?['current_location']?.toString(),
+          currentAssignmentId: maintenance?['current_assignment_id']?.toString(),
+          estimatedCompletionTime: DateTime.tryParse(maintenance?['estimated_completion_time']?.toString() ?? ''),
+          lastActiveAt: DateTime.tryParse(maintenance?['last_active_at']?.toString() ?? ''),
+          workingHoursStart: maintenance?['working_hours_start']?.toString(),
+          workingHoursEnd: maintenance?['working_hours_end']?.toString(),
+          statusUpdatedAt: DateTime.tryParse(maintenance?['status_updated_at']?.toString() ?? ''),
         ),
       );
     }
@@ -335,11 +374,18 @@ class MaintenanceAccountService {
     required String password,
   }) async {
     final currentUser = _db.auth.currentUser;
-    final currentSession = _db.auth.currentSession;
-
-    if (currentUser == null || currentSession == null) {
+    if (currentUser == null) {
       return 'Admin session not found. Please login again.';
     }
+
+    final isolatedClient = SupabaseClient(
+      dotenv.env['SUPABASE_URL']!,
+      dotenv.env['SUPABASE_ANON_KEY']!,
+      authOptions: const AuthClientOptions(
+        authFlowType: AuthFlowType.implicit,
+        autoRefreshToken: false,
+      ),
+    );
 
     try {
       final normalizedEmail = email.trim().toLowerCase();
@@ -370,7 +416,7 @@ class MaintenanceAccountService {
         return 'Only admin can create maintenance accounts.';
       }
 
-      final response = await _db.auth.signUp(
+      final response = await isolatedClient.auth.signUp(
         email: normalizedEmail,
         password: password,
         data: {'name': fullName.trim(), 'role': 'maintenance'},
@@ -381,18 +427,6 @@ class MaintenanceAccountService {
         return 'Failed to create maintenance account.';
       }
 
-      // signUp may replace the current auth session; restore admin session
-      // before writing role-profile rows restricted by admin ownership policies.
-      final refreshToken = currentSession.refreshToken;
-      if (refreshToken != null) {
-        await _db.auth.setSession(refreshToken);
-      }
-
-      final restoredAdminId = _db.auth.currentUser?.id;
-      if (restoredAdminId == null || restoredAdminId != currentUser.id) {
-        return 'Admin session expired while creating account. Please login again.';
-      }
-
       await _db.from('users').update({'is_active': true}).eq('id', newUser.id);
 
       await _db.from('maintenance_users').upsert({
@@ -400,7 +434,7 @@ class MaintenanceAccountService {
         'employee_id': normalizedMaintenanceId,
         'specialization': specialization.trim(),
         'phone': (contactNo ?? '').trim().isEmpty ? null : contactNo!.trim(),
-        'created_by_admin_id': restoredAdminId,
+        'created_by_admin_id': currentUser.id,
       }, onConflict: 'user_id');
       return null;
     } on AuthException catch (e) {
@@ -409,7 +443,6 @@ class MaintenanceAccountService {
         final normalizedEmail = email.trim().toLowerCase();
         final existingUser = await _findUserByEmail(normalizedEmail);
         if (existingUser == null) {
-          // Recover orphaned auth account where auth.users exists but public.users is missing.
           return await _recoverOrphanMaintenanceAuth(
             email: normalizedEmail,
             fullName: fullName.trim(),
@@ -438,6 +471,8 @@ class MaintenanceAccountService {
       return e.message;
     } catch (_) {
       return 'Unable to create maintenance account right now.';
+    } finally {
+      isolatedClient.dispose();
     }
   }
 

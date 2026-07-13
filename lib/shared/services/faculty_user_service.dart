@@ -28,44 +28,29 @@ class FacultyUserService {
   static Future<List<FacultyUserAccount>> fetchAllFacultyUsers() async {
     final usersData = await _db
         .from('users')
-        .select('id, email, name, is_active, created_at')
+        .select('id, email, name, is_active, created_at, teacher_users(department_id, position, employee_id, departments(name))')
         .eq('role', 'teacher')
         .order('created_at', ascending: false);
-
-    final teacherRows = await _db
-        .from('teacher_users')
-        .select('user_id, department_id, position, employee_id, departments(name)');
-
-    final teacherMap = <String, Map<String, dynamic>>{};
-    for (final row in (teacherRows as List)) {
-      final data = Map<String, dynamic>.from(row as Map);
-      final userId = data['user_id']?.toString();
-      if (userId != null && userId.isNotEmpty) {
-        teacherMap[userId] = data;
-      }
-    }
 
     return (usersData as List).map((row) {
       final userMap = Map<String, dynamic>.from(row as Map);
       final userId = userMap['id']?.toString() ?? '';
-      final teacherProfile = teacherMap[userId];
-      final departmentMap = teacherProfile?['departments'] is Map
-          ? Map<String, dynamic>.from(teacherProfile!['departments'] as Map)
-          : null;
+      
+      final tUsers = userMap['teacher_users'] as List?;
+      final teacherMap = (tUsers != null && tUsers.isNotEmpty) ? tUsers.first as Map<String, dynamic> : null;
+      
+      final deptsMap = teacherMap?['departments'] as Map?;
+      final departmentName = deptsMap?['name']?.toString() ?? 'No Department';
 
       return FacultyUserAccount(
         userId: userId,
         email: userMap['email']?.toString() ?? '',
-        fullName: userMap['name']?.toString() ?? '',
-        employeeId: teacherProfile?['employee_id']?.toString(),
-        department:
-          departmentMap?['name']?.toString() ??
-          teacherProfile?['department_id']?.toString(),
-        position: teacherProfile?['position']?.toString(),
+        fullName: userMap['name']?.toString() ?? 'Unnamed',
+        employeeId: teacherMap?['employee_id']?.toString(),
+        department: departmentName,
+        position: teacherMap?['position']?.toString() ?? 'Faculty',
         isActive: userMap['is_active'] == true,
-        createdAt:
-            DateTime.tryParse(userMap['created_at']?.toString() ?? '') ??
-            DateTime.now(),
+        createdAt: DateTime.tryParse(userMap['created_at']?.toString() ?? '') ?? DateTime.now(),
       );
     }).toList();
   }
@@ -75,15 +60,31 @@ class FacultyUserService {
     required String fullName,
     required String department,
     required bool isActive,
+    String? employeeId,
   }) async {
-    // Update users table
     await _db.from('users').update({
       'name': fullName,
       'is_active': isActive,
     }).eq('id', userId);
 
-    // Update teacher_users table department (if it's a string, we might need department ID, but for now we'll just try to match or ignore if not found, 
-    // actually department is foreign key so it needs department_id. Let's just update name and active for now, or find department_id)
-    // To be safe, we'll only update name and active status for now.
+    String? deptId;
+    if (department.trim().isNotEmpty) {
+      final deptRow = await _db
+          .from('departments')
+          .select('id')
+          .eq('name', department.trim())
+          .maybeSingle();
+      if (deptRow != null) {
+        deptId = deptRow['id']?.toString();
+      }
+    }
+
+    final updateData = <String, dynamic>{};
+    if (deptId != null) updateData['department_id'] = deptId;
+    if (employeeId != null) updateData['employee_id'] = employeeId.trim();
+
+    if (updateData.isNotEmpty) {
+      await _db.from('teacher_users').update(updateData).eq('user_id', userId);
+    }
   }
 }

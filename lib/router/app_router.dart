@@ -23,7 +23,7 @@ import '../shared/utils/app_route_observer.dart';
 import '../shared/widgets/loading_screen.dart';
 import '../web/admin/admin_main_navigation_web.dart' as web_admin;
 import '../web/maintenance/maintenance_navigation_web.dart' as web_maintenance;
-import '../web/splash/splash_page_web.dart';
+import '../shared/widgets/splash/smart_splash_screen.dart';
 import '../web/teacher/menu/teacher_about_web.dart';
 import '../web/teacher/menu/teacher_archives_web.dart';
 import '../web/teacher/menu/teacher_contact_web.dart';
@@ -143,12 +143,10 @@ GoRouter buildAppRouter(AuthService authService) {
               args['destinationRoute'] as String? ??
               authService.currentUser?.dashboardRoute ??
               '/login';
-          final statusText = args['statusText'] as String? ?? 'INITIALIZING';
 
           return kIsWeb
-              ? SplashPageWeb(
+              ? SmartSplashScreen(
                   destinationRoute: destinationRoute,
-                  statusText: statusText,
                   onCompleted: () {
                     authService.finishPostLoginSplash();
                   },
@@ -156,7 +154,7 @@ GoRouter buildAppRouter(AuthService authService) {
               : LoadingScreen(
                   destinationRoute: destinationRoute,
                   delay: const Duration(seconds: 4),
-                  statusText: statusText,
+                  statusText: 'INITIALIZING',
                   onCompleted: () {
                     authService.finishPostLoginSplash();
                   },

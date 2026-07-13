@@ -1,3 +1,4 @@
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/models/work_request_model.dart';
@@ -6,10 +7,19 @@ import '../../../shared/models/post_repair_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/pre_inspection_service.dart';
 import '../../../shared/services/post_repair_service.dart';
+import '../../../shared/services/iso_pdf_service.dart';
+import 'package:printing/printing.dart';
 import '../shared/admin_styles.dart';
 import 'admin_approval_signature_web.dart';
 import 'admin_pre_inspection_review_web.dart';
 import 'admin_post_repair_evaluation_web.dart';
+import '../../../shared/models/cost_tracking_model.dart';
+import '../../../shared/services/cost_tracking_service.dart';
+import 'admin_cost_tracking_form.dart';
+import '../../../shared/models/collaboration_models.dart';
+import '../../../shared/services/collaboration_service.dart';
+import 'admin_collaboration_workspace_widget.dart';
+import '../../../shared/widgets/voice_player_widget.dart';
 
 class AdminWorkProcessWeb extends StatefulWidget {
   final WorkRequest request;
@@ -24,6 +34,11 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   WorkRequest? _request;
   PreInspectionReport? _preInspection;
   PostRepairReport? _postRepair;
+  WorkRequestCost? _costTracking;
+  List<WorkRequestCollaborator> _collaborators = [];
+  List<WorkRequestTask> _tasks = [];
+  List<WorkRequestNote> _notes = [];
+  List<WorkRequestActivity> _activities = [];
   bool _isLoading = true;
   int _selectedSection = 0;
 
@@ -32,6 +47,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   final GlobalKey _timelineKey = GlobalKey();
   final GlobalKey _detailsKey = GlobalKey();
   final GlobalKey _actionsKey = GlobalKey();
+  final GlobalKey _financialsKey = GlobalKey();
+  final GlobalKey _collaborationKey = GlobalKey();
 
   @override
   void initState() {
@@ -51,6 +68,13 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       _request = await WorkRequestService.fetchById(widget.request.id) ?? widget.request;
       _preInspection = await PreInspectionService.fetchLatestByWorkRequest(_request!.id);
       _postRepair = await PostRepairService.fetchLatestByWorkRequest(_request!.id);
+      _costTracking = await CostTrackingService.fetchByWorkRequestId(_request!.id);
+      
+      // Load collaboration data
+      _collaborators = await CollaborationService.fetchCollaborators(_request!.id);
+      _tasks = await CollaborationService.fetchTasks(_request!.id);
+      _notes = await CollaborationService.fetchNotes(_request!.id);
+      _activities = await CollaborationService.fetchActivities(_request!.id);
     } catch (e) {
       debugPrint('Error loading data: $e');
     }
@@ -93,6 +117,17 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                                             Container(key: _timelineKey, child: _buildTimelineSection()),
                                             const SizedBox(height: 24),
                                             Container(key: _detailsKey, child: _buildDetailsColumn()),
+                                            const SizedBox(height: 24),
+                                            Container(key: _collaborationKey, child: AdminCollaborationWorkspaceWidget(
+                                              workRequestId: _request!.id,
+                                              collaborators: _collaborators,
+                                              tasks: _tasks,
+                                              notes: _notes,
+                                              activities: _activities,
+                                              onDataChanged: _loadData,
+                                            )),
+                                            const SizedBox(height: 24),
+                                            Container(key: _financialsKey, child: _buildFinancialsSection()),
                                           ],
                                         );
                                       }
@@ -100,7 +135,22 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                                       return Row(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Expanded(flex: 7, child: Container(key: _timelineKey, child: _buildTimelineSection())),
+                                          Expanded(flex: 7, child: Column(
+                                            children: [
+                                              Container(key: _timelineKey, child: _buildTimelineSection()),
+                                              const SizedBox(height: 24),
+                                              Container(key: _collaborationKey, child: AdminCollaborationWorkspaceWidget(
+                                                workRequestId: _request!.id,
+                                                collaborators: _collaborators,
+                                                tasks: _tasks,
+                                                notes: _notes,
+                                                activities: _activities,
+                                                onDataChanged: _loadData,
+                                              )),
+                                              const SizedBox(height: 24),
+                                              Container(key: _financialsKey, child: _buildFinancialsSection()),
+                                            ],
+                                          )),
                                           const SizedBox(width: 24),
                                           Expanded(flex: 4, child: Container(key: _detailsKey, child: _buildDetailsColumn())),
                                         ],
@@ -116,6 +166,159 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                     ),
                   ],
                 ),
+    );
+  }
+
+  Widget _buildFinancialsSection() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AdminStyles.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Cost Tracking & Financials', style: AdminStyles.headingStyle(fontSize: 18)),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await showDialog(
+                    context: context,
+                    builder: (ctx) => AdminCostTrackingForm(
+                      workRequest: _request!,
+                      existingCost: _costTracking,
+                    ),
+                  );
+                  if (result == true) {
+                    _loadData();
+                  }
+                },
+                icon: const Icon(Icons.edit_rounded, size: 16),
+                label: const Text('Edit Financials'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminStyles.primary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          if (_costTracking == null)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Text('No financial data recorded yet.', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
+              ),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: _buildFinancialItem('Estimated Labor', _costTracking!.estimatedLaborCost)),
+                    Expanded(child: _buildFinancialItem('Estimated Material', _costTracking!.estimatedMaterialCost)),
+                    Expanded(child: _buildFinancialItem('Actual Labor', _costTracking!.actualLaborCost, isActual: true)),
+                    Expanded(child: _buildFinancialItem('Actual Material', _costTracking!.actualMaterialCost, isActual: true)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: _buildFinancialItem('Additional Expenses', _costTracking!.additionalExpenses, isActual: true)),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AdminStyles.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AdminStyles.primary.withValues(alpha: 0.2)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Total Cost', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.primary)),
+                            const SizedBox(height: 4),
+                            Text('₱ ${_costTracking!.totalCost.toStringAsFixed(2)}', style: AdminStyles.headingStyle(fontSize: 18, color: AdminStyles.primary)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: AdminStyles.border),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Budget Source', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                          const SizedBox(height: 4),
+                          Text(_costTracking!.budgetSource?.isNotEmpty == true ? _costTracking!.budgetSource! : 'N/A', style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary)),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Purchase Ref #', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                          const SizedBox(height: 4),
+                          Text(_costTracking!.purchaseReferenceNumber?.isNotEmpty == true ? _costTracking!.purchaseReferenceNumber! : 'N/A', style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary)),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Receipt Attachment', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                          const SizedBox(height: 4),
+                          if (_costTracking!.receiptAttachmentUrl != null)
+                            InkWell(
+                              onTap: () {
+                                html.window.open(_costTracking!.receiptAttachmentUrl!, '_blank');
+                              },
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.attachment_rounded, size: 16, color: AdminStyles.primary),
+                                  const SizedBox(width: 4),
+                                  Text('View Receipt', style: AdminStyles.bodyStyle(color: AdminStyles.primary, decoration: TextDecoration.underline)),
+                                ],
+                              ),
+                            )
+                          else
+                            Text('No receipt uploaded', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialItem(String label, double amount, {bool isActual = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+        const SizedBox(height: 4),
+        Text('₱ ${amount.toStringAsFixed(2)}', style: AdminStyles.bodyStyle(fontSize: 15, fontWeight: FontWeight.w600, color: isActual ? AdminStyles.textPrimary : AdminStyles.textSecondary)),
+      ],
     );
   }
 
@@ -214,6 +417,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                   _buildSidebarItem('Timeline', Icons.route_rounded, 1, _timelineKey),
                   _buildSidebarItem('Details', Icons.info_outline_rounded, 2, _detailsKey),
                   _buildSidebarItem('Actions', Icons.handyman_outlined, 3, _actionsKey),
+                  _buildSidebarItem('Collaboration', Icons.group_rounded, 4, _collaborationKey),
+                  _buildSidebarItem('Financials', Icons.attach_money_rounded, 5, _financialsKey),
                 ],
               ),
             ),
@@ -406,6 +611,21 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
             _buildHeroChip((_request!.status).replaceAll('_', ' ').toUpperCase()),
             if ((_request!.officeRoom ?? '').isNotEmpty) _buildHeroChip(_request!.officeRoom!),
           ],
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          onPressed: () async {
+            final pdfBytes = await IsoPdfService.generateWorkRequestPdf(_request!);
+            await Printing.layoutPdf(onLayout: (_) => pdfBytes);
+          },
+          icon: const Icon(Icons.print_rounded, size: 18),
+          label: const Text('Print ISO Form'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AdminStyles.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
         ),
       ],
     );
@@ -638,6 +858,15 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           _buildSummaryRow('ID', _request!.id.substring(0, 8).toUpperCase()),
           _buildSummaryRow('Priority', _request!.priorityLabel),
           _buildSummaryRow('Room', _request!.officeRoom ?? 'N/A'),
+          if (_request!.voiceNotes != null && _request!.voiceNotes!.isNotEmpty) ...[
+            const Divider(height: 24),
+            Text('Voice Notes', style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textMuted)),
+            const SizedBox(height: 8),
+            ..._request!.voiceNotes!.map((url) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: VoicePlayerWidget(audioUrl: url),
+                )),
+          ],
           const Divider(height: 24),
           _buildTimeMetric('Service Duration', _calculateDuration()),
         ]),

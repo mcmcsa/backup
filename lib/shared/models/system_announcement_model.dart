@@ -9,6 +9,9 @@ class SystemAnnouncement {
   final DateTime createdAt;
   final DateTime updatedAt;
   final String createdBy;
+  final bool isPinned;
+  final List<String> targetAudience; // e.g., ['faculty', 'maintenance', 'campus_admin', 'all']
+  final String displayType; // 'banner', 'popup', 'notification'
 
   SystemAnnouncement({
     required this.id,
@@ -21,6 +24,9 @@ class SystemAnnouncement {
     required this.createdAt,
     required this.updatedAt,
     required this.createdBy,
+    this.isPinned = false,
+    this.targetAudience = const ['all'],
+    this.displayType = 'notification',
   });
 
   factory SystemAnnouncement.fromMap(Map<String, dynamic> map) {
@@ -35,6 +41,9 @@ class SystemAnnouncement {
       createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
       updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
       createdBy: map['created_by'] ?? '',
+      isPinned: map['is_pinned'] == true,
+      targetAudience: map['target_audience'] != null ? List<String>.from(map['target_audience']) : ['all'],
+      displayType: map['display_type'] ?? 'notification',
     );
   }
 
@@ -50,6 +59,9 @@ class SystemAnnouncement {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
       'created_by': createdBy,
+      'is_pinned': isPinned,
+      'target_audience': targetAudience,
+      'display_type': displayType,
     };
   }
 
@@ -64,6 +76,9 @@ class SystemAnnouncement {
     DateTime? createdAt,
     DateTime? updatedAt,
     String? createdBy,
+    bool? isPinned,
+    List<String>? targetAudience,
+    String? displayType,
   }) {
     return SystemAnnouncement(
       id: id ?? this.id,
@@ -76,6 +91,9 @@ class SystemAnnouncement {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       createdBy: createdBy ?? this.createdBy,
+      isPinned: isPinned ?? this.isPinned,
+      targetAudience: targetAudience ?? this.targetAudience,
+      displayType: displayType ?? this.displayType,
     );
   }
 

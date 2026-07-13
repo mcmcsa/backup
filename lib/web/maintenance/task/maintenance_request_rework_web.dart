@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:typed_data';
 
 class MaintenanceRequestReworkWeb extends StatefulWidget {
   final String taskId;
@@ -13,6 +15,8 @@ class _MaintenanceRequestReworkWebState extends State<MaintenanceRequestReworkWe
   final TextEditingController _instructionsController = TextEditingController();
   String _selectedPriority = 'Standard';
   bool _isSubmitting = false;
+  
+  List<PlatformFile> _attachedFiles = [];
 
   static const Color _primarySky = Color(0xFF0EA5E9);
   static const Color _warningOrange = Color(0xFFF59E0B);
@@ -192,6 +196,98 @@ class _MaintenanceRequestReworkWebState extends State<MaintenanceRequestReworkWe
                       ),
                     ),
                   ),
+                  const SizedBox(height: 24),
+                  
+                  // File Attachments
+                  const Text(
+                    'Attachments (Optional)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _darkText,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: _pickFiles,
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _borderColor,
+                            style: BorderStyle.solid,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            const Icon(Icons.cloud_upload_rounded, color: _primarySky, size: 32),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Click to browse files',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: _darkText,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Supported formats: JPG, PNG (Max 5MB)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _subtleText.withValues(alpha: 0.8),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_attachedFiles.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Column(
+                      children: _attachedFiles.map((file) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: _borderColor),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.insert_drive_file_rounded, color: _subtleText, size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  file.name,
+                                  style: const TextStyle(fontSize: 12, color: _darkText),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _attachedFiles.remove(file);
+                                  });
+                                },
+                                child: const Icon(Icons.close_rounded, color: Colors.red, size: 16),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
                   const SizedBox(height: 32),
 
                   // Action Buttons
@@ -273,6 +369,19 @@ class _MaintenanceRequestReworkWebState extends State<MaintenanceRequestReworkWe
         ),
       ),
     );
+  }
+
+  Future<void> _pickFiles() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.image,
+    );
+
+    if (result != null) {
+      setState(() {
+        _attachedFiles.addAll(result.files);
+      });
+    }
   }
 
   Future<void> _handleSubmit() async {

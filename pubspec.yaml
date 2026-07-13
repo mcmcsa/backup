@@ -76,6 +76,10 @@ dependencies:
   uuid: ^4.0.0
   flutter_svg: ^2.2.4
   google_fonts: ^6.2.1
+  csv: ^8.0.0
+  record: ^6.2.1
+  audioplayers: ^6.7.1
+  file_picker: ^8.0.0
 
 dev_dependencies:
   flutter_test:

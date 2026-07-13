@@ -95,15 +95,49 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   //  Lifecycle
   // ─────────────────────────────────────────────────────────────────────────
 
+  RealtimeChannel? _syncChannel;
+
   @override
   void initState() {
     super.initState();
     _searchCtrl.addListener(() => setState(() => _currentPage = 0));
     _load();
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    _syncChannel = Supabase.instance.client
+        .channel('system_admin_users_sync')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'users',
+          callback: (payload) {
+            if (mounted) _load();
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'teacher_users',
+          callback: (payload) {
+            if (mounted) _load();
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'maintenance_users',
+          callback: (payload) {
+            if (mounted) _load();
+          },
+        )
+        .subscribe();
   }
 
   @override
   void dispose() {
+    _syncChannel?.unsubscribe();
     _searchCtrl.dispose();
     super.dispose();
   }

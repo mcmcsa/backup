@@ -8,8 +8,12 @@ import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
-import '../../../shared/services/maintenance_account_service.dart';
+import '../../../../shared/services/maintenance_account_service.dart';
+import '../../../../authentication/models/user_model.dart';
+import '../../../../shared/widgets/availability_status_badge.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../shared/admin_styles.dart';
+import '../../../shared/services/collaboration_service.dart';
 
 class AdminApprovalSignatureWeb extends StatefulWidget {
   final WorkRequest request;
@@ -29,14 +33,65 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   bool _isApproved = false;
   List<ESignature> _signatures = [];
   List<MaintenanceAccount> _maintenanceStaff = [];
-  String? _selectedMaintenanceId;
+  List<String> _selectedMaintenanceIds = [];
   String? _maintenanceError;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
     super.initState();
     _loadData();
     _isApproved = widget.request.status != 'pending';
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel = Supabase.instance.client
+        .channel('public:maintenance_users')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'maintenance_users',
+          callback: (payload) {
+            final updatedRecord = payload.newRecord;
+            final userId = updatedRecord['user_id'] as String?;
+            final newStatus = updatedRecord['availability_status'] as String?;
+            if (userId != null && newStatus != null) {
+              setState(() {
+                final index = _maintenanceStaff.indexWhere((m) => m.userId == userId);
+                if (index != -1) {
+                  final old = _maintenanceStaff[index];
+                  _maintenanceStaff[index] = MaintenanceAccount(
+                    userId: old.userId,
+                    email: old.email,
+                    fullName: old.fullName,
+                    employeeId: old.employeeId,
+                    specialization: old.specialization,
+                    contactNo: old.contactNo,
+                    isActive: old.isActive,
+                    archivedAt: old.archivedAt,
+                    createdAt: old.createdAt,
+                    availabilityStatus: newStatus,
+                    currentLocation: old.currentLocation,
+                    currentAssignmentId: old.currentAssignmentId,
+                    estimatedCompletionTime: old.estimatedCompletionTime,
+                    lastActiveAt: old.lastActiveAt,
+                    workingHoursStart: old.workingHoursStart,
+                    workingHoursEnd: old.workingHoursEnd,
+                    statusUpdatedAt: old.statusUpdatedAt,
+                  );
+                }
+              });
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    Supabase.instance.client.removeChannel(_realtimeChannel!);
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -65,8 +120,10 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
     final user = authService.currentUser;
     if (user == null) return;
 
-    if (_selectedMaintenanceId == null) {
-      setState(() => _maintenanceError = 'Please select maintenance staff to assign');
+    if (user == null) return;
+
+    if (_selectedMaintenanceIds.isEmpty) {
+      setState(() => _maintenanceError = 'Please select at least one maintenance staff to assign');
       _showError('Please assign a maintenance staff member first.');
       return;
     }
@@ -97,13 +154,24 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
         user.name,
       );
 
-      // Assign the work request to the selected maintenance staff
-      await WorkRequestService.assignTo(widget.request.id, _selectedMaintenanceId!);
+      // Assign the work request to the primary maintenance staff
+      final primaryId = _selectedMaintenanceIds.first;
+      await WorkRequestService.assignTo(widget.request.id, primaryId);
+      
+      // Invite secondary collaborators
+      for (int i = 1; i < _selectedMaintenanceIds.length; i++) {
+        await CollaborationService.inviteCollaborator(
+          widget.request.id,
+          _selectedMaintenanceIds[i],
+          'secondary',
+          user.id,
+        );
+      }
 
       await AppNotificationService.notifyApprovedToMaintenance(
         workRequestId: widget.request.id,
         adminName: user.name,
-        assignedMaintenanceId: _selectedMaintenanceId ?? widget.request.assignedToId,
+        assignedMaintenanceId: primaryId,
       );
 
       await LoginActivityService.recordAdminAction(
@@ -363,31 +431,70 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                 Text('Assign this ticket to an active maintenance staff member.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
                 const SizedBox(height: 20),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     color: AdminStyles.bg,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: _maintenanceError != null ? AdminStyles.error : AdminStyles.border),
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      isExpanded: true,
-                      value: _selectedMaintenanceId,
-                      hint: Text('Select maintenance staff member', style: AdminStyles.bodyStyle(color: Colors.grey)),
-                      items: _maintenanceStaff.map((staff) {
-                        return DropdownMenuItem<String>(
-                          value: staff.userId,
-                          child: Text(
-                            '${staff.fullName} (${staff.specialization ?? "General"})',
-                            style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (val) => setState(() {
-                        _selectedMaintenanceId = val;
-                        _maintenanceError = null;
-                      }),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _selectedMaintenanceIds.map((id) {
+                          final staff = _maintenanceStaff.firstWhere((m) => m.userId == id);
+                          final isPrimary = _selectedMaintenanceIds.indexOf(id) == 0;
+                          return Chip(
+                            backgroundColor: isPrimary ? AdminStyles.primary.withValues(alpha: 0.1) : Colors.grey.shade100,
+                            side: BorderSide(color: isPrimary ? AdminStyles.primary.withValues(alpha: 0.3) : Colors.grey.shade300),
+                            label: Text(
+                              '${staff.fullName} ${isPrimary ? "(Primary)" : "(Secondary)"}',
+                              style: AdminStyles.bodyStyle(fontSize: 13, color: isPrimary ? AdminStyles.primary : Colors.black87),
+                            ),
+                            onDeleted: () {
+                              setState(() => _selectedMaintenanceIds.remove(id));
+                            },
+                          );
+                        }).toList(),
+                      ),
+                      if (_selectedMaintenanceIds.isNotEmpty) const SizedBox(height: 12),
+                      DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: null,
+                          hint: Text('Select maintenance staff to add', style: AdminStyles.bodyStyle(color: Colors.grey)),
+                          items: _maintenanceStaff.where((staff) => !_selectedMaintenanceIds.contains(staff.userId)).map((staff) {
+                            return DropdownMenuItem<String>(
+                              value: staff.userId,
+                              child: Row(
+                                children: [
+                                  AvailabilityStatusBadge(
+                                    status: staff.availabilityStatus,
+                                    size: BadgeSize.small,
+                                    showLabel: false,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${staff.fullName} (${staff.specialization ?? "General"})',
+                                    style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedMaintenanceIds.add(val);
+                                _maintenanceError = null;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (_maintenanceError != null) ...[

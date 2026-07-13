@@ -49,6 +49,7 @@ class AdminStyles {
     Color color = textSecondary,
     double? height,
     double? letterSpacing,
+    TextDecoration? decoration,
   }) {
     return GoogleFonts.firaSans(
       fontSize: fontSize,
@@ -56,6 +57,7 @@ class AdminStyles {
       color: color,
       height: height,
       letterSpacing: letterSpacing,
+      decoration: decoration,
     );
   }
 
@@ -174,8 +176,7 @@ class AdminStyles {
       border: InputBorder.none,
       enabledBorder: InputBorder.none,
       focusedBorder: InputBorder.none,
-      filled: true,
-      fillColor: Colors.white,
+      filled: false,
       contentPadding: const EdgeInsets.symmetric(vertical: 12),
     );
   }

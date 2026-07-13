@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -82,6 +83,8 @@ class _SplashPageWebState extends State<SplashPageWeb>
   }
 
   @override
+
+  @override
   void dispose() {
     _mainController.dispose();
     _pulseController.dispose();
@@ -91,27 +94,26 @@ class _SplashPageWebState extends State<SplashPageWeb>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFF0B1120),
       body: Stack(
         children: [
           // Background Gradient Mesh
           Positioned.fill(
             child: Container(
               decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 1.5,
                   colors: [
-                    Color(0xFFF8FAFC),
-                    Color(0xFFF1F5F9),
-                    Color(0xFFE2E8F0),
+                    Color(0xFF0F172A),
+                    Color(0xFF0B1120),
                   ],
                 ),
               ),
             ),
           ),
           
-          // Decorative Orbs
+          // Decorative Glowing Orbs
           Positioned(
             top: -100,
             right: -100,
@@ -120,148 +122,224 @@ class _SplashPageWebState extends State<SplashPageWeb>
               height: 400,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF1E40AF).withValues(alpha: 0.03),
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                    Colors.transparent,
+                  ],
+                ),
               ),
             ),
           ),
-          
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo Section with Pulse
-                ScaleTransition(
-                  scale: _pulse,
-                  child: FadeTransition(
-                    opacity: _fadeHeader,
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(32),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
-                                blurRadius: 40,
-                                offset: const Offset(0, 20),
-                              ),
-                            ],
-                          ),
-                          child: Image.asset(
-                            'assets/images/psu_logo_v3.png',
-                            width: 140,
-                            height: 140,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'PSU MMS',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF0F172A),
-                            letterSpacing: 2.0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 48),
-                
-                // Title and System Name
-                FadeTransition(
-                  opacity: _fadeHeader,
-                  child: Column(
-                    children: [
-                      const Text(
-                        'PANGASINAN STATE UNIVERSITY',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF64748B),
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Maintenance Management System'.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF94A3B8),
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 80),
-                
-                // Progress Bar and Status
-                FadeTransition(
-                  opacity: _fadeStatus,
-                  child: SizedBox(
-                    width: 300,
-                    child: Column(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: AnimatedBuilder(
-                            animation: _progress,
-                            builder: (context, child) {
-                              return LinearProgressIndicator(
-                                value: _progress.value,
-                                minHeight: 6,
-                                backgroundColor: const Color(0xFFE2E8F0),
-                                color: const Color(0xFF1E40AF),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          widget.statusText.toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF64748B),
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          // Footer
           Positioned(
-            bottom: 40,
-            left: 0,
-            right: 0,
-            child: FadeTransition(
-              opacity: _fadeStatus,
-              child: const Center(
-                child: Text(
-                  'PRECISION ENGINEERING FOR EDUCATION.\n© 2026 PANGASINAN STATE UNIVERSITY.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF94A3B8),
-                    letterSpacing: 1.0,
-                    height: 1.5,
-                  ),
+            bottom: -150,
+            left: -150,
+            child: Container(
+              width: 500,
+              height: 500,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF06B6D4).withValues(alpha: 0.1),
+                    Colors.transparent,
+                  ],
                 ),
               ),
+            ),
+          ),
+          
+          // Content
+          Positioned.fill(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Stack(
+                        children: [
+                          Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 60.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // Logo Section with Pulse
+                                  ScaleTransition(
+                                    scale: _pulse,
+                                    child: FadeTransition(
+                                      opacity: _fadeHeader,
+                                      child: Column(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(32),
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Colors.white.withValues(alpha: 0.03),
+                                              border: Border.all(
+                                                color: Colors.white.withValues(alpha: 0.1),
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withValues(alpha: 0.5),
+                                                  blurRadius: 40,
+                                                  offset: const Offset(0, 20),
+                                                ),
+                                                BoxShadow(
+                                                  color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
+                                                  blurRadius: 40,
+                                                ),
+                                              ],
+                                            ),
+                                            child: ClipOval(
+                                              child: BackdropFilter(
+                                                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                                                child: Image.asset(
+                                                  'assets/images/psu_logo_v3.png',
+                                                  width: 140,
+                                                  height: 140,
+                                                  fit: BoxFit.contain,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 24),
+                                          const Text(
+                                            'PSU MMS',
+                                            style: TextStyle(
+                                              fontSize: 28,
+                                              fontWeight: FontWeight.w900,
+                                              color: Color(0xFFF8FAFC),
+                                              letterSpacing: 2.0,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  
+                                  const SizedBox(height: 48),
+                                  
+                                  // Title and System Name
+                                  FadeTransition(
+                                    opacity: _fadeHeader,
+                                    child: Column(
+                                      children: [
+                                        const Text(
+                                          'PANGASINAN STATE UNIVERSITY',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF94A3B8),
+                                            letterSpacing: 1.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Maintenance Management System'.toUpperCase(),
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF64748B),
+                                            letterSpacing: 1.2,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  
+                                  const SizedBox(height: 80),
+                                  
+                                  // Progress Bar and Status
+                                  FadeTransition(
+                                    opacity: _fadeStatus,
+                                    child: SizedBox(
+                                       width: 300,
+                                       child: Column(
+                                         children: [
+                                           Container(
+                                             height: 6,
+                                             decoration: BoxDecoration(
+                                               borderRadius: BorderRadius.circular(10),
+                                               color: Colors.white.withValues(alpha: 0.1),
+                                             ),
+                                             child: AnimatedBuilder(
+                                               animation: _progress,
+                                               builder: (context, child) {
+                                                 return Align(
+                                                   alignment: Alignment.centerLeft,
+                                                   child: Container(
+                                                     width: 300 * _progress.value,
+                                                     decoration: BoxDecoration(
+                                                       borderRadius: BorderRadius.circular(10),
+                                                       gradient: const LinearGradient(
+                                                         colors: [Color(0xFF3B82F6), Color(0xFF06B6D4)],
+                                                       ),
+                                                       boxShadow: [
+                                                         BoxShadow(
+                                                           color: const Color(0xFF06B6D4).withValues(alpha: 0.5),
+                                                           blurRadius: 10,
+                                                         ),
+                                                       ],
+                                                     ),
+                                                   ),
+                                                 );
+                                               },
+                                             ),
+                                           ),
+                                           const SizedBox(height: 16),
+                                           Text(
+                                             widget.statusText.toUpperCase(),
+                                             textAlign: TextAlign.center,
+                                             style: const TextStyle(
+                                               fontSize: 11,
+                                               fontWeight: FontWeight.w800,
+                                               color: Color(0xFF94A3B8),
+                                               letterSpacing: 1.2,
+                                             ),
+                                           ),
+                                         ],
+                                       ),
+                                     ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          
+                          // Footer
+                          Positioned(
+                            bottom: 40,
+                            left: 0,
+                            right: 0,
+                            child: FadeTransition(
+                              opacity: _fadeStatus,
+                              child: const Center(
+                                child: Text(
+                                  'PRECISION ENGINEERING FOR EDUCATION.\n© 2026 PANGASINAN STATE UNIVERSITY.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF64748B),
+                                    letterSpacing: 1.0,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }
             ),
           ),
         ],

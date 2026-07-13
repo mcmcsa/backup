@@ -6,9 +6,10 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/connectivity_service.dart';
+import '../../../shared/services/offline_sync_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
-
 class MaintenanceAcceptTaskWeb extends StatefulWidget {
   final WorkRequest task;
 
@@ -31,6 +32,26 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
     setState(() => _isAccepting = true);
 
     try {
+      final isOnline = await Provider.of<ConnectivityService>(context, listen: false).checkConnectivity();
+      
+      if (!isOnline) {
+        // Queue for later
+        final payload = {
+          'workRequestId': widget.task.id,
+          'signerId': user.id,
+          'signerName': user.name,
+          'signatureData': signatureData,
+          'adminId': widget.task.approvedById,
+          'requestorId': widget.task.requestorId,
+        };
+        await OfflineSyncService().queueAction('accept_work_request', payload);
+        if (mounted) {
+          _showSuccess('You are offline. Task acceptance has been queued and will sync when reconnected.');
+          Navigator.pop(context, true);
+        }
+        return;
+      }
+
       // 1. Save drawn signature
       final signature = ESignature(
         id: '',

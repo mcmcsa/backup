@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../authentication/models/user_model.dart';
 
 class SystemAdminService {
@@ -8,7 +9,7 @@ class SystemAdminService {
   static Future<List<AppUser>> fetchAllUsers() async {
     final List<dynamic> usersJson = await _db
         .from('users')
-        .select('*, teacher_users(*, departments(name)), maintenance_users(*)')
+        .select('*, teacher_users(*, departments(name)), maintenance_users!maintenance_users_user_id_fkey(*)')
         .order('created_at', ascending: false);
 
     return usersJson
@@ -84,11 +85,19 @@ class SystemAdminService {
     String? phone,
     String? specialization,
   }) async {
+    SupabaseClient? isolatedClient;
     try {
-      final currentSession = _db.auth.currentSession;
-      
-      // 1. Call auth signUp to create auth record
-      final response = await _db.auth.signUp(
+      // Create an isolated client to avoid overriding the admin's session
+      isolatedClient = SupabaseClient(
+        dotenv.env['SUPABASE_URL']!,
+        dotenv.env['SUPABASE_ANON_KEY']!,
+        authOptions: const AuthClientOptions(
+          autoRefreshToken: false,
+        ),
+      );
+
+      // 1. Call auth signUp to create auth record using the isolated client
+      final response = await isolatedClient.auth.signUp(
         email: email.trim(),
         password: password,
         data: {
@@ -99,11 +108,6 @@ class SystemAdminService {
 
       final newUser = response.user;
       if (newUser == null) return 'Registration failed.';
-
-      // Restore session of the currently logged-in administrator
-      if (currentSession != null && currentSession.refreshToken != null) {
-        await _db.auth.setSession(currentSession.refreshToken!);
-      }
 
       // 2. Create users profile record (it might be created by trigger, but update role/active to be sure)
       await _db.from('users').upsert({
@@ -135,6 +139,8 @@ class SystemAdminService {
       return null;
     } catch (e) {
       return e.toString();
+    } finally {
+      isolatedClient?.dispose();
     }
   }
 }

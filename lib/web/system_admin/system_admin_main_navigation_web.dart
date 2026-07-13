@@ -18,6 +18,7 @@ import 'screens/system_admin_audit_logs_view.dart';
 import 'screens/system_admin_system_health_view.dart';
 import 'screens/system_admin_backup_restore_view.dart';
 import 'screens/system_admin_settings_view.dart';
+import '../../shared/widgets/announcements/global_announcement_listener.dart';
 
 class SystemAdminMainNavigationWeb extends StatefulWidget {
   const SystemAdminMainNavigationWeb({super.key});
@@ -82,10 +83,11 @@ class _SystemAdminMainNavigationWebState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _contentBg,
-      body: Row(
-        children: [
+    return GlobalAnnouncementListener(
+      child: Scaffold(
+        backgroundColor: _contentBg,
+        body: Row(
+          children: [
           _buildSidebar(),
           Expanded(
             child: Column(
@@ -104,6 +106,7 @@ class _SystemAdminMainNavigationWebState
             ),
           ),
         ],
+      ),
       ),
     );
   }

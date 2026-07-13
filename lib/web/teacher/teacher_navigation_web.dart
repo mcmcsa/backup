@@ -15,6 +15,7 @@ import 'menu/teacher_archives_web.dart';
 import '../../router/app_router.dart';
 import '../admin/shared/admin_styles.dart';
 import 'reports/teacher_create_request_web.dart';
+import '../../shared/widgets/announcements/global_announcement_listener.dart';
 
 class TeacherNavigationWeb extends StatefulWidget {
   final int initialIndex;
@@ -188,9 +189,10 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 1100;
+    return GlobalAnnouncementListener(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 1100;
 
         if (isCompact) {
           return Scaffold(
@@ -248,6 +250,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
           ),
         );
       },
+      ),
     );
   }
 
@@ -440,9 +443,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                 child: TextField(
                   decoration: InputDecoration(
                     hintText: 'Search...',
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                    filled: true,
-                    fillColor: Colors.white,
+                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                     prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
                     border: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 10),

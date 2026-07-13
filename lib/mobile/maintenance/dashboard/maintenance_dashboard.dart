@@ -4,9 +4,13 @@ import '../../../authentication/services/auth_service.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/maintenance_account_service.dart';
+import '../../../shared/widgets/status_selector_widget.dart';
 import '../../admin/shared/notifications_page.dart';
 import '../task/task_details_page.dart';
 import '../maintenance_navigation.dart';
+import '../../../shared/services/offline_sync_service.dart';
+import '../../../shared/services/connectivity_service.dart';
 
 class MaintenanceDashboardMobile extends StatefulWidget {
   const MaintenanceDashboardMobile({super.key});
@@ -19,12 +23,25 @@ class MaintenanceDashboardMobile extends StatefulWidget {
 class _MaintenanceDashboardMobileState
     extends State<MaintenanceDashboardMobile> {
   List<WorkRequest> _requests = [];
+  String _currentStatus = 'offline';
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadRequests();
+    _loadStatus();
+  }
+
+  Future<void> _loadStatus() async {
+    final user = context.read<AuthService>().currentUser;
+    if (user != null) {
+      try {
+        final accounts = await MaintenanceAccountService.fetchCreatedByCurrentAdmin();
+        final match = accounts.firstWhere((a) => a.userId == user.id);
+        if (mounted) setState(() => _currentStatus = match.availabilityStatus);
+      } catch (_) {}
+    }
   }
 
   Future<void> _loadRequests() async {
@@ -115,10 +132,90 @@ class _MaintenanceDashboardMobileState
         },
       ),
       body: RefreshIndicator(
-        onRefresh: _loadRequests,
+        onRefresh: () async {
+          await _loadStatus();
+          await _loadRequests();
+        },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Status Override Section
+            Row(
+              children: [
+                const Text(
+                  'My Status:',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+                ),
+                const SizedBox(width: 12),
+                StatusSelectorWidget(
+                  currentStatus: _currentStatus,
+                  onStatusChanged: (newStatus) {
+                    setState(() => _currentStatus = newStatus);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Offline Queue Section
+            ValueListenableBuilder<int>(
+              valueListenable: OfflineSyncService().queueCount,
+              builder: (context, count, _) {
+                if (count == 0) return const SizedBox.shrink();
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 24),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    border: Border.all(color: Colors.orange.shade300),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.cloud_off, color: Colors.orange),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Offline Queue: $count items',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                            ),
+                            const Text(
+                              'Waiting for internet to sync...',
+                              style: TextStyle(fontSize: 12, color: Colors.orange),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ValueListenableBuilder<bool>(
+                        valueListenable: ConnectivityService().isConnected,
+                        builder: (context, isConnected, _) {
+                          return ValueListenableBuilder<bool>(
+                            valueListenable: OfflineSyncService().isSyncing,
+                            builder: (context, isSyncing, _) {
+                              if (isSyncing) {
+                                return const SizedBox(
+                                  width: 24, height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange),
+                                );
+                              }
+                              return IconButton(
+                                icon: const Icon(Icons.sync, color: Colors.orange),
+                                onPressed: isConnected ? () => OfflineSyncService().syncNow() : null,
+                                tooltip: 'Sync Now',
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+
             // Overview Section
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

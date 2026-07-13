@@ -6,6 +6,7 @@ import '../../../shared/services/work_request_service.dart';
 import 'package:intl/intl.dart';
 import '../shared/admin_styles.dart';
 import 'admin_work_process_web.dart';
+import 'package:go_router/go_router.dart';
 
 class TicketsPageWeb extends StatefulWidget {
   const TicketsPageWeb({super.key});
@@ -361,7 +362,14 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                           Expanded(
                             child: Align(
                               alignment: Alignment.centerRight,
-                              child: _buildRefreshButton(),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildCreateRequestButton(),
+                                  const SizedBox(width: 8),
+                                  _buildRefreshButton(),
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -414,6 +422,8 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                           SizedBox(width: 220, child: _buildSearchBar(width: 220)),
                           const SizedBox(width: 12),
                           _buildViewToggle(),
+                          const SizedBox(width: 12),
+                          _buildCreateRequestButton(),
                           const SizedBox(width: 12),
                           _buildRefreshButton(),
                         ],
@@ -520,8 +530,6 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                   },
                 )
               : null,
-          filled: true,
-          fillColor: const Color(0xFFFCFEFF),
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           border: OutlineInputBorder(
@@ -542,27 +550,44 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
   }
 
   Widget _buildRefreshButton() {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: _isRefreshing ? null : () => _loadRequests(isManualRefresh: true),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: _isRefreshing
-                ? _primaryBlue.withValues(alpha: 0.18)
-                : _primaryBlue.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _primaryBlue.withValues(alpha: 0.2)),
+    return Tooltip(
+      message: 'Refresh requests',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _loadRequests(isManualRefresh: true),
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              border: Border.all(color: AdminStyles.border),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: _isRefreshing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: _primaryBlue),
+                  )
+                : const Icon(Icons.refresh_rounded, size: 20, color: _subtleText),
           ),
-          child: _isRefreshing
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: _primaryBlue),
-                )
-              : const Icon(Icons.refresh_rounded, color: _primaryBlue, size: 20),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreateRequestButton() {
+    return Tooltip(
+      message: 'Create new request manually',
+      child: ElevatedButton.icon(
+        onPressed: () => context.go('/admin/work-requests/create'),
+        icon: const Icon(Icons.add_rounded, size: 18),
+        label: const Text('Create Request'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _primaryBlue,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
     );

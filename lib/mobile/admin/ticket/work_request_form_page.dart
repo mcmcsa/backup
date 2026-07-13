@@ -32,7 +32,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   bool _isRequestExpanded = false;
   bool _isPersonnelExpanded = false;
 
-  final List<String> _requestTypes = [
+  List<String> _requestTypes = [
     'Ocular Inspection',
     'Installation',
     'Repair',

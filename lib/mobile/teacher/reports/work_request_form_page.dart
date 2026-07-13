@@ -11,8 +11,11 @@ import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/room_service.dart';
+import '../../../shared/services/duplicate_detection_service.dart';
+import '../../../shared/widgets/duplicate_detection_dialog.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/widgets/voice_recorder_widget.dart';
 
 class WorkRequestFormPage extends StatefulWidget {
   final String? roomId;
@@ -53,6 +56,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   String _selectedPriority = 'medium';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
+  String? _recordedVoicePath;
 
   final List<File> _selectedImages = [];
   final ImagePicker _imagePicker = ImagePicker();
@@ -275,23 +279,64 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           return;
         }
 
-        final hasActiveRequest = await WorkRequestService.hasActiveRequestForRoom(
-          selectedRoom.id,
+        // ── Duplicate detection ─────────────────────────────────────────────
+        final typeLabel = _selectedRequestType == 'Others'
+            ? _otherRequestTypeController.text.trim()
+            : _selectedRequestType.trim();
+
+        final duplicates = await DuplicateDetectionService.detect(
+          roomId: selectedRoom.id,
+          issueType: typeLabel,
+          description: _issueDetailsController.text.trim(),
         );
-        if (hasActiveRequest) {
+
+        if (duplicates.isNotEmpty && mounted) {
+          final result =
+              await showDuplicateDetectionDialog(context, duplicates);
           if (!mounted) return;
-          _showErrorDialog('This room is already reported.');
-          return;
+
+          if (result == null) {
+            setState(() => _isSubmitting = false);
+            return;
+          }
+
+          if (result.choice == DuplicateDialogChoice.viewExisting) {
+            final req = result.selectedRequest!;
+            setState(() => _isSubmitting = false);
+            context.push('/work-request/${req.id}');
+            return;
+          }
+
+          if (result.choice == DuplicateDialogChoice.joinExisting) {
+            final authUser = Supabase.instance.client.auth.currentUser;
+            if (authUser != null) {
+              await DuplicateDetectionService.joinRequest(
+                workRequestId: result.selectedRequest!.id,
+                reporterId: authUser.id,
+                reporterName: _fullNameController.text.trim(),
+              );
+            }
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'You have been added as a co-reporter to the existing request.'),
+                  backgroundColor: Color(0xFF22C55E),
+                ),
+              );
+              Navigator.pop(context);
+            }
+            return;
+          }
+          // DuplicateDialogChoice.continueAnyway → fall through to submit
         }
+        // ── End duplicate detection ─────────────────────────────────────────
 
         final authUser = Supabase.instance.client.auth.currentUser;
         final helper = DropdownDataHelper();
         final selectedBuildingRecord = await helper.getBuildingByName(_selectedBuilding);
         final selectedDepartmentRecord = await helper.getDepartmentByName(_selectedCollege);
 
-        final typeLabel = _selectedRequestType == 'Others'
-            ? _otherRequestTypeController.text.trim()
-            : _selectedRequestType.trim();
         if (typeLabel.isEmpty) {
           if (!mounted) return;
           _showErrorDialog('Please specify the request type.');
@@ -331,7 +376,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           requestorId: authUser?.id,
         );
 
-        final insertedRequest = await WorkRequestService.insert(request);
+        var insertedRequest = await WorkRequestService.insert(request);
 
         List<String> uploadedUrls = [];
         for (var i = 0; i < _selectedImages.length; i++) {
@@ -354,6 +399,17 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         if (uploadedUrls.isNotEmpty) {
           final updatedRequest = insertedRequest.copyWith(attachmentUrls: uploadedUrls);
           await WorkRequestService.update(updatedRequest);
+          insertedRequest = updatedRequest;
+        }
+
+        if (_recordedVoicePath != null) {
+          try {
+            final voiceUrl = await WorkRequestService.uploadVoiceNote(_recordedVoicePath!, insertedRequest.id);
+            final updatedVoiceReq = insertedRequest.copyWith(voiceNotes: [voiceUrl]);
+            await WorkRequestService.update(updatedVoiceReq);
+          } catch (e) {
+            // ignore voice upload errors
+          }
         }
 
         if (authUser != null) {
@@ -701,7 +757,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                                   ),
                                   child: const Icon(
                                     Icons.close,
-                                    size: 16,
+                                    size: 14,
                                     color: Colors.white,
                                   ),
                                 ),
@@ -712,6 +768,21 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                       }).toList(),
                     ),
                   ],
+                  const SizedBox(height: 16),
+                  _buildLabel('Voice Explanation (optional)'),
+                  const SizedBox(height: 8),
+                  VoiceRecorderWidget(
+                    onRecordingComplete: (path) {
+                      setState(() {
+                        _recordedVoicePath = path;
+                      });
+                    },
+                    onRecordingDeleted: () {
+                      setState(() {
+                        _recordedVoicePath = null;
+                      });
+                    },
+                  ),
                 ],
               ),
               const SizedBox(height: 20),

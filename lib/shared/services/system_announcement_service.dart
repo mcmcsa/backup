@@ -16,17 +16,26 @@ class SystemAnnouncementService {
     }
   }
 
-  static Future<List<SystemAnnouncement>> fetchActive() async {
+  static Future<List<SystemAnnouncement>> fetchActive({String? userRole}) async {
     try {
       final now = DateTime.now().toIso8601String();
-      final data = await _db
+      dynamic query = _db
           .from(_table)
           .select()
-          .eq('status', 'published')
+          .eq('status', 'published');
+          
+      if (userRole != null) {
+        query = query.overlaps('target_audience', ['all', userRole]);
+      }
+      
+      query = query
           .lte('scheduled_for', now)
           .or('expires_at.is.null,expires_at.gt.$now')
+          .order('is_pinned', ascending: false)
           .order('priority', ascending: false) // Might need custom logic for priority sorting
           .order('created_at', ascending: false);
+          
+      final data = await query;
       return (data as List).map((e) => SystemAnnouncement.fromMap(e)).toList();
     } catch (e) {
       return [];
@@ -40,6 +49,9 @@ class SystemAnnouncementService {
     required String status,
     DateTime? scheduledFor,
     DateTime? expiresAt,
+    bool isPinned = false,
+    List<String> targetAudience = const ['all'],
+    String displayType = 'notification',
   }) async {
     try {
       final now = DateTime.now().toIso8601String();
@@ -55,6 +67,9 @@ class SystemAnnouncementService {
         'created_at': now,
         'updated_at': now,
         'created_by': authUser?.id ?? 'system',
+        'is_pinned': isPinned,
+        'target_audience': targetAudience,
+        'display_type': displayType,
       });
 
       await AdminAuditLogService.logAction(
@@ -75,6 +90,9 @@ class SystemAnnouncementService {
     required String status,
     DateTime? scheduledFor,
     DateTime? expiresAt,
+    bool? isPinned,
+    List<String>? targetAudience,
+    String? displayType,
   }) async {
     try {
       await _db.from(_table).update({
@@ -85,6 +103,9 @@ class SystemAnnouncementService {
         'scheduled_for': scheduledFor?.toIso8601String(),
         'expires_at': expiresAt?.toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
+        if (isPinned != null) 'is_pinned': isPinned,
+        if (targetAudience != null) 'target_audience': targetAudience,
+        if (displayType != null) 'display_type': displayType,
       }).eq('id', id);
 
       await AdminAuditLogService.logAction(

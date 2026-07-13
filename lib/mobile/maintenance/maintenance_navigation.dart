@@ -3,6 +3,7 @@ import 'dashboard/maintenance_dashboard.dart';
 import 'task/maintenance_reports_page.dart';
 import 'history/maintenance_staff_history_page.dart';
 import 'profile/maintenance_staff_profile_page.dart';
+import 'chat/maintenance_chat_page.dart';
 
 class MaintenanceNavigation extends StatefulWidget {
   final int initialIndex;
@@ -35,6 +36,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
       const MaintenanceReportsPage(),
       const MaintenanceStaffHistoryPage(),
       const MaintenanceStaffProfilePage(),
+      const MaintenanceChatPage(),
     ];
 
     return Scaffold(
@@ -87,6 +89,12 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                 activeIcon: Icons.person_rounded,
                 label: 'Profile',
                 index: 3,
+              ),
+              _buildNavItem(
+                icon: Icons.chat_bubble_outline_rounded,
+                activeIcon: Icons.chat_bubble_rounded,
+                label: 'Chat',
+                index: 4,
               ),
             ],
           ),

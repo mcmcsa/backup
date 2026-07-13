@@ -10,6 +10,9 @@ import 'shared/providers/theme_provider.dart';
 import 'shared/providers/work_request_provider.dart';
 import 'shared/providers/room_provider.dart';
 import 'shared/providers/user_provider.dart';
+import 'shared/services/connectivity_service.dart';
+import 'shared/services/offline_sync_service.dart';
+import 'shared/services/offline_handlers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +39,11 @@ Future<void> main() async {
     debugPrint('Error initializing Supabase: $e');
     rethrow;
   }
+  
+  // Initialize offline services
+  await ConnectivityService().initialize();
+  await OfflineSyncService().initialize();
+  registerOfflineHandlers();
   
   runApp(const MyApp());
 }

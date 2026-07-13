@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/duplicate_detection_service.dart';
 import '../shared/admin_styles.dart';
 
 class AdminWorkRequestsWeb extends StatefulWidget {
@@ -12,7 +14,9 @@ class AdminWorkRequestsWeb extends StatefulWidget {
 
 class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
   List<WorkRequest> _requests = [];
+  List<List<WorkRequest>> _duplicateGroups = [];
   bool _isLoading = true;
+  bool _isDuplicatesLoading = false;
   String _selectedFilter = 'All';
   final TextEditingController _searchController = TextEditingController();
 
@@ -31,6 +35,7 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
   void initState() {
     super.initState();
     _loadRequests();
+    _loadDuplicates();
   }
 
   Future<void> _loadRequests() async {
@@ -44,6 +49,18 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
       }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadDuplicates() async {
+    if (mounted) setState(() => _isDuplicatesLoading = true);
+    try {
+      final groups = await DuplicateDetectionService.fetchPotentialDuplicateGroups();
+      if (mounted) setState(() => _duplicateGroups = groups);
+    } catch (_) {
+      // silently ignore
+    } finally {
+      if (mounted) setState(() => _isDuplicatesLoading = false);
     }
   }
 
@@ -92,7 +109,9 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
             const SizedBox(height: 24),
             _buildSearchAndFilter(),
             const SizedBox(height: 32),
-            if (_isLoading)
+            if (_selectedFilter == 'Duplicates')
+              _buildDuplicatesView()
+            else if (_isLoading)
               const Center(child: CircularProgressIndicator(color: _primaryBlue))
             else
               _buildRequestsTable(),
@@ -136,8 +155,7 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
             decoration: InputDecoration(
               hintText: 'Search by tracking number or title...',
               hintStyle: AdminStyles.bodyStyle(color: const Color(0xFF94A3B8), fontSize: 13, fontWeight: FontWeight.w500),
-              filled: true,
-              fillColor: Colors.white,
+              filled: false,
               prefixIcon: Padding(
                 padding: const EdgeInsets.only(left: 12, right: 8),
                 child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
@@ -158,6 +176,8 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
             _buildFilterChip('In Progress'),
             const SizedBox(width: 12),
             _buildFilterChip('Completed'),
+            const SizedBox(width: 12),
+            _buildDuplicatesFilterChip(),
           ],
         ),
       ],
@@ -179,6 +199,207 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
         child: Text(label, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isSelected ? Colors.white : _darkText)),
       ),
     );
+  }
+
+  Widget _buildDuplicatesFilterChip() {
+    final isSelected = _selectedFilter == 'Duplicates';
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFilter = 'Duplicates'),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFD97706) : _cardBg,
+          border: Border.all(color: isSelected ? const Color(0xFFD97706) : _borderColor),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.content_copy_rounded, size: 14, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(
+              'Duplicates${_duplicateGroups.isNotEmpty ? " (${_duplicateGroups.length})" : ""}',
+              style: AdminStyles.bodyStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white : _darkText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDuplicatesView() {
+    if (_isDuplicatesLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_duplicateGroups.isEmpty) {
+      return Center(
+        child: Column(
+          children: [
+            const Icon(Icons.check_circle_outline, size: 48, color: Color(0xFF22C55E)),
+            const SizedBox(height: 12),
+            Text('No duplicate requests detected!',
+                style: AdminStyles.bodyStyle(fontSize: 15, color: _subtleText)),
+          ],
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${_duplicateGroups.length} groups of potential duplicates found',
+          style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText),
+        ),
+        const SizedBox(height: 16),
+        ..._duplicateGroups.map((group) => _buildDuplicateGroupCard(group)),
+      ],
+    );
+  }
+
+  Widget _buildDuplicateGroupCard(List<WorkRequest> group) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: AdminStyles.cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFD97706)),
+                const SizedBox(width: 8),
+                Text(
+                  'Room: ${group.first.roomName ?? "Unknown"} • ${group.length} similar requests',
+                  style: AdminStyles.headingStyle(fontSize: 13, fontWeight: FontWeight.w700, color: const Color(0xFF92400E)),
+                ),
+              ],
+            ),
+          ),
+          ...group.asMap().entries.map((entry) {
+            final req = entry.value;
+            final isLast = entry.key == group.length - 1;
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              req.typeOfRequest,
+                              style: AdminStyles.headingStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _darkText),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'By: ${req.requestorName} • ${req.dateSubmitted.toString().substring(0, 10)}',
+                              style: AdminStyles.bodyStyle(fontSize: 12, color: _subtleText),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(req.status).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          req.status.replaceAll('_', ' ').toUpperCase(),
+                          style: AdminStyles.headingStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _getStatusColor(req.status)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (group.indexOf(req) != 0)
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.merge_type_rounded, size: 14),
+                          label: const Text('Merge into #1'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4169E1),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          ),
+                          onPressed: () => _confirmMerge(
+                            primaryRequest: group.first,
+                            mergedRequest: req,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (!isLast) Divider(height: 1, color: _borderColor),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmMerge({
+    required WorkRequest primaryRequest,
+    required WorkRequest mergedRequest,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Confirm Merge'),
+        content: Text(
+            'Merge "${mergedRequest.typeOfRequest}" into "${primaryRequest.typeOfRequest}"? '
+            'This will cancel the secondary request and log the merge.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4169E1)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Merge', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final adminId = Supabase.instance.client.auth.currentUser?.id ?? '';
+      await DuplicateDetectionService.mergeRequests(
+        primaryRequestId: primaryRequest.id,
+        mergedRequestId: mergedRequest.id,
+        mergedByUserId: adminId,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Requests merged successfully!'),
+            backgroundColor: Color(0xFF22C55E),
+          ),
+        );
+        _loadRequests();
+        _loadDuplicates();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Merge failed: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Widget _buildRequestsTable() {
