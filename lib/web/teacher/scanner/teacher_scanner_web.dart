@@ -16,6 +16,30 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
   bool _isVerifying = false;
   String? _error;
 
+  @override
+  void initState() {
+    super.initState();
+    _codeController.addListener(_forceUppercase);
+  }
+
+  void _forceUppercase() {
+    final text = _codeController.text;
+    final upper = text.toUpperCase();
+    if (text != upper) {
+      _codeController.value = _codeController.value.copyWith(
+        text: upper,
+        selection: TextSelection.collapsed(offset: upper.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _codeController.removeListener(_forceUppercase);
+    _codeController.dispose();
+    super.dispose();
+  }
+
   Future<void> _verifyRoom() async {
     final code = _codeController.text.trim().toUpperCase();
     if (code.isEmpty) return;
