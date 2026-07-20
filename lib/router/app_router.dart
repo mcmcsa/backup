@@ -124,8 +124,22 @@ GoRouter buildAppRouter(AuthService authService) {
         consumeLoginRedirectPause: authService.consumeLoginRedirectPause,
       );
     },
+    errorBuilder: (context, state) => Scaffold(
+      body: Center(
+        child: Text('Navigation Error: ${state.error} \\nLocation: ${state.matchedLocation}', 
+          style: const TextStyle(color: Colors.red)),
+      ),
+    ),
     observers: [appRouteObserver],
     routes: [
+      GoRoute(
+        path: '/',
+        redirect: (context, state) {
+          final user = authService.currentUser;
+          if (user == null) return '/login';
+          return user.dashboardRoute;
+        },
+      ),
       GoRoute(
         path: appStartupRoute,
         builder: (context, state) => const _AppStartupPage(),
