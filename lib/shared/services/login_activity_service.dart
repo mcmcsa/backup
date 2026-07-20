@@ -222,13 +222,13 @@ class LoginActivityService {
     final seen = <String>{
       ...dbLogs.map(
         (log) =>
-            '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toIso8601String()}',
+            '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}',
       ),
     };
 
     for (final log in localLogs) {
       final key =
-          '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toIso8601String()}';
+          '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}';
       if (seen.add(key)) {
         merged.add(log);
       }
@@ -273,11 +273,11 @@ class LoginActivityService {
 
     final merged = <LoginActivity>[...dbLogs];
     final seen = <String>{
-      ...dbLogs.map((log) => '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toIso8601String()}'),
+      ...dbLogs.map((log) => '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}'),
     };
 
     for (final log in localLogs) {
-      final key = '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toIso8601String()}';
+      final key = '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}';
       if (seen.add(key)) {
         merged.add(log);
       }
@@ -322,13 +322,13 @@ class LoginActivityService {
     final seen = <String>{
       ...dbLogs.map(
         (log) =>
-            '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toIso8601String()}',
+            '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}',
       ),
     };
 
     for (final log in localLogs) {
       final key =
-          '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toIso8601String()}';
+          '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}';
       if (seen.add(key)) {
         merged.add(log);
       }
