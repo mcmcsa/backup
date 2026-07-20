@@ -240,12 +240,16 @@ class AuthService extends ChangeNotifier {
 
     final current = _currentUser;
     try {
-      if (current != null &&
-          (current.role == UserRole.admin ||
-              current.role == UserRole.campadmin)) {
-        await LoginActivityService.recordAdminAction(
+      if (current != null) {
+        String title = 'User Logout';
+        if (current.role == UserRole.admin) title = 'Admin Logout';
+        else if (current.role == UserRole.campadmin) title = 'Campus Admin Logout';
+        else if (current.role == UserRole.teacher) title = 'Teacher Logout';
+        else if (current.role == UserRole.maintenance) title = 'Maintenance Logout';
+
+        await LoginActivityService.recordAction(
           user: current,
-          title: 'Admin Logout',
+          title: title,
           details: 'Logged out from the system',
         );
       }

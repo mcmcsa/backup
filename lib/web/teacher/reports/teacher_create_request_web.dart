@@ -18,6 +18,7 @@ import '../../../shared/services/room_service.dart';
 import '../../../shared/services/duplicate_detection_service.dart';
 import '../../../shared/widgets/duplicate_detection_dialog.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
 import 'package:image_picker/image_picker.dart';
@@ -318,6 +319,15 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         type: 'work_request_submitted',
         workRequestId: inserted.id,
       );
+
+      if (user != null) {
+        await LoginActivityService.recordAction(
+          user: user,
+          title: 'Submitted Work Request',
+          details: 'Reported issue: ${request.typeOfRequest} in ${request.roomName}',
+          workRequestId: inserted.id,
+        );
+      }
 
       if (mounted) {
         // We don't want to use go_router here if we are inside TeacherNavigationWeb.

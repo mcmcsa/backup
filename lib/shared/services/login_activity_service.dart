@@ -104,14 +104,18 @@ class LoginActivityService {
   }
 
   static Future<void> recordLogin(AppUser user) async {
-    if (user.role != UserRole.admin && user.role != UserRole.campadmin) return;
+    String title = 'User Login';
+    if (user.role == UserRole.admin) title = 'Admin Login';
+    else if (user.role == UserRole.campadmin) title = 'Campus Admin Login';
+    else if (user.role == UserRole.teacher) title = 'Teacher Login';
+    else if (user.role == UserRole.maintenance) title = 'Maintenance Login';
 
     await _append({
       'user_id': user.id,
       'user_name': user.name,
       'role': user.role.name,
       'event_type': 'login',
-      'title': 'Admin Login',
+      'title': title,
       'details': 'Logged in to the system',
       'logged_in_at': DateTime.now().toIso8601String(),
     });
