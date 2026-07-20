@@ -7,6 +7,7 @@ import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/admin_audit_log_service.dart';
 import '../../../shared/services/app_settings_service.dart';
 import 'admin_styles.dart';
+import 'about_system_page.dart';
 
 class SettingsPageWeb extends StatefulWidget {
   const SettingsPageWeb({super.key});
@@ -212,9 +213,31 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
                   ),
                 ],
               ),
-              if (isAdmin) ...[
-                // About page entry moved to dedicated sidebar item below Settings.
-              ],
+              const SizedBox(height: 24),
+              _sectionTitle('System'),
+              const SizedBox(height: 12),
+              _settingsCard(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.info_outline_rounded, color: AdminStyles.secondary),
+                    title: Text(
+                      'About System',
+                      style: AdminStyles.bodyStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AdminStyles.textPrimary),
+                    ),
+                    subtitle: Text(
+                      'System overview and development info',
+                      style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded, color: AdminStyles.textSecondary),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(
+                        appBar: AppBar(title: const Text('About System'), backgroundColor: Colors.white, foregroundColor: Colors.black, elevation: 0),
+                        body: const AboutSystemPage(),
+                      )));
+                    },
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -250,7 +273,7 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
     return SwitchListTile.adaptive(
       value: value,
       onChanged: onChanged,
-      activeColor: AdminStyles.primary,
+      activeThumbColor: AdminStyles.primary,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       secondary: Icon(icon, color: AdminStyles.secondary),
       title: Text(

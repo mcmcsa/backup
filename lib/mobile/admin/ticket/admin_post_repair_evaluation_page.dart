@@ -38,11 +38,12 @@ class _AdminPostRepairEvaluationPageState
       final report = await PostRepairService.fetchLatestByWorkRequest(
         widget.request.id,
       );
-      if (mounted)
+      if (mounted) {
         setState(() {
           _report = report;
           _isLoading = false;
         });
+      }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }

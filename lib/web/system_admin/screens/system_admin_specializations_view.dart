@@ -95,7 +95,9 @@ class _SystemAdminSpecializationsViewState
     var list = _specializations.where((s) {
       if (q.isNotEmpty) {
         if (!s.name.toLowerCase().contains(q) &&
-            !s.description.toLowerCase().contains(q)) return false;
+            !s.description.toLowerCase().contains(q)) {
+          return false;
+        }
       }
       if (_statusFilter == 'active' && !s.isActive) return false;
       if (_statusFilter == 'inactive' && s.isActive) return false;
@@ -672,7 +674,7 @@ class _SystemAdminSpecializationsViewState
             Expanded(
               child: ListView.separated(
                 itemCount: rows.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (context, index) =>
                     const Divider(height: 1, color: AdminStyles.border),
                 itemBuilder: (_, i) => _buildTableRow(rows[i]),
               ),
@@ -863,7 +865,7 @@ class _SystemAdminSpecializationsViewState
   Widget _buildMobileCards() {
     return ListView.separated(
       itemCount: _paginated.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _buildMobileCard(_paginated[i]),
     );
   }
@@ -1197,7 +1199,7 @@ class _SpecializationFormDialogState extends State<_SpecializationFormDialog> {
                       ),
                       Switch(
                         value: _isActive,
-                        activeColor: AdminStyles.primary,
+                        activeThumbColor: AdminStyles.primary,
                         onChanged: (v) => setState(() => _isActive = v),
                       ),
                     ],

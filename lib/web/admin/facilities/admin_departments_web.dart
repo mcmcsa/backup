@@ -526,7 +526,7 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
                                 Divider(height: 1, color: _borderColor),
                             ],
                           );
-                        }).toList(),
+                        }),
                       ],
                     ),
                   ),

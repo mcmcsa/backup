@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
-import 'package:intl/intl.dart';
 
 class MaintenanceReportsWeb extends StatefulWidget {
   const MaintenanceReportsWeb({super.key});
@@ -154,7 +151,7 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
           'View all work requests assigned to maintenance staff.',
           style: TextStyle(
             fontSize: 15,
-            color: _subtleText.withOpacity(0.8),
+            color: _subtleText.withValues(alpha: 0.8),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -258,7 +255,7 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
             Icon(
               Icons.assignment_outlined,
               size: 48,
-              color: _subtleText.withOpacity(0.3),
+              color: _subtleText.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 12),
             Text(
@@ -355,7 +352,7 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
                 left: BorderSide(color: _borderColor),
                 right: BorderSide(color: _borderColor),
                 bottom: BorderSide(
-                  color: isLast ? _borderColor : _borderColor.withOpacity(0.5),
+                  color: isLast ? _borderColor : _borderColor.withValues(alpha: 0.5),
                 ),
               ),
               borderRadius: isLast
@@ -409,7 +406,7 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(request.status).withOpacity(0.1),
+                      color: _getStatusColor(request.status).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -426,7 +423,7 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
               ],
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }

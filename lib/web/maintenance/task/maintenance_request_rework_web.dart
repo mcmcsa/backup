@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'dart:typed_data';
 
 class MaintenanceRequestReworkWeb extends StatefulWidget {
   final String taskId;
@@ -16,7 +15,7 @@ class _MaintenanceRequestReworkWebState extends State<MaintenanceRequestReworkWe
   String _selectedPriority = 'Standard';
   bool _isSubmitting = false;
   
-  List<PlatformFile> _attachedFiles = [];
+  final List<PlatformFile> _attachedFiles = [];
 
   static const Color _primarySky = Color(0xFF0EA5E9);
   static const Color _warningOrange = Color(0xFFF59E0B);

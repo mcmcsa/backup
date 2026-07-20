@@ -493,8 +493,9 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                                                 await _pickEvidenceImage(
                                                   ImageSource.camera,
                                                 );
-                                            if (image == null || !mounted)
+                                            if (image == null || !mounted) {
                                               return;
+                                            }
                                             setModalState(() {
                                               selectedEvidenceImage = image;
                                               uploadedEvidenceUrl = null;
@@ -514,8 +515,9 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                                                 await _pickEvidenceImage(
                                                   ImageSource.gallery,
                                                 );
-                                            if (image == null || !mounted)
+                                            if (image == null || !mounted) {
                                               return;
+                                            }
                                             setModalState(() {
                                               selectedEvidenceImage = image;
                                               uploadedEvidenceUrl = null;

@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../teacher_nav_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/models/request_type_model.dart';
 import '../../../shared/models/e_signature_model.dart';
-import '../../../shared/services/system_settings_service.dart';
+
 import '../../../shared/services/connectivity_service.dart';
 import '../../../shared/services/offline_sync_service.dart';
 import '../../../shared/services/work_request_service.dart';
-import 'package:uuid/uuid.dart';
+
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/room_service.dart';
@@ -74,6 +75,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
     final user = context.read<AuthService>().currentUser;
     if (user != null) {
       _fullNameController.text = user.name;
+      _positionController.text = user.position ?? user.roleLabel;
     }
   }
 
@@ -264,7 +266,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
               backgroundColor: AdminStyles.warning,
             ),
           );
-          context.go('/teacher/dashboard');
+          TeacherNavController.of(context).setIndex(0);
         }
         setState(() => _isSubmitting = false);
         return;
@@ -318,6 +320,10 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       );
 
       if (mounted) {
+        // We don't want to use go_router here if we are inside TeacherNavigationWeb.
+        // But since we want to show a success page, we should use a dialog or navigate to a success tab.
+        // Actually, the teacher_request_success_web.dart is a separate route right now. 
+        // We'll leave the go_router call here because it routes to a fullscreen success page outside the nav stack.
         context.go('/work-request-success', extra: {
           'trackingNumber': inserted.id,
           'location': '${inserted.roomName} - ${inserted.buildingName}',
@@ -373,13 +379,15 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-      color: AdminStyles.surface,
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AdminStyles.border))),
+      decoration: BoxDecoration(
+        color: AdminStyles.surface,
+        border: Border(bottom: BorderSide(color: AdminStyles.border)),
+      ),
       child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
-            onPressed: () => context.go('/teacher/dashboard'),
+            onPressed: () => TeacherNavController.of(context).navigateTo(0),
           ),
           const SizedBox(width: 16),
           Column(
@@ -499,13 +507,6 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
               ),
             ],
             const SizedBox(height: 24),
-            _buildDropdownField(
-              label: 'Priority Level',
-              value: _selectedPriority,
-              items: const ['low', 'medium', 'high'],
-              onChanged: (v) => setState(() => _selectedPriority = v!),
-            ),
-            const SizedBox(height: 24),
             _buildInputField(
               label: 'Description of the Problem',
               controller: _issueDetailsController,
@@ -516,83 +517,90 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
             const SizedBox(height: 24),
             _buildLabel('Upload Photos (optional)'),
             const SizedBox(height: 8),
-            GestureDetector(
-              onTap: _pickImages,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AdminStyles.border, width: 1.5),
-                ),
-                child: Column(
-                  children: [
-                    Icon(Icons.cloud_upload_outlined, size: 48, color: Colors.grey.shade400),
-                    const SizedBox(height: 12),
-                    Text('Tap to upload photos', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
-                    const SizedBox(height: 4),
-                    Text('PNG, JPG up to 10MB', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-                  ],
-                ),
-              ),
-            ),
-            if (_selectedImages.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: _selectedImages.asMap().entries.map((entry) {
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AdminStyles.border),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: FutureBuilder<Uint8List>(
-                            future: entry.value.readAsBytes(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-                              }
-                              if (snapshot.hasData) {
-                                return Image.memory(snapshot.data!, fit: BoxFit.cover);
-                              }
-                              return const Icon(Icons.error_outline, color: AdminStyles.error);
-                            },
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: -8,
-                        right: -8,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedImages.removeAt(entry.key);
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: AdminStyles.error,
-                              shape: BoxShape.circle,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_selectedImages.isNotEmpty) ...[
+                  Expanded(
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: _selectedImages.asMap().entries.map((entry) {
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AdminStyles.border),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: FutureBuilder<Uint8List>(
+                                  future: entry.value.readAsBytes(),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState == ConnectionState.waiting) {
+                                      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                                    }
+                                    if (snapshot.hasData) {
+                                      return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                                    }
+                                    return const Icon(Icons.error_outline, color: AdminStyles.error);
+                                  },
+                                ),
+                              ),
                             ),
-                            child: const Icon(Icons.close, size: 14, color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ],
+                            Positioned(
+                              top: -8,
+                              right: -8,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedImages.removeAt(entry.key);
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: AdminStyles.error,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 2),
+                                  ),
+                                  child: const Icon(Icons.close, size: 14, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                ],
+                GestureDetector(
+                  onTap: _pickImages,
+                  child: Container(
+                    width: _selectedImages.isNotEmpty ? 120 : double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AdminStyles.border, width: 1.5, style: BorderStyle.solid),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.cloud_upload_outlined, size: 32, color: Colors.grey.shade400),
+                        const SizedBox(height: 8),
+                        Text('Upload', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ],
@@ -611,6 +619,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
               controller: _fullNameController,
               hint: 'Your name',
               validator: (v) => v!.isEmpty ? 'Required' : null,
+              readOnly: true,
             ),
             const SizedBox(height: 16),
             _buildInputField(
@@ -618,6 +627,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
               controller: _positionController,
               hint: 'e.g. Instructor',
               validator: (v) => v!.isEmpty ? 'Required' : null,
+              readOnly: true,
             ),
           ],
         ),
@@ -658,7 +668,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
     );
   }
 
-  Widget _buildInputField({required String label, required TextEditingController controller, String? hint, int maxLines = 1, String? Function(String?)? validator}) {
+  Widget _buildInputField({required String label, required TextEditingController controller, String? hint, int maxLines = 1, String? Function(String?)? validator, bool readOnly = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -667,15 +677,16 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         TextFormField(
           controller: controller,
           maxLines: maxLines,
-          style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary),
+          readOnly: readOnly,
+          style: AdminStyles.bodyStyle(color: readOnly ? AdminStyles.textMuted : AdminStyles.textPrimary),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
             filled: true,
-            fillColor: AdminStyles.bg,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AdminStyles.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AdminStyles.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AdminStyles.primary)),
+            fillColor: readOnly ? Colors.grey.shade200 : AdminStyles.bg,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: readOnly ? Colors.grey.shade300 : AdminStyles.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: readOnly ? Colors.grey.shade300 : AdminStyles.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: readOnly ? Colors.grey.shade300 : AdminStyles.primary)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
           validator: validator,

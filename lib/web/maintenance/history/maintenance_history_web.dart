@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/work_request_model.dart';
 
@@ -13,7 +12,7 @@ class MaintenanceHistoryWeb extends StatefulWidget {
 class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
   List<WorkRequest> _history = [];
   bool _isLoading = true;
-  String _selectedStatus = 'All';
+  final String _selectedStatus = 'All';
   final TextEditingController _searchController = TextEditingController();
 
   // Professional color palette
@@ -127,7 +126,7 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
           'View all completed work requests and task history.',
           style: TextStyle(
             fontSize: 15,
-            color: _subtleText.withOpacity(0.8),
+            color: _subtleText.withValues(alpha: 0.8),
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -183,7 +182,7 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
             Icon(
               Icons.history_rounded,
               size: 48,
-              color: _subtleText.withOpacity(0.3),
+              color: _subtleText.withValues(alpha: 0.3),
             ),
             const SizedBox(height: 12),
             Text(
@@ -219,7 +218,7 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: _successGreen.withOpacity(0.1),
+                  color: _successGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
@@ -257,7 +256,7 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
                           '• ${task.id.substring(0, 8)}',
                           style: TextStyle(
                             fontSize: 12,
-                            color: _subtleText.withOpacity(0.6),
+                            color: _subtleText.withValues(alpha: 0.6),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -273,7 +272,7 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
                     .split(' ')[0],
                 style: TextStyle(
                   fontSize: 12,
-                  color: _subtleText.withOpacity(0.6),
+                  color: _subtleText.withValues(alpha: 0.6),
                   fontWeight: FontWeight.w500,
                 ),
               ),

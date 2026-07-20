@@ -4,7 +4,6 @@ import '../../../authentication/services/auth_service.dart';
 import 'admin_activity_logs_page.dart';
 import 'admin_logs_page.dart';
 import 'maintenance_management_page.dart';
-import '../departments/department_building_management_page.dart';
 import '../users/users_page.dart';
 import '../../teacher/menu_pages/settings_page.dart';
 
@@ -177,21 +176,7 @@ class MenuDrawer extends StatelessWidget {
                       );
                     },
                   ),
-                  _buildMenuItem(
-                    icon: Icons.apartment_outlined,
-                    title: 'Facility Management',
-                    isCompact: isCompact,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const DepartmentBuildingManagementPage(openDrawer: _noop),
-                        ),
-                      );
-                    },
-                  ),
+
                   _buildMenuItem(
                     icon: Icons.settings_outlined,
                     title: 'Settings',

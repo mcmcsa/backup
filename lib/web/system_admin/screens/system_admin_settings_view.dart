@@ -233,7 +233,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                   _label('Theme Default'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _theme,
+                    initialValue: _theme,
                     decoration: _inputDecor(Icons.dark_mode_rounded),
                     items: const [
                       DropdownMenuItem(value: 'light', child: Text('Light Theme')),
@@ -254,7 +254,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
             _label('System Timezone'),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _timezone,
+              initialValue: _timezone,
               decoration: _inputDecor(Icons.access_time_filled_rounded),
               items: const [
                 DropdownMenuItem(value: 'Asia/Manila', child: Text('Asia/Manila (PST)')),
@@ -284,7 +284,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                   _label('Current Semester'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _semester,
+                    initialValue: _semester,
                     decoration: _inputDecor(Icons.layers_rounded),
                     items: const [
                       DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
@@ -315,7 +315,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
           onChanged: (v) => setState(() => _enforcePasswordPolicy = v),
           title: Text('Enforce Strict Passwords', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
           subtitle: Text('Requires uppercase, lowercase, numbers, and symbols.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-          activeColor: AdminStyles.primary,
+          activeThumbColor: AdminStyles.primary,
           contentPadding: EdgeInsets.zero,
         ),
         const Divider(height: 32, color: AdminStyles.border),
@@ -347,7 +347,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                   Switch(
                     value: _maintenanceMode,
                     onChanged: (v) => setState(() => _maintenanceMode = v),
-                    activeColor: AdminStyles.error,
+                    activeThumbColor: AdminStyles.error,
                   ),
                 ],
               ),

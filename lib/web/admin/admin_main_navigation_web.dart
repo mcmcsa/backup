@@ -514,21 +514,9 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                       closeDrawerOnTap: closeDrawerOnTap,
                     ),
                     _buildNavItem(
-                      index: _costTrackingIndex,
-                      icon: Icons.monetization_on_rounded,
-                      title: 'Cost Tracking',
-                      closeDrawerOnTap: closeDrawerOnTap,
-                    ),
-                    _buildNavItem(
                       index: _roomsIndex,
-                      icon: Icons.meeting_room_rounded,
+                      icon: Icons.meeting_room_outlined,
                       title: 'Rooms',
-                      closeDrawerOnTap: closeDrawerOnTap,
-                    ),
-                    _buildNavItem(
-                      index: _qrHistoryIndex,
-                      icon: Icons.qr_code_2_rounded,
-                      title: 'QR History',
                       closeDrawerOnTap: closeDrawerOnTap,
                     ),
                     _buildNavItem(
@@ -546,60 +534,51 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                     _buildNavItem(
                       index: _chatIndex,
                       icon: Icons.chat_bubble_outline_rounded,
-                      title: 'Chat',
+                      title: 'Messages',
                       closeDrawerOnTap: closeDrawerOnTap,
                     ),
-
-                    const SizedBox(height: 10),
-                    _buildDropdownHeader(
-                      title: 'Menu',
-                      isExpanded: _isMenuExpanded,
-                      onTap: () => setState(() => _isMenuExpanded = !_isMenuExpanded),
+                    _buildNavItem(
+                      index: _qrHistoryIndex,
+                      icon: Icons.qr_code_2_rounded,
+                      title: 'QR Management',
+                      closeDrawerOnTap: closeDrawerOnTap,
                     ),
-                    if (_isMenuExpanded) ...[
-                      _buildNavItem(
-                        index: _usersIndex,
-                        icon: Icons.people_rounded,
-                        title: 'Users',
-                        closeDrawerOnTap: closeDrawerOnTap,
-                      ),
-                      _buildNavItem(
-                        index: _maintenanceIndex,
-                        icon: Icons.engineering_rounded,
-                        title: 'Maintenance',
-                        closeDrawerOnTap: closeDrawerOnTap,
-                      ),
-                      _buildNavItem(
-                        index: _buildingsIndex,
-                        icon: Icons.apartment_rounded,
-                        title: 'Facility Management',
-                        closeDrawerOnTap: closeDrawerOnTap,
-                      ),
-                      _buildNavItem(
-                        index: _logsIndex,
-                        icon: Icons.receipt_long_rounded,
-                        title: 'Logs',
-                        closeDrawerOnTap: closeDrawerOnTap,
-                      ),
-                      _buildNavItem(
-                        index: _historyIndex,
-                        icon: Icons.history_rounded,
-                        title: 'History',
-                        closeDrawerOnTap: closeDrawerOnTap,
-                      ),
-                      _buildNavItem(
-                        index: _settingsIndex,
-                        icon: Icons.settings_rounded,
-                        title: 'Settings',
-                        closeDrawerOnTap: closeDrawerOnTap,
-                      ),
-                      _buildNavItem(
-                        index: _aboutIndex,
-                        icon: Icons.info_outline_rounded,
-                        title: 'About',
-                        closeDrawerOnTap: closeDrawerOnTap,
-                      ),
-                    ],
+                    _buildNavItem(
+                      index: _costTrackingIndex,
+                      icon: Icons.monetization_on_rounded,
+                      title: 'Cost Tracking',
+                      closeDrawerOnTap: closeDrawerOnTap,
+                    ),
+                    _buildNavItem(
+                      index: _usersIndex,
+                      icon: Icons.people_rounded,
+                      title: 'Users',
+                      closeDrawerOnTap: closeDrawerOnTap,
+                    ),
+                    _buildNavItem(
+                      index: _maintenanceIndex,
+                      icon: Icons.engineering_rounded,
+                      title: 'Maintenance',
+                      closeDrawerOnTap: closeDrawerOnTap,
+                    ),
+                    _buildNavItem(
+                      index: _logsIndex,
+                      icon: Icons.receipt_long_rounded,
+                      title: 'Logs',
+                      closeDrawerOnTap: closeDrawerOnTap,
+                    ),
+                    _buildNavItem(
+                      index: _historyIndex,
+                      icon: Icons.history_rounded,
+                      title: 'History',
+                      closeDrawerOnTap: closeDrawerOnTap,
+                    ),
+                    _buildNavItem(
+                      index: _settingsIndex,
+                      icon: Icons.settings_rounded,
+                      title: 'Settings',
+                      closeDrawerOnTap: closeDrawerOnTap,
+                    ),
 
                     const SizedBox(height: 10),
                   ],

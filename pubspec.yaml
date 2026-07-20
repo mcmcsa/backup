@@ -80,7 +80,9 @@ dependencies:
   record: ^6.2.1
   audioplayers: ^6.7.1
   file_picker: ^8.0.0
+  universal_html: ^2.3.0
 
+  path: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

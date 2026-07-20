@@ -15,7 +15,11 @@ import 'menu/teacher_archives_web.dart';
 import '../../router/app_router.dart';
 import '../admin/shared/admin_styles.dart';
 import 'reports/teacher_create_request_web.dart';
+import 'chat/teacher_chat_web.dart';
+import 'notifications/teacher_notifications_web.dart';
+import '../../shared/widgets/lazy_indexed_stack.dart';
 import '../../shared/widgets/announcements/global_announcement_listener.dart';
+import 'teacher_nav_controller.dart';
 
 class TeacherNavigationWeb extends StatefulWidget {
   final int initialIndex;
@@ -31,8 +35,11 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   String _userName = 'Teacher';
   final String _userRole = 'Faculty';
   int _hoveredIndex = -1;
-  bool _isUserMenuHovered = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  String? _createRoomId;
+  String? _createRoomName;
+  String? _createBuildingName;
 
   // Professional color palette
   static const _sidebarBg = Color(0xFF0F172A);
@@ -153,36 +160,46 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
     }
   }
 
-  Widget _getCurrentPage() {
-    switch (_selectedIndex) {
-      case 0: return const TeacherDashboardWeb();
-      case 1: return const TeacherReportsWeb();
-      case 2: return const TeacherLogsWeb();
-      case 3: return const TeacherScannerWeb();
-      case 4: return const TeacherProfileWeb();
-      case 5: return const TeacherArchivesWeb();
-      case 6: return const TeacherSettingsWeb();
-      case 7: return const TeacherAboutWeb();
-      case 8: return const TeacherContactWeb();
-      case 9: return const TeacherSystemWorkflowWeb();
-      case 10: return const TeacherCreateRequestWeb();
-      default: return const TeacherDashboardWeb();
-    }
+  Widget _buildIndexedStack() {
+    return LazyIndexedStack(
+      index: _selectedIndex,
+      children: [
+        const TeacherDashboardWeb(),
+        const TeacherLogsWeb(),
+        const TeacherScannerWeb(),
+        const TeacherReportsWeb(),
+        const TeacherChatWeb(),
+        const TeacherArchivesWeb(),
+        const TeacherProfileWeb(),
+        const TeacherAboutWeb(),
+        const TeacherSystemWorkflowWeb(),
+        const TeacherSettingsWeb(),
+        const TeacherContactWeb(),
+        TeacherCreateRequestWeb(
+          key: ValueKey('$_createRoomId-$_createRoomName-$_createBuildingName'),
+          roomId: _createRoomId,
+          roomName: _createRoomName,
+          buildingName: _createBuildingName,
+        ),
+        const TeacherNotificationsWeb(),
+      ],
+    );
   }
 
   String _routeForIndex(int index) {
     switch (index) {
       case 0: return teacherDashboardRoute;
-      case 1: return teacherReportsRoute;
-      case 2: return teacherLogsRoute;
-      case 3: return teacherScannerRoute;
-      case 4: return teacherProfileRoute;
+      case 1: return teacherLogsRoute;
+      case 2: return teacherScannerRoute;
+      case 3: return teacherReportsRoute;
+      case 4: return '/teacher/chat';
       case 5: return teacherArchivesRoute;
-      case 6: return teacherSettingsRoute;
+      case 6: return teacherProfileRoute;
       case 7: return teacherAboutRoute;
-      case 8: return teacherContactRoute;
-      case 9: return teacherWorkflowRoute;
-      case 10: return teacherCreateRequestRoute;
+      case 8: return teacherWorkflowRoute;
+      case 9: return teacherSettingsRoute;
+      case 10: return teacherContactRoute;
+      case 11: return teacherCreateRequestRoute;
       default: return teacherDashboardRoute;
     }
   }
@@ -210,12 +227,24 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                   onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
                 ),
                 Expanded(
-                  child: Container(
-                    decoration: const BoxDecoration(color: _contentBg),
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1400),
-                      child: _getCurrentPage(),
+                  child: TeacherNavController(
+                    navigateTo: (i, {roomId, roomName, buildingName}) {
+                      setState(() {
+                        _selectedIndex = i;
+                        if (i == 11) {
+                          _createRoomId = roomId;
+                          _createRoomName = roomName;
+                          _createBuildingName = buildingName;
+                        }
+                      });
+                    },
+                    child: Container(
+                      decoration: const BoxDecoration(color: _contentBg),
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1400),
+                        child: _buildIndexedStack(),
+                      ),
                     ),
                   ),
                 ),
@@ -234,12 +263,24 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                   children: [
                     _buildHeader(),
                     Expanded(
-                      child: Container(
-                        color: _contentBg,
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1400),
-                          child: _getCurrentPage(),
+                      child: TeacherNavController(
+                        navigateTo: (i, {roomId, roomName, buildingName}) {
+                          setState(() {
+                            _selectedIndex = i;
+                            if (i == 11) {
+                              _createRoomId = roomId;
+                              _createRoomName = roomName;
+                              _createBuildingName = buildingName;
+                            }
+                          });
+                        },
+                        child: Container(
+                          color: _contentBg,
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1400),
+                            child: _buildIndexedStack(),
+                          ),
                         ),
                       ),
                     ),
@@ -261,22 +302,44 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: Row(
               children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(color: _sidebarSelected, borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.school_rounded, color: Colors.white, size: 24),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    'assets/images/app_logo_v2.png',
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                  ),
                 ),
                 const SizedBox(width: 12),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('PSU Teacher', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _textWhite)),
-                    Text('Faculty Portal', style: TextStyle(fontSize: 12, color: _textMuted)),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'PSU QR-MMS',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: _textWhite,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'FACULTY',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: _textMuted,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -286,22 +349,16 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ListView(
                 children: [
-                  _buildNavItem(index: 0, icon: Icons.dashboard_rounded, title: 'Dashboard', closeDrawerOnTap: closeDrawerOnTap),
-                  _buildNavItem(index: 1, icon: Icons.assessment_rounded, title: 'Reports', closeDrawerOnTap: closeDrawerOnTap),
-                  _buildNavItem(index: 2, icon: Icons.history_rounded, title: 'Logs', closeDrawerOnTap: closeDrawerOnTap),
-                  _buildNavItem(index: 3, icon: Icons.qr_code_2_rounded, title: 'Scanner', closeDrawerOnTap: closeDrawerOnTap),
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('Account'),
-                  _buildNavItem(index: 4, icon: Icons.person_rounded, title: 'Profile', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 0, icon: Icons.dashboard_rounded, title: 'Home', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 1, icon: Icons.history_rounded, title: 'Logs', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 2, icon: Icons.qr_code_2_rounded, title: 'Scanner', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 3, icon: Icons.assessment_rounded, title: 'Reports', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 4, icon: Icons.message_rounded, title: 'Messages', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 5, icon: Icons.archive_rounded, title: 'Archives', closeDrawerOnTap: closeDrawerOnTap),
-                  _buildNavItem(index: 6, icon: Icons.settings_rounded, title: 'Settings', closeDrawerOnTap: closeDrawerOnTap),
-                  const SizedBox(height: 24),
-                  _buildSectionTitle('Information'),
-                  _buildNavItem(index: 7, icon: Icons.info_rounded, title: 'About', closeDrawerOnTap: closeDrawerOnTap),
-                  _buildNavItem(index: 8, icon: Icons.mail_rounded, title: 'Contact', closeDrawerOnTap: closeDrawerOnTap),
-                  _buildNavItem(index: 9, icon: Icons.schema_rounded, title: 'Workflow', closeDrawerOnTap: closeDrawerOnTap),
-                  const SizedBox(height: 32),
-                  _buildCreateRequestButton(),
+                  _buildNavItem(index: 6, icon: Icons.person_rounded, title: 'Profile', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 9, icon: Icons.settings_rounded, title: 'Settings', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 7, icon: Icons.info_rounded, title: 'About us', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 8, icon: Icons.schema_rounded, title: 'System Work Flow', closeDrawerOnTap: closeDrawerOnTap),
                 ],
               ),
             ),
@@ -361,13 +418,14 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
           onTap: () {
-            context.go(_routeForIndex(index));
+            setState(() => _selectedIndex = index);
             if (closeDrawerOnTap && Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             }
           },
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               color: isSelected ? _sidebarSelected.withOpacity(0.15) : (isHovered ? _sidebarHover : Colors.transparent),
@@ -421,7 +479,10 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   Widget _buildHeader({bool isCompact = false, VoidCallback? onMenuTap}) {
     return Container(
       height: 70,
-      decoration: BoxDecoration(color: _headerBg, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))]),
+      decoration: BoxDecoration(
+        color: _headerBg,
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 24),
       child: Row(
         children: [
@@ -433,87 +494,56 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
             ),
             const SizedBox(width: 4),
           ],
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 320),
-                height: 42,
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999), border: Border.all(color: Colors.grey.shade300)),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search...',
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                    prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
+          // PSU Logo + Name
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  'assets/images/PsuLogo.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.contain,
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          if (!isCompact) ...[
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('TEACHER PORTAL', style: AdminStyles.headingStyle(fontSize: 13, letterSpacing: 0.5)),
-                Text(_userRole, style: AdminStyles.bodyStyle(fontSize: 12)),
+              if (!isCompact) ...[
+                const SizedBox(width: 10),
+                const Text(
+                  'PANGASINAN STATE UNIVERSITY',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F766E),
+                    letterSpacing: 0.3,
+                  ),
+                ),
               ],
-            ),
-            const SizedBox(width: 20),
-          ],
-          _HeaderIconButton(icon: Icons.notifications_outlined, badge: 0, onTap: () {}),
-          const SizedBox(width: 12),
-          _buildUserAvatar(),
+            ],
+          ),
+          const Spacer(),
+          // Notification button — shows label on wide, icon-only on compact
+          _NotificationButton(
+            showLabel: !isCompact,
+            onTap: () => setState(() => _selectedIndex = 12),
+          ),
         ],
       ),
     );
   }
-
-  Widget _buildUserAvatar() {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isUserMenuHovered = true),
-      onExit: (_) => setState(() => _isUserMenuHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () => context.go(teacherProfileRoute),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _isUserMenuHovered ? _sidebarSelected : Colors.transparent, width: 2),
-          ),
-          child: Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(color: _sidebarSelected, borderRadius: BorderRadius.circular(10)),
-            child: Center(
-              child: Text(
-                _userName.isNotEmpty ? _userName[0].toUpperCase() : 'T',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-class _HeaderIconButton extends StatefulWidget {
-  final IconData icon;
-  final int badge;
+class _NotificationButton extends StatefulWidget {
+  final bool showLabel;
   final VoidCallback onTap;
-  const _HeaderIconButton({required this.icon, this.badge = 0, required this.onTap});
+  const _NotificationButton({required this.showLabel, required this.onTap});
+
   @override
-  State<_HeaderIconButton> createState() => _HeaderIconButtonState();
+  State<_NotificationButton> createState() => _NotificationButtonState();
 }
 
-class _HeaderIconButtonState extends State<_HeaderIconButton> {
+class _NotificationButtonState extends State<_NotificationButton> {
   bool _isHovered = false;
+
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -522,25 +552,38 @@ class _HeaderIconButtonState extends State<_HeaderIconButton> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(color: _isHovered ? Colors.grey.shade100 : Colors.transparent, borderRadius: BorderRadius.circular(10)),
-          child: Stack(
-            alignment: Alignment.center,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.showLabel ? 14 : 10,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: _isHovered ? const Color(0xFFF1F5F9) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _isHovered ? const Color(0xFFE2E8F0) : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(widget.icon, color: Colors.grey.shade600, size: 22),
-              if (widget.badge > 0)
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                    child: Center(child: Text('${widget.badge}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white))),
+              Icon(
+                Icons.notifications_outlined,
+                color: _isHovered ? const Color(0xFF0F766E) : Colors.grey.shade600,
+                size: 22,
+              ),
+              if (widget.showLabel) ...[
+                const SizedBox(width: 8),
+                Text(
+                  'Notifications',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _isHovered ? const Color(0xFF0F766E) : Colors.grey.shade700,
                   ),
                 ),
+              ],
             ],
           ),
         ),
@@ -548,3 +591,4 @@ class _HeaderIconButtonState extends State<_HeaderIconButton> {
     );
   }
 }
+

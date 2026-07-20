@@ -241,7 +241,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                 _buildInputWrapper(
                                   label: 'Department',
                                   child: DropdownButtonFormField<String>(
-                                    value: _selectedDeptId,
+                                    initialValue: _selectedDeptId,
                                     icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textSecondary),
                                     decoration: _inputDecoration(icon: Icons.business_rounded),
                                     items: widget.departments.map<DropdownMenuItem<String>>((d) {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../authentication/models/user_model.dart';
@@ -870,9 +869,9 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
           ),
           TextButton(
             onPressed: () => setState(() => _selectedIds.clear()),
-            child: const Text('Clear'),
             style: TextButton.styleFrom(
                 foregroundColor: AdminStyles.textSecondary),
+            child: const Text('Clear'),
           ),
         ],
       ),
@@ -913,7 +912,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
                 Expanded(
                   child: ListView.separated(
                     itemCount: users.length,
-                    separatorBuilder: (_, __) =>
+                    separatorBuilder: (context, index) =>
                         const Divider(height: 1, color: AdminStyles.border),
                     itemBuilder: (_, i) => _buildTableRow(users[i]),
                   ),
@@ -1138,7 +1137,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     final users = _paginated;
     return ListView.separated(
       itemCount: users.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _buildMobileCard(users[i]),
     );
   }
@@ -1900,7 +1899,7 @@ class _EditUserDialogState extends State<_EditUserDialog> {
                 _sectionLabel('Role'),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _role,
+                  initialValue: _role,
                   decoration: _inputDecor(Icons.shield_outlined),
                   items: const [
                     DropdownMenuItem(value: 'admin', child: Text('System Admin')),
@@ -1917,7 +1916,7 @@ class _EditUserDialogState extends State<_EditUserDialog> {
                   _sectionLabel('Department'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _selectedDeptId,
+                    initialValue: _selectedDeptId,
                     decoration: _inputDecor(Icons.business_rounded),
                     items: widget.departments
                         .map((d) => DropdownMenuItem(
@@ -1965,7 +1964,7 @@ class _EditUserDialogState extends State<_EditUserDialog> {
                       Switch(
                         value: _isActive,
                         onChanged: (v) => setState(() => _isActive = v),
-                        activeColor: AdminStyles.success,
+                        activeThumbColor: AdminStyles.success,
                       ),
                     ],
                   ),

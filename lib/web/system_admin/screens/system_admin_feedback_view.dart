@@ -409,7 +409,7 @@ class _SystemAdminFeedbackViewState extends State<SystemAdminFeedbackView> {
             Expanded(
               child: ListView.separated(
                 itemCount: _paginated.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, color: AdminStyles.border),
+                separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
                 itemBuilder: (_, i) => _buildRow(_paginated[i]),
               ),
             ),

@@ -86,10 +86,11 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
         });
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
+      }
     }
   }
 

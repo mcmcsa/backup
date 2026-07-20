@@ -547,7 +547,7 @@ class _AdminRoomTypesWebState extends State<AdminRoomTypesWeb> {
                                 Divider(height: 1, color: _borderColor),
                             ],
                           );
-                        }).toList(),
+                        }),
                       ],
                     ),
                   ),

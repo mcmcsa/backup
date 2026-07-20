@@ -5,7 +5,6 @@ import '../../../../shared/models/work_request_model.dart';
 import '../../../../shared/services/maintenance_account_service.dart';
 import '../../../../shared/services/work_request_service.dart';
 import '../../shared/admin_styles.dart';
-import '../../../../authentication/models/user_model.dart';
 import '../../../../shared/widgets/availability_status_badge.dart';
 import '../admin_work_process_web.dart';
 
@@ -151,8 +150,9 @@ class _MaintenanceManagementPageWebState
                           validator: (value) {
                             final input = value?.trim() ?? '';
                             if (input.isEmpty) return 'Email is required';
-                            if (!input.contains('@'))
+                            if (!input.contains('@')) {
                               return 'Enter a valid email';
+                            }
                             return null;
                           },
                         ),
@@ -222,8 +222,9 @@ class _MaintenanceManagementPageWebState
                           validator: (value) {
                             final input = value ?? '';
                             if (input.isEmpty) return 'Password is required';
-                            if (input.length < 8)
+                            if (input.length < 8) {
                               return 'Password must be at least 8 characters';
+                            }
                             return null;
                           },
                         ),
@@ -245,10 +246,12 @@ class _MaintenanceManagementPageWebState
                             ),
                           ),
                           validator: (value) {
-                            if ((value ?? '').isEmpty)
+                            if ((value ?? '').isEmpty) {
                               return 'Confirm password is required';
-                            if (value != passwordController.text)
+                            }
+                            if (value != passwordController.text) {
                               return 'Passwords do not match';
+                            }
                             return null;
                           },
                         ),
@@ -372,8 +375,9 @@ class _MaintenanceManagementPageWebState
                           validator: (value) {
                             final input = value?.trim() ?? '';
                             if (input.isEmpty) return 'Email is required';
-                            if (!input.contains('@'))
+                            if (!input.contains('@')) {
                               return 'Enter a valid email';
+                            }
                             return null;
                           },
                         ),
@@ -647,24 +651,6 @@ class _MaintenanceManagementPageWebState
                   label: 'Refresh',
                   onTap: _loadData,
                 ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _showAddMaintenanceDialog,
-                  icon: const Icon(Icons.person_add_alt_1_rounded),
-                  label: const Text('Create Account'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminStyles.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 14,
-                    ),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 18),
@@ -798,27 +784,6 @@ class _MaintenanceManagementPageWebState
                             onPressed: () => _showMaintenanceDetails(account),
                             icon: const Icon(Icons.visibility_outlined),
                           ),
-                          if (!_showArchivedAccounts) ...[
-                            IconButton(
-                              tooltip: 'Edit account',
-                              onPressed: () =>
-                                  _showEditMaintenanceDialog(account),
-                              icon: const Icon(Icons.edit_outlined),
-                            ),
-                            IconButton(
-                              tooltip: 'Archive account',
-                              onPressed: () =>
-                                  _archiveMaintenanceAccount(account),
-                              icon: const Icon(Icons.archive_outlined),
-                            ),
-                          ] else ...[
-                            IconButton(
-                              tooltip: 'Restore account',
-                              onPressed: () =>
-                                  _restoreMaintenanceAccount(account),
-                              icon: const Icon(Icons.restore_rounded),
-                            ),
-                          ],
                         ],
                       ),
                     );

@@ -184,5 +184,25 @@
     </div>
   </div>
   <script src="flutter_bootstrap.js" async></script>
+  <script>
+    window.addEventListener('load', function() {
+      var observer = new MutationObserver(function(mutations) {
+        for (var mutation of mutations) {
+          for (var node of mutation.addedNodes) {
+            if (node.tagName === 'FLUTTER-VIEW' || node.tagName === 'CANVAS') {
+              var loading = document.getElementById('loading');
+              if (loading) {
+                loading.style.opacity = '0';
+                loading.style.transition = 'opacity 0.4s ease-out';
+                setTimeout(() => loading.remove(), 400);
+              }
+              observer.disconnect();
+            }
+          }
+        }
+      });
+      observer.observe(document.body, { childList: true });
+    });
+  </script>
 </body>
 </html>

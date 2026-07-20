@@ -628,7 +628,7 @@ class _SectionCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (action != null) action!,
+                ?action,
               ],
             ),
           ),

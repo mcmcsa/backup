@@ -429,7 +429,7 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
             Expanded(
               child: ListView.separated(
                 itemCount: _paginated.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, color: AdminStyles.border),
+                separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
                 itemBuilder: (_, i) => _buildTableRow(_paginated[i]),
               ),
             ),

@@ -1,3 +1,4 @@
+import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
@@ -172,6 +173,14 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
 
   @override
   Widget build(BuildContext context) {
+    // Quick fix to ensure HTML splash screen is hidden during hot reload
+    try {
+      final loadingDiv = html.document.getElementById('loading');
+      if (loadingDiv != null) {
+        loadingDiv.remove();
+      }
+    } catch (_) {}
+
     final size = MediaQuery.of(context).size;
     final isDesktop = size.width >= 1024;
     final isTablet = size.width >= 768 && size.width < 1024;

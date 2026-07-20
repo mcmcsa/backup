@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
-import '../facilities/admin_buildings_web.dart';
-import '../facilities/facility_quick_actions_row.dart';
 import '../tickets/maintenance/maintenance_management_page_web.dart';
 import '../shared/admin_logs_web.dart';
 import '../shared/settings_page_web.dart';
@@ -149,29 +147,7 @@ class MenuDrawer extends StatelessWidget {
                       );
                     },
                   ),
-                  _buildMenuItem(
-                    icon: Icons.apartment_outlined,
-                    title: 'Facility Management',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AdminBuildingsWeb(
-                            activeIndex: 0,
-                            onNavigate: (_) {},
-                            quickActionsConfig: const FacilityQuickActionsConfig(
-                              departmentsIndex: 0,
-                              buildingsIndex: 0,
-                              floorsIndex: 0,
-                              roomTypesIndex: 0,
-                              requestTypesIndex: 0,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+
                   _buildMenuItem(
                     icon: Icons.settings_outlined,
                     title: 'Settings',

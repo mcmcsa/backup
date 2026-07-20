@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:csv/csv.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'dart:typed_data';
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 import '../../../shared/services/cost_analytics_service.dart';
 import '../shared/admin_styles.dart';
 

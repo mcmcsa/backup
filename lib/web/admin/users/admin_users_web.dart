@@ -152,46 +152,7 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
       ),
     );
 
-    final actionButton = SizedBox(
-      height: 48,
-      width: isMobile ? double.infinity : null,
-      child: ElevatedButton.icon(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Add user feature')),
-          );
-        },
-        icon: const Icon(Icons.add_rounded, size: 20),
-        label: Text('NEW OPERATOR', style: AdminStyles.headingStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _primaryBlue,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      ),
-    );
-
-    if (isMobile) {
-      return Column(
-        children: [
-          searchField,
-          const SizedBox(height: 12),
-          actionButton,
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: searchField,
-        ),
-        const SizedBox(width: 16),
-        actionButton,
-      ],
-    );
+    return searchField;
   }
 
   Widget _buildUsersTable(bool isMobile) {
@@ -270,22 +231,6 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
                       'Dept: ${user['department']}',
                       style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
                     ),
-                    TextButton(
-                      onPressed: () {},
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(50, 30),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: Text(
-                        'EDIT',
-                        style: AdminStyles.headingStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          color: AdminStyles.primary,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ],
@@ -312,7 +257,6 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
                 Expanded(flex: 2, child: _buildTableHeader('Email Address')),
                 Expanded(flex: 1, child: _buildTableHeader('Department')),
                 Expanded(flex: 1, child: _buildTableHeader('Status')),
-                SizedBox(width: 80, child: _buildTableHeader('Action')),
               ],
             ),
           ),
@@ -409,20 +353,6 @@ class _UserTableRowState extends State<_UserTableRow> {
                       fontWeight: FontWeight.w900,
                       color: statusColor,
                     ),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(
-              width: 80,
-              child: TextButton(
-                onPressed: () {},
-                child: Text(
-                  'EDIT',
-                  style: AdminStyles.headingStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    color: AdminStyles.primary,
                   ),
                 ),
               ),

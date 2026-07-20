@@ -103,9 +103,9 @@ class SystemAnnouncementService {
         'scheduled_for': scheduledFor?.toIso8601String(),
         'expires_at': expiresAt?.toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
-        if (isPinned != null) 'is_pinned': isPinned,
-        if (targetAudience != null) 'target_audience': targetAudience,
-        if (displayType != null) 'display_type': displayType,
+        'is_pinned': ?isPinned,
+        'target_audience': ?targetAudience,
+        'display_type': ?displayType,
       }).eq('id', id);
 
       await AdminAuditLogService.logAction(

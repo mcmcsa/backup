@@ -15,7 +15,7 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
   List<WorkRequest> _historyItems = [];
   DateTime? _startDate;
   DateTime? _endDate;
-  bool _sortAscending = false; // false = newest first, true = oldest first
+  final bool _sortAscending = false; // false = newest first, true = oldest first
 
   @override
   void initState() {

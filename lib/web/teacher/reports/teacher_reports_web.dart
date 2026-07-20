@@ -283,7 +283,7 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb> {
   Widget _buildTableHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      color: AdminStyles.bg.withOpacity(0.5),
+      color: AdminStyles.bg.withValues(alpha: 0.5),
       child: Row(
         children: [
           Expanded(flex: 3, child: Text('REQUEST DETAILS', style: _headerStyle)),

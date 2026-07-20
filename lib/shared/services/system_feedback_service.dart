@@ -50,7 +50,7 @@ class SystemFeedbackService {
     try {
       await _db.from(_table).update({
         'status': status,
-        if (reply != null) 'admin_reply': reply,
+        'admin_reply': ?reply,
       }).eq('id', id);
 
       await AdminAuditLogService.logAction(

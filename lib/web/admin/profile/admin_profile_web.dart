@@ -14,7 +14,7 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
   String _userName = 'Administrator';
   String _userEmail = 'admin@psu.edu';
   String _userRoleLabel = 'Campus Administrator';
-  String _userPhone = '+1 (555) 123-4567';
+  final String _userPhone = '+1 (555) 123-4567';
   bool _isEditing = false;
 
   // Mapping local colors to AdminStyles

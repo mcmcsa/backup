@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/widgets/lazy_indexed_stack.dart';
 import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
 import 'dashboard/maintenance_dashboard_web.dart';
@@ -172,21 +173,17 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
     }
   }
 
-  Widget _getCurrentPage() {
-    switch (_selectedIndex) {
-      case 0:
-        return const MaintenanceDashboardWeb();
-      case 1:
-        return const MaintenanceReportsWeb();
-      case 2:
-        return const MaintenanceHistoryWeb();
-      case 3:
-        return const MaintenanceProfileWeb();
-      case 4:
-        return const MaintenanceChatPageWeb();
-      default:
-        return const MaintenanceDashboardWeb();
-    }
+  Widget _buildIndexedStack() {
+    return LazyIndexedStack(
+      index: _selectedIndex,
+      children: const [
+        MaintenanceDashboardWeb(),
+        MaintenanceReportsWeb(),
+        MaintenanceHistoryWeb(),
+        MaintenanceProfileWeb(),
+        MaintenanceChatPageWeb(),
+      ],
+    );
   }
 
   @override
@@ -216,7 +213,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                     alignment: Alignment.topCenter,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 1400),
-                      child: _getCurrentPage(),
+                      child: _buildIndexedStack(),
                     ),
                   ),
                 ),
@@ -246,7 +243,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                         alignment: Alignment.topCenter,
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 1400),
-                          child: _getCurrentPage(),
+                          child: _buildIndexedStack(),
                         ),
                       ),
                     ),

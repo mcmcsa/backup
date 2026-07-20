@@ -47,7 +47,7 @@ class _TeacherContactWebState extends State<TeacherContactWeb> {
         'message': message,
       });
 
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Message sent successfully!')),
         );
@@ -55,7 +55,7 @@ class _TeacherContactWebState extends State<TeacherContactWeb> {
         _messageController.clear();
       }
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error sending message: $e')),
         );

@@ -32,7 +32,7 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
     setState(() => _isAccepting = true);
 
     try {
-      final isOnline = await Provider.of<ConnectivityService>(context, listen: false).checkConnectivity();
+      final isOnline = Provider.of<ConnectivityService>(context, listen: false).isConnected.value;
       
       if (!isOnline) {
         // Queue for later

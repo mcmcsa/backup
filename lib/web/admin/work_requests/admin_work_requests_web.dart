@@ -100,7 +100,7 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
   Widget build(BuildContext context) {
     return Container(
       color: _pageBg,
-      child: SingleChildScrollView(
+      child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,11 +110,11 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
             _buildSearchAndFilter(),
             const SizedBox(height: 32),
             if (_selectedFilter == 'Duplicates')
-              _buildDuplicatesView()
+              Expanded(child: _buildDuplicatesView())
             else if (_isLoading)
-              const Center(child: CircularProgressIndicator(color: _primaryBlue))
+              const Expanded(child: Center(child: CircularProgressIndicator(color: _primaryBlue)))
             else
-              _buildRequestsTable(),
+              Expanded(child: _buildRequestsTable()),
           ],
         ),
       ),
@@ -248,16 +248,18 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
         ),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${_duplicateGroups.length} groups of potential duplicates found',
-          style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText),
-        ),
-        const SizedBox(height: 16),
-        ..._duplicateGroups.map((group) => _buildDuplicateGroupCard(group)),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_duplicateGroups.length} groups of potential duplicates found',
+            style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText),
+          ),
+          const SizedBox(height: 16),
+          ..._duplicateGroups.map((group) => _buildDuplicateGroupCard(group)),
+        ],
+      ),
     );
   }
 
@@ -425,34 +427,42 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
               ],
             ),
           ),
-          ...filtered.asMap().entries.map((entry) {
-            final isLast = entry.key == filtered.length - 1;
-            final req = entry.value;
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  child: Row(
-                    children: [
-                      Expanded(flex: 1, child: Text(req.id.substring(0, 8).toUpperCase(), style: AdminStyles.dataStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _darkText))),
-                      Expanded(flex: 2, child: Text(req.title, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _darkText), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      Expanded(flex: 1, child: Text(req.roomName ?? 'N/A', style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      Expanded(
-                        flex: 1,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: _getStatusColor(req.status).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                          child: Text(req.status.replaceAll('_', ' ').toUpperCase(), style: AdminStyles.headingStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _getStatusColor(req.status)), textAlign: TextAlign.center),
-                        ),
+          Expanded(
+            child: ListView.builder(
+              itemCount: filtered.length,
+              itemBuilder: (context, index) {
+                final isLast = index == filtered.length - 1;
+                final req = filtered[index];
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      child: Row(
+                        children: [
+                          Expanded(flex: 1, child: Text(req.id.substring(0, 8).toUpperCase(), style: AdminStyles.dataStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _darkText))),
+                          Expanded(flex: 2, child: Text(req.title, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _darkText), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          Expanded(flex: 1, child: Text(req.roomName ?? 'N/A', style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          Expanded(
+                            flex: 1,
+                            child: Container(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(color: _getStatusColor(req.status).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                                child: Text(req.status.replaceAll('_', ' ').toUpperCase(), style: AdminStyles.headingStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _getStatusColor(req.status)), textAlign: TextAlign.center),
+                              ),
+                            ),
+                          ),
+                          Expanded(flex: 1, child: Text(req.priority, style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        ],
                       ),
-                      Expanded(flex: 1, child: Text(req.priority, style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    ],
-                  ),
-                ),
-                if (!isLast) Divider(height: 1, color: _borderColor),
-              ],
-            );
-          }),
+                    ),
+                    if (!isLast) Divider(height: 1, color: _borderColor),
+                  ],
+                );
+              },
+            ),
+          ),
         ],
       ),
     );

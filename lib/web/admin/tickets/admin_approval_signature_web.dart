@@ -9,7 +9,6 @@ import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../../../shared/services/maintenance_account_service.dart';
-import '../../../../authentication/models/user_model.dart';
 import '../../../../shared/widgets/availability_status_badge.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../shared/admin_styles.dart';
@@ -33,7 +32,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   bool _isApproved = false;
   List<ESignature> _signatures = [];
   List<MaintenanceAccount> _maintenanceStaff = [];
-  List<String> _selectedMaintenanceIds = [];
+  final List<String> _selectedMaintenanceIds = [];
   String? _maintenanceError;
   RealtimeChannel? _realtimeChannel;
 
@@ -118,8 +117,6 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   Future<void> _approveWithSignature(String base64Signature) async {
     final authService = Provider.of<AuthService>(context, listen: false);
     final user = authService.currentUser;
-    if (user == null) return;
-
     if (user == null) return;
 
     if (_selectedMaintenanceIds.isEmpty) {

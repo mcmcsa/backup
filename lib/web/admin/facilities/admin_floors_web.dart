@@ -500,7 +500,7 @@ class _AdminFloorsWebState extends State<AdminFloorsWeb> {
                                 Divider(height: 1, color: _borderColor),
                             ],
                           );
-                        }).toList(),
+                        }),
                       ],
                     ),
                   ),

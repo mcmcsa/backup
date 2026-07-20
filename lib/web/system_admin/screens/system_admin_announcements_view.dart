@@ -668,8 +668,11 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
     );
     if (date != null && mounted) {
       setState(() {
-        if (forSchedule) _scheduledFor = date;
-        else _expiresAt = date;
+        if (forSchedule) {
+          _scheduledFor = date;
+        } else {
+          _expiresAt = date;
+        }
       });
     }
   }
@@ -727,7 +730,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                           _label('Priority'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _priority,
+                            initialValue: _priority,
                             decoration: _inputDecor(Icons.flag_outlined),
                             items: const [
                               DropdownMenuItem(value: 'low', child: Text('Low')),
@@ -748,7 +751,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                           _label('Status'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _status,
+                            initialValue: _status,
                             decoration: _inputDecor(Icons.toggle_on_outlined),
                             items: const [
                               DropdownMenuItem(value: 'draft', child: Text('Draft')),
@@ -829,7 +832,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                           _label('Display Type'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _displayType,
+                            initialValue: _displayType,
                             decoration: _inputDecor(Icons.web_asset_rounded),
                             items: const [
                               DropdownMenuItem(value: 'notification', child: Text('Standard Notification')),
@@ -848,7 +851,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                           Switch(
                             value: _isPinned,
                             onChanged: (v) => setState(() => _isPinned = v),
-                            activeColor: AdminStyles.primary,
+                            activeThumbColor: AdminStyles.primary,
                           ),
                           const SizedBox(width: 8),
                           const Expanded(child: Text('Pin to top of lists', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),

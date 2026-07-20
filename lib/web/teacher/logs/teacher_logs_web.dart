@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+
+import '../../../authentication/services/auth_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../admin/shared/admin_styles.dart';
 
 class TeacherLogsWeb extends StatefulWidget {
@@ -11,12 +15,107 @@ class TeacherLogsWeb extends StatefulWidget {
 
 class _TeacherLogsWebState extends State<TeacherLogsWeb> {
   final TextEditingController _searchController = TextEditingController();
-  String _selectedTab = 'All';
+  
+  List<LoginActivity> _logs = <LoginActivity>[];
+  bool _isLoading = true;
+  String _selectedFilter = 'All';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLogs();
+  }
+
+  Future<void> _loadLogs() async {
+    final user = context.read<AuthService>().currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final data = await LoginActivityService.fetchUserLogs(user.id);
+      if (!mounted) return;
+      setState(() {
+        _logs = data;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _logs = <LoginActivity>[];
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  IconData _iconForLog(LoginActivity log) {
+    if (log.eventType == 'login') return Icons.login_rounded;
+
+    final title = log.title.toLowerCase();
+    if (title.contains('approve')) return Icons.check_circle_rounded;
+    if (title.contains('reject') || title.contains('declin')) {
+      return Icons.cancel_rounded;
+    }
+    if (title.contains('view')) return Icons.visibility_rounded;
+    if (title.contains('create') || title.contains('add') || title.contains('submitted')) {
+      return Icons.add_circle_outline_rounded;
+    }
+    if (title.contains('update') || title.contains('edit') || title.contains('change')) {
+      return Icons.edit_note_rounded;
+    }
+    if (title.contains('delete') || title.contains('remove')) {
+      return Icons.delete_outline_rounded;
+    }
+    return Icons.history_rounded;
+  }
+
+  Color _colorForLog(LoginActivity log) {
+    if (log.eventType == 'login') return const Color(0xFF00BFA5); // Teal
+
+    final title = log.title.toLowerCase();
+    if (title.contains('approve')) return const Color(0xFF059669);
+    if (title.contains('reject') || title.contains('declin')) {
+      return const Color(0xFFDC2626);
+    }
+    if (title.contains('view')) return const Color(0xFF0EA5E9);
+    if (title.contains('create') || title.contains('add') || title.contains('submitted')) return const Color(0xFF7C3AED);
+    if (title.contains('update') || title.contains('edit') || title.contains('change')) {
+      return const Color(0xFFF59E0B);
+    }
+    if (title.contains('delete') || title.contains('remove')) {
+      return const Color(0xFFEF4444);
+    }
+    return const Color(0xFF64748B);
+  }
+
+  List<LoginActivity> get _filteredLogs {
+    var filtered = List<LoginActivity>.from(_logs);
+
+    if (_selectedFilter != 'All') {
+      if (_selectedFilter == 'Submitted') {
+        filtered = filtered.where((log) => log.title.toLowerCase().contains('submit')).toList();
+      } else if (_selectedFilter == 'Updated') {
+        filtered = filtered.where((log) => log.title.toLowerCase().contains('update') || log.title.toLowerCase().contains('edit')).toList();
+      }
+    }
+
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      filtered = filtered.where((log) {
+        return log.title.toLowerCase().contains(query) ||
+               (log.details?.toLowerCase().contains(query) ?? false);
+      }).toList();
+    }
+
+    return filtered;
   }
 
   @override
@@ -32,7 +131,9 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
             const SizedBox(height: 40),
             _buildFilters(),
             const SizedBox(height: 32),
-            _buildLogsContent(),
+            _isLoading 
+                ? const Center(child: CircularProgressIndicator(color: AdminStyles.primary))
+                : _buildLogsContent(),
           ],
         ),
       ),
@@ -58,6 +159,7 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
             decoration: AdminStyles.cardDecoration(hasShadow: false, borderColor: AdminStyles.border),
             child: TextField(
               controller: _searchController,
+              onChanged: (_) => setState(() {}),
               decoration: AdminStyles.searchInputDecoration(
                 hintText: 'Search logs...',
                 prefixIcon: Icons.search_rounded,
@@ -76,17 +178,17 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
   }
 
   Widget _buildTab(String label) {
-    final isSelected = _selectedTab == label;
+    final isSelected = _selectedFilter == label;
     return InkWell(
-      onTap: () => setState(() => _selectedTab = label),
+      onTap: () => setState(() => _selectedFilter = label),
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? AdminStyles.primary : AdminStyles.surface,
+          color: isSelected ? const Color(0xFF0F766E) : AdminStyles.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isSelected ? AdminStyles.primary : AdminStyles.border),
+          border: Border.all(color: isSelected ? const Color(0xFF0F766E) : AdminStyles.border),
         ),
         child: Text(
           label,
@@ -100,6 +202,8 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
   }
 
   Widget _buildLogsContent() {
+    final displayLogs = _filteredLogs;
+
     return Container(
       decoration: AdminStyles.cardDecoration(),
       child: Column(
@@ -107,25 +211,48 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
         children: [
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Text('Recent History', style: AdminStyles.headingStyle(fontSize: 18)),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Recent History', style: AdminStyles.headingStyle(fontSize: 18)),
+                Text('${displayLogs.length} items', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
+              ],
+            ),
           ),
           Divider(height: 1, color: AdminStyles.border),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 4,
-            separatorBuilder: (context, index) => Divider(height: 1, color: AdminStyles.border),
-            itemBuilder: (context, index) {
-              final logs = [
-                {'action': 'Work request submitted', 'desc': 'Room 101 - HVAC Issue', 'time': '2 hours ago', 'icon': Icons.assignment_rounded, 'color': AdminStyles.info},
-                {'action': 'Work request updated', 'desc': 'Room 205 - Light Replacement', 'time': '1 day ago', 'icon': Icons.edit_rounded, 'color': AdminStyles.warning},
-                {'action': 'Work request completed', 'desc': 'Room 301 - Door Lock', 'time': '3 days ago', 'icon': Icons.check_circle_rounded, 'color': AdminStyles.success},
-                {'action': 'Profile updated', 'desc': 'Changed contact information', 'time': '1 week ago', 'icon': Icons.person_rounded, 'color': AdminStyles.primary},
-              ];
-              final log = logs[index];
-              return _buildLogItem(log['action'] as String, log['desc'] as String, log['time'] as String, log['icon'] as IconData, log['color'] as Color);
-            },
-          ),
+          if (displayLogs.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(40),
+              child: Center(
+                child: Text('No logs found for this filter.', style: TextStyle(color: Colors.grey)),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: displayLogs.length,
+              separatorBuilder: (context, index) => Divider(height: 1, color: AdminStyles.border),
+              itemBuilder: (context, index) {
+                final log = displayLogs[index];
+                
+                String timeAgo = '';
+                final diff = DateTime.now().difference(log.loggedInAt);
+                if (diff.inMinutes < 1) timeAgo = 'just now';
+                else if (diff.inMinutes < 60) timeAgo = '${diff.inMinutes}m ago';
+                else if (diff.inHours < 24) timeAgo = '${diff.inHours}h ago';
+                else if (diff.inDays < 7) timeAgo = '${diff.inDays}d ago';
+                else timeAgo = DateFormat('MMM dd, yyyy HH:mm').format(log.loggedInAt);
+
+                return _buildLogItem(
+                  log.title, 
+                  log.details ?? log.eventType, 
+                  timeAgo, 
+                  _iconForLog(log), 
+                  _colorForLog(log)
+                );
+              },
+            ),
         ],
       ),
     );
@@ -159,3 +286,4 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
     );
   }
 }
+

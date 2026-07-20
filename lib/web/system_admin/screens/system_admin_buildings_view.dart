@@ -692,7 +692,7 @@ class _SystemAdminBuildingsViewState extends State<SystemAdminBuildingsView> {
             Expanded(
               child: ListView.separated(
                 itemCount: rows.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (context, index) =>
                     const Divider(height: 1, color: AdminStyles.border),
                 itemBuilder: (_, i) => _buildTableRow(rows[i]),
               ),
@@ -926,7 +926,7 @@ class _SystemAdminBuildingsViewState extends State<SystemAdminBuildingsView> {
   Widget _buildMobileCards() {
     return ListView.separated(
       itemCount: _paginated.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _buildMobileCard(_paginated[i]),
     );
   }
@@ -1314,7 +1314,7 @@ class _BuildingFormDialogState extends State<_BuildingFormDialog> {
                 _label('Department (Optional)'),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _selectedDeptId,
+                  initialValue: _selectedDeptId,
                   decoration: _inputDecor(Icons.business_center_outlined),
                   items: [
                     const DropdownMenuItem(value: null, child: Text('None / General Use')),

@@ -318,8 +318,8 @@ class AuthService extends ChangeNotifier {
         data: {
           'name': name,
           'role': role.name,
-          if (campus != null) 'campus': campus,
-          if (department != null) 'department': department,
+          'campus': ?campus,
+          'department': ?department,
         },
       );
 

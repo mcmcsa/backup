@@ -426,7 +426,7 @@ class _SystemAdminBackupRestoreViewState extends State<SystemAdminBackupRestoreV
             Expanded(
               child: ListView.separated(
                 itemCount: _backups.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, color: AdminStyles.border),
+                separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
                 itemBuilder: (_, i) => _buildRow(_backups[i]),
               ),
             ),

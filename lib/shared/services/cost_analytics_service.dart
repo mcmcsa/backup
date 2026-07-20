@@ -1,8 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/cost_tracking_model.dart';
-import '../models/work_request_model.dart';
-import '../models/work_request_model.dart';
-import 'work_request_service.dart';
 import 'offline_sync_service.dart';
 
 class CostAnalyticsService {
@@ -16,7 +12,7 @@ class CostAnalyticsService {
         work_requests (
           id,
           title,
-          department,
+          department_id,
           building_name,
           assigned_to_id,
           accepted_by_name,
@@ -76,7 +72,7 @@ class CostAnalyticsService {
     final Map<String, double> costs = {};
     for (var item in data) {
       final request = item['work_requests'];
-      final dept = request?['department'] ?? 'Unknown';
+      final dept = request?['department_id'] ?? 'Unknown';
       final totalCost = (item['total_cost'] as num?)?.toDouble() ?? 0.0;
       
       costs[dept] = (costs[dept] ?? 0.0) + totalCost;

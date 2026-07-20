@@ -333,7 +333,7 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: errors.length,
-              separatorBuilder: (_, __) => const Divider(height: 1, color: AdminStyles.border),
+              separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
               itemBuilder: (_, i) {
                 return ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),

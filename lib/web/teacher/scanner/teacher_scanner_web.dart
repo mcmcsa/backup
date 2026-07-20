@@ -28,11 +28,11 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
       final room = await RoomService.fetchByCode(code);
       if (room != null) {
         if (mounted) {
-          context.go('/teacher/create-request', extra: {
-            'roomId': room.code,
-            'roomName': room.name,
-            'buildingName': room.building,
-          });
+          TeacherNavController.of(context)?.navigateTo(11,
+            roomId: room.code,
+            roomName: room.name,
+            buildingName: room.building,
+          );
         }
       } else {
         setState(() => _error = 'Room not found. Please check the code and try again.');
@@ -106,7 +106,9 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
               ),
               const SizedBox(height: 24),
               TextButton(
-                onPressed: () => context.go('/teacher/create-request'),
+                onPressed: () {
+                  TeacherNavController.of(context)?.navigateTo(11);
+                },
                 child: Text('Don\'t have a code? Fill out manually', style: AdminStyles.bodyStyle(color: AdminStyles.primary, fontWeight: FontWeight.w600)),
               ),
             ],

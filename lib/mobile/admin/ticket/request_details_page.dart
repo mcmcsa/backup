@@ -17,7 +17,6 @@ import 'work_request_completion_page.dart';
 import 'admin_approval_signature_page.dart';
 import 'package:printing/printing.dart';
 import '../../../shared/services/iso_pdf_service.dart';
-import '../../../shared/models/cost_tracking_model.dart';
 import '../../../shared/services/cost_tracking_service.dart';
 import '../../../web/admin/tickets/admin_cost_tracking_form.dart';
 import '../../../shared/widgets/voice_player_widget.dart';
@@ -1143,10 +1142,11 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: (() {
+                      initialValue: (() {
                         final assignedId = request.assignedToId?.trim();
-                        if (assignedId == null || assignedId.isEmpty)
+                        if (assignedId == null || assignedId.isEmpty) {
                           return null;
+                        }
                         return _maintenanceNamesById.containsKey(assignedId)
                             ? assignedId
                             : null;

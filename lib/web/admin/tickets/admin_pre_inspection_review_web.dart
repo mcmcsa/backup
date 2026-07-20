@@ -41,7 +41,7 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
   final _reviewNotesController = TextEditingController();
   final _rejectionNotesController = TextEditingController();
 
-  DateTime _inspectionDate = DateTime.now();
+  final DateTime _inspectionDate = DateTime.now();
   bool _isUploadingPhotoEvidence = false;
   String? _uploadedPhotoEvidenceUrl;
   String _selectedSeverity = 'Minor';
@@ -529,7 +529,7 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
         Text('Severity Level *', style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _selectedSeverity,
+          initialValue: _selectedSeverity,
           items: ['Minor', 'Moderate', 'Critical'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
           onChanged: (v) => setState(() => _selectedSeverity = v!),
           decoration: InputDecoration(

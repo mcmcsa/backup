@@ -132,7 +132,7 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       DropdownButtonFormField<String>(
-                        value: selectedDepartmentId,
+                        initialValue: selectedDepartmentId,
                         decoration: const InputDecoration(
                           labelText: 'Department',
                           border: OutlineInputBorder(),
@@ -292,7 +292,7 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       DropdownButtonFormField<String>(
-                        value: selectedDepartmentId,
+                        initialValue: selectedDepartmentId,
                         decoration: const InputDecoration(
                           labelText: 'Department',
                           border: OutlineInputBorder(),
@@ -713,7 +713,7 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                       if (!isLast) Divider(height: 1, color: _borderColor),
                     ],
                   );
-                }).toList(),
+                }),
               ],
             ),
           ),

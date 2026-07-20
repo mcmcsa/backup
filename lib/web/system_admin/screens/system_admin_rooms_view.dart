@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../../shared/models/building_model.dart';
@@ -686,7 +685,7 @@ class _SystemAdminRoomsViewState extends State<SystemAdminRoomsView> {
             Expanded(
               child: ListView.separated(
                 itemCount: rows.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (context, index) =>
                     const Divider(height: 1, color: AdminStyles.border),
                 itemBuilder: (_, i) => _buildTableRow(rows[i]),
               ),
@@ -890,7 +889,7 @@ class _SystemAdminRoomsViewState extends State<SystemAdminRoomsView> {
   Widget _buildMobileCards() {
     return ListView.separated(
       itemCount: _paginated.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _buildMobileCard(_paginated[i]),
     );
   }
@@ -1260,7 +1259,7 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
                           _label('Building'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _selectedBldgId,
+                            initialValue: _selectedBldgId,
                             decoration: _inputDecor(Icons.domain_rounded),
                             items: [
                               const DropdownMenuItem(value: null, child: Text('None')),
@@ -1282,7 +1281,7 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
                           _label('Department'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _selectedDeptId,
+                            initialValue: _selectedDeptId,
                             decoration: _inputDecor(Icons.business_center_outlined),
                             items: [
                               const DropdownMenuItem(value: null, child: Text('General Use')),
@@ -1311,7 +1310,7 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
                           _label('Type'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _selectedTypeId,
+                            initialValue: _selectedTypeId,
                             decoration: _inputDecor(Icons.category_outlined),
                             items: [
                               const DropdownMenuItem(value: null, child: Text('General')),
@@ -1371,7 +1370,7 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
                 _label('Status'),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: _status,
+                  initialValue: _status,
                   decoration: _inputDecor(Icons.info_outline_rounded),
                   items: const [
                     DropdownMenuItem(value: 'available', child: Text('Available')),

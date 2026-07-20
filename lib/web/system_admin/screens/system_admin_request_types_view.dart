@@ -79,7 +79,9 @@ class _SystemAdminRequestTypesViewState
     var list = _categories.where((c) {
       if (q.isNotEmpty) {
         if (!c.name.toLowerCase().contains(q) &&
-            !c.description.toLowerCase().contains(q)) return false;
+            !c.description.toLowerCase().contains(q)) {
+          return false;
+        }
       }
       if (_statusFilter == 'active' && !c.isActive) return false;
       if (_statusFilter == 'inactive' && c.isActive) return false;
@@ -650,7 +652,7 @@ class _SystemAdminRequestTypesViewState
             Expanded(
               child: ListView.separated(
                 itemCount: rows.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (context, index) =>
                     const Divider(height: 1, color: AdminStyles.border),
                 itemBuilder: (_, i) => _buildTableRow(rows[i]),
               ),
@@ -841,7 +843,7 @@ class _SystemAdminRequestTypesViewState
   Widget _buildMobileCards() {
     return ListView.separated(
       itemCount: _paginated.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _buildMobileCard(_paginated[i]),
     );
   }
@@ -1172,7 +1174,7 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
                           _label('Default Priority'),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _priority,
+                            initialValue: _priority,
                             decoration: _inputDecor(Icons.flag_outlined),
                             items: const [
                               DropdownMenuItem(value: 'low', child: Text('Low')),
@@ -1209,7 +1211,7 @@ class _CategoryFormDialogState extends State<_CategoryFormDialog> {
                                 ),
                                 Switch(
                                   value: _isActive,
-                                  activeColor: AdminStyles.primary,
+                                  activeThumbColor: AdminStyles.primary,
                                   onChanged: (v) => setState(() => _isActive = v),
                                 ),
                               ],

@@ -647,7 +647,7 @@ class _SystemAdminQrManagementViewState
             Expanded(
               child: ListView.separated(
                 itemCount: rows.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (context, index) =>
                     const Divider(height: 1, color: AdminStyles.border),
                 itemBuilder: (_, i) => _buildTableRow(rows[i]),
               ),
@@ -861,7 +861,7 @@ class _SystemAdminQrManagementViewState
   Widget _buildMobileCards() {
     return ListView.separated(
       itemCount: _paginated.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
       itemBuilder: (_, i) => _buildMobileCard(_paginated[i]),
     );
   }

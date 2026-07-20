@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
-import '../admin/shared/admin_styles.dart';
+
 
 import 'screens/system_admin_dashboard_view.dart';
 import 'screens/system_admin_users_view.dart';
-import 'screens/system_admin_departments_view.dart';
-import 'screens/system_admin_buildings_view.dart';
 import 'screens/system_admin_rooms_view.dart';
 import 'screens/system_admin_qr_management_view.dart';
-import 'screens/system_admin_request_types_view.dart';
-import 'screens/system_admin_specializations_view.dart';
+import '../../shared/models/room_model.dart';
 import 'screens/system_admin_reports_view.dart';
+import '../admin/facilities/rooms/add_room_page.dart';
+import '../admin/facilities/rooms/admin_rooms_web.dart';
+import '../admin/facilities/rooms/admin_edit_room_page_web.dart';
+import '../admin/facilities/rooms/admin_room_details_page_web.dart';
+
+import '../admin/facilities/admin_departments_web.dart';
+import '../admin/facilities/admin_buildings_web.dart';
+import '../admin/facilities/admin_floors_web.dart';
+import '../admin/facilities/admin_room_types_web.dart';
+import '../admin/facilities/admin_request_types_web.dart';
+import '../admin/facilities/facility_quick_actions_row.dart';
 import 'screens/system_admin_feedback_view.dart';
 import 'screens/system_admin_announcements_view.dart';
 import 'screens/system_admin_audit_logs_view.dart';
@@ -35,12 +43,70 @@ class _SystemAdminMainNavigationWebState
   bool _isMenuExpanded = true;
   String _userName = 'System Administrator';
 
+  int _roomsSubview = _roomsSubviewList;
+  Room? _selectedRoom;
+
+  static const int _roomsSubviewList = 0;
+  static const int _roomsSubviewAdd = 1;
+  static const int _roomsSubviewEdit = 2;
+  static const int _roomsSubviewDetails = 3;
+
   // Colors
   static const _sidebarBg = Color(0xFF0F172A);
   static const _sidebarBorder = Color(0xFF1E293B);
   static const _headerBg = Colors.white;
   static const _contentBg = Color(0xFFF8FAFC);
   static const _primaryBlue = Color(0xFF0F766E); // Consistent Teal accent
+
+  static const int _buildingsIndex = 2; // Default Facility Management
+  static const int _departmentsIndex = 12;
+  static const int _floorsIndex = 13;
+  static const int _roomTypesIndex = 14;
+  static const int _requestTypesIndex = 15;
+
+  static const FacilityQuickActionsConfig _facilityQuickActionsConfig =
+      FacilityQuickActionsConfig(
+        departmentsIndex: _departmentsIndex,
+        buildingsIndex: _buildingsIndex,
+        floorsIndex: _floorsIndex,
+        roomTypesIndex: _roomTypesIndex,
+        requestTypesIndex: _requestTypesIndex,
+      );
+
+  void _handleFacilityQuickNavigate(int index) {
+    setState(() => _selectedIndex = index);
+  }
+
+  void _openAddRoomInShell() {
+    setState(() {
+      _selectedIndex = 3;
+      _roomsSubview = _roomsSubviewAdd;
+    });
+  }
+
+  void _openEditRoomInShell(Room room) {
+    setState(() {
+      _selectedIndex = 3;
+      _selectedRoom = room;
+      _roomsSubview = _roomsSubviewEdit;
+    });
+  }
+
+  void _openRoomDetailsInShell(Room room) {
+    setState(() {
+      _selectedIndex = 3;
+      _selectedRoom = room;
+      _roomsSubview = _roomsSubviewDetails;
+    });
+  }
+
+  void _backToRoomsList() {
+    setState(() {
+      _selectedIndex = 3;
+      _roomsSubview = _roomsSubviewList;
+      _selectedRoom = null;
+    });
+  }
 
   @override
   void initState() {
@@ -64,50 +130,47 @@ class _SystemAdminMainNavigationWebState
   }
 
   final List<Map<String, dynamic>> _menuItems = [
-    {'icon': Icons.dashboard_rounded, 'label': 'Dashboard'},
-    {'icon': Icons.people_outline, 'label': 'Users Management'},
-    {'icon': Icons.account_tree_outlined, 'label': 'Departments'},
-    {'icon': Icons.business_outlined, 'label': 'Buildings'},
-    {'icon': Icons.meeting_room_outlined, 'label': 'Rooms'},
-    {'icon': Icons.qr_code_scanner_outlined, 'label': 'QR Management'},
-    {'icon': Icons.build_circle_outlined, 'label': 'Request Types'},
-    {'icon': Icons.psychology_outlined, 'label': 'Specializations'},
-    {'icon': Icons.bar_chart_rounded, 'label': 'Reports'},
-    {'icon': Icons.feedback_outlined, 'label': 'Feedback'},
-    {'icon': Icons.campaign_outlined, 'label': 'Announcements'},
-    {'icon': Icons.history_edu, 'label': 'Audit Logs'},
-    {'icon': Icons.monitor_heart_outlined, 'label': 'System Health'},
-    {'icon': Icons.backup_outlined, 'label': 'Backup & Restore'},
-    {'icon': Icons.settings_outlined, 'label': 'Settings'},
+    {'icon': Icons.dashboard_rounded, 'label': 'Dashboard'}, // 0
+    {'icon': Icons.people_outline, 'label': 'Users Management'}, // 1
+    {'icon': Icons.apartment_outlined, 'label': 'Facility Management'}, // 2
+    {'icon': Icons.meeting_room_outlined, 'label': 'Rooms Management'}, // 3
+    {'icon': Icons.qr_code_scanner_outlined, 'label': 'QR Management'}, // 4
+    {'icon': Icons.bar_chart_rounded, 'label': 'Reports'}, // 5
+    {'icon': Icons.feedback_outlined, 'label': 'Feedback'}, // 6
+    {'icon': Icons.campaign_outlined, 'label': 'Announcements'}, // 7
+    {'icon': Icons.history_edu, 'label': 'Audit Logs'}, // 8
+    {'icon': Icons.monitor_heart_outlined, 'label': 'System Health'}, // 9
+    {'icon': Icons.backup_outlined, 'label': 'Backup & Restore'}, // 10
+    {'icon': Icons.settings_outlined, 'label': 'Settings'}, // 11
   ];
 
   @override
   Widget build(BuildContext context) {
     return GlobalAnnouncementListener(
-      child: Scaffold(
-        backgroundColor: _contentBg,
-        body: Row(
-          children: [
-          _buildSidebar(),
-          Expanded(
-            child: Column(
-              children: [
-                _buildHeader(),
-                Expanded(
-                  child: Container(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1400),
-                      child: _buildBodyContent(),
+        child: Scaffold(
+          backgroundColor: _contentBg,
+          body: Row(
+            children: [
+              _buildSidebar(),
+              Expanded(
+                child: Column(
+                  children: [
+                    _buildHeader(),
+                    Expanded(
+                      child: Container(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 1400),
+                          child: _buildBodyContent(),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-      ),
+        ),
     );
   }
 
@@ -120,31 +183,64 @@ class _SystemAdminMainNavigationWebState
       case 1:
         return const SystemAdminUsersView();
       case 2:
-        return const SystemAdminDepartmentsView();
+        return AdminBuildingsWeb(
+          activeIndex: _selectedIndex,
+          onNavigate: _handleFacilityQuickNavigate,
+          quickActionsConfig: _facilityQuickActionsConfig,
+        );
       case 3:
-        return const SystemAdminBuildingsView();
+        return Builder(
+          builder: (context) {
+            if (_roomsSubview == _roomsSubviewAdd) return AddRoomPage(onClose: _backToRoomsList);
+            if (_roomsSubview == _roomsSubviewEdit && _selectedRoom != null) {
+              return AdminEditRoomPageWeb(room: _selectedRoom!, onClose: _backToRoomsList);
+            }
+            if (_roomsSubview == _roomsSubviewDetails && _selectedRoom != null) {
+              return AdminRoomDetailsPageWeb(room: _selectedRoom!, onEditRoom: _openEditRoomInShell);
+            }
+            return AdminRoomsWeb(onAddRoom: _openAddRoomInShell, onEditRoom: _openEditRoomInShell, onViewRoom: _openRoomDetailsInShell);
+          }
+        );
       case 4:
-        return const SystemAdminRoomsView();
-      case 5:
         return const SystemAdminQrManagementView();
-      case 6:
-        return const SystemAdminRequestTypesView();
-      case 7:
-        return const SystemAdminSpecializationsView();
-      case 8:
+      case 5:
         return const SystemAdminReportsView();
-      case 9:
+      case 6:
         return const SystemAdminFeedbackView();
-      case 10:
+      case 7:
         return const SystemAdminAnnouncementsView();
-      case 11:
+      case 8:
         return const SystemAdminAuditLogsView();
-      case 12:
+      case 9:
         return const SystemAdminSystemHealthView();
-      case 13:
+      case 10:
         return const SystemAdminBackupRestoreView();
-      case 14:
+      case 11:
         return const SystemAdminSettingsView();
+      case _departmentsIndex:
+        return AdminDepartmentsWeb(
+          activeIndex: _selectedIndex,
+          onNavigate: _handleFacilityQuickNavigate,
+          quickActionsConfig: _facilityQuickActionsConfig,
+        );
+      case _floorsIndex:
+        return AdminFloorsWeb(
+          activeIndex: _selectedIndex,
+          onNavigate: _handleFacilityQuickNavigate,
+          quickActionsConfig: _facilityQuickActionsConfig,
+        );
+      case _roomTypesIndex:
+        return AdminRoomTypesWeb(
+          activeIndex: _selectedIndex,
+          onNavigate: _handleFacilityQuickNavigate,
+          quickActionsConfig: _facilityQuickActionsConfig,
+        );
+      case _requestTypesIndex:
+        return AdminRequestTypesWeb(
+          activeIndex: _selectedIndex,
+          onNavigate: _handleFacilityQuickNavigate,
+          quickActionsConfig: _facilityQuickActionsConfig,
+        );
       default:
         return const Center(child: Text('Page not found'));
     }
@@ -222,7 +318,16 @@ class _SystemAdminMainNavigationWebState
     required IconData icon,
     required String label,
   }) {
-    final isSelected = _selectedIndex == index;
+    bool isSelected = _selectedIndex == index;
+    // Highlight Facility Management if a sub-view is active
+    if (index == _buildingsIndex &&
+        (_selectedIndex == _departmentsIndex ||
+         _selectedIndex == _buildingsIndex ||
+         _selectedIndex == _floorsIndex ||
+         _selectedIndex == _roomTypesIndex ||
+         _selectedIndex == _requestTypesIndex)) {
+      isSelected = true;
+    }
     return InkWell(
       onTap: () => setState(() => _selectedIndex = index),
       borderRadius: BorderRadius.circular(10),

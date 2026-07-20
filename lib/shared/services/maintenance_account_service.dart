@@ -269,7 +269,7 @@ class MaintenanceAccountService {
         .eq('is_active', true)
         .order('created_at', ascending: false);
 
-    final list = rows is List ? rows : <dynamic>[];
+    final list = rows;
     final mapped = <MaintenanceAccount>[];
 
     for (final row in list) {
@@ -319,7 +319,7 @@ class MaintenanceAccountService {
         .eq('is_active', false)
         .order('created_at', ascending: false);
 
-    final list = rows is List ? rows : <dynamic>[];
+    final list = rows;
     final mapped = <MaintenanceAccount>[];
 
     for (final row in list) {
@@ -612,7 +612,7 @@ class MaintenanceAccountService {
           .eq('is_active', false)
           .order('created_at', ascending: false);
 
-      final list = rows is List ? rows : <dynamic>[];
+      final list = rows;
       final mapped = <MaintenanceAccount>[];
 
       for (final row in list) {

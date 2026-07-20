@@ -399,7 +399,7 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
                       const SizedBox(height: 6),
                       DropdownButtonFormField<String>(
-                        value: _selectedSeverity,
+                        initialValue: _selectedSeverity,
                         items: const [
                           DropdownMenuItem(value: 'Minor', child: Text('Minor')),
                           DropdownMenuItem(value: 'Moderate', child: Text('Moderate')),

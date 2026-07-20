@@ -76,16 +76,18 @@ class _StudentReportsPageState extends State<StudentReportsPage>
       } else {
         data = [];
       }
-      if (mounted)
+      if (mounted) {
         setState(() {
           _requests = data;
           _isLoading = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
+      }
     }
   }
 

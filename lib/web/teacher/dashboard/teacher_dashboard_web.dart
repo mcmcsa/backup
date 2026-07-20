@@ -4,8 +4,8 @@ import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import 'package:intl/intl.dart';
-import 'package:go_router/go_router.dart';
 import '../../admin/shared/admin_styles.dart';
+import '../teacher_nav_controller.dart';
 
 class TeacherDashboardWeb extends StatefulWidget {
   const TeacherDashboardWeb({super.key});
@@ -73,8 +73,6 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
           children: [
             _buildHeader(user?.name ?? 'Teacher', isCompact),
             SizedBox(height: isCompact ? 24 : 40),
-            _buildQuickStats(pendingCount, activeCount, completedCount, isCompact),
-            SizedBox(height: isCompact ? 24 : 40),
             _buildRequestsSection(isCompact),
           ],
         ),
@@ -93,7 +91,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
     );
 
     final buttonWidget = ElevatedButton.icon(
-      onPressed: () => context.go('/teacher/create-request'),
+      onPressed: () => TeacherNavController.of(context)?.navigateTo(11),
       icon: const Icon(Icons.add_rounded),
       label: const Text('New Request'),
       style: ElevatedButton.styleFrom(
@@ -161,7 +159,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
           children: [
             Text('My Work Requests', style: AdminStyles.headingStyle(fontSize: 20)),
             TextButton.icon(
-              onPressed: () => context.go('/teacher/reports'),
+              onPressed: () => TeacherNavController.of(context)?.navigateTo(3),
               icon: const Icon(Icons.list_alt_rounded),
               label: const Text('View All'),
               style: TextButton.styleFrom(foregroundColor: AdminStyles.primary),
@@ -200,7 +198,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
           Text('No work requests yet', style: AdminStyles.headingStyle(fontSize: 18, color: AdminStyles.textMuted)),
           const SizedBox(height: 8),
           ElevatedButton(
-            onPressed: () => context.go('/teacher/create-request'),
+            onPressed: () => TeacherNavController.of(context)?.navigateTo(11),
             child: const Text('Create Your First Request'),
           ),
         ],
@@ -214,7 +212,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => context.go('/request-details', extra: {'request': request}),
+        onTap: () => TeacherNavController.of(context)?.navigateTo(3),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: EdgeInsets.all(isCompact ? 16 : 24),

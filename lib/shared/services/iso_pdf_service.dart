@@ -2,10 +2,8 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import '../models/work_request_model.dart';
-import '../models/e_signature_model.dart';
 import 'e_signature_service.dart';
 
 class IsoPdfService {
@@ -22,7 +20,7 @@ class IsoPdfService {
     final adminSig = signatures.where((s) => s.signerRole == 'admin' && s.signatureType == 'approval').firstOrNull;
     final completionSig = signatures.where((s) => s.signerRole == 'maintenance' && s.signatureType == 'completion').firstOrNull;
 
-    pw.Widget _buildCheckbox(String label, bool isChecked) {
+    pw.Widget buildCheckbox(String label, bool isChecked) {
       return pw.Row(
         mainAxisSize: pw.MainAxisSize.min,
         children: [
@@ -150,15 +148,15 @@ class IsoPdfService {
                                   pw.Column(
                                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                                     children: [
-                                      _buildCheckbox('Ocular inspection of', request.typeOfRequest.toLowerCase().contains('inspection')),
+                                      buildCheckbox('Ocular inspection of', request.typeOfRequest.toLowerCase().contains('inspection')),
                                       pw.SizedBox(height: 4),
-                                      _buildCheckbox('Installation of', request.typeOfRequest.toLowerCase().contains('install')),
+                                      buildCheckbox('Installation of', request.typeOfRequest.toLowerCase().contains('install')),
                                       pw.SizedBox(height: 4),
-                                      _buildCheckbox('Repair of', request.typeOfRequest.toLowerCase().contains('repair')),
+                                      buildCheckbox('Repair of', request.typeOfRequest.toLowerCase().contains('repair')),
                                       pw.SizedBox(height: 4),
-                                      _buildCheckbox('Replacement of', request.typeOfRequest.toLowerCase().contains('replace')),
+                                      buildCheckbox('Replacement of', request.typeOfRequest.toLowerCase().contains('replace')),
                                       pw.SizedBox(height: 4),
-                                      _buildCheckbox('Others (specify)', !request.typeOfRequest.toLowerCase().contains('inspection') && !request.typeOfRequest.toLowerCase().contains('install') && !request.typeOfRequest.toLowerCase().contains('repair') && !request.typeOfRequest.toLowerCase().contains('replace')),
+                                      buildCheckbox('Others (specify)', !request.typeOfRequest.toLowerCase().contains('inspection') && !request.typeOfRequest.toLowerCase().contains('install') && !request.typeOfRequest.toLowerCase().contains('repair') && !request.typeOfRequest.toLowerCase().contains('replace')),
                                     ],
                                   ),
                                 ],

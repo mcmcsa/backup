@@ -239,6 +239,50 @@ class LoginActivityService {
     return merged;
   }
 
+  static Future<List<LoginActivity>> fetchUserLogs(String userId) async {
+    List<LoginActivity> dbLogs = const <LoginActivity>[];
+    try {
+      final rows = await _db
+          .from(_table)
+          .select(
+            'user_id, user_name, role, event_type, title, details, work_request_id, logged_at',
+          )
+          .eq('user_id', userId)
+          .order('logged_at', ascending: false)
+          .limit(1000);
+          
+      dbLogs = (rows as List)
+          .map((item) => LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    } catch (_) {}
+
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_storageKey);
+    if (raw == null) {
+      return dbLogs;
+    }
+
+    final localLogs = (jsonDecode(raw) as List)
+        .map((item) => LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)))
+        .where((log) => log.userId == userId)
+        .toList();
+
+    final merged = <LoginActivity>[...dbLogs];
+    final seen = <String>{
+      ...dbLogs.map((log) => '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toIso8601String()}'),
+    };
+
+    for (final log in localLogs) {
+      final key = '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toIso8601String()}';
+      if (seen.add(key)) {
+        merged.add(log);
+      }
+    }
+
+    merged.sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
+    return merged;
+  }
+
   static Future<List<LoginActivity>> fetchAllLogs() async {
     List<LoginActivity> dbLogs = const <LoginActivity>[];
 

@@ -139,7 +139,7 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedRoleFilter,
+                        initialValue: _selectedRoleFilter,
                         onChanged: (val) =>
                             setState(() => _selectedRoleFilter = val ?? 'all'),
                         decoration: const InputDecoration(
@@ -158,7 +158,7 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _selectedStatusFilter,
+                        initialValue: _selectedStatusFilter,
                         onChanged: (val) =>
                             setState(() => _selectedStatusFilter = val ?? 'all'),
                         decoration: const InputDecoration(
@@ -429,7 +429,7 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        value: selectedRole,
+                        initialValue: selectedRole,
                         onChanged: (val) =>
                             setState(() => selectedRole = val ?? 'teacher'),
                         decoration: const InputDecoration(labelText: 'Role'),
@@ -443,7 +443,7 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                       if (selectedRole == 'teacher') ...[
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          value: selectedDeptId,
+                          initialValue: selectedDeptId,
                           onChanged: (val) => setState(() => selectedDeptId = val),
                           decoration: const InputDecoration(labelText: 'Department'),
                           items: _departments
@@ -566,7 +566,7 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        value: selectedRole,
+                        initialValue: selectedRole,
                         onChanged: (val) =>
                             setState(() => selectedRole = val ?? 'teacher'),
                         decoration: const InputDecoration(labelText: 'Role'),
@@ -586,7 +586,7 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                       if (selectedRole == 'teacher') ...[
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          value: selectedDeptId,
+                          initialValue: selectedDeptId,
                           onChanged: (val) => setState(() => selectedDeptId = val),
                           decoration: const InputDecoration(labelText: 'Department'),
                           items: _departments

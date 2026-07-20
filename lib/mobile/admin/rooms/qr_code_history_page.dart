@@ -1,4 +1,4 @@
-ï»¿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -73,7 +73,7 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
               [
                 if ((qr.building ?? '').isNotEmpty) qr.building!,
                 if ((qr.department ?? '').isNotEmpty) qr.department!,
-              ].join(' â€¢ '),
+              ].join(' • '),
               style: const pw.TextStyle(fontSize: 10),
               textAlign: pw.TextAlign.center,
             ),
@@ -125,7 +125,7 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
                     [
                       if ((qr.building ?? '').isNotEmpty) qr.building!,
                       if ((qr.department ?? '').isNotEmpty) qr.department!,
-                    ].join(' â€¢ '),
+                    ].join(' • '),
                     style: const pw.TextStyle(fontSize: 11),
                   ),
                 ],
@@ -313,7 +313,7 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
                                       [
                                         if (qr.building != null && qr.building!.isNotEmpty) qr.building!,
                                         if (qr.department != null && qr.department!.isNotEmpty) qr.department!,
-                                      ].join(' â€¢ '),
+                                      ].join(' • '),
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w500,
@@ -344,7 +344,7 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
                                       if (qr.lastScanned != null) ...[
                                         const SizedBox(width: 8),
                                         Text(
-                                          'â€¢ Last: ${_formatDate(qr.lastScanned!)}',
+                                          '• Last: ${_formatDate(qr.lastScanned!)}',
                                           style: TextStyle(
                                             fontSize: 11,
                                             color: Colors.grey.shade500,

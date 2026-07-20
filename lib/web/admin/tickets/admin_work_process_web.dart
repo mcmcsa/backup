@@ -1,4 +1,4 @@
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/models/work_request_model.dart';
@@ -806,8 +806,9 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
 
   Widget _buildTimelineItem(_TimelineStep step, {bool isLast = false}) {
     Color color = AdminStyles.primary;
-    if (step.isCompleted) color = AdminStyles.success;
-    else if (step.isActive) color = AdminStyles.primary;
+    if (step.isCompleted) {
+      color = AdminStyles.success;
+    } else if (step.isActive) color = AdminStyles.primary;
     else if (step.isWarning) color = AdminStyles.error;
     else color = AdminStyles.textMuted.withValues(alpha: 0.3);
 

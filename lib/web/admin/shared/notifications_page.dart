@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
-import '../../../shared/utils/notification_status_utils.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});

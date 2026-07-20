@@ -5,6 +5,7 @@ import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/app_settings_service.dart';
 import '../../../shared/services/admin_audit_log_service.dart';
 import '../../admin/shared/admin_styles.dart';
+import '../teacher_nav_controller.dart';
 
 class TeacherSettingsWeb extends StatefulWidget {
   const TeacherSettingsWeb({super.key});
@@ -108,7 +109,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold)),
-              content: Container(
+              content: SizedBox(
                 width: 400,
                 child: Form(
                   key: formKey,
@@ -217,7 +218,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                             ),
                           );
 
-                          if (mounted) {
+                          if (context.mounted) {
                             await authService.handleLogoutButton(context);
                           }
                         },
@@ -237,9 +238,10 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
 
-    return Container(
-      color: AdminStyles.bg,
-      child: SingleChildScrollView(
+    return Scaffold(
+      body: Container(
+        color: AdminStyles.bg,
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(40),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,11 +301,24 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                 onTap: _showChangePasswordDialog,
               ),
             ]),
+            const SizedBox(height: 32),
+            _buildSettingsCategory('Support', [
+              _buildActionTile(
+                icon: Icons.mail_rounded,
+                title: 'Contact Us',
+                description: 'Get help or send feedback to our team.',
+                color: AdminStyles.primary,
+                onTap: () {
+                  TeacherNavController.of(context)?.navigateTo(10);
+                },
+              ),
+            ]),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildHeader() {
     return Column(
@@ -345,7 +360,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
         SwitchListTile.adaptive(
           value: value,
           onChanged: onChanged,
-          activeColor: AdminStyles.primary,
+          activeThumbColor: AdminStyles.primary,
           contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           secondary: Container(
             width: 40,
