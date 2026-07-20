@@ -530,10 +530,31 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
             const SizedBox(height: 24),
             _buildLabel('Upload Photos (optional)'),
             const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_selectedImages.isNotEmpty) ...[
+            if (_selectedImages.isEmpty)
+              GestureDetector(
+                onTap: _pickImages,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AdminStyles.border, width: 1.5, style: BorderStyle.solid),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.cloud_upload_outlined, size: 32, color: Colors.grey.shade400),
+                      const SizedBox(height: 8),
+                      Text('Upload', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Expanded(
                     child: Wrap(
                       spacing: 12,
@@ -591,29 +612,28 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                     ),
                   ),
                   const SizedBox(width: 16),
-                ],
-                GestureDetector(
-                  onTap: _pickImages,
-                  child: Container(
-                    width: _selectedImages.isNotEmpty ? 120 : double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AdminStyles.border, width: 1.5, style: BorderStyle.solid),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.cloud_upload_outlined, size: 32, color: Colors.grey.shade400),
-                        const SizedBox(height: 8),
-                        Text('Upload', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontWeight: FontWeight.w500)),
-                      ],
+                  GestureDetector(
+                    onTap: _pickImages,
+                    child: Container(
+                      width: 120,
+                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AdminStyles.border, width: 1.5, style: BorderStyle.solid),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.cloud_upload_outlined, size: 32, color: Colors.grey.shade400),
+                          const SizedBox(height: 8),
+                          Text('Upload', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
           ],
         ),
       ],
