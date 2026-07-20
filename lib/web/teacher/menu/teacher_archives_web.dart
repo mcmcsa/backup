@@ -49,9 +49,10 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
 
   List<WorkRequest> get _filteredArchives {
     return _archivedRequests.where((r) {
-      final matchesFilter = _selectedFilter == 'All' || r.status.toLowerCase() == _selectedFilter.toLowerCase();
+      final filterStatus = _selectedFilter == 'Declined' ? 'cancelled' : _selectedFilter.toLowerCase();
+      final matchesFilter = _selectedFilter == 'All' || r.status.toLowerCase() == filterStatus;
       final query = _searchController.text.toLowerCase();
-      final matchesSearch = r.title.toLowerCase().contains(query) || (r.roomName?.toLowerCase().contains(query) ?? false);
+      final matchesSearch = r.title.toLowerCase().contains(query) || (r.roomName?.toLowerCase().contains(query) ?? false) || r.id.toLowerCase().contains(query);
       return matchesFilter && matchesSearch;
     }).toList();
   }
@@ -83,7 +84,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
         children: [
           Text('Archives', style: AdminStyles.headingStyle(fontSize: 32)),
           const SizedBox(height: 8),
-          Text('Review your historical work requests and cancellations.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 16)),
+          Text('Review your historical work requests and declined requests.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 16)),
           const SizedBox(height: 32),
           Row(
             children: [
@@ -102,7 +103,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
               const SizedBox(width: 12),
               _buildFilterChip('Completed'),
               const SizedBox(width: 12),
-              _buildFilterChip('Cancelled'),
+              _buildFilterChip('Declined'),
             ],
           ),
         ],
@@ -202,10 +203,11 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
   Widget _buildStatusPill(String status) {
     final isCompleted = status.toLowerCase() == 'completed';
     final color = isCompleted ? AdminStyles.success : AdminStyles.error;
+    final displayStatus = status.toLowerCase() == 'cancelled' ? 'DECLINED' : status.toUpperCase();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: AdminStyles.pillDecoration(color: color, isSecondary: true),
-      child: Text(status.toUpperCase(), style: AdminStyles.headingStyle(fontSize: 10, color: color)),
+      child: Text(displayStatus, style: AdminStyles.headingStyle(fontSize: 10, color: color)),
     );
   }
 }
