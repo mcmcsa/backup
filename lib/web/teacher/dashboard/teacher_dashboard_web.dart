@@ -91,7 +91,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
     );
 
     final buttonWidget = ElevatedButton.icon(
-      onPressed: () => TeacherNavController.of(context)?.navigateTo(11),
+      onPressed: () => TeacherNavController.of(context)?.navigateTo(2),
       icon: const Icon(Icons.add_rounded),
       label: const Text('New Request'),
       style: ElevatedButton.styleFrom(

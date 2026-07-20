@@ -17,7 +17,7 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
   String? _error;
 
   Future<void> _verifyRoom() async {
-    final code = _codeController.text.trim();
+    final code = _codeController.text.trim().toUpperCase();
     if (code.isEmpty) return;
 
     setState(() {
@@ -74,6 +74,7 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
               const SizedBox(height: 32),
               TextField(
                 controller: _codeController,
+                textCapitalization: TextCapitalization.characters,
                 style: AdminStyles.headingStyle(fontSize: 18, letterSpacing: 2),
                 textAlign: TextAlign.center,
                 decoration: InputDecoration(
@@ -86,7 +87,10 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
                   focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AdminStyles.primary, width: 2)),
                   errorText: _error,
                 ),
-                onSubmitted: (_) => _verifyRoom(),
+                onSubmitted: (_) {
+                  _codeController.text = _codeController.text.toUpperCase();
+                  _verifyRoom();
+                },
               ),
               const SizedBox(height: 32),
               SizedBox(

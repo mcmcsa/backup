@@ -379,11 +379,16 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
     );
   }
 
-  Widget _buildCreateRequestButton() {
+  Widget _buildCreateRequestButton({bool closeDrawerOnTap = false}) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () => context.go(teacherCreateRequestRoute),
+        onTap: () {
+          setState(() => _selectedIndex = 2);
+          if (closeDrawerOnTap && Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
