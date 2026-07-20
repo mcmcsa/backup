@@ -105,12 +105,15 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         if (_floors.isEmpty) _floors = ['N/A'];
         _requestTypes = requestTypes;
         
-        if (widget.buildingName != null) {
+        if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
           _selectedCollege = _colleges.firstWhere(
             (c) => _buildingsByDepartment[c]?.contains(widget.buildingName) ?? false,
             orElse: () => _colleges.isNotEmpty ? _colleges.first : '',
           );
-          _selectedBuilding = widget.buildingName!;
+          final availableBuildings = _buildingsByDepartment[_selectedCollege] ?? [];
+          _selectedBuilding = availableBuildings.contains(widget.buildingName) 
+              ? widget.buildingName! 
+              : (availableBuildings.isNotEmpty ? availableBuildings.first : '');
         } else if (_colleges.isNotEmpty) {
           _selectedCollege = _colleges.first;
           _selectedBuilding = _buildingsByDepartment[_selectedCollege]?.first ?? '';
@@ -720,7 +723,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: value.isEmpty ? null : value,
+              value: (value.isEmpty || !items.contains(value)) ? null : value,
               isExpanded: true,
               items: items.map((i) => DropdownMenuItem(value: i, child: Text(i, style: AdminStyles.bodyStyle()))).toList(),
               onChanged: onChanged,
