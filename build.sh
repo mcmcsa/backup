@@ -13,6 +13,9 @@ export DART_VM_OPTIONS="--old_gen_heap_size=800"
 echo "Flutter version:"
 flutter --version
 
+echo "Creating dummy .env file for Vercel asset bundler..."
+touch .env
+
 echo "Building Flutter Web (verbose mode)..."
 flutter build web --release -v
 
