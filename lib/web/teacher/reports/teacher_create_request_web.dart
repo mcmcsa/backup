@@ -266,7 +266,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
               backgroundColor: AdminStyles.warning,
             ),
           );
-          TeacherNavController.of(context).setIndex(0);
+          TeacherNavController.of(context)?.navigateTo(0);
         }
         setState(() => _isSubmitting = false);
         return;
@@ -387,7 +387,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
-            onPressed: () => TeacherNavController.of(context).navigateTo(0),
+            onPressed: () => TeacherNavController.of(context)?.navigateTo(0),
           ),
           const SizedBox(width: 16),
           Column(

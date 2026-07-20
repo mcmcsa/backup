@@ -81,7 +81,7 @@ class _AdminCostTrackingDashboardWebState extends State<AdminCostTrackingDashboa
         req?['id'] ?? '',
         req?['title'] ?? '',
         req?['department'] ?? '',
-        req?['building_name'] ?? '',
+        (req != null && req['building'] != null) ? req['building']['name'] : '',
         req?['completed_by_name'] ?? req?['accepted_by_name'] ?? '',
         item['estimated_labor_cost'],
         item['estimated_material_cost'],

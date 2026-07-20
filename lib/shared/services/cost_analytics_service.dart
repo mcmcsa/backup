@@ -13,7 +13,7 @@ class CostAnalyticsService {
           id,
           title,
           department_id,
-          building_name,
+          building:buildings(name),
           assigned_to_id,
           accepted_by_name,
           completed_by_name
@@ -85,7 +85,7 @@ class CostAnalyticsService {
     final Map<String, double> costs = {};
     for (var item in data) {
       final request = item['work_requests'];
-      final bldg = request?['building_name'] ?? 'Unknown';
+      final bldg = (request != null && request['building'] != null) ? request['building']['name'] : 'Unknown';
       final totalCost = (item['total_cost'] as num?)?.toDouble() ?? 0.0;
       
       costs[bldg] = (costs[bldg] ?? 0.0) + totalCost;
