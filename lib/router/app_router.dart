@@ -353,79 +353,61 @@ class _AppStartupPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: const Color(0xFF0B1120),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            SizedBox(
-              height: kIsWeb ? 180 : 220,
-              width: kIsWeb ? 180 : 220,
-              child: Image.asset(
-                'assets/images/psummsIcon.png',
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-                isAntiAlias: true,
-              ),
-            ),
-            const SizedBox(height: 32),
-            RichText(
-              text: const TextSpan(
-                children: [
-                  TextSpan(
-                    text: 'PSU ',
-                    style: TextStyle(
-                      color: Color(0xFF1A1A1A),
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                    ),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.03),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
                   ),
-                  TextSpan(
-                    text: 'MaintSystem',
-                    style: TextStyle(
-                      color: Color(0xFF4169E1),
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                    ),
+                  BoxShadow(
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
+                    blurRadius: 20,
                   ),
                 ],
               ),
+              child: Center(
+                child: Image.asset(
+                  'assets/images/psu_logo_v3.png',
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.contain,
+                ),
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 200,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  minHeight: 4,
+                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    Color(0xFF3B82F6),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             const Text(
-              'PANGASINAN STATE UNIVERSITY',
+              'RESTORING SESSION...',
               style: TextStyle(
-                color: Color(0xFF757575),
+                color: Color(0xFF94A3B8),
                 fontSize: 12,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 1.8,
-              ),
-            ),
-            const SizedBox(height: 48),
-            SizedBox(
-              width: 220,
-              child: Column(
-                children: const [
-                  LinearProgressIndicator(
-                    minHeight: 6,
-                    backgroundColor: Color(0xFFE0E0E0),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Color(0xFF4169E1),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'RESTORING SESSION',
-                    style: TextStyle(
-                      color: Color(0xFF4169E1),
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.6,
-                    ),
-                  ),
-                ],
+                fontWeight: FontWeight.w600,
+                letterSpacing: 2.0,
               ),
             ),
           ],

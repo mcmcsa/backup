@@ -508,13 +508,12 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
               ),
               if (!isCompact) ...[
                 const SizedBox(width: 10),
-                const Text(
-                  'PANGASINAN STATE UNIVERSITY',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F766E),
-                    letterSpacing: 0.3,
+                Text(
+                  'Pangasinan State University',
+                  style: AdminStyles.headingStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AdminStyles.primary,
                   ),
                 ),
               ],
