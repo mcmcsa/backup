@@ -495,31 +495,28 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
             const SizedBox(width: 4),
           ],
           // PSU Logo + Name
-          Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.asset(
-                  'assets/images/PsuLogo.png',
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.contain,
-                ),
-              ),
-              if (!isCompact) ...[
-                const SizedBox(width: 10),
-                Text(
-                  'Pangasinan State University',
-                  style: AdminStyles.headingStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AdminStyles.primary,
-                  ),
-                ),
-              ],
-            ],
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.asset(
+              'assets/images/PsuLogo.png',
+              width: 36,
+              height: 36,
+              fit: BoxFit.contain,
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Pangasinan State University',
+              style: AdminStyles.headingStyle(
+                fontSize: isCompact ? 15 : 18,
+                fontWeight: FontWeight.bold,
+                color: AdminStyles.primary,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
           // Notification button — shows label on wide, icon-only on compact
           _NotificationButton(
             showLabel: !isCompact,
