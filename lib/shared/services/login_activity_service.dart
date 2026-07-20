@@ -218,25 +218,20 @@ class LoginActivityService {
             log.role == UserRole.campadmin.name)
         .toList();
 
-    final merged = <LoginActivity>[...dbLogs];
-    final seen = <String>{
-      ...dbLogs.map(
-        (log) =>
-            '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}',
-      ),
-    };
+    final merged = <LoginActivity>[];
+    final seen = <String>{};
 
-    for (final log in localLogs) {
-      final key =
-          '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}';
+    for (final log in [...dbLogs, ...localLogs]) {
+      // Deduplicate by minute to catch duplicates with slightly different seconds
+      final minuteKey = log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 60000;
+      final key = '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|$minuteKey';
       if (seen.add(key)) {
         merged.add(log);
       }
     }
 
     if (userId != null && userId.trim().isNotEmpty) {
-      return merged.where((log) => log.userId == userId).toList()
-        ..sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
+      merged.removeWhere((log) => log.userId != userId);
     }
 
     merged.sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
@@ -271,13 +266,12 @@ class LoginActivityService {
         .where((log) => log.userId == userId)
         .toList();
 
-    final merged = <LoginActivity>[...dbLogs];
-    final seen = <String>{
-      ...dbLogs.map((log) => '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}'),
-    };
+    final merged = <LoginActivity>[];
+    final seen = <String>{};
 
-    for (final log in localLogs) {
-      final key = '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}';
+    for (final log in [...dbLogs, ...localLogs]) {
+      final minuteKey = log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 60000;
+      final key = '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|$minuteKey';
       if (seen.add(key)) {
         merged.add(log);
       }
@@ -318,17 +312,12 @@ class LoginActivityService {
         )
         .toList();
 
-    final merged = <LoginActivity>[...dbLogs];
-    final seen = <String>{
-      ...dbLogs.map(
-        (log) =>
-            '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}',
-      ),
-    };
+    final merged = <LoginActivity>[];
+    final seen = <String>{};
 
-    for (final log in localLogs) {
-      final key =
-          '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|${log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 1000}';
+    for (final log in [...dbLogs, ...localLogs]) {
+      final minuteKey = log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 60000;
+      final key = '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|$minuteKey';
       if (seen.add(key)) {
         merged.add(log);
       }
