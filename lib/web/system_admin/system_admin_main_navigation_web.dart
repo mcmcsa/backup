@@ -369,8 +369,18 @@ class _SystemAdminMainNavigationWebState
   Widget _buildHeader() {
     return Container(
       height: 70,
-      color: _headerBg,
       padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.2))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           const Text(

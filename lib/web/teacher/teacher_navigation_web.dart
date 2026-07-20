@@ -484,11 +484,18 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   Widget _buildHeader({bool isCompact = false, VoidCallback? onMenuTap}) {
     return Container(
       height: 70,
-      decoration: BoxDecoration(
-        color: _headerBg,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
-      ),
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.2))),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           if (isCompact) ...[
