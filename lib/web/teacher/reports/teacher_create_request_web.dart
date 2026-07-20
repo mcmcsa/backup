@@ -66,6 +66,8 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   List<String> _requestTypes = [];
   final Map<String, List<String>> _buildingsByDepartment = {};
 
+  WorkRequest? _submittedRequest;
+
   @override
   void initState() {
     super.initState();
@@ -198,7 +200,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                 backgroundColor: Color(0xFF22C55E),
               ),
             );
-            context.pop();
+            TeacherNavController.of(context)?.navigateTo(0);
           }
           return;
         }
@@ -333,26 +335,23 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       }
 
       if (mounted) {
-        // We don't want to use go_router here if we are inside TeacherNavigationWeb.
-        // But since we want to show a success page, we should use a dialog or navigate to a success tab.
-        // Actually, the teacher_request_success_web.dart is a separate route right now. 
-        // We'll leave the go_router call here because it routes to a fullscreen success page outside the nav stack.
-        context.go('/work-request-success', extra: {
-          'trackingNumber': inserted.id,
-          'location': '${inserted.roomName} - ${inserted.buildingName}',
-          'severity': inserted.priority.toUpperCase(),
-          'reportedDate': inserted.dateSubmitted,
+        setState(() {
+          _submittedRequest = inserted;
+          _isSubmitting = false;
         });
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AdminStyles.error));
-    } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_submittedRequest != null) {
+      return _buildSuccessView();
+    }
+
     return Scaffold(
       backgroundColor: AdminStyles.bg,
       body: Column(
@@ -389,7 +388,161 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildSuccessView() {
+    return Scaffold(
+      backgroundColor: AdminStyles.bg,
+      body: Column(
+        children: [
+          _buildHeader(isSuccess: true),
+          Expanded(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(32),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  padding: const EdgeInsets.all(48),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AdminStyles.primary.withValues(alpha: 0.08),
+                        blurRadius: 40,
+                        offset: const Offset(0, 20),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 48),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      Text(
+                        'Report Submitted Successfully!',
+                        textAlign: TextAlign.center,
+                        style: AdminStyles.headingStyle(fontSize: 28, color: const Color(0xFF1E293B)),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Your maintenance request has been recorded and is being processed by the maintenance team.',
+                        textAlign: TextAlign.center,
+                        style: AdminStyles.bodyStyle(fontSize: 16, color: const Color(0xFF64748B), height: 1.5),
+                      ),
+                      const SizedBox(height: 48),
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('REQUEST DETAILS', style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF94A3B8), letterSpacing: 1)),
+                            const SizedBox(height: 16),
+                            _buildSuccessDetailRow('Tracking Number', _submittedRequest!.id, isCopyable: true),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            _buildSuccessDetailRow('Location', '${_submittedRequest!.roomName} - ${_submittedRequest!.buildingName}'),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            Row(
+                              children: [
+                                Expanded(child: _buildSuccessDetailRow('Severity', _submittedRequest!.priority.toUpperCase(), isTag: true)),
+                                Expanded(child: _buildSuccessDetailRow('Reported on', '${_submittedRequest!.dateSubmitted.month}/${_submittedRequest!.dateSubmitted.day}/${_submittedRequest!.dateSubmitted.year}')),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 48),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () {
+                                setState(() {
+                                  _submittedRequest = null;
+                                  _roomNumberController.clear();
+                                  _officeRoomNameController.clear();
+                                  _issueDetailsController.clear();
+                                  _requesterSignatureBase64 = null;
+                                  _selectedImages.clear();
+                                });
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                side: const BorderSide(color: Color(0xFFE2E8F0), width: 2),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: Text('Submit Another', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: const Color(0xFF475569))),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => TeacherNavController.of(context)?.navigateTo(0),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AdminStyles.primary,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: Text('Go to Dashboard', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessDetailRow(String label, String value, {bool isTag = false, bool isCopyable = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AdminStyles.bodyStyle(fontSize: 13, color: const Color(0xFF64748B))),
+        const SizedBox(height: 4),
+        if (isTag)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AdminStyles.warning.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(value, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AdminStyles.warning)),
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: Text(value, style: AdminStyles.bodyStyle(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+              ),
+              if (isCopyable)
+                const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF94A3B8)),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildHeader({bool isSuccess = false}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       decoration: BoxDecoration(
@@ -406,12 +559,14 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Submit Work Request', style: AdminStyles.headingStyle(fontSize: 24)),
-              Text('Report maintenance issues within your assigned rooms', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+              Text(isSuccess ? 'Success' : 'Submit Work Request', style: AdminStyles.headingStyle(fontSize: 24)),
+              if (!isSuccess)
+                Text('Report maintenance issues within your assigned rooms', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
             ],
           ),
           const Spacer(),
-          ElevatedButton.icon(
+          if (!isSuccess)
+            ElevatedButton.icon(
             onPressed: _isSubmitting ? null : _submitRequest,
             icon: _isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded),
             label: const Text('Submit Request'),
