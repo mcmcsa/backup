@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 import '../task/task_details_page.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../authentication/services/auth_service.dart';
@@ -214,18 +213,10 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: CommonAppBar(
+      appBar: const CommonAppBar(
         roleText: 'Welcome Maintenance Staff',
-        primaryColor: const Color(0xFF4169E1),
-        showMenu: false,
-        onMenuPressed: () {
-          final router = GoRouter.maybeOf(context);
-          if (router != null) {
-            router.go('/maintenance/dashboard');
-          } else {
-            Navigator.pop(context);
-          }
-        },
+        primaryColor: Color(0xFF4169E1),
+        showMenu: true,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

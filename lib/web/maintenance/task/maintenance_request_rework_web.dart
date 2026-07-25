@@ -33,9 +33,9 @@ class _MaintenanceRequestReworkWebState extends State<MaintenanceRequestReworkWe
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: _pageBg,
-      child: SingleChildScrollView(
+    return Scaffold(
+      backgroundColor: _pageBg,
+      body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

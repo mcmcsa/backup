@@ -94,8 +94,21 @@ class ESignature {
         return 'Post-Repair';
       case 'completion':
         return 'Completion';
+      case 'request':
+      case 'requestor':
+        return 'Requestor';
       default:
-        return signatureType;
+        switch (signerRole) {
+          case 'admin':
+            return 'Admin Approval';
+          case 'teacher':
+          case 'requestor':
+            return 'Requestor';
+          case 'maintenance':
+            return 'Maintenance';
+          default:
+            return signatureType.isNotEmpty ? signatureType : 'Signature';
+        }
     }
   }
 }

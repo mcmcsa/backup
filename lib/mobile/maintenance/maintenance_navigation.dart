@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../authentication/services/auth_service.dart';
 import 'dashboard/maintenance_dashboard.dart';
 import 'task/maintenance_reports_page.dart';
 import 'history/maintenance_staff_history_page.dart';
@@ -31,15 +33,115 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
+    final user = auth.currentUser;
+    final userName = user?.name ?? 'Maintenance';
+    final userEmail = user?.email ?? '';
+
     final List<Widget> pages = [
       const MaintenanceDashboardMobile(),
       const MaintenanceReportsPage(),
+      const MaintenanceChatPage(),
       const MaintenanceStaffHistoryPage(),
       const MaintenanceStaffProfilePage(),
-      const MaintenanceChatPage(),
     ];
 
     return Scaffold(
+      drawer: Drawer(
+        child: Container(
+          color: Colors.white,
+          child: Column(
+            children: [
+              UserAccountsDrawerHeader(
+                decoration: const BoxDecoration(
+                  color: Color(0xFF4169E1),
+                ),
+                currentAccountPicture: CircleAvatar(
+                  backgroundColor: Colors.white,
+                  child: Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'M',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF4169E1),
+                    ),
+                  ),
+                ),
+                accountName: Text(
+                  userName,
+                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                accountEmail: Text(
+                  userEmail,
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.home_rounded, color: Color(0xFF4169E1)),
+                title: const Text('Home', style: TextStyle(fontWeight: FontWeight.w600)),
+                selected: _selectedIndex == 0,
+                selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                onTap: () {
+                  Navigator.pop(context);
+                  _onNavItemTapped(0);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.work_rounded, color: Color(0xFF4169E1)),
+                title: const Text('Tasks', style: TextStyle(fontWeight: FontWeight.w600)),
+                selected: _selectedIndex == 1,
+                selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                onTap: () {
+                  Navigator.pop(context);
+                  _onNavItemTapped(1);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF4169E1)),
+                title: const Text('Chat', style: TextStyle(fontWeight: FontWeight.w600)),
+                selected: _selectedIndex == 2,
+                selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                onTap: () {
+                  Navigator.pop(context);
+                  _onNavItemTapped(2);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.history_rounded, color: Color(0xFF4169E1)),
+                title: const Text('History', style: TextStyle(fontWeight: FontWeight.w600)),
+                selected: _selectedIndex == 3,
+                selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                onTap: () {
+                  Navigator.pop(context);
+                  _onNavItemTapped(3);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_rounded, color: Color(0xFF4169E1)),
+                title: const Text('Profile', style: TextStyle(fontWeight: FontWeight.w600)),
+                selected: _selectedIndex == 4,
+                selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                onTap: () {
+                  Navigator.pop(context);
+                  _onNavItemTapped(4);
+                },
+              ),
+              const Divider(),
+              const Spacer(),
+              ListTile(
+                leading: const Icon(Icons.logout_rounded, color: Colors.red),
+                title: const Text('Log Out', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final authService = context.read<AuthService>();
+                  await authService.handleLogoutButton(context);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
       body: IndexedStack(
         index: _selectedIndex,
         children: pages,
@@ -79,21 +181,21 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                 index: 1,
               ),
               _buildNavItem(
+                icon: Icons.chat_bubble_outline_rounded,
+                activeIcon: Icons.chat_bubble_rounded,
+                label: 'Chat',
+                index: 2,
+              ),
+              _buildNavItem(
                 icon: Icons.history_outlined,
                 activeIcon: Icons.history_rounded,
                 label: 'History',
-                index: 2,
+                index: 3,
               ),
               _buildNavItem(
                 icon: Icons.person_outline_rounded,
                 activeIcon: Icons.person_rounded,
                 label: 'Profile',
-                index: 3,
-              ),
-              _buildNavItem(
-                icon: Icons.chat_bubble_outline_rounded,
-                activeIcon: Icons.chat_bubble_rounded,
-                label: 'Chat',
                 index: 4,
               ),
             ],

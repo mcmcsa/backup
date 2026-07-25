@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import 'admin_work_process_web.dart';
+import '../admin_nav_controller.dart';
 
 class MaintenanceHistoryPageWeb extends StatefulWidget {
   const MaintenanceHistoryPageWeb({super.key});
@@ -224,12 +225,19 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
                             itemBuilder: (context, index) {
                               final item = filtered[index];
                               return InkWell(
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => AdminWorkProcessWeb(request: item),
-                                  ),
-                                ),
+                                onTap: () {
+                                  final controller = AdminNavController.of(context);
+                                  if (controller != null) {
+                                    controller.openWorkProcess(item);
+                                  } else {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => AdminWorkProcessWeb(request: item),
+                                      ),
+                                    );
+                                  }
+                                },
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                 child: Row(

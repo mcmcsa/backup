@@ -7,8 +7,6 @@ import '../../../shared/models/post_repair_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/pre_inspection_service.dart';
 import '../../../shared/services/post_repair_service.dart';
-import '../../../shared/services/iso_pdf_service.dart';
-import 'package:printing/printing.dart';
 import '../shared/admin_styles.dart';
 import 'admin_approval_signature_web.dart';
 import 'admin_pre_inspection_review_web.dart';
@@ -18,13 +16,21 @@ import '../../../shared/services/cost_tracking_service.dart';
 import 'admin_cost_tracking_form.dart';
 import '../../../shared/models/collaboration_models.dart';
 import '../../../shared/services/collaboration_service.dart';
+import '../../teacher/reports/teacher_official_form_web.dart';
 import 'admin_collaboration_workspace_widget.dart';
 import '../../../shared/widgets/voice_player_widget.dart';
+import '../../../shared/models/e_signature_model.dart';
+import '../../../shared/services/e_signature_service.dart';
 
 class AdminWorkProcessWeb extends StatefulWidget {
   final WorkRequest request;
+  final VoidCallback? onBack;
 
-  const AdminWorkProcessWeb({super.key, required this.request});
+  const AdminWorkProcessWeb({
+    super.key,
+    required this.request,
+    this.onBack,
+  });
 
   @override
   State<AdminWorkProcessWeb> createState() => _AdminWorkProcessWebState();
@@ -39,8 +45,12 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   List<WorkRequestTask> _tasks = [];
   List<WorkRequestNote> _notes = [];
   List<WorkRequestActivity> _activities = [];
+  List<ESignature> _signatures = [];
   bool _isLoading = true;
   int _selectedSection = 0;
+  String? _activeSubView;
+  bool _showCollaboration = false;
+  bool _showFinancials = false;
 
   final ScrollController _contentScrollController = ScrollController();
   final GlobalKey _overviewKey = GlobalKey();
@@ -69,6 +79,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       _preInspection = await PreInspectionService.fetchLatestByWorkRequest(_request!.id);
       _postRepair = await PostRepairService.fetchLatestByWorkRequest(_request!.id);
       _costTracking = await CostTrackingService.fetchByWorkRequestId(_request!.id);
+      _signatures = await ESignatureService.fetchByWorkRequest(_request!.id);
       
       // Load collaboration data
       _collaborators = await CollaborationService.fetchCollaborators(_request!.id);
@@ -83,15 +94,43 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
 
   @override
   Widget build(BuildContext context) {
+    if (_activeSubView == 'approval' && _request != null) {
+      return AdminApprovalSignatureWeb(
+        request: _request!,
+        onBack: () {
+          setState(() => _activeSubView = null);
+          _loadData();
+        },
+      );
+    }
+    if (_activeSubView == 'preInspection' && _request != null) {
+      return AdminPreInspectionReviewWeb(
+        request: _request!,
+        onBack: () {
+          setState(() => _activeSubView = null);
+          _loadData();
+        },
+      );
+    }
+    if (_activeSubView == 'postRepair' && _request != null) {
+      return AdminPostRepairEvaluationWeb(
+        request: _request!,
+        onBack: () {
+          setState(() => _activeSubView = null);
+          _loadData();
+        },
+      );
+    }
+
     return Scaffold(
       backgroundColor: AdminStyles.bg,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AdminStyles.primary))
           : _request == null
               ? _buildErrorState()
-              : Row(
+              : Column(
                   children: [
-                    _buildSidebar(),
+                    _buildTopBar(),
                     Expanded(
                       child: Container(
                         color: AdminStyles.bg,
@@ -118,16 +157,9 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                                             const SizedBox(height: 24),
                                             Container(key: _detailsKey, child: _buildDetailsColumn()),
                                             const SizedBox(height: 24),
-                                            Container(key: _collaborationKey, child: AdminCollaborationWorkspaceWidget(
-                                              workRequestId: _request!.id,
-                                              collaborators: _collaborators,
-                                              tasks: _tasks,
-                                              notes: _notes,
-                                              activities: _activities,
-                                              onDataChanged: _loadData,
-                                            )),
+                                            Container(key: _collaborationKey, child: _buildCollaborationCard()),
                                             const SizedBox(height: 24),
-                                            Container(key: _financialsKey, child: _buildFinancialsSection()),
+                                            Container(key: _financialsKey, child: _buildFinancialsCard()),
                                           ],
                                         );
                                       }
@@ -139,16 +171,9 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                                             children: [
                                               Container(key: _timelineKey, child: _buildTimelineSection()),
                                               const SizedBox(height: 24),
-                                              Container(key: _collaborationKey, child: AdminCollaborationWorkspaceWidget(
-                                                workRequestId: _request!.id,
-                                                collaborators: _collaborators,
-                                                tasks: _tasks,
-                                                notes: _notes,
-                                                activities: _activities,
-                                                onDataChanged: _loadData,
-                                              )),
+                                              Container(key: _collaborationKey, child: _buildCollaborationCard()),
                                               const SizedBox(height: 24),
-                                              Container(key: _financialsKey, child: _buildFinancialsSection()),
+                                              Container(key: _financialsKey, child: _buildFinancialsCard()),
                                             ],
                                           )),
                                           const SizedBox(width: 24),
@@ -166,6 +191,135 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                     ),
                   ],
                 ),
+    );
+  }
+
+  Widget _buildCollaborationCard() {
+    return Container(
+      decoration: AdminStyles.cardDecoration(borderRadius: 24),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.people_alt_rounded, color: AdminStyles.primary, size: 22),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('COLLABORATION WORKSPACE', style: AdminStyles.headingStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 2),
+                      Text('Staff discussion, shared tasks, team notes, and activity timeline.', style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() => _showCollaboration = !_showCollaboration);
+                  },
+                  icon: Icon(
+                    _showCollaboration ? Icons.keyboard_arrow_up_rounded : Icons.people_alt_rounded,
+                    size: 18,
+                  ),
+                  label: Text(_showCollaboration ? 'Hide Workspace' : 'Open Collaboration Workspace'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _showCollaboration ? AdminStyles.textMuted.withValues(alpha: 0.1) : AdminStyles.primary,
+                    foregroundColor: _showCollaboration ? AdminStyles.textPrimary : Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_showCollaboration) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: AdminCollaborationWorkspaceWidget(
+                workRequestId: _request!.id,
+                collaborators: _collaborators,
+                tasks: _tasks,
+                notes: _notes,
+                activities: _activities,
+                onDataChanged: _loadData,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialsCard() {
+    return Container(
+      decoration: AdminStyles.cardDecoration(borderRadius: 24),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.success.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(Icons.account_balance_wallet_rounded, color: AdminStyles.success, size: 22),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('FINANCIALS & COST TRACKING', style: AdminStyles.headingStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 2),
+                      Text('Labor cost estimates, materials, and total financial logs.', style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    setState(() => _showFinancials = !_showFinancials);
+                  },
+                  icon: Icon(
+                    _showFinancials ? Icons.keyboard_arrow_up_rounded : Icons.account_balance_wallet_rounded,
+                    size: 18,
+                  ),
+                  label: Text(_showFinancials ? 'Hide Financials' : 'Open Financials'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _showFinancials ? AdminStyles.textMuted.withValues(alpha: 0.1) : AdminStyles.success,
+                    foregroundColor: _showFinancials ? AdminStyles.textPrimary : Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_showFinancials) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: _buildFinancialsSection(),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -322,168 +476,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     );
   }
 
-  Widget _buildSidebar() {
-    return Container(
-      width: 280,
-      decoration: const BoxDecoration(
-        color: Color(0xFF0B1F33),
-        border: Border(
-          right: BorderSide(color: Color(0xFF17324A), width: 1),
-        ),
-      ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
-              child: Row(
-                children: [
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => Navigator.pop(context),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.06),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                        ),
-                        child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 18),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'WORK PROCESS HUB',
-                          style: AdminStyles.headingStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _request?.title ?? 'Request details',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AdminStyles.bodyStyle(fontSize: 11, color: Colors.white70),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Current Status', style: AdminStyles.bodyStyle(fontSize: 11, color: Colors.white70, letterSpacing: 0.8)),
-                    const SizedBox(height: 8),
-                    _buildStatusPill(),
-                    const SizedBox(height: 12),
-                    Text(
-                      _request?.id.substring(0, 8).toUpperCase() ?? '------',
-                      style: AdminStyles.headingStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
-                    ),
-                    const SizedBox(height: 4),
-                    Text('Service request identifier', style: AdminStyles.bodyStyle(fontSize: 11, color: Colors.white60)),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                children: [
-                  _buildSidebarItem('Overview', Icons.dashboard_rounded, 0, _overviewKey),
-                  _buildSidebarItem('Timeline', Icons.route_rounded, 1, _timelineKey),
-                  _buildSidebarItem('Details', Icons.info_outline_rounded, 2, _detailsKey),
-                  _buildSidebarItem('Actions', Icons.handyman_outlined, 3, _actionsKey),
-                  _buildSidebarItem('Collaboration', Icons.group_rounded, 4, _collaborationKey),
-                  _buildSidebarItem('Financials', Icons.attach_money_rounded, 5, _financialsKey),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _loadData,
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: const Text('Refresh'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.22)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildSidebarItem(String title, IconData icon, int index, GlobalKey key) {
-    final isSelected = _selectedSection == index;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            setState(() => _selectedSection = index);
-            _scrollToSection(key);
-          },
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: AdminStyles.sidebarItemDecoration(isActive: isSelected).copyWith(
-              color: isSelected ? Colors.white.withValues(alpha: 0.12) : Colors.transparent,
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 18, color: isSelected ? Colors.white : Colors.white70),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: AdminStyles.headingStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      color: isSelected ? Colors.white : Colors.white70,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Future<void> _scrollToSection(GlobalKey key) async {
     final context = key.currentContext;
@@ -498,7 +491,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
 
   Widget _buildTopBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       decoration: AdminStyles.glassDecoration(
         color: Colors.white,
         opacity: 1.0,
@@ -512,7 +505,13 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                if (widget.onBack != null) {
+                  widget.onBack!();
+                } else {
+                  Navigator.pop(context);
+                }
+              },
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.all(10),
@@ -524,23 +523,57 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
               ),
             ),
           ),
-          const SizedBox(width: 24),
+          const SizedBox(width: 20),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Lifecycle Monitoring',
+                'WORK PROCESS HUB',
                 style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
               ),
               const SizedBox(height: 2),
               Text(
-                'WORK PROCESS HUB',
-                style: AdminStyles.headingStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                _request?.title ?? 'Request Details',
+                style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.w800),
               ),
             ],
           ),
-          const Spacer(),
+          const SizedBox(width: 40),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildHeaderTabItem('Overview', 0, _overviewKey),
+                  _buildHeaderTabItem('Timeline', 1, _timelineKey),
+                  _buildHeaderTabItem('Details', 2, _detailsKey),
+                  _buildHeaderTabItem('Collaboration', 4, _collaborationKey),
+                  _buildHeaderTabItem('Financials', 5, _financialsKey),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 20),
           _buildStatusPill(),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => TeacherOfficialFormWeb(request: _request!),
+              );
+            },
+            icon: const Icon(Icons.print_rounded, size: 16),
+            label: const Text('View Official Form', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminStyles.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+          ),
           const SizedBox(width: 12),
           _HeaderIconButton(
             icon: Icons.refresh_rounded,
@@ -551,38 +584,70 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     );
   }
 
+  Widget _buildHeaderTabItem(String title, int index, GlobalKey key) {
+    final isSelected = _selectedSection == index;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: TextButton(
+        onPressed: () {
+          setState(() {
+            _selectedSection = index;
+            if (index == 4) _showCollaboration = true;
+            if (index == 5) _showFinancials = true;
+          });
+          _scrollToSection(key);
+        },
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          backgroundColor: isSelected ? AdminStyles.primary.withValues(alpha: 0.08) : Colors.transparent,
+        ),
+        child: Text(
+          title,
+          style: AdminStyles.headingStyle(
+            fontSize: 13,
+            color: isSelected ? AdminStyles.primary : AdminStyles.textSecondary,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeroSummary() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(28),
       decoration: AdminStyles.cardDecoration(borderRadius: 24),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isCompact = constraints.maxWidth < 900;
 
-          return isCompact
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeroTextBlock(),
-                    const SizedBox(height: 20),
-                    _buildHeroMetaRow(),
-                  ],
-                )
-              : Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _buildHeroTextBlock()),
-                    const SizedBox(width: 24),
-                    _buildHeroMetaRow(),
-                  ],
-                );
+          if (isCompact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeroTextBlockContent(),
+                const SizedBox(height: 16),
+                _buildDurationBadge(),
+              ],
+            );
+          }
+
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: _buildHeroTextBlockContent()),
+              const SizedBox(width: 24),
+              _buildDurationBadge(),
+            ],
+          );
         },
       ),
     );
   }
 
-  Widget _buildHeroTextBlock() {
+  Widget _buildHeroTextBlockContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -607,51 +672,54 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           runSpacing: 10,
           children: [
             _buildHeroChip('ID ${_request!.id.substring(0, 8).toUpperCase()}'),
-            _buildHeroChip(_request!.priorityLabel.toUpperCase()),
+            if (_request!.status.toLowerCase() != 'pending' && _request!.priority.isNotEmpty)
+              _buildHeroChip(_request!.priorityLabel.toUpperCase()),
             _buildHeroChip((_request!.status).replaceAll('_', ' ').toUpperCase()),
             if ((_request!.officeRoom ?? '').isNotEmpty) _buildHeroChip(_request!.officeRoom!),
           ],
-        ),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(
-          onPressed: () async {
-            final pdfBytes = await IsoPdfService.generateWorkRequestPdf(_request!);
-            await Printing.layoutPdf(onLayout: (_) => pdfBytes);
-          },
-          icon: const Icon(Icons.print_rounded, size: 18),
-          label: const Text('Print ISO Form'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AdminStyles.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
         ),
       ],
     );
   }
 
-  Widget _buildHeroMetaRow() {
+  Widget _buildDurationBadge() {
     return Container(
-      constraints: const BoxConstraints(minWidth: 260, maxWidth: 360),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(18),
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AdminStyles.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _buildSummaryRow('Request ID', _request!.id.substring(0, 8).toUpperCase()),
-          _buildSummaryRow('Submitted', DateFormat('MMM dd, HH:mm').format(_request!.dateSubmitted)),
-          _buildSummaryRow('Room', _request!.officeRoom ?? 'N/A'),
-          const Divider(height: 24),
-          _buildTimeMetric('Service Duration', _calculateDuration()),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AdminStyles.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.timer_outlined, color: AdminStyles.primary, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('SERVICE DURATION', style: AdminStyles.headingStyle(fontSize: 9, color: AdminStyles.textMuted, letterSpacing: 0.5)),
+              const SizedBox(height: 3),
+              Text(
+                _request?.maintenanceNotes ?? (_request?.dateDue != null ? DateFormat('MMM dd, HH:mm').format(_request!.dateDue!) : _calculateDuration()),
+                style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textPrimary, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
+
+
 
   Widget _buildHeroChip(String label) {
     return Container(
@@ -852,13 +920,115 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     );
   }
 
+  Widget _buildSignaturesListCard() {
+    final list = <Widget>[];
+
+    final reqName = _request!.requestorName.isNotEmpty
+        ? _request!.requestorName
+        : (_request!.reportedByName ?? '');
+
+    final hasReqSig = _signatures.any((s) => s.signerRole == 'requestor' || s.signerRole == 'teacher' || s.signatureType == 'request');
+
+    if (!hasReqSig && reqName.isNotEmpty) {
+      list.add(
+        _buildSignatureItemRow(
+          signerName: reqName,
+          label: 'Requestor',
+          date: _request!.dateSubmitted,
+        ),
+      );
+    }
+
+    for (final sig in _signatures) {
+      String label = sig.signatureTypeLabel;
+      if (sig.signerRole == 'requestor' || sig.signerRole == 'teacher' || sig.signatureType == 'request') {
+        label = 'Requestor';
+      } else if (sig.signerRole == 'admin' || sig.signatureType == 'approval') {
+        label = 'Admin Approval';
+      } else if (sig.signerRole == 'maintenance' || sig.signatureType == 'post_repair' || sig.signatureType == 'acceptance') {
+        label = 'Maintenance';
+      }
+
+      list.add(
+        _buildSignatureItemRow(
+          signerName: sig.signerName,
+          label: label,
+          date: sig.signedAt,
+        ),
+      );
+    }
+
+    if (list.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: AdminStyles.cardDecoration(borderRadius: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'SIGNATURES CAPTURED',
+            style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
+          ),
+          const SizedBox(height: 18),
+          ...list,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignatureItemRow({
+    required String signerName,
+    required String label,
+    required DateTime date,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: AdminStyles.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.verified_rounded, size: 16, color: AdminStyles.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  signerName,
+                  style: AdminStyles.headingStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$label • ${DateFormat('MMM dd, yyyy · HH:mm').format(date)}',
+                  style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDetailsColumn() {
+    final requestor = _request!.requestorName.isNotEmpty
+        ? _request!.requestorName
+        : (_request!.reportedByName ?? 'N/A');
+    final priorityDisplay = _request!.status.toLowerCase() == 'pending'
+        ? '--'
+        : _request!.priorityLabel;
+
     return Column(
       children: [
-        _buildInfoCard('Request Overview', [
-          _buildSummaryRow('ID', _request!.id.substring(0, 8).toUpperCase()),
-          _buildSummaryRow('Priority', _request!.priorityLabel),
-          _buildSummaryRow('Room', _request!.officeRoom ?? 'N/A'),
+        _buildInfoCard('Information', [
+          _buildSummaryRow('Tracking #', _request!.id.substring(0, 8).toUpperCase()),
+          _buildSummaryRow('Type', _request!.typeOfRequest),
+          _buildSummaryRow('Requestor', requestor),
+          _buildSummaryRow('Priority Level', priorityDisplay),
+          _buildSummaryRow('Submitted', DateFormat('MMM dd, yyyy · HH:mm').format(_request!.dateSubmitted)),
           if (_request!.voiceNotes != null && _request!.voiceNotes!.isNotEmpty) ...[
             const Divider(height: 24),
             Text('Voice Notes', style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textMuted)),
@@ -868,9 +1038,17 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                   child: VoicePlayerWidget(audioUrl: url),
                 )),
           ],
-          const Divider(height: 24),
-          _buildTimeMetric('Service Duration', _calculateDuration()),
         ]),
+        const SizedBox(height: 20),
+        _buildInfoCard('Location', [
+          _buildSummaryRow('Building', _request!.buildingName ?? 'N/A'),
+          _buildSummaryRow('Room', _request!.officeRoom ?? _request!.roomName ?? 'N/A'),
+          _buildSummaryRow('Department', _request!.departmentName ?? 'N/A'),
+        ]),
+        if (_signatures.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          _buildSignaturesListCard(),
+        ],
         const SizedBox(height: 20),
         _buildActionCard(),
       ],
@@ -945,28 +1123,28 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           Text('Available Actions', style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textSecondary)),
           const SizedBox(height: 20),
           if (status == 'pending') ...[
-            _buildActionButton('Approve with Signature', Icons.draw_rounded, AdminStyles.primary, () async {
-              await _navigateTo(AdminApprovalSignatureWeb(request: _request!));
+            _buildActionButton('Approve with Signature', Icons.draw_rounded, AdminStyles.primary, () {
+              setState(() => _activeSubView = 'approval');
             }),
           ],
           if (_preInspection != null) ...[
             if (_preInspection!.status == 'submitted')
-              _buildActionButton('Review Pre-Inspection', Icons.fact_check_rounded, AdminStyles.warning, () async {
-                await _navigateTo(AdminPreInspectionReviewWeb(request: _request!));
+              _buildActionButton('Review Pre-Inspection', Icons.fact_check_rounded, AdminStyles.warning, () {
+                setState(() => _activeSubView = 'preInspection');
               })
             else
-              _buildActionButton('View Pre-Inspection', Icons.visibility_rounded, AdminStyles.primary.withValues(alpha: 0.8), () async {
-                await _navigateTo(AdminPreInspectionReviewWeb(request: _request!));
+              _buildActionButton('View Pre-Inspection', Icons.visibility_rounded, AdminStyles.primary.withValues(alpha: 0.8), () {
+                setState(() => _activeSubView = 'preInspection');
               }),
           ],
           if (_postRepair != null) ...[
             if (_postRepair!.status == 'submitted')
-              _buildActionButton('Evaluate Post-Repair', Icons.rate_review_rounded, AdminStyles.success, () async {
-                await _navigateTo(AdminPostRepairEvaluationWeb(request: _request!));
+              _buildActionButton('Evaluate Post-Repair', Icons.rate_review_rounded, AdminStyles.success, () {
+                setState(() => _activeSubView = 'postRepair');
               })
             else
-              _buildActionButton('View Post-Repair', Icons.visibility_rounded, AdminStyles.primary.withValues(alpha: 0.8), () async {
-                await _navigateTo(AdminPostRepairEvaluationWeb(request: _request!));
+              _buildActionButton('View Post-Repair', Icons.visibility_rounded, AdminStyles.primary.withValues(alpha: 0.8), () {
+                setState(() => _activeSubView = 'postRepair');
               }),
           ],
           if (status == 'completed') ...[
@@ -1012,10 +1190,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     );
   }
 
-  Future<void> _navigateTo(Widget page) async {
-    await Navigator.push(context, MaterialPageRoute(builder: (context) => page));
-    _loadData();
-  }
+
 
   String _calculateDuration() {
     final start = _request!.maintenanceStartTime;

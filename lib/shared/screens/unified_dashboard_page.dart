@@ -536,78 +536,51 @@ class _KpiCardData {
   });
 }
 
-class _KpiCard extends StatefulWidget {
+class _KpiCard extends StatelessWidget {
   final _KpiCardData data;
 
   const _KpiCard({required this.data});
 
   @override
-  State<_KpiCard> createState() => _KpiCardState();
-}
-
-class _KpiCardState extends State<_KpiCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        transform: Matrix4.identity()..setTranslationRaw(0.0, _hovered ? -6.0 : 0.0, 0.0),
-        padding: EdgeInsets.all(isMobile ? 16 : 24),
-        decoration: _hovered
-            ? AdminStyles.glassDecoration(
-                color: widget.data.color,
-                opacity: 0.08,
-                borderRadius: isMobile ? 16 : 24,
-              )
-            : AdminStyles.cardDecoration(borderRadius: isMobile ? 16 : 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  width: isMobile ? 36 : 48,
-                  height: isMobile ? 36 : 48,
-                  decoration: BoxDecoration(
-                    color: widget.data.color.withValues(alpha: _hovered ? 0.25 : 0.12),
-                    borderRadius: BorderRadius.circular(isMobile ? 10 : 14),
-                  ),
-                  child: Icon(widget.data.icon, color: widget.data.color, size: isMobile ? 18 : 24),
-                ),
-                if (_hovered)
-                  const Icon(Icons.arrow_outward_rounded, size: 18, color: AdminStyles.textMuted),
-              ],
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 12 : 16),
+      decoration: AdminStyles.cardDecoration(borderRadius: isMobile ? 12 : 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: isMobile ? 32 : 40,
+            height: isMobile ? 32 : 40,
+            decoration: BoxDecoration(
+              color: data.color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(isMobile ? 8 : 10),
             ),
-            SizedBox(height: isMobile ? 12 : 24),
-            Text(
-              widget.data.value.toString(),
-              style: AdminStyles.headingStyle(
-                fontSize: isMobile ? 26 : 34,
-                fontWeight: FontWeight.w900,
-                color: AdminStyles.textPrimary,
-              ),
+            child: Icon(data.icon, color: data.color, size: isMobile ? 16 : 20),
+          ),
+          SizedBox(height: isMobile ? 10 : 16),
+          Text(
+            data.value.toString(),
+            style: AdminStyles.headingStyle(
+              fontSize: isMobile ? 22 : 26,
+              fontWeight: FontWeight.w900,
+              color: AdminStyles.textPrimary,
             ),
-            const SizedBox(height: 4),
-            Text(
-              widget.data.title.toUpperCase(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AdminStyles.bodyStyle(
-                fontSize: isMobile ? 10 : 11,
-                fontWeight: FontWeight.w800,
-                color: AdminStyles.textSecondary,
-              ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            data.title.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AdminStyles.bodyStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: AdminStyles.textSecondary,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

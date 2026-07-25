@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../maintenance_nav_controller.dart';
 
 class MaintenanceHistoryWeb extends StatefulWidget {
   const MaintenanceHistoryWeb({super.key});
@@ -12,13 +13,11 @@ class MaintenanceHistoryWeb extends StatefulWidget {
 class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
   List<WorkRequest> _history = [];
   bool _isLoading = true;
-  final String _selectedStatus = 'All';
   final TextEditingController _searchController = TextEditingController();
 
   // Professional color palette
   static const Color _primarySky = Color(0xFF0EA5E9);
   static const Color _successGreen = Color(0xFF10B981);
-  static const Color _warningOrange = Color(0xFFF59E0B);
   static const Color _darkText = Color(0xFF0F172A);
   static const Color _subtleText = Color(0xFF64748B);
   static const Color _pageBg = Color(0xFFF8FAFC);
@@ -202,81 +201,86 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: filtered.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final task = filtered[index];
-        return Container(
-          decoration: BoxDecoration(
-            color: _cardBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _borderColor),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: _successGreen.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+        return GestureDetector(
+          onTap: () {
+            MaintenanceNavController.of(context)?.navigateTo(3, request: task);
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: _cardBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _borderColor),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: _successGreen.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.check_circle_rounded,
+                    color: _successGreen,
+                    size: 22,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.check_circle_rounded,
-                  color: _successGreen,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      task.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: _darkText,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        task.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: _darkText,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          task.roomName ?? 'N/A',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _subtleText,
-                            fontWeight: FontWeight.w500,
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Text(
+                            task.roomName ?? 'N/A',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _subtleText,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          '• ${task.id.substring(0, 8)}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _subtleText.withValues(alpha: 0.6),
-                            fontWeight: FontWeight.w500,
+                          const SizedBox(width: 12),
+                          Text(
+                            '• ${task.id.substring(0, 8)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: _subtleText.withValues(alpha: 0.6),
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                (task.dateCompleted ?? task.dateSubmitted)
-                    .toString()
-                    .split(' ')[0],
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _subtleText.withValues(alpha: 0.6),
-                  fontWeight: FontWeight.w500,
+                const SizedBox(width: 16),
+                Text(
+                  (task.dateCompleted ?? task.dateSubmitted)
+                      .toString()
+                      .split(' ')[0],
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _subtleText.withValues(alpha: 0.6),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

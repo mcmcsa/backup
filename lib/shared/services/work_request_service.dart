@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/work_request_model.dart';
 import 'maintenance_status_service.dart';
+import 'room_service.dart';
 
 class WorkRequestService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -226,13 +227,36 @@ class WorkRequestService {
   static Future<void> approveRequest(
     String id,
     String approvedById,
-    String approvedByName,
-  ) async {
+    String approvedByName, {
+    String priority = '',
+    String? estimatedDuration,
+  }) async {
+    DateTime? dateDue;
+    if (estimatedDuration != null && estimatedDuration.trim().isNotEmpty) {
+      final durLower = estimatedDuration.toLowerCase();
+      if (durLower.contains('hour')) {
+        final hours = int.tryParse(durLower.replaceAll(RegExp(r'[^0-9]'), '')) ?? 2;
+        dateDue = DateTime.now().add(Duration(hours: hours));
+      } else if (durLower.contains('day')) {
+        final days = int.tryParse(durLower.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+        dateDue = DateTime.now().add(Duration(days: days));
+      } else if (durLower.contains('week')) {
+        final weeks = int.tryParse(durLower.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+        dateDue = DateTime.now().add(Duration(days: weeks * 7));
+      } else {
+        dateDue = DateTime.now().add(const Duration(days: 1));
+      }
+    }
+
     final updateData = {
       'status': 'in_progress',
       'maintenance_start_time': DateTime.now().toIso8601String(),
       'approved_by_id': approvedById,
       'approved_date': DateTime.now().toIso8601String(),
+      if (priority.isNotEmpty) 'priority': priority,
+      if (dateDue != null) 'date_due': dateDue.toIso8601String(),
+      if (estimatedDuration != null && estimatedDuration.trim().isNotEmpty)
+        'maintenance_notes': estimatedDuration.trim(),
     };
     if (id.startsWith('WR-')) {
       await _db.from(_table).update(updateData).eq('legacy_id', id);
@@ -257,6 +281,13 @@ class WorkRequestService {
     final request = await fetchById(id);
     if (request?.assignedToId != null) {
       await MaintenanceStatusService.setAvailableOnCompletion(request!.assignedToId!);
+    }
+
+    // Set room back to available
+    if (request?.roomId != null && request!.roomId!.isNotEmpty) {
+      try {
+        await RoomService.updateStatus(request.roomId!, 'available');
+      } catch (_) {}
     }
   }
 
@@ -363,6 +394,16 @@ class WorkRequestService {
     }
 
     final data = await _insertWithSchemaFallback(payload);
+    
+    // Update room status to maintenance (Unavailable)
+    if (request.roomId != null && request.roomId!.isNotEmpty) {
+      try {
+        await RoomService.updateStatus(request.roomId!, 'maintenance');
+      } catch (_) {
+        // Silently ignore update status failures
+      }
+    }
+
     return WorkRequest.fromMap(data);
   }
 

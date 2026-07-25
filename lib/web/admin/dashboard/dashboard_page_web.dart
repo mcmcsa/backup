@@ -495,74 +495,48 @@ class _KpiCardData {
   });
 }
 
-class _KpiCard extends StatefulWidget {
+class _KpiCard extends StatelessWidget {
   final _KpiCardData data;
 
   const _KpiCard({required this.data});
 
   @override
-  State<_KpiCard> createState() => _KpiCardState();
-}
-
-class _KpiCardState extends State<_KpiCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        transform: Matrix4.identity()..setTranslationRaw(0.0, _hovered ? -6.0 : 0.0, 0.0),
-        padding: const EdgeInsets.all(24),
-        decoration: _hovered
-            ? AdminStyles.glassDecoration(
-                color: widget.data.color,
-                opacity: 0.08,
-                borderRadius: 24,
-              )
-            : AdminStyles.cardDecoration(borderRadius: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: widget.data.color.withValues(alpha: _hovered ? 0.25 : 0.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(widget.data.icon, color: widget.data.color, size: 24),
-                ),
-                if (_hovered)
-                  const Icon(Icons.arrow_outward_rounded, size: 18, color: AdminStyles.textMuted),
-              ],
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: AdminStyles.cardDecoration(borderRadius: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: data.color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
-            const SizedBox(height: 24),
-            Text(
-              widget.data.value.toString(),
-              style: AdminStyles.headingStyle(
-                fontSize: 34,
-                fontWeight: FontWeight.w900,
-                color: AdminStyles.textPrimary,
-              ),
+            child: Icon(data.icon, color: data.color, size: 20),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            data.value.toString(),
+            style: AdminStyles.headingStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w900,
+              color: AdminStyles.textPrimary,
             ),
-            const SizedBox(height: 4),
-            Text(
-              widget.data.title.toUpperCase(),
-              style: AdminStyles.bodyStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                color: AdminStyles.textSecondary,
-              ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            data.title.toUpperCase(),
+            style: AdminStyles.bodyStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              color: AdminStyles.textSecondary,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

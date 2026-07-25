@@ -47,7 +47,7 @@ class WorkRequest {
     required this.title,
     required this.description,
     required this.status,
-    this.priority = 'medium',
+    this.priority = '',
     this.buildingId,
     this.buildingName,
     this.departmentId,
@@ -91,7 +91,7 @@ class WorkRequest {
       title: map['title'] ?? '',
       description: map['description'] ?? '',
       status: map['status'] ?? 'pending',
-      priority: map['priority'] ?? 'medium',
+      priority: map['priority']?.toString() ?? '',
       buildingId: map['building_id'],
       buildingName:
           map['building_name'] ?? _nestedText(map['building'], 'name'),
@@ -169,14 +169,17 @@ class WorkRequest {
       'title': title,
       'description': description,
       'status': status,
-      'priority': priority,
+      'priority': priority.trim().isEmpty ? null : priority,
         'type_of_request': typeOfRequest,
       'request_type_id':
           requestTypeId ??
           (_isLikelyUuid(typeOfRequest) ? typeOfRequest : null),
       'building_id': buildingId,
+      'building_name': buildingName,
       'department_id': departmentId,
+      'department_name': departmentName,
       'room_id': roomId,
+      'room_name': roomName,
       'date_submitted': dateSubmitted.toIso8601String(),
       'date_completed': dateCompleted?.toIso8601String(),
       'date_due': dateDue?.toIso8601String(),
@@ -340,15 +343,16 @@ class WorkRequest {
   }
 
   String get priorityLabel {
-    switch (priority) {
+    if (priority.trim().isEmpty) return 'PENDING ADMIN REVIEW';
+    switch (priority.toLowerCase()) {
       case 'high':
-        return 'HIGH PRIORITY';
+        return 'HIGH';
       case 'medium':
         return 'MEDIUM';
       case 'low':
         return 'LOW';
       default:
-        return priority.toUpperCase();
+        return 'PENDING ADMIN REVIEW';
     }
   }
 }

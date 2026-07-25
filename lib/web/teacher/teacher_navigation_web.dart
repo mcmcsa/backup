@@ -5,6 +5,7 @@ import '../../authentication/services/auth_service.dart';
 import 'dashboard/teacher_dashboard_web.dart';
 import 'profile/teacher_profile_web.dart';
 import 'reports/teacher_reports_web.dart';
+import 'reports/teacher_work_process_web.dart';
 import 'logs/teacher_logs_web.dart';
 import 'scanner/teacher_scanner_web.dart';
 import 'menu/teacher_settings_web.dart';
@@ -19,6 +20,7 @@ import 'chat/teacher_chat_web.dart';
 import 'notifications/teacher_notifications_web.dart';
 import '../../shared/widgets/lazy_indexed_stack.dart';
 import '../../shared/widgets/announcements/global_announcement_listener.dart';
+import '../../shared/models/work_request_model.dart';
 import 'teacher_nav_controller.dart';
 
 class TeacherNavigationWeb extends StatefulWidget {
@@ -40,6 +42,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   String? _createRoomId;
   String? _createRoomName;
   String? _createBuildingName;
+  WorkRequest? _selectedRequestForDetails;
 
   // Professional color palette
   static const _sidebarBg = Color(0xFF0F172A);
@@ -167,7 +170,17 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
         const TeacherDashboardWeb(),
         const TeacherLogsWeb(),
         const TeacherScannerWeb(),
-        const TeacherReportsWeb(),
+        _selectedRequestForDetails != null
+            ? TeacherWorkProcessWeb(
+                key: ValueKey('work-process-${_selectedRequestForDetails!.id}'),
+                request: _selectedRequestForDetails!,
+                onBack: () {
+                  setState(() {
+                    _selectedRequestForDetails = null;
+                  });
+                },
+              )
+            : const TeacherReportsWeb(),
         const TeacherChatWeb(),
         const TeacherArchivesWeb(),
         const TeacherProfileWeb(),
@@ -228,9 +241,10 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                 ),
                 Expanded(
                   child: TeacherNavController(
-                    navigateTo: (i, {roomId, roomName, buildingName}) {
+                    navigateTo: (i, {roomId, roomName, buildingName, request}) {
                       setState(() {
                         _selectedIndex = i;
+                        _selectedRequestForDetails = request;
                         if (i == 11) {
                           _createRoomId = roomId;
                           _createRoomName = roomName;
@@ -264,9 +278,10 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                     _buildHeader(),
                     Expanded(
                       child: TeacherNavController(
-                        navigateTo: (i, {roomId, roomName, buildingName}) {
+                        navigateTo: (i, {roomId, roomName, buildingName, request}) {
                           setState(() {
                             _selectedIndex = i;
+                            _selectedRequestForDetails = request;
                             if (i == 11) {
                               _createRoomId = roomId;
                               _createRoomName = roomName;
@@ -423,7 +438,10 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
           onTap: () {
-            setState(() => _selectedIndex = index);
+            setState(() {
+              _selectedIndex = index;
+              _selectedRequestForDetails = null;
+            });
             if (closeDrawerOnTap && Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             }

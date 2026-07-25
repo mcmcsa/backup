@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../shared/models/work_request_model.dart';
 import '../../shared/widgets/lazy_indexed_stack.dart';
 import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
@@ -7,6 +8,10 @@ import 'profile/maintenance_profile_web.dart';
 import 'reports/maintenance_reports_web.dart';
 import 'history/maintenance_history_web.dart';
 import 'chat/maintenance_chat_page_web.dart';
+import 'settings/maintenance_settings_web.dart';
+import 'workflow/maintenance_workflow_web.dart';
+import 'maintenance_nav_controller.dart';
+import 'task/maintenance_task_details_web.dart';
 
 class MaintenanceNavigationWeb extends StatefulWidget {
   final int initialIndex;
@@ -19,6 +24,7 @@ class MaintenanceNavigationWeb extends StatefulWidget {
 
 class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   late int _selectedIndex;
+  WorkRequest? _selectedRequestForDetails;
   String _userName = 'Maintenance';
   final String _userRole = 'Staff';
   int _hoveredIndex = -1;
@@ -174,22 +180,43 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   }
 
   Widget _buildIndexedStack() {
+    if (_selectedRequestForDetails != null) {
+      return MaintenanceTaskDetailsWeb(
+        key: ValueKey('task-details-${_selectedRequestForDetails!.id}'),
+        task: _selectedRequestForDetails!,
+        onBack: () {
+          setState(() {
+            _selectedRequestForDetails = null;
+          });
+        },
+      );
+    }
+
     return LazyIndexedStack(
       index: _selectedIndex,
       children: const [
         MaintenanceDashboardWeb(),
         MaintenanceReportsWeb(),
-        MaintenanceHistoryWeb(),
-        MaintenanceProfileWeb(),
-        MaintenanceChatPageWeb(),
+        MaintenanceChatPageWeb(), // Message
+        MaintenanceHistoryWeb(), // History
+        MaintenanceProfileWeb(), // Profile
+        MaintenanceSettingsWeb(), // Settings
+        MaintenanceWorkflowWeb(), // System Work Flow
       ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
+    return MaintenanceNavController(
+      navigateTo: (index, {request}) {
+        setState(() {
+          _selectedIndex = index;
+          _selectedRequestForDetails = request;
+        });
+      },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
         final isCompact = constraints.maxWidth < 1100;
 
         if (isCompact) {
@@ -254,8 +281,9 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
           ),
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildSidebar({double width = 240, bool closeDrawerOnTap = false}) {
     return Container(
@@ -318,48 +346,44 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
               children: [
                 _buildNavItem(
                   index: 0,
-                  icon: Icons.home_repair_service_rounded,
-                  title: 'Dashboard',
+                  icon: Icons.home_rounded,
+                  title: 'Home',
                   closeDrawerOnTap: closeDrawerOnTap,
                 ),
                 _buildNavItem(
                   index: 1,
-                  icon: Icons.assignment_rounded,
-                  title: 'Reports',
+                  icon: Icons.work_rounded,
+                  title: 'Task',
                   closeDrawerOnTap: closeDrawerOnTap,
                 ),
                 _buildNavItem(
                   index: 2,
+                  icon: Icons.chat_bubble_rounded,
+                  title: 'Message',
+                  closeDrawerOnTap: closeDrawerOnTap,
+                ),
+                _buildNavItem(
+                  index: 3,
                   icon: Icons.history_rounded,
                   title: 'History',
                   closeDrawerOnTap: closeDrawerOnTap,
                 ),
                 _buildNavItem(
                   index: 4,
-                  icon: Icons.chat_bubble_outline_rounded,
-                  title: 'Chat',
-                  closeDrawerOnTap: closeDrawerOnTap,
-                ),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Account',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: _textMuted.withValues(alpha: 0.7),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
-                _buildNavItem(
-                  index: 3,
                   icon: Icons.person_rounded,
                   title: 'Profile',
+                  closeDrawerOnTap: closeDrawerOnTap,
+                ),
+                _buildNavItem(
+                  index: 5,
+                  icon: Icons.settings_rounded,
+                  title: 'Settings',
+                  closeDrawerOnTap: closeDrawerOnTap,
+                ),
+                _buildNavItem(
+                  index: 6,
+                  icon: Icons.account_tree_rounded,
+                  title: 'System Work Flow',
                   closeDrawerOnTap: closeDrawerOnTap,
                 ),
               ],
@@ -398,7 +422,10 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
           onTap: () {
-            setState(() => _selectedIndex = index);
+            setState(() {
+              _selectedIndex = index;
+              _selectedRequestForDetails = null;
+            });
             if (closeDrawerOnTap && Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             }
@@ -605,7 +632,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
             onExit: (_) => setState(() => _isUserMenuHovered = false),
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
-              onTap: () => setState(() => _selectedIndex = 3),
+              onTap: () => setState(() => _selectedIndex = 4),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.all(3),

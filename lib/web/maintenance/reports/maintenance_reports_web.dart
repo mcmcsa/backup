@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../maintenance_nav_controller.dart';
 
 class MaintenanceReportsWeb extends StatefulWidget {
   const MaintenanceReportsWeb({super.key});
@@ -344,83 +345,88 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
           final request = entry.value;
           final isLast = index == filtered.length - 1;
 
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              color: _cardBg,
-              border: Border(
-                left: BorderSide(color: _borderColor),
-                right: BorderSide(color: _borderColor),
-                bottom: BorderSide(
-                  color: isLast ? _borderColor : _borderColor.withValues(alpha: 0.5),
+          return GestureDetector(
+            onTap: () {
+              MaintenanceNavController.of(context)?.navigateTo(1, request: request);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: _cardBg,
+                border: Border(
+                  left: BorderSide(color: _borderColor),
+                  right: BorderSide(color: _borderColor),
+                  bottom: BorderSide(
+                    color: isLast ? _borderColor : _borderColor.withValues(alpha: 0.5),
+                  ),
                 ),
+                borderRadius: isLast
+                    ? const BorderRadius.only(
+                        bottomLeft: Radius.circular(12),
+                        bottomRight: Radius.circular(12),
+                      )
+                    : BorderRadius.zero,
               ),
-              borderRadius: isLast
-                  ? const BorderRadius.only(
-                      bottomLeft: Radius.circular(12),
-                      bottomRight: Radius.circular(12),
-                    )
-                  : BorderRadius.zero,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    request.id.substring(0, 8),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: _darkText,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Text(
-                    request.title,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: _darkText,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Text(
-                    request.roomName ?? 'N/A',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: _subtleText,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Expanded(
-                  flex: 1,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(request.status).withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 2,
                     child: Text(
-                      request.status.replaceAll('_', ' ').toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: _getStatusColor(request.status),
+                      request.id.substring(0, 8),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: _darkText,
                       ),
-                      textAlign: TextAlign.center,
                     ),
                   ),
-                ),
-              ],
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      request.title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: _darkText,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      request.roomName ?? 'N/A',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: _subtleText,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 1,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(request.status).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        request.status.replaceAll('_', ' ').toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _getStatusColor(request.status),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         }),

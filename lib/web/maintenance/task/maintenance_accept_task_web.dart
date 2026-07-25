@@ -96,9 +96,9 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: AdminStyles.bg,
-      child: Column(
+    return Scaffold(
+      backgroundColor: AdminStyles.bg,
+      body: Column(
         children: [
           _buildTopBar(),
           Expanded(
@@ -131,8 +131,10 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
   Widget _buildTopBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      color: AdminStyles.surface,
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AdminStyles.border))),
+      decoration: BoxDecoration(
+        color: AdminStyles.surface,
+        border: Border(bottom: BorderSide(color: AdminStyles.border)),
+      ),
       child: Row(
         children: [
           IconButton(

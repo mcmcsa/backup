@@ -11,10 +11,12 @@ import '../shared/admin_styles.dart';
 
 class AdminPostRepairEvaluationWeb extends StatefulWidget {
   final WorkRequest request;
+  final VoidCallback? onBack;
 
   const AdminPostRepairEvaluationWeb({
     super.key,
     required this.request,
+    this.onBack,
   });
 
   @override
@@ -196,7 +198,13 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                if (widget.onBack != null) {
+                  widget.onBack!();
+                } else {
+                  Navigator.pop(context);
+                }
+              },
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.all(10),

@@ -61,6 +61,18 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
     _dropdownHelper.clearCache();
     _loadDropdownOptions();
     _loadQrRegenerationSetting();
+    _roomCodeController.addListener(_forceUppercase);
+  }
+
+  void _forceUppercase() {
+    final text = _roomCodeController.text;
+    final upper = text.toUpperCase();
+    if (text != upper) {
+      _roomCodeController.value = _roomCodeController.value.copyWith(
+        text: upper,
+        selection: TextSelection.collapsed(offset: upper.length),
+      );
+    }
   }
 
   @override
@@ -241,6 +253,7 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
   @override
   void dispose() {
     appRouteObserver.unsubscribe(this);
+    _roomCodeController.removeListener(_forceUppercase);
     _roomCodeController.dispose();
     _nameController.dispose();
     _buildingController.dispose();
@@ -1641,7 +1654,6 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
 
     final statuses = [
       {'key': 'available', 'label': 'Available'},
-      {'key': 'reserved', 'label': 'Reserved'},
       {'key': 'maintenance', 'label': 'Unavailable'},
     ];
 
@@ -1655,8 +1667,6 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
 
         final tone = key == 'maintenance'
             ? const Color(0xFFDC2626)
-            : key == 'reserved'
-            ? const Color(0xFFB45309)
             : const Color(0xFF0F766E);
 
         return GestureDetector(

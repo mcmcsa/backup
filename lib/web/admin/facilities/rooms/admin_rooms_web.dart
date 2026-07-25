@@ -37,14 +37,14 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
   bool _isLoading = true;
   bool _isGridView = true;
 
-  static const Color _primaryBlue = Color(0xFF3B82F6);
-  static const Color _successGreen = Color(0xFF10B981);
-  static const Color _maintenanceRed = Color.fromRGBO(249, 26, 22, 1);
-  static const Color _darkText = Color(0xFF0F172A);
-  static const Color _subtleText = Color(0xFF64748B);
-  static const Color _pageBg = Color(0xFFF1F5F9);
+  static const Color _primaryBlue = AdminStyles.primary;
+  static const Color _successGreen = AdminStyles.success;
+  static const Color _maintenanceRed = AdminStyles.error;
+  static const Color _darkText = AdminStyles.textPrimary;
+  static const Color _subtleText = AdminStyles.textSecondary;
+  static const Color _pageBg = AdminStyles.bg;
   static const Color _cardBg = Colors.white;
-  static const Color _borderColor = Color(0xFFE2E8F0);
+  static const Color _borderColor = AdminStyles.border;
 
   String _lower(dynamic value) => (value ?? '').toString().toLowerCase();
 
@@ -213,8 +213,6 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildHeader(),
-                      const SizedBox(height: 14),
-                      _buildStatsRow(isMobile: isMobile, isTablet: isTablet),
                       const SizedBox(height: 20),
                       _buildMainCard(isMobile: isMobile, isTablet: isTablet),
                     ],
@@ -225,67 +223,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
     );
   }
 
-  Widget _buildStatsRow({required bool isMobile, required bool isTablet}) {
-    final cards = [
-      _StatCard(
-        title: 'All Rooms',
-        value: _countByFilter(0),
-        icon: Icons.meeting_room_rounded,
-        iconColor: _primaryBlue,
-        isSelected: _selectedFilter == 0,
-        onTap: () => setState(() => _selectedFilter = 0),
-      ),
-      _StatCard(
-        title: 'Available',
-        value: _countByFilter(1),
-        icon: Icons.check_circle_rounded,
-        iconColor: _successGreen,
-        isSelected: _selectedFilter == 1,
-        onTap: () => setState(() => _selectedFilter = 1),
-      ),
-      _StatCard(
-        title: 'Unavailable',
-        value: _countByFilter(2),
-        icon: Icons.build_rounded,
-        iconColor: _maintenanceRed,
-        isSelected: _selectedFilter == 2,
-        onTap: () => setState(() => _selectedFilter = 2),
-      ),
-    ];
 
-    if (isMobile) {
-      return Column(
-        children: [
-          for (int i = 0; i < cards.length; i++) ...[
-            cards[i],
-            if (i != cards.length - 1) const SizedBox(height: 12),
-          ],
-        ],
-      );
-    }
-
-    if (isTablet) {
-      return Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          SizedBox(width: 320, child: cards[0]),
-          SizedBox(width: 320, child: cards[1]),
-          SizedBox(width: 320, child: cards[2]),
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        Expanded(child: cards[0]),
-        const SizedBox(width: 16),
-        Expanded(child: cards[1]),
-        const SizedBox(width: 16),
-        Expanded(child: cards[2]),
-      ],
-    );
-  }
 
   Widget _buildMainCard({required bool isMobile, required bool isTablet}) {
     final filteredRooms = _filteredRooms;
@@ -309,42 +247,62 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
               children: [
                 if (shouldStackHeaderActions)
                   Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: _primaryBlue.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.meeting_room_rounded,
-                              color: _primaryBlue,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
                             children: [
-                              Text(
-                                _selectedFilterLabel,
-                                style: AdminStyles.headingStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: _darkText,
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: _primaryBlue.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Icon(
+                                  Icons.meeting_room_rounded,
+                                  color: _primaryBlue,
+                                  size: 20,
                                 ),
                               ),
-                              Text(
-                                '${filteredRooms.length} rooms',
-                                style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText),
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Rooms List',
+                                    style: AdminStyles.headingStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: _darkText,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${filteredRooms.length} rooms',
+                                    style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
+                          _buildViewToggle(),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildStatusFilterButton('All Rooms', 0),
+                            const SizedBox(width: 8),
+                            _buildStatusFilterButton('Available', 1),
+                            const SizedBox(width: 8),
+                            _buildStatusFilterButton('Unavailable', 2),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       SizedBox(width: double.infinity, child: _buildSearchBar(width: double.infinity)),
                       const SizedBox(height: 8),
                       Row(
@@ -371,184 +329,75 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                     ],
                   )
                 else
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      Row(
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _primaryBlue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.meeting_room_rounded,
+                          color: _primaryBlue,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: _primaryBlue.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.meeting_room_rounded,
-                              color: _primaryBlue,
-                              size: 20,
+                          Text(
+                            'Rooms List',
+                            style: AdminStyles.headingStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: _darkText,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _selectedFilterLabel,
-                                style: AdminStyles.headingStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: _darkText,
-                                ),
-                              ),
-                              Text(
-                                '${filteredRooms.length} rooms',
-                                style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText),
-                              ),
-                            ],
+                          Text(
+                            '${filteredRooms.length} rooms',
+                            style: AdminStyles.bodyStyle(fontSize: 12, color: _subtleText),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Wrap(
-                              spacing: 10,
-                              runSpacing: 6,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: dropdownWidth,
-                                  child: _buildFilterDropdown(
-                                    value: _selectedDepartment,
-                                    items: _departmentOptions,
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      setState(() => _selectedDepartment = value);
-                                    },
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: dropdownWidth,
-                                  child: _buildFilterDropdown(
-                                    value: _selectedBuilding,
-                                    items: _buildingOptions,
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      setState(() => _selectedBuilding = value);
-                                    },
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: dropdownWidth,
-                                  child: _buildFilterDropdown(
-                                    value: _selectedRoomType,
-                                    items: _roomTypeOptions,
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      setState(() => _selectedRoomType = value);
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          SizedBox(
-                            width: desktopSearchWidth + desktopAddButtonWidth + desktopRefreshButtonWidth + 22,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(width: desktopSearchWidth, child: _buildSearchBar(width: desktopSearchWidth)),
-                                const SizedBox(width: 12),
-                                SizedBox(
-                                  width: desktopAddButtonWidth,
-                                  height: 42,
-                                  child: ElevatedButton.icon(
-                                    onPressed: _openAddRoomPage,
-                                    icon: const Icon(Icons.add_rounded, size: 18),
-                                    label: const Text('Add Room'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: _primaryBlue,
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                SizedBox(
-                                  width: desktopRefreshButtonWidth,
-                                  child: _buildRefreshButton(),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 24),
+                      _buildStatusFilterButton('All Rooms', 0),
+                      const SizedBox(width: 8),
+                      _buildStatusFilterButton('Available', 1),
+                      const SizedBox(width: 8),
+                      _buildStatusFilterButton('Unavailable', 2),
+                      const Spacer(),
+                      SizedBox(
+                        width: 240,
+                        child: _buildSearchBar(width: 240),
                       ),
+                      const SizedBox(width: 12),
+                      SizedBox(
+                        height: 42,
+                        child: ElevatedButton.icon(
+                          onPressed: _openAddRoomPage,
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('Add Room'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _buildViewToggle(),
+                      const SizedBox(width: 10),
+                      _buildRefreshButton(),
                     ],
                   ),
               ],
             ),
           ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(isMobile ? 14 : 18, 0, isMobile ? 14 : 18, isMobile ? 14 : 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (shouldStackHeaderActions) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SizedBox(
-                      width: null,
-                      child: Wrap(
-                        spacing: 10,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: dropdownWidth,
-                            child: _buildFilterDropdown(
-                              value: _selectedDepartment,
-                              items: _departmentOptions,
-                              onChanged: (value) {
-                                if (value == null) return;
-                                setState(() => _selectedDepartment = value);
-                              },
-                            ),
-                          ),
-                          SizedBox(
-                            width: dropdownWidth,
-                            child: _buildFilterDropdown(
-                              value: _selectedBuilding,
-                              items: _buildingOptions,
-                              onChanged: (value) {
-                                if (value == null) return;
-                                setState(() => _selectedBuilding = value);
-                              },
-                            ),
-                          ),
-                          SizedBox(
-                            width: dropdownWidth,
-                            child: _buildFilterDropdown(
-                              value: _selectedRoomType,
-                              items: _roomTypeOptions,
-                              onChanged: (value) {
-                                if (value == null) return;
-                                setState(() => _selectedRoomType = value);
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                // Legacy quick-status chips intentionally removed from UI as requested.
-              ],
-            ),
-          ),
+
           filteredRooms.isEmpty
               ? Padding(
                   padding: const EdgeInsets.all(60),
@@ -570,55 +419,146 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                     ),
                   ),
                 )
-              : Padding(
-                  padding: EdgeInsets.fromLTRB(isMobile ? 14 : 24, 0, isMobile ? 14 : 24, 24),
-                  child: _isGridView
-                      ? LayoutBuilder(
-                          builder: (context, constraints) {
-                            final crossAxisCount = constraints.maxWidth > 1400
-                                ? 3
-                                : constraints.maxWidth > 900
-                                    ? 2
-                                    : 1;
+              : _isGridView
+                  ? Padding(
+                      padding: EdgeInsets.fromLTRB(isMobile ? 14 : 24, 0, isMobile ? 14 : 24, 24),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final crossAxisCount = constraints.maxWidth > 1400
+                              ? 3
+                              : constraints.maxWidth > 600
+                                  ? 2
+                                  : 2;
 
-                            return GridView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                crossAxisSpacing: 20,
-                                mainAxisSpacing: 20,
-                                mainAxisExtent: 174,
-                              ),
-                              itemCount: filteredRooms.length,
-                              itemBuilder: (context, index) {
-                                return _RoomCard(
-                                  room: filteredRooms[index],
-                                  onViewRoom: widget.onViewRoom,
-                                  onEditRoom: widget.onEditRoom,
-                                );
-                              },
-                            );
-                          },
-                        )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: filteredRooms.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 16),
-                          itemBuilder: (context, index) {
-                            return SizedBox(
-                              height: 174,
-                              child: _RoomCard(
+                          return GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount,
+                              crossAxisSpacing: 20,
+                              mainAxisSpacing: 20,
+                              mainAxisExtent: 174,
+                            ),
+                            itemCount: filteredRooms.length,
+                            itemBuilder: (context, index) {
+                              return _RoomCard(
                                 room: filteredRooms[index],
                                 onViewRoom: widget.onViewRoom,
                                 onEditRoom: widget.onEditRoom,
-                              ),
-                            );
-                          },
-                        ),
-                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    )
+                  : isMobile
+                      ? Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: filteredRooms.length,
+                            separatorBuilder: (context, index) => const SizedBox(height: 16),
+                            itemBuilder: (context, index) {
+                              return SizedBox(
+                                height: 174,
+                                child: _RoomCard(
+                                  room: filteredRooms[index],
+                                  onViewRoom: widget.onViewRoom,
+                                  onEditRoom: widget.onEditRoom,
+                                ),
+                              );
+                            },
+                          ),
+                        )
+                      : _buildRoomsTable(filteredRooms),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRoomsTable(List<Map<String, dynamic>> filtered) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          decoration: BoxDecoration(
+            color: AdminStyles.bg.withValues(alpha: 0.5),
+            border: Border(
+              top: BorderSide(color: _borderColor),
+              bottom: BorderSide(color: _borderColor),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(flex: 1, child: _buildTableHeader('Code')),
+              Expanded(flex: 2, child: _buildTableHeader('Name')),
+              Expanded(flex: 2, child: _buildTableHeader('Department')),
+              Expanded(flex: 2, child: _buildTableHeader('Building')),
+              Expanded(flex: 1, child: _buildTableHeader('Status')),
+              Expanded(flex: 1, child: _buildTableHeader('Action')),
+            ],
+          ),
+        ),
+        ListView.separated(
+          shrinkWrap: true,
+          padding: const EdgeInsets.only(bottom: 24),
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: filtered.length,
+          separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor.withValues(alpha: 0.5)),
+          itemBuilder: (context, index) {
+            return _RoomTableRow(
+              room: filtered[index],
+              onViewRoom: widget.onViewRoom,
+              onEditRoom: widget.onEditRoom,
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTableHeader(String title) {
+    return Text(
+      title.toUpperCase(),
+      style: AdminStyles.bodyStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        color: AdminStyles.textSecondary,
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+
+  Widget _buildStatusFilterButton(String label, int index) {
+    final isSelected = _selectedFilter == index;
+    final themeColor = index == 0 
+        ? AdminStyles.primary 
+        : index == 1 
+            ? AdminStyles.success 
+            : AdminStyles.error;
+
+    return InkWell(
+      onTap: () => setState(() => _selectedFilter = index),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? themeColor : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? themeColor : AdminStyles.border,
+            width: 1.0,
+          ),
+        ),
+        child: Text(
+          label,
+          style: AdminStyles.bodyStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected ? Colors.white : AdminStyles.textSecondary,
+          ),
+        ),
       ),
     );
   }
@@ -649,16 +589,16 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFCFE0F5)),
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AdminStyles.border),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFCFE0F5)),
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AdminStyles.border),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFF93C5FD)),
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AdminStyles.primaryLight),
           ),
         ),
       ),
@@ -685,25 +625,18 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Rooms Management',
-              style: AdminStyles.pageTitleStyle(),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Manage facilities and room information.',
-              style: AdminStyles.pageSubtitleStyle(),
-            ),
-          ],
+        Text(
+          'Rooms Management',
+          style: AdminStyles.pageTitleStyle(),
         ),
-        _buildViewToggle(),
+        const SizedBox(height: 8),
+        Text(
+          'Manage facilities and room information.',
+          style: AdminStyles.pageSubtitleStyle(),
+        ),
       ],
     );
   }
@@ -1148,28 +1081,13 @@ class _RoomCardState extends State<_RoomCard> {
   @override
   Widget build(BuildContext context) {
     final isAvailable = _lower(widget.room['status']) == 'available';
-    final statusColor = isAvailable ? const Color(0xFF10B981) : const Color(0xFFF59E0B);
+    final statusColor = isAvailable ? AdminStyles.success : AdminStyles.error;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
-        decoration: AdminStyles.cardDecoration(
-          borderRadius: 24,
-          borderColor: _isHovered ? AdminStyles.primary : null,
-        ).copyWith(
-          boxShadow: _isHovered
-              ? [
-                  BoxShadow(
-                    color: AdminStyles.primary.withValues(alpha: 0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ]
-              : null,
-        ),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
+      decoration: AdminStyles.cardDecoration(
+        borderRadius: 24,
+      ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1207,18 +1125,18 @@ class _RoomCardState extends State<_RoomCard> {
               ],
             ),
             const SizedBox(height: 10),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
+            LayoutBuilder(
+              builder: (context, cardConstraints) {
+                final isNarrow = cardConstraints.maxWidth < 300;
+
+                if (isNarrow) {
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         _text(widget.room['name'], fallback: 'Unnamed Room'),
                         style: AdminStyles.headingStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w800,
                         ),
                         maxLines: 1,
@@ -1227,86 +1145,165 @@ class _RoomCardState extends State<_RoomCard> {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(Icons.apartment_outlined, size: 14, color: AdminStyles.textMuted),
+                          const Icon(Icons.apartment_outlined, size: 12, color: AdminStyles.textMuted),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
                               _text(widget.room['building']),
-                              style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                              style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 8),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          const Icon(Icons.badge_outlined, size: 14, color: AdminStyles.textMuted),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              _text(widget.room['department']),
-                              style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                          _ActionIconButton(
+                            tooltip: 'View room',
+                            icon: Icons.visibility_outlined,
+                            onTap: () {
+                              final selectedRoom = widget.room['room'] as Room;
+                              if (widget.onViewRoom != null) {
+                                widget.onViewRoom!(selectedRoom);
+                                return;
+                              }
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AdminRoomDetailsPageWeb(room: selectedRoom),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _ActionIconButton(
+                            tooltip: 'Edit room',
+                            icon: Icons.edit_outlined,
+                            onTap: () {
+                              final selectedRoom = widget.room['room'] as Room;
+                              if (widget.onEditRoom != null) {
+                                widget.onEditRoom!(selectedRoom);
+                                return;
+                              }
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AdminEditRoomPageWeb(room: selectedRoom),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    _ActionIconButton(
-                      tooltip: 'View room',
-                      icon: Icons.visibility_outlined,
-                      onTap: () {
-                        final selectedRoom = widget.room['room'] as Room;
-                        if (widget.onViewRoom != null) {
-                          widget.onViewRoom!(selectedRoom);
-                          return;
-                        }
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AdminRoomDetailsPageWeb(room: selectedRoom),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _text(widget.room['name'], fallback: 'Unnamed Room'),
+                            style: AdminStyles.headingStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        );
-                      },
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              const Icon(Icons.apartment_outlined, size: 14, color: AdminStyles.textMuted),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  _text(widget.room['building']),
+                                  style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              const Icon(Icons.badge_outlined, size: 14, color: AdminStyles.textMuted),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  _text(widget.room['department']),
+                                  style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    _ActionIconButton(
-                      tooltip: 'Edit room',
-                      icon: Icons.edit_outlined,
-                      onTap: () {
-                        final selectedRoom = widget.room['room'] as Room;
-                        if (widget.onEditRoom != null) {
-                          widget.onEditRoom!(selectedRoom);
-                          return;
-                        }
+                    const SizedBox(width: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ActionIconButton(
+                          tooltip: 'View room',
+                          icon: Icons.visibility_outlined,
+                          onTap: () {
+                            final selectedRoom = widget.room['room'] as Room;
+                            if (widget.onViewRoom != null) {
+                              widget.onViewRoom!(selectedRoom);
+                              return;
+                            }
 
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AdminEditRoomPageWeb(room: selectedRoom),
-                          ),
-                        );
-                      },
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AdminRoomDetailsPageWeb(room: selectedRoom),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        _ActionIconButton(
+                          tooltip: 'Edit room',
+                          icon: Icons.edit_outlined,
+                          onTap: () {
+                            final selectedRoom = widget.room['room'] as Room;
+                            if (widget.onEditRoom != null) {
+                              widget.onEditRoom!(selectedRoom);
+                              return;
+                            }
+
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AdminEditRoomPageWeb(room: selectedRoom),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                   ],
-                ),
-                // Previous layout kept for reference: action icons were bottom-centered in this card.
-              ],
+                );
+              },
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -1365,6 +1362,173 @@ class _ActionIconButton extends StatelessWidget {
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: Icon(icon, size: 18, color: const Color(0xFF64748B)),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomTableRow extends StatefulWidget {
+  final Map<String, dynamic> room;
+  final ValueChanged<Room>? onViewRoom;
+  final ValueChanged<Room>? onEditRoom;
+
+  const _RoomTableRow({
+    required this.room,
+    this.onViewRoom,
+    this.onEditRoom,
+  });
+
+  @override
+  State<_RoomTableRow> createState() => _RoomTableRowState();
+}
+
+class _RoomTableRowState extends State<_RoomTableRow> {
+  bool _isHovered = false;
+
+  String _lower(dynamic value) => (value ?? '').toString().toLowerCase();
+
+  String _text(dynamic value, {String fallback = '-'}) {
+    final text = (value ?? '').toString().trim();
+    return text.isEmpty ? fallback : text;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = _lower(widget.room['status']);
+    final isAvailable = status == 'available';
+    final isUnavailable = status == 'unavailable' || status == 'maintenance';
+    final statusColor = isAvailable 
+        ? AdminStyles.success 
+        : isUnavailable 
+            ? AdminStyles.error 
+            : const Color(0xFFF59E0B);
+    final selectedRoom = widget.room['room'] as Room;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: _isHovered ? AdminStyles.primary.withValues(alpha: 0.02) : Colors.transparent,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 1,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    _text(widget.room['code'], fallback: 'N/A'),
+                    style: AdminStyles.headingStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AdminStyles.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                _text(widget.room['name'], fallback: 'Unnamed Room'),
+                style: AdminStyles.headingStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                _text(widget.room['department']),
+                style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text(
+                _text(widget.room['building']),
+                style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Expanded(
+              flex: 1,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: AdminStyles.pillDecoration(color: statusColor, isSecondary: true),
+                  child: Text(
+                    _text(widget.room['status'], fallback: 'Unknown').toUpperCase(),
+                    style: AdminStyles.headingStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      color: statusColor,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 1,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _ActionIconButton(
+                    tooltip: 'View room',
+                    icon: Icons.visibility_outlined,
+                    onTap: () {
+                      if (widget.onViewRoom != null) {
+                        widget.onViewRoom!(selectedRoom);
+                        return;
+                      }
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AdminRoomDetailsPageWeb(room: selectedRoom),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  _ActionIconButton(
+                    tooltip: 'Edit room',
+                    icon: Icons.edit_outlined,
+                    onTap: () {
+                      if (widget.onEditRoom != null) {
+                        widget.onEditRoom!(selectedRoom);
+                        return;
+                      }
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AdminEditRoomPageWeb(room: selectedRoom),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -7,6 +7,7 @@ import '../../../../shared/services/work_request_service.dart';
 import '../../shared/admin_styles.dart';
 import '../../../../shared/widgets/availability_status_badge.dart';
 import '../admin_work_process_web.dart';
+import '../../admin_nav_controller.dart';
 
 class MaintenanceManagementPageWeb extends StatefulWidget {
   const MaintenanceManagementPageWeb({super.key});
@@ -594,12 +595,17 @@ class _MaintenanceManagementPageWebState
   }
 
   void _openWorkRequest(WorkRequest request) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AdminWorkProcessWeb(request: request),
-      ),
-    );
+    final controller = AdminNavController.of(context);
+    if (controller != null) {
+      controller.openWorkProcess(request);
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AdminWorkProcessWeb(request: request),
+        ),
+      );
+    }
   }
 
   @override

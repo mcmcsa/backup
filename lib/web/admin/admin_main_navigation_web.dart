@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../router/app_router.dart';
 import '../../shared/widgets/announcements/global_announcement_listener.dart';
 import '../../authentication/services/auth_service.dart';
 import '../../shared/models/room_model.dart';
@@ -30,6 +29,9 @@ import 'shared/admin_notifications_web.dart';
 import 'shared/about_system_page.dart';
 import 'shared/settings_page_web.dart';
 import 'chat/admin_chat_page_web.dart';
+import '../../shared/models/work_request_model.dart';
+import 'tickets/admin_work_process_web.dart';
+import 'admin_nav_controller.dart';
 
 class AdminMainNavigationWeb extends StatefulWidget {
   final int initialIndex;
@@ -66,6 +68,8 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   static const int _roomsSubviewAdd = 1;
   static const int _roomsSubviewEdit = 2;
   static const int _roomsSubviewDetails = 3;
+  static const int _ticketsSubviewList = 0;
+  static const int _ticketsSubviewProcess = 1;
   static const FacilityQuickActionsConfig _facilityQuickActionsConfig =
       FacilityQuickActionsConfig(
         departmentsIndex: _departmentsIndex,
@@ -83,6 +87,8 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   bool _isMenuExpanded = true;
   int _roomsSubview = _roomsSubviewList;
   Room? _selectedRoom;
+  int _ticketsSubview = _ticketsSubviewList;
+  WorkRequest? _selectedTicket;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _sidebarScrollController = ScrollController();
 
@@ -240,7 +246,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
         return UnifiedDashboardPage(
           onViewAllWorkRequests: () {
             setState(() {
-              _selectedIndex = _workRequestsIndex; // Switch to Tickets tab
+              _selectedIndex = _ticketsIndex; // Switch to Tickets tab
             });
           },
         );
@@ -251,7 +257,20 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
       case _workRequestsIndex:
         return const AdminWorkRequestsWeb();
       case _ticketsIndex:
-        return const TicketsPageWeb();
+        if (_ticketsSubview == _ticketsSubviewProcess && _selectedTicket != null) {
+          return AdminWorkProcessWeb(
+            request: _selectedTicket!,
+            onBack: () => setState(() => _ticketsSubview = _ticketsSubviewList),
+          );
+        }
+        return TicketsPageWeb(
+          onViewDetails: (request) {
+            setState(() {
+              _selectedTicket = request;
+              _ticketsSubview = _ticketsSubviewProcess;
+            });
+          },
+        );
       case _maintenanceIndex:
         return const MaintenanceManagementPageWeb();
       case _departmentsIndex:
@@ -372,67 +391,85 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
 
   @override
   Widget build(BuildContext context) {
-    return GlobalAnnouncementListener(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact = constraints.maxWidth < 1100;
+    return AdminNavController(
+      navigateTo: (index, {request}) {
+        setState(() {
+          _selectedIndex = index;
+          if (request != null) {
+            _selectedTicket = request;
+            _ticketsSubview = _ticketsSubviewProcess;
+          }
+        });
+      },
+      openWorkProcess: (request) {
+        setState(() {
+          _selectedIndex = _ticketsIndex;
+          _selectedTicket = request;
+          _ticketsSubview = _ticketsSubviewProcess;
+        });
+      },
+      child: GlobalAnnouncementListener(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 1100;
 
-        if (isCompact) {
-          return Scaffold(
-            key: _scaffoldKey,
-            backgroundColor: _contentBg,
-            drawer: Drawer(
-              width: 280,
-              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-              child: _buildSidebar(width: 280, closeDrawerOnTap: true),
-            ),
-            body: Column(
-              children: [
-                _buildHeader(
-                  isCompact: true,
-                  onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-                ),
-                Expanded(
-                  child: Container(
-                    decoration: const BoxDecoration(color: _contentBg),
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1400),
-                      child: _getCurrentPage(),
+          if (isCompact) {
+            return Scaffold(
+              key: _scaffoldKey,
+              backgroundColor: _contentBg,
+              drawer: Drawer(
+                width: 280,
+                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                child: _buildSidebar(width: 280, closeDrawerOnTap: true),
+              ),
+              body: Column(
+                children: [
+                  _buildHeader(
+                    isCompact: true,
+                    onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
+                  ),
+                  Expanded(
+                    child: Container(
+                      decoration: const BoxDecoration(color: _contentBg),
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1400),
+                        child: _getCurrentPage(),
+                      ),
                     ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Scaffold(
+            backgroundColor: _contentBg,
+            body: Row(
+              children: [
+                _buildSidebar(),
+                Expanded(
+                  child: Column(
+                    children: [
+                      _buildHeader(),
+                      Expanded(
+                        child: Container(
+                          decoration: const BoxDecoration(color: _contentBg),
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1400),
+                            child: _getCurrentPage(),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           );
-        }
-
-        return Scaffold(
-          backgroundColor: _contentBg,
-          body: Row(
-            children: [
-              _buildSidebar(),
-              Expanded(
-                child: Column(
-                  children: [
-                    _buildHeader(),
-                    Expanded(
-                      child: Container(
-                        decoration: const BoxDecoration(color: _contentBg),
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1400),
-                          child: _getCurrentPage(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+        },
+        ),
       ),
     );
   }

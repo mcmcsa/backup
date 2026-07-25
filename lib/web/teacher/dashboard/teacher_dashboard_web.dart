@@ -196,11 +196,6 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
           Icon(Icons.assignment_outlined, size: 64, color: AdminStyles.textMuted.withValues(alpha: 0.2)),
           const SizedBox(height: 16),
           Text('No work requests yet', style: AdminStyles.headingStyle(fontSize: 18, color: AdminStyles.textMuted)),
-          const SizedBox(height: 8),
-          ElevatedButton(
-            onPressed: () => TeacherNavController.of(context)?.navigateTo(11),
-            child: const Text('Create Your First Request'),
-          ),
         ],
       ),
     );
@@ -212,7 +207,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => TeacherNavController.of(context)?.navigateTo(3),
+        onTap: () => TeacherNavController.of(context)?.navigateTo(3, request: request),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: EdgeInsets.all(isCompact ? 16 : 24),

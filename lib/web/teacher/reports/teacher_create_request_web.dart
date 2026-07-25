@@ -53,7 +53,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
-  String _selectedPriority = 'medium';
+  String _selectedPriority = '';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
 
@@ -163,7 +163,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       // ── Duplicate detection ─────────────────────────────────────────────
       final typeLabel = _selectedRequestType == 'Others'
           ? _otherRequestTypeController.text.trim()
-          : _selectedRequestType;
+          : '$_selectedRequestType: ${_otherRequestTypeController.text.trim()}';
 
       final duplicates = await DuplicateDetectionService.detect(
         roomId: room.id,
@@ -218,8 +218,13 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       
       var typeRecord = await helper.getRequestTypeByName(typeLabel);
       if (typeRecord == null) {
-         final res = await Supabase.instance.client.from('request_types').insert({'name': typeLabel}).select().maybeSingle();
-         if (res != null) typeRecord = RequestType.fromMap(res);
+        try {
+          final res = await Supabase.instance.client.from('request_types').insert({'name': typeLabel}).select().maybeSingle();
+          if (res != null) typeRecord = RequestType.fromMap(res);
+        } catch (_) {
+          // If RLS blocks inserting request type for non-admin roles, leave typeRecord null.
+          // The work request itself will still be successfully created.
+        }
       }
 
       final request = WorkRequest(
@@ -666,12 +671,15 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                 _buildChoiceChip('Others'),
               ],
             ),
-            if (_selectedRequestType == 'Others') ...[
+            if (_selectedRequestType.isNotEmpty) ...[
               const SizedBox(height: 16),
               _buildInputField(
-                label: 'Specify Other Type',
+                label: _selectedRequestType == 'Others' ? 'Specify Other Type' : 'Specify Details (what is to be ${_selectedRequestType.split(" ").first.toLowerCase()}?)',
                 controller: _otherRequestTypeController,
-                hint: 'What kind of repair is needed?',
+                hint: _selectedRequestType == 'Others'
+                    ? 'What kind of request is needed?'
+                    : 'e.g. Aircon, Door Lock, Whiteboard, Window Glass',
+                validator: (v) => v!.trim().isEmpty ? 'Required' : null,
               ),
             ],
             const SizedBox(height: 24),

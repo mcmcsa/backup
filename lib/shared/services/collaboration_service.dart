@@ -13,7 +13,7 @@ class CollaborationService {
       *,
       maintenance_users!inner(
         specialization,
-        users!inner(name)
+        users!maintenance_users_user_id_fkey(name)
       )
     ''').eq('work_request_id', workRequestId).order('role', ascending: true);
 

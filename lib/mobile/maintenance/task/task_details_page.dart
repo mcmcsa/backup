@@ -407,7 +407,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                                     child: Image.network(
                                       uploadedEvidenceUrl!,
                                       fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) => Container(
+                                      errorBuilder: (context, error, stackTrace) => Container(
                                         alignment: Alignment.center,
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 12,

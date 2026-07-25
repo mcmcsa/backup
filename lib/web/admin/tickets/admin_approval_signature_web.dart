@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
@@ -16,10 +17,12 @@ import '../../../shared/services/collaboration_service.dart';
 
 class AdminApprovalSignatureWeb extends StatefulWidget {
   final WorkRequest request;
+  final VoidCallback? onBack;
 
   const AdminApprovalSignatureWeb({
     super.key,
     required this.request,
+    this.onBack,
   });
 
   @override
@@ -33,7 +36,14 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   List<ESignature> _signatures = [];
   List<MaintenanceAccount> _maintenanceStaff = [];
   final List<String> _selectedMaintenanceIds = [];
+  String _selectedPriority = ''; // Admin must set this before signing
+  String _selectedDuration = '2 Hours';
+  final TextEditingController _customDurationController = TextEditingController();
+  String? _durationError;
   String? _maintenanceError;
+  String? _priorityError;
+  String? _pendingSignatureBase64;
+  String? _signatureError;
   RealtimeChannel? _realtimeChannel;
 
   @override
@@ -114,10 +124,26 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
 
   // --- LOGIC PORTED FROM MOBILE ---
 
-  Future<void> _approveWithSignature(String base64Signature) async {
+  Future<void> _approveWithSignature() async {
     final authService = Provider.of<AuthService>(context, listen: false);
     final user = authService.currentUser;
     if (user == null) return;
+
+    if (_selectedPriority.isEmpty) {
+      setState(() => _priorityError = 'Please set a priority level before approving.');
+      _showError('Please set the priority level first.');
+      return;
+    }
+
+    final finalDuration = _customDurationController.text.trim().isNotEmpty
+        ? _customDurationController.text.trim()
+        : _selectedDuration;
+
+    if (finalDuration.isEmpty) {
+      setState(() => _durationError = 'Please set the estimated target duration before approving.');
+      _showError('Please set the estimated duration first.');
+      return;
+    }
 
     if (_selectedMaintenanceIds.isEmpty) {
       setState(() => _maintenanceError = 'Please select at least one maintenance staff to assign');
@@ -125,9 +151,18 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
       return;
     }
 
+    if (_pendingSignatureBase64 == null || _pendingSignatureBase64!.isEmpty) {
+      setState(() => _signatureError = 'Please add your signature before approving.');
+      _showError('Please add your signature first.');
+      return;
+    }
+
     setState(() {
       _isProcessing = true;
       _maintenanceError = null;
+      _priorityError = null;
+      _durationError = null;
+      _signatureError = null;
     });
 
     try {
@@ -139,16 +174,18 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
         signerName: user.name,
         signerRole: 'admin',
         signatureType: 'approval',
-        signatureData: base64Signature,
+        signatureData: _pendingSignatureBase64!,
         signedAt: DateTime.now(),
       );
       await ESignatureService.insert(signature);
 
-      // Update work request status to approved
+      // Update work request status to approved, save admin-set priority and estimated duration
       await WorkRequestService.approveRequest(
         widget.request.id,
         user.id,
         user.name,
+        priority: _selectedPriority,
+        estimatedDuration: finalDuration,
       );
 
       // Assign the work request to the primary maintenance staff
@@ -266,7 +303,13 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => Navigator.pop(context, _isApproved),
+              onTap: () {
+                if (widget.onBack != null) {
+                  widget.onBack!();
+                } else {
+                  Navigator.pop(context, _isApproved);
+                }
+              },
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.all(10),
@@ -301,22 +344,32 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   }
 
   Widget _buildDetailsColumn() {
+    final requestor = widget.request.requestorName.isNotEmpty
+        ? widget.request.requestorName
+        : (widget.request.reportedByName ?? 'N/A');
+    final priorityDisplay = widget.request.status.toLowerCase() == 'pending'
+        ? (_selectedPriority.isNotEmpty ? _selectedPriority.toUpperCase() : '--')
+        : widget.request.priorityLabel;
+
     return Column(
       children: [
         _buildInfoCard('Information', [
           _buildSummaryRow('Tracking #', widget.request.id.substring(0, 8).toUpperCase()),
           _buildSummaryRow('Type', widget.request.typeOfRequest),
-          _buildSummaryRow('Priority', widget.request.priorityLabel),
-          _buildSummaryRow('Submitted', _formatDate(widget.request.dateSubmitted)),
+          _buildSummaryRow('Requestor', requestor),
+          _buildSummaryRow('Priority Level', priorityDisplay),
+          _buildSummaryRow('Submitted', DateFormat('MMM dd, yyyy · HH:mm').format(widget.request.dateSubmitted)),
         ]),
         const SizedBox(height: 24),
         _buildInfoCard('Location', [
           _buildSummaryRow('Building', widget.request.buildingName ?? 'N/A'),
-          _buildSummaryRow('Room', widget.request.officeRoom ?? 'N/A'),
-          _buildSummaryRow('Department', widget.request.department ?? 'N/A'),
+          _buildSummaryRow('Room', widget.request.officeRoom ?? widget.request.roomName ?? 'N/A'),
+          _buildSummaryRow('Department', widget.request.departmentName ?? widget.request.department ?? 'N/A'),
         ]),
-        const SizedBox(height: 24),
-        if (_signatures.isNotEmpty) _buildSignaturesListCard(),
+        if (_signatures.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _buildSignaturesListCard(),
+        ],
       ],
     );
   }
@@ -362,36 +415,114 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   }
 
   Widget _buildSignaturesListCard() {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+
+    final list = <Widget>[];
+
+    final reqName = widget.request.requestorName.isNotEmpty
+        ? widget.request.requestorName
+        : (widget.request.reportedByName ?? '');
+
+    final hasReqSig = _signatures.any((s) => s.signerRole == 'requestor' || s.signerRole == 'teacher' || s.signatureType == 'request');
+
+    if (!hasReqSig && reqName.isNotEmpty) {
+      list.add(
+        _buildSignatureItemRow(
+          signerName: reqName,
+          label: 'Requestor',
+          date: widget.request.dateSubmitted,
+        ),
+      );
+    }
+
+    final displaySignatures = List<ESignature>.from(_signatures);
+
+    if (_pendingSignatureBase64 != null &&
+        !displaySignatures.any((s) => s.signerRole == 'admin' || s.signatureType == 'approval')) {
+      displaySignatures.add(
+        ESignature(
+          id: 'temp',
+          workRequestId: widget.request.id,
+          signerId: user?.id ?? '',
+          signerName: user?.name ?? 'Campus Administrator',
+          signerRole: 'admin',
+          signatureType: 'approval',
+          signatureData: _pendingSignatureBase64!,
+          signedAt: DateTime.now(),
+        ),
+      );
+    }
+
+    for (final sig in displaySignatures) {
+      String label = sig.signatureTypeLabel;
+      if (sig.signerRole == 'requestor' || sig.signerRole == 'teacher' || sig.signatureType == 'request') {
+        label = 'Requestor';
+      } else if (sig.signerRole == 'admin' || sig.signatureType == 'approval') {
+        label = 'Admin Approval';
+      } else if (sig.signerRole == 'maintenance' || sig.signatureType == 'post_repair' || sig.signatureType == 'acceptance') {
+        label = 'Maintenance';
+      }
+
+      list.add(
+        _buildSignatureItemRow(
+          signerName: sig.signerName,
+          label: label,
+          date: sig.signedAt,
+        ),
+      );
+    }
+
+    if (list.isEmpty) return const SizedBox.shrink();
+
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: AdminStyles.cardDecoration(),
+      padding: const EdgeInsets.all(28),
+      decoration: AdminStyles.cardDecoration(borderRadius: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Signatures Captured', style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textSecondary)),
-          const SizedBox(height: 16),
-          ..._signatures.map((sig) => Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
+          Text(
+            'SIGNATURES CAPTURED',
+            style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
+          ),
+          const SizedBox(height: 18),
+          ...list,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignatureItemRow({
+    required String signerName,
+    required String label,
+    required DateTime date,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: AdminStyles.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.verified_rounded, size: 16, color: AdminStyles.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: AdminStyles.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
-                  child: const Icon(Icons.verified_rounded, size: 16, color: AdminStyles.primary),
+                Text(
+                  signerName,
+                  style: AdminStyles.headingStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(sig.signerName, style: AdminStyles.headingStyle(fontSize: 13)),
-                      Text('${sig.signatureTypeLabel} • ${_formatDate(sig.signedAt)}', style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted)),
-                    ],
-                  ),
+                const SizedBox(height: 2),
+                Text(
+                  '$label • ${DateFormat('MMM dd, yyyy · HH:mm').format(date)}',
+                  style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
                 ),
               ],
             ),
-          )),
+          ),
         ],
       ),
     );
@@ -423,7 +554,136 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
               ),
               const SizedBox(height: 40),
               if (!_isApproved) ...[
-                Text('Maintenance Assignment', style: AdminStyles.headingStyle(fontSize: 18)),
+                // ── Step 1: Priority Level ──────────────────────────────────
+                Text('Step 1 — Set Priority Level', style: AdminStyles.headingStyle(fontSize: 18)),
+                const SizedBox(height: 8),
+                Text(
+                  'As the Campus Admin, set the urgency level of this request before approving.',
+                  style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: ['low', 'medium', 'high'].map((level) {
+                    final isSelected = _selectedPriority == level;
+                    final color = level == 'high'
+                        ? AdminStyles.error
+                        : level == 'medium'
+                            ? AdminStyles.warning
+                            : AdminStyles.success;
+                    final icon = level == 'high'
+                        ? Icons.priority_high_rounded
+                        : level == 'medium'
+                            ? Icons.remove_rounded
+                            : Icons.arrow_downward_rounded;
+                    return Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: GestureDetector(
+                          onTap: () => setState(() { _selectedPriority = level; _priorityError = null; }),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            decoration: BoxDecoration(
+                              color: isSelected ? color.withValues(alpha: 0.12) : AdminStyles.bg,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isSelected ? color : AdminStyles.border,
+                                width: isSelected ? 2 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(icon, color: isSelected ? color : AdminStyles.textMuted, size: 24),
+                                const SizedBox(height: 8),
+                                Text(
+                                  level.toUpperCase(),
+                                  style: AdminStyles.headingStyle(
+                                    fontSize: 13,
+                                    color: isSelected ? color : AdminStyles.textMuted,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                if (_priorityError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(_priorityError!, style: AdminStyles.bodyStyle(color: AdminStyles.error, fontSize: 12)),
+                ],
+                const SizedBox(height: 40),
+                // ── Step 2: Target Duration ─────────────────────────────────
+                Text('Step 2 — Set Target Duration', style: AdminStyles.headingStyle(fontSize: 18)),
+                const SizedBox(height: 8),
+                Text(
+                  'As Campus Admin, set the estimated completion duration for this maintenance request.',
+                  style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    '1 Hour', '2 Hours', '4 Hours', '8 Hours',
+                    '1 Day', '2 Days', '3 Days', '1 Week',
+                  ].map((dur) {
+                    final isSelected = _selectedDuration == dur && _customDurationController.text.trim().isEmpty;
+                    return ChoiceChip(
+                      label: Text(dur),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() {
+                            _selectedDuration = dur;
+                            _customDurationController.clear();
+                            _durationError = null;
+                          });
+                        }
+                      },
+                      selectedColor: AdminStyles.primary.withValues(alpha: 0.15),
+                      backgroundColor: AdminStyles.bg,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(color: isSelected ? AdminStyles.primary : AdminStyles.border),
+                      ),
+                      labelStyle: TextStyle(
+                        color: isSelected ? AdminStyles.primary : AdminStyles.textPrimary,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _customDurationController,
+                  decoration: InputDecoration(
+                    hintText: 'Or enter custom duration (e.g. 5 Hours, 4 Days)...',
+                    hintStyle: AdminStyles.bodyStyle(color: AdminStyles.textMuted, fontSize: 13),
+                    filled: true,
+                    fillColor: AdminStyles.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AdminStyles.border)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AdminStyles.border)),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AdminStyles.primary, width: 2)),
+                  ),
+                  onChanged: (v) {
+                    if (v.trim().isNotEmpty) {
+                      setState(() {
+                        _durationError = null;
+                      });
+                    }
+                  },
+                ),
+                if (_durationError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(_durationError!, style: AdminStyles.bodyStyle(color: AdminStyles.error, fontSize: 12)),
+                ],
+                const SizedBox(height: 40),
+                // ── Step 3: Maintenance Assignment ──────────────────────────
+                Text('Step 3 — Maintenance Assignment', style: AdminStyles.headingStyle(fontSize: 18)),
                 const SizedBox(height: 12),
                 Text('Assign this ticket to an active maintenance staff member.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
                 const SizedBox(height: 20),
@@ -499,15 +759,70 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                   Text(_maintenanceError!, style: AdminStyles.bodyStyle(color: AdminStyles.error, fontSize: 12)),
                 ],
                 const SizedBox(height: 40),
-                Text('E-Signature Approval', style: AdminStyles.headingStyle(fontSize: 18)),
+                // ── Step 4: E-Signature ──────────────────────────────────────
+                Text('Step 4 — E-Signature', style: AdminStyles.headingStyle(fontSize: 18)),
                 const SizedBox(height: 12),
-                Text('As an administrator, please sign below to formally approve this maintenance work request.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
-                const SizedBox(height: 24),
-                SignaturePadWidget(
-                  title: 'Admin Approval Signature',
-                  subtitle: 'Use your mouse or touch device to sign',
-                  height: 250,
-                  onSignatureComplete: _approveWithSignature,
+                Text('As an administrator, provide your signature before approving this request.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _openSignatureDialog,
+                      icon: const Icon(Icons.draw_rounded, size: 20),
+                      label: Text(_pendingSignatureBase64 != null ? 'View / Change Signature' : 'Signature'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _pendingSignatureBase64 != null ? AdminStyles.primary.withValues(alpha: 0.1) : AdminStyles.primary,
+                        foregroundColor: _pendingSignatureBase64 != null ? AdminStyles.primary : Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                    ),
+                    if (_pendingSignatureBase64 != null) ...[
+                      const SizedBox(width: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AdminStyles.success.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AdminStyles.success.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.verified_rounded, color: AdminStyles.success, size: 18),
+                            const SizedBox(width: 8),
+                            Text('Signature Confirmed', style: AdminStyles.headingStyle(fontSize: 13, color: AdminStyles.success)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (_signatureError != null) ...[
+                  const SizedBox(height: 8),
+                  Text(_signatureError!, style: AdminStyles.bodyStyle(color: AdminStyles.error, fontSize: 12)),
+                ],
+                const SizedBox(height: 40),
+                // ── Final Approve Button ────────────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isProcessing ? null : _approveWithSignature,
+                    icon: _isProcessing
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.check_circle_rounded, size: 22),
+                    label: const Text(
+                      'Work Request Approve',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminStyles.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 2,
+                    ),
+                  ),
                 ),
               ] else ...[
                 Container(
@@ -552,6 +867,77 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(999), border: Border.all(color: color.withValues(alpha: 0.3))),
       child: Text(status.toUpperCase(), style: AdminStyles.headingStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+    );
+  }
+
+  void _openSignatureDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Container(
+            width: 540,
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AdminStyles.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.draw_rounded, color: AdminStyles.primary, size: 20),
+                        ),
+                        const SizedBox(width: 14),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Administrative E-Signature', style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text('Draw your official signature below and click Confirm Signature.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                          ],
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                SignaturePadWidget(
+                  title: '',
+                  subtitle: '',
+                  height: 220,
+                  onSignatureComplete: (base64) {
+                    if (base64.isNotEmpty) {
+                      setState(() {
+                        _pendingSignatureBase64 = base64;
+                        _signatureError = null;
+                      });
+                      Navigator.pop(ctx);
+                      _showSuccess('Signature confirmed! Click "Work Request Approve" below to finalize.');
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

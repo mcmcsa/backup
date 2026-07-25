@@ -186,6 +186,14 @@ class RoomService {
     );
   }
 
+  static Future<void> updateStatus(String id, String status) async {
+    await _db.from(_table).update({'status': status}).eq('id', id);
+    await AdminAuditLogService.logAction(
+      title: 'Updated Room Status',
+      details: 'Room ID: $id, Status: $status',
+    );
+  }
+
   static Future<void> updateQrCode(String id, String qrCodeData) async {
     await _db.from(_table).update({'qr_code_data': qrCodeData}).eq('id', id);
     await AdminAuditLogService.logAction(

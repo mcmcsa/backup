@@ -108,7 +108,7 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
       appBar: CommonAppBar(
         roleText: 'Welcome Maintenance Staff',
         primaryColor: const Color(0xFF4169E1),
-        showMenu: false,
+        showMenu: true,
         onNotificationPressed: () async {
           await Navigator.push(
             context,

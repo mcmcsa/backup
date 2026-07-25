@@ -53,7 +53,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
-  String _selectedPriority = 'medium';
+  String _selectedPriority = '';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
   String? _recordedVoicePath;
@@ -345,13 +345,17 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
 
         var selectedRequestTypeRecord = await helper.getRequestTypeByName(typeLabel);
         if (selectedRequestTypeRecord == null) {
-          final createdType = await Supabase.instance.client
-              .from('request_types')
-              .insert({'name': typeLabel})
-              .select()
-              .maybeSingle();
-          if (createdType != null) {
-            selectedRequestTypeRecord = RequestType.fromMap(createdType);
+          try {
+            final createdType = await Supabase.instance.client
+                .from('request_types')
+                .insert({'name': typeLabel})
+                .select()
+                .maybeSingle();
+            if (createdType != null) {
+              selectedRequestTypeRecord = RequestType.fromMap(createdType);
+            }
+          } catch (_) {
+            // If RLS blocks inserting request type for non-admin roles, leave record null.
           }
         }
 

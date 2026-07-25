@@ -12,10 +12,12 @@ import '../shared/admin_styles.dart';
 
 class AdminPreInspectionReviewWeb extends StatefulWidget {
   final WorkRequest request;
+  final VoidCallback? onBack;
 
   const AdminPreInspectionReviewWeb({
     super.key,
     required this.request,
+    this.onBack,
   });
 
   @override
@@ -287,7 +289,13 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => Navigator.pop(context),
+              onTap: () {
+                if (widget.onBack != null) {
+                  widget.onBack!();
+                } else {
+                  Navigator.pop(context);
+                }
+              },
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 padding: const EdgeInsets.all(10),

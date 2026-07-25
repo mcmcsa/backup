@@ -5,6 +5,7 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/widgets/status_selector_widget.dart';
 import '../../../shared/services/maintenance_account_service.dart';
+import '../maintenance_nav_controller.dart';
 
 class MaintenanceDashboardWeb extends StatefulWidget {
   const MaintenanceDashboardWeb({super.key});
@@ -617,10 +618,15 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
                 children: latestRequests.map((request) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _RequestRow(
-                      request: request,
-                      statusColor: _getStatusColor(request.status),
-                      priorityColor: _getPriorityColor(request.priority),
+                    child: GestureDetector(
+                      onTap: () {
+                        MaintenanceNavController.of(context)?.navigateTo(0, request: request);
+                      },
+                      child: _RequestRow(
+                        request: request,
+                        statusColor: _getStatusColor(request.status),
+                        priorityColor: _getPriorityColor(request.priority),
+                      ),
                     ),
                   );
                 }).toList(),
@@ -688,7 +694,7 @@ class _StatCardState extends State<_StatCard> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutCubic,
-        transform: Matrix4.identity()..scale(_isHovered ? 1.02 : 1.0),
+        transform: Matrix4.diagonal3Values(_isHovered ? 1.02 : 1.0, _isHovered ? 1.02 : 1.0, 1.0),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),

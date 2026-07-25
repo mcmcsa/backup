@@ -3,13 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
-import 'package:intl/intl.dart';
+import '../../../shared/services/duplicate_detection_service.dart';
 import '../shared/admin_styles.dart';
-import 'admin_work_process_web.dart';
+import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
+import 'admin_work_process_web.dart';
 
 class TicketsPageWeb extends StatefulWidget {
-  const TicketsPageWeb({super.key});
+  final void Function(WorkRequest)? onViewDetails;
+
+  const TicketsPageWeb({
+    super.key,
+    this.onViewDetails,
+  });
 
   @override
   State<TicketsPageWeb> createState() => _TicketsPageWebState();
@@ -25,6 +31,7 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
   Timer? _autoRefreshTimer;
   int _loadSequence = 0;
   bool _isGridView = true;
+  Set<String> _duplicateRequestIds = {};
 
   // Professional color palette mapping
   static const Color _primaryBlue = AdminStyles.primary;
@@ -38,7 +45,8 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
     'All Requests',
     'Pending',
     'In Progress',
-    'Under Maintenance',
+    'Unavailable',
+    'Duplicates',
     'Completed',
   ];
 
@@ -98,9 +106,20 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
 
     try {
       final data = await WorkRequestService.fetchAll();
+      Set<String> duplicateIds = {};
+      try {
+        final groups = await DuplicateDetectionService.fetchPotentialDuplicateGroups();
+        for (final group in groups) {
+          for (final r in group) {
+            duplicateIds.add(r.id);
+          }
+        }
+      } catch (_) {}
+
       if (mounted && currentSequence == _loadSequence) {
         setState(() {
           _requests = data;
+          _duplicateRequestIds = duplicateIds;
           _isLoading = false;
           _isRefreshing = false;
         });
@@ -133,9 +152,13 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
           .toList();
     } else if (_selectedFilter == 3) {
       requests = requests
-          .where((r) => r.status.toLowerCase() == 'under_maintenance')
+          .where((r) => r.status.toLowerCase() == 'under_maintenance' || r.status.toLowerCase() == 'maintenance')
           .toList();
     } else if (_selectedFilter == 4) {
+      requests = requests
+          .where((r) => _duplicateRequestIds.contains(r.id))
+          .toList();
+    } else if (_selectedFilter == 5) {
       requests = requests
           .where((r) => r.status.toLowerCase() == 'completed')
           .toList();
@@ -173,9 +196,13 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
             .length;
       case 3:
         return _requests
-            .where((r) => r.status.toLowerCase() == 'under_maintenance')
+            .where((r) => r.status.toLowerCase() == 'under_maintenance' || r.status.toLowerCase() == 'maintenance')
             .length;
       case 4:
+        return _requests
+            .where((r) => _duplicateRequestIds.contains(r.id))
+            .length;
+      case 5:
         return _requests
             .where((r) => r.status.toLowerCase() == 'completed')
             .length;
@@ -208,9 +235,14 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildStatsRow(maxWidth: constraints.maxWidth, isMobile: isMobile, isTablet: isTablet),
-                        const SizedBox(height: 24),
-                        _buildMainCard(isMobile: isMobile, isTablet: isTablet),
+                        // Page-level header
+                        _buildPageHeader(isMobile: isMobile),
+                        SizedBox(height: isMobile ? 14 : 20),
+                        _buildMainCard(
+                          isMobile: isMobile,
+                          isTablet: isTablet,
+                          maxWidth: constraints.maxWidth,
+                        ),
                       ],
                     ),
                   );
@@ -303,136 +335,152 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
     );
   }
 
-  Widget _buildMainCard({required bool isMobile, required bool isTablet}) {
+  /// Page-level header: "Work Request Management" + action buttons
+  Widget _buildPageHeader({required bool isMobile}) {
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Work Request Management',
+            style: AdminStyles.headingStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: _darkText,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _buildViewToggle(),
+              const Spacer(),
+              _buildCreateRequestButton(),
+              const SizedBox(width: 8),
+              _buildRefreshButton(),
+            ],
+          ),
+        ],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          'Work Request Management',
+          style: AdminStyles.headingStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: _darkText,
+          ),
+        ),
+        const Spacer(),
+        _buildViewToggle(),
+        const SizedBox(width: 10),
+        _buildCreateRequestButton(),
+        const SizedBox(width: 10),
+        _buildRefreshButton(),
+      ],
+    );
+  }
+
+  Widget _buildMainCard({
+    required bool isMobile,
+    required bool isTablet,
+    required double maxWidth,
+  }) {
     final filteredRequests = _filteredRequests;
-    final stackHeaderActions = isMobile || isTablet;
+
+    final Widget filterChips = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildStatusFilterButton('All', 0),
+          const SizedBox(width: 8),
+          _buildStatusFilterButton('Pending', 1),
+          const SizedBox(width: 8),
+          _buildStatusFilterButton('In Progress', 2),
+          const SizedBox(width: 8),
+          _buildStatusFilterButton('Unavailable', 3),
+          const SizedBox(width: 8),
+          _buildStatusFilterButton('Duplicates', 4),
+          const SizedBox(width: 8),
+          _buildStatusFilterButton('Completed', 5),
+        ],
+      ),
+    );
+
+    Widget headerContent;
+
+    if (isMobile) {
+      // Mobile: stacked — title + chips + search
+      headerContent = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _primaryBlue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.confirmation_num_rounded, color: _primaryBlue, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Tickets List', style: AdminStyles.headingStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _darkText)),
+                  Text('${filteredRequests.length} tickets', style: AdminStyles.bodyStyle(fontSize: 12, color: _subtleText)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          filterChips,
+          const SizedBox(height: 14),
+          SizedBox(width: double.infinity, child: _buildSearchBar(width: double.infinity)),
+        ],
+      );
+    } else {
+      // Desktop / Tablet: title + count | filter chips | search bar — all in one row
+      headerContent = Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: _primaryBlue.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.confirmation_num_rounded, color: _primaryBlue, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Tickets List', style: AdminStyles.headingStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _darkText)),
+              Text('${filteredRequests.length} tickets', style: AdminStyles.bodyStyle(fontSize: 12, color: _subtleText)),
+            ],
+          ),
+          const SizedBox(width: 20),
+          Expanded(child: filterChips),
+          const SizedBox(width: 16),
+          SizedBox(width: 220, child: _buildSearchBar(width: 220)),
+        ],
+      );
+    }
 
     return Container(
       decoration: AdminStyles.cardDecoration(),
       child: Column(
         children: [
-          // Header
           Padding(
-            padding: EdgeInsets.all(isMobile ? 14 : 24),
-            child: stackHeaderActions
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: _primaryBlue.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(
-                              Icons.confirmation_num_rounded,
-                              color: _primaryBlue,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _filters[_selectedFilter],
-                                style: AdminStyles.headingStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: _darkText,
-                                ),
-                              ),
-                              Text(
-                                '${filteredRequests.length} tickets',
-                                style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      SizedBox(width: double.infinity, child: _buildSearchBar(width: double.infinity)),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          _buildViewToggle(),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  _buildCreateRequestButton(),
-                                  const SizedBox(width: 8),
-                                  _buildRefreshButton(),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  )
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: _primaryBlue.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(
-                                Icons.confirmation_num_rounded,
-                                color: _primaryBlue,
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _filters[_selectedFilter],
-                                  style: AdminStyles.headingStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: _darkText,
-                                  ),
-                                ),
-                                Text(
-                                  '${filteredRequests.length} tickets',
-                                  style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(width: 220, child: _buildSearchBar(width: 220)),
-                          const SizedBox(width: 12),
-                          _buildViewToggle(),
-                          const SizedBox(width: 12),
-                          _buildCreateRequestButton(),
-                          const SizedBox(width: 12),
-                          _buildRefreshButton(),
-                        ],
-                      ),
-                    ],
-                  ),
+            padding: EdgeInsets.all(isMobile ? 14 : 20),
+            child: headerContent,
           ),
 
-          // Scrollable Grid/List of Ticket Cards
           // Grid/List of Ticket Cards
           filteredRequests.isEmpty
               ? Padding(
@@ -456,16 +504,16 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                   ),
                 )
               : Padding(
-                  padding: EdgeInsets.fromLTRB(isMobile ? 14 : 24, 0, isMobile ? 14 : 24, 24),
+                  padding: EdgeInsets.fromLTRB(isMobile ? 14 : 20, 0, isMobile ? 14 : 20, 20),
                   child: _isGridView
                       ? LayoutBuilder(
                           builder: (context, constraints) {
-                            final crossAxisCount = constraints.maxWidth > 1400 
-                                ? 3 
-                                : constraints.maxWidth > 900 
-                                    ? 2 
+                            final crossAxisCount = constraints.maxWidth > 1400
+                                ? 3
+                                : constraints.maxWidth > 900
+                                    ? 2
                                     : 1;
-                            
+
                             return GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
@@ -477,7 +525,10 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                               ),
                               itemCount: filteredRequests.length,
                               itemBuilder: (context, index) {
-                                return _TicketCard(request: filteredRequests[index]);
+                                return _TicketCard(
+                                  request: filteredRequests[index],
+                                  onViewDetails: widget.onViewDetails,
+                                );
                               },
                             );
                           },
@@ -534,15 +585,15 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFCFE0F5)),
+            borderSide: const BorderSide(color: AdminStyles.border),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFCFE0F5)),
+            borderSide: const BorderSide(color: AdminStyles.border),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF93C5FD)),
+            borderSide: const BorderSide(color: AdminStyles.primaryLight),
           ),
         ),
       ),
@@ -558,7 +609,9 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
           onTap: () => _loadRequests(isManualRefresh: true),
           borderRadius: BorderRadius.circular(10),
           child: Container(
-            padding: const EdgeInsets.all(10),
+            height: 42,
+            width: 42,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               border: Border.all(color: AdminStyles.border),
               borderRadius: BorderRadius.circular(10),
@@ -579,15 +632,18 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
   Widget _buildCreateRequestButton() {
     return Tooltip(
       message: 'Create new request manually',
-      child: ElevatedButton.icon(
-        onPressed: () => context.go('/admin/work-requests/create'),
-        icon: const Icon(Icons.add_rounded, size: 18),
-        label: const Text('Create Request'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _primaryBlue,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: SizedBox(
+        height: 42,
+        child: ElevatedButton.icon(
+          onPressed: () => context.go('/admin/work-requests/create'),
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('Create Request'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _primaryBlue,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
         ),
       ),
     );
@@ -595,6 +651,7 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
 
   Widget _buildViewToggle() {
     return Container(
+      height: 42,
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: const Color(0xFFE2E8F0),
@@ -608,7 +665,9 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
             onTap: () => setState(() => _isGridView = true),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              height: double.infinity,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: _isGridView ? Colors.white : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
@@ -647,7 +706,9 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
             onTap: () => setState(() => _isGridView = false),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              height: double.infinity,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: !_isGridView ? Colors.white : Colors.transparent,
                 borderRadius: BorderRadius.circular(8),
@@ -682,6 +743,38 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildStatusFilterButton(String label, int index) {
+    final isSelected = _selectedFilter == index;
+    final activeBgColor = AdminStyles.primary;
+    final activeTextColor = Colors.white;
+    final inactiveTextColor = AdminStyles.textSecondary;
+    final borderColor = AdminStyles.border;
+
+    return InkWell(
+      onTap: () => setState(() => _selectedFilter = index),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? activeBgColor : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected ? activeBgColor : borderColor,
+            width: 1.0,
+          ),
+        ),
+        child: Text(
+          label,
+          style: AdminStyles.bodyStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected ? activeTextColor : inactiveTextColor,
+          ),
+        ),
       ),
     );
   }
@@ -803,135 +896,130 @@ class _TableHeader extends StatelessWidget {
 
 class _TicketCard extends StatefulWidget {
   final WorkRequest request;
-  const _TicketCard({required this.request});
+  final void Function(WorkRequest)? onViewDetails;
+  
+  const _TicketCard({
+    required this.request,
+    this.onViewDetails,
+  });
 
   @override
   State<_TicketCard> createState() => _TicketCardState();
 }
 
 class _TicketCardState extends State<_TicketCard> {
-  bool _isHovered = false;
-
   @override
   Widget build(BuildContext context) {
-    final statusColor = _getStatusColor(widget.request.status);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(24),
-        decoration: AdminStyles.cardDecoration(
-          borderRadius: 24,
-          borderColor: _isHovered ? AdminStyles.primary : null,
-        ).copyWith(
-          boxShadow: _isHovered 
-            ? [BoxShadow(color: AdminStyles.primary.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 10))] 
-            : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AdminStyles.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '#${widget.request.id.length > 6 ? widget.request.id.substring(0, 6).toUpperCase() : widget.request.id.toUpperCase()}',
-                    style: AdminStyles.headingStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AdminStyles.primary,
-                    ),
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: AdminStyles.cardDecoration(
+        borderRadius: 24,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AdminStyles.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '#${widget.request.id.length > 6 ? widget.request.id.substring(0, 6).toUpperCase() : widget.request.id.toUpperCase()}',
+                  style: AdminStyles.headingStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: AdminStyles.primary,
                   ),
                 ),
-                Text(
-                  DateFormat('MMM d, y').format(widget.request.dateSubmitted),
-                  style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.request.title,
-              style: AdminStyles.headingStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              Text(
+                DateFormat('MMM d, y').format(widget.request.dateSubmitted),
+                style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            widget.request.title,
+            style: AdminStyles.headingStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.person_outline_rounded, size: 14, color: AdminStyles.textMuted),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    widget.request.requestorName,
-                    style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.person_outline_rounded, size: 14, color: AdminStyles.textMuted),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  widget.request.requestorName,
+                  style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textMuted),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    '${widget.request.officeRoom}, ${widget.request.buildingName}',
-                    style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textMuted),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '${widget.request.officeRoom}, ${widget.request.buildingName}',
+                  style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-            const Spacer(),
-            Row(
-              children: [
-                _StatusBadge(status: widget.request.status),
-                const SizedBox(width: 8),
-                _PriorityBadge(priority: widget.request.priority),
-              ],
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 40,
-              child: ElevatedButton(
-                onPressed: () async {
+              ),
+            ],
+          ),
+          const Spacer(),
+          Row(
+            children: [
+              _StatusBadge(status: widget.request.status),
+              const SizedBox(width: 8),
+              _PriorityBadge(priority: widget.request.priority),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 40,
+            child: ElevatedButton(
+              onPressed: () async {
+                if (widget.onViewDetails != null) {
+                  widget.onViewDetails!(widget.request);
+                } else {
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => AdminWorkProcessWeb(request: widget.request),
                     ),
                   );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _isHovered ? AdminStyles.primary : const Color(0xFFF1F5F9),
-                  foregroundColor: _isHovered ? Colors.white : AdminStyles.primary,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text(
-                  'VIEW DETAILS',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5),
-                ),
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF1F5F9),
+                foregroundColor: AdminStyles.primary,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text(
+                'VIEW DETAILS',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

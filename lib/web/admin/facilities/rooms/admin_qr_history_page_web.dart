@@ -28,40 +28,63 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
   DateTime? _filterStartDate;
   DateTime? _filterEndDate;
   bool _isLoading = true;
+  bool _isGridView = false;
+  String _datePreset = 'all';
+
+  final Map<String, String> _datePresets = {
+    'all': 'All Time',
+    'today': 'Today',
+    'yesterday': 'Yesterday',
+    '7days': 'Last 7 Days',
+    '30days': 'Last 30 Days',
+    'custom': 'Custom Range',
+  };
 
   List<QRCodeHistory> get _visibleHistory {
-    if (_filterStartDate == null && _filterEndDate == null) {
-      return _history;
+    final nowLocal = DateTime.now();
+    final today = DateTime(nowLocal.year, nowLocal.month, nowLocal.day);
+
+    DateTime? start;
+    DateTime? end;
+
+    switch (_datePreset) {
+      case 'today':
+        start = today;
+        end = today.add(const Duration(days: 1)).subtract(const Duration(milliseconds: 1));
+        break;
+      case 'yesterday':
+        start = today.subtract(const Duration(days: 1));
+        end = today.subtract(const Duration(milliseconds: 1));
+        break;
+      case '7days':
+        start = today.subtract(const Duration(days: 7));
+        end = nowLocal;
+        break;
+      case '30days':
+        start = today.subtract(const Duration(days: 30));
+        end = nowLocal;
+        break;
+      case 'custom':
+        start = _filterStartDate != null
+            ? DateTime(_filterStartDate!.year, _filterStartDate!.month, _filterStartDate!.day)
+            : null;
+        end = _filterEndDate != null
+            ? DateTime(_filterEndDate!.year, _filterEndDate!.month, _filterEndDate!.day, 23, 59, 59, 999)
+            : null;
+        break;
+      case 'all':
+      default:
+        return _history;
     }
 
-    final start = _filterStartDate != null
-        ? DateTime(
-            _filterStartDate!.year,
-            _filterStartDate!.month,
-            _filterStartDate!.day,
-          )
-        : null;
-    final end = _filterEndDate != null
-        ? DateTime(
-            _filterEndDate!.year,
-            _filterEndDate!.month,
-            _filterEndDate!.day,
-          )
-        : null;
-
     return _history.where((item) {
-      final created = DateTime(
-        item.createdAt.year,
-        item.createdAt.month,
-        item.createdAt.day,
-      );
-      if (start != null && created.isBefore(start)) return false;
-      if (end != null && created.isAfter(end)) return false;
+      if (start != null && item.createdAt.isBefore(start)) return false;
+      if (end != null && item.createdAt.isAfter(end)) return false;
       return true;
     }).toList();
   }
 
-  bool get _hasDateFilter => _filterStartDate != null || _filterEndDate != null;
+  bool get _hasDateFilter => _datePreset != 'all';
 
   int get _activeCount => _visibleHistory.where((item) => item.isActive).length;
 
@@ -566,36 +589,15 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 768;
 
-        return Container(
-          width: double.infinity,
-          padding: EdgeInsets.fromLTRB(
-            isMobile ? 16 : 24,
-            isMobile ? 16 : 22,
-            isMobile ? 16 : 24,
-            isMobile ? 16 : 22,
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            vertical: isMobile ? 8 : 12,
           ),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0F172A), Color(0xFF1E3A8A)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(isMobile ? 14 : 18),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x3326354A),
-                blurRadius: 26,
-                offset: Offset(0, 14),
-              ),
-            ],
-          ),
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            runSpacing: 14,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -604,55 +606,145 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
                       style: AdminStyles.headingStyle(
                         fontSize: isMobile ? 24 : 30,
                         fontWeight: FontWeight.w900,
-                        color: Colors.white,
+                        color: AdminStyles.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
                       'Review generated room QR codes, monitor usage trends, and print professional labels for onsite operations.',
                       style: AdminStyles.bodyStyle(
                         fontSize: isMobile ? 13 : 14,
                         fontWeight: FontWeight.w500,
-                        color: const Color(0xFFDDE6FF),
+                        color: AdminStyles.textSecondary,
                         height: 1.45,
                       ),
                     ),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0x26FFFFFF),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0x45FFFFFF)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.qr_code_scanner_rounded,
-                      color: Colors.white,
+              const SizedBox(width: 16),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 36,
+                    width: 36,
+                    child: OutlinedButton(
+                      onPressed: _isLoading ? null : _loadHistory,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AdminStyles.textSecondary,
+                        side: BorderSide(color: AdminStyles.border),
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Icon(Icons.refresh_rounded, size: 18),
                     ),
-                    const SizedBox(width: 10),
-                    Text(
-                      '${_visibleHistory.length} total QR code${_visibleHistory.length == 1 ? '' : 's'}',
-                      style: AdminStyles.bodyStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    height: 36,
+                    child: ElevatedButton.icon(
+                      onPressed: _visibleHistory.isEmpty ? null : _printAllQr,
+                      icon: const Icon(Icons.print_rounded, size: 16),
+                      label: const Text('Print All QR Codes'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminStyles.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        textStyle: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildViewModeToggle() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AdminStyles.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildToggleItem(
+            icon: Icons.list_rounded,
+            label: 'List View',
+            isSelected: !_isGridView,
+            onTap: () => setState(() => _isGridView = false),
+          ),
+          _buildToggleItem(
+            icon: Icons.grid_view_rounded,
+            label: 'Grid View',
+            isSelected: _isGridView,
+            onTap: () => setState(() => _isGridView = true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToggleItem({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        margin: const EdgeInsets.all(2),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? AdminStyles.primary : AdminStyles.textMuted,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: AdminStyles.bodyStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected ? AdminStyles.primary : AdminStyles.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -690,7 +782,7 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
               value: '$_activeCount',
               caption: 'Currently enabled for scanning',
               icon: Icons.verified_outlined,
-              accent: const Color(0xFF059669),
+              accent: AdminStyles.primary,
               cardWidth: cardWidth,
               mobile: isMobile,
             ),
@@ -708,7 +800,7 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
               value: latestDate,
               caption: 'Most recent generated QR',
               icon: Icons.event_available_outlined,
-              accent: const Color(0xFFEA580C),
+              accent: const Color(0xFFD97706),
               cardWidth: cardWidth,
               mobile: isMobile,
             ),
@@ -730,18 +822,7 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
     return Container(
       width: cardWidth,
       padding: EdgeInsets.all(mobile ? 14 : 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1223344A),
-            blurRadius: 14,
-            offset: Offset(0, 7),
-          ),
-        ],
-      ),
+      decoration: AdminStyles.cardDecoration(borderRadius: 14),
       child: Row(
         children: [
           Container(
@@ -762,7 +843,7 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
                   title,
                   style: AdminStyles.bodyStyle(
                     fontSize: 12,
-                    color: const Color(0xFF64748B),
+                    color: AdminStyles.textMuted,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -771,7 +852,7 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
                   value,
                   style: AdminStyles.headingStyle(
                     fontSize: mobile ? 18 : 20,
-                    color: const Color(0xFF0F172A),
+                    color: AdminStyles.textPrimary,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -780,7 +861,7 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
                   caption,
                   style: AdminStyles.bodyStyle(
                     fontSize: 11,
-                    color: const Color(0xFF94A3B8),
+                    color: AdminStyles.textMuted,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -809,12 +890,11 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: const [
+            boxShadow: [
               BoxShadow(
-                color: Color(0x1223344A),
-                blurRadius: 18,
-                offset: Offset(0, 8),
+                color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -825,12 +905,12 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
               const SizedBox(height: 10),
               _buildDateFilterFields(isMobile: isMobile),
               const SizedBox(height: 14),
-              if (!isMobile) ...[_buildListHeader(), const SizedBox(height: 8)],
+              if (!isMobile && !_isGridView) ...[_buildListHeader(), const SizedBox(height: 8)],
               if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 80),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 80),
                   child: Center(
-                    child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+                    child: CircularProgressIndicator(color: AdminStyles.primary),
                   ),
                 )
               else if (visibleHistory.isEmpty)
@@ -838,6 +918,8 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
                   padding: const EdgeInsets.only(bottom: 18),
                   child: _buildEmptyState(),
                 )
+              else if (_isGridView)
+                _buildGridView(visibleHistory)
               else
                 ...visibleHistory.map(_buildHistoryCard),
             ],
@@ -852,115 +934,82 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
       builder: (context, constraints) {
         final isMobile = constraints.maxWidth < 720;
 
-        return Container(
-          width: double.infinity,
-          padding: EdgeInsets.fromLTRB(
-            isMobile ? 12 : 16,
-            isMobile ? 12 : 14,
-            isMobile ? 12 : 16,
-            isMobile ? 12 : 14,
-          ),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFF),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            runSpacing: 12,
-            spacing: 12,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 620),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        if (isMobile) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
                     Container(
-                      width: 40,
-                      height: 40,
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFDBEAFE),
-                        borderRadius: BorderRadius.circular(10),
+                        color: AdminStyles.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Icon(
                         Icons.grid_view_rounded,
-                        color: Color(0xFF1D4ED8),
-                        size: 20,
+                        color: AdminStyles.primary,
+                        size: 18,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Generated QR Codes',
-                            style: AdminStyles.headingStyle(
-                              fontSize: 21,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFF0F172A),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _hasDateFilter
-                                ? 'Filtered results: ${_visibleHistory.length} record${_visibleHistory.length == 1 ? '' : 's'}'
-                                : 'Manage, review, and print room QR code records. Live: ${_formatLiveDateTime(_now)}',
-                            style: AdminStyles.bodyStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
+                    Text(
+                      'Generated QR Codes',
+                      style: AdminStyles.headingStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AdminStyles.textPrimary,
                       ),
                     ),
                   ],
                 ),
-              ),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: _buildViewModeToggle(),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  SizedBox(
-                    height: 44,
-                    width: isMobile ? double.infinity : null,
-                    child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : _loadHistory,
-                      icon: const Icon(Icons.refresh_rounded, size: 18),
-                      label: const Text('Refresh'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF334155),
-                        side: const BorderSide(color: Color(0xFFCBD5E1)),
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AdminStyles.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.grid_view_rounded,
+                      color: AdminStyles.primary,
+                      size: 18,
                     ),
                   ),
-                  SizedBox(
-                    height: 44,
-                    width: isMobile ? double.infinity : null,
-                    child: ElevatedButton.icon(
-                      onPressed: _visibleHistory.isEmpty ? null : _printAllQr,
-                      icon: const Icon(Icons.print_rounded, size: 18),
-                      label: const Text('Print All QR Codes'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1D4ED8),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        elevation: 0,
-                      ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Generated QR Codes',
+                    style: AdminStyles.headingStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AdminStyles.textPrimary,
                     ),
                   ),
                 ],
               ),
+              _buildViewModeToggle(),
             ],
           ),
         );
@@ -969,90 +1018,139 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
   }
 
   Widget _buildDateFilterFields({required bool isMobile}) {
-    final fromLabel = _filterStartDate == null
-        ? 'From date'
-        : _formatDate(_filterStartDate!);
-    final toLabel = _filterEndDate == null
-        ? 'To date'
-        : _formatDate(_filterEndDate!);
-
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AdminStyles.border),
       ),
       child: Wrap(
-        spacing: 10,
+        spacing: 12,
         runSpacing: 10,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          SizedBox(
-            width: isMobile ? double.infinity : 210,
-            height: 42,
-            child: OutlinedButton.icon(
-              onPressed: _pickStartDate,
-              icon: const Icon(Icons.date_range_rounded, size: 16),
-              label: Text(fromLabel),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF334155),
-                side: const BorderSide(color: Color(0xFFCBD5E1)),
-                backgroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          Container(
+            height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AdminStyles.border),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _datePreset,
+                icon: const Icon(Icons.arrow_drop_down_rounded, color: AdminStyles.textSecondary),
+                style: AdminStyles.bodyStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AdminStyles.textPrimary,
                 ),
+                borderRadius: BorderRadius.circular(8),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() {
+                      _datePreset = val;
+                      if (val != 'custom') {
+                        _filterStartDate = null;
+                        _filterEndDate = null;
+                      }
+                    });
+                  }
+                },
+                items: _datePresets.entries.map((e) {
+                  return DropdownMenuItem<String>(
+                    value: e.key,
+                    child: Text(e.value),
+                  );
+                }).toList(),
               ),
             ),
           ),
-          SizedBox(
-            width: isMobile ? double.infinity : 210,
-            height: 42,
-            child: OutlinedButton.icon(
-              onPressed: _pickEndDate,
-              icon: const Icon(Icons.event_rounded, size: 16),
-              label: Text(toLabel),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF334155),
-                side: const BorderSide(color: Color(0xFFCBD5E1)),
-                backgroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+          if (_datePreset == 'custom') ...[
+            SizedBox(
+              width: isMobile ? double.infinity : 180,
+              height: 36,
+              child: OutlinedButton.icon(
+                onPressed: _pickStartDate,
+                icon: const Icon(Icons.date_range_rounded, size: 15),
+                label: Text(
+                  _filterStartDate == null ? 'From date' : _formatDate(_filterStartDate!),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AdminStyles.textSecondary,
+                  side: BorderSide(color: AdminStyles.border),
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ),
-          ),
-          SizedBox(
-            width: isMobile ? double.infinity : 110,
-            height: 42,
-            child: TextButton.icon(
-              onPressed: _hasDateFilter ? _clearDateFilter : null,
-              icon: const Icon(Icons.clear_rounded, size: 16),
-              label: const Text('Clear'),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF475569),
-                backgroundColor: const Color(0xFFF1F5F9),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+            SizedBox(
+              width: isMobile ? double.infinity : 180,
+              height: 36,
+              child: OutlinedButton.icon(
+                onPressed: _pickEndDate,
+                icon: const Icon(Icons.event_rounded, size: 15),
+                label: Text(
+                  _filterEndDate == null ? 'To date' : _formatDate(_filterEndDate!),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AdminStyles.textSecondary,
+                  side: BorderSide(color: AdminStyles.border),
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
+          if (_hasDateFilter)
+            SizedBox(
+              width: isMobile ? double.infinity : 100,
+              height: 36,
+              child: TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _datePreset = 'all';
+                    _filterStartDate = null;
+                    _filterEndDate = null;
+                  });
+                },
+                icon: const Icon(Icons.clear_rounded, size: 15),
+                label: const Text(
+                  'Clear',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                style: TextButton.styleFrom(
+                  foregroundColor: AdminStyles.textSecondary,
+                  backgroundColor: AdminStyles.bg,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
           if (_hasDateFilter)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFFDBEAFE),
+                color: AdminStyles.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: const Color(0xFF93C5FD)),
+                border: Border.all(color: AdminStyles.primary.withValues(alpha: 0.25)),
               ),
               child: Text(
                 '${_visibleHistory.length} filtered',
                 style: AdminStyles.bodyStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF1D4ED8),
+                  color: AdminStyles.primary,
                 ),
               ),
             ),
@@ -1171,20 +1269,136 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
     final previewSize = compact ? 84.0 : 96.0;
     final qrSize = compact ? 70.0 : 82.0;
 
-    return Container(
-      width: previewSize,
-      height: previewSize,
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+    return InkWell(
+      onTap: () => _showQrCodeDialog(qr),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: previewSize,
+        height: previewSize,
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AdminStyles.border),
+        ),
+        child: QrImageView(
+          data: qr.qrCodeValue,
+          version: QrVersions.auto,
+          size: qrSize,
+          gapless: true,
+        ),
       ),
-      child: QrImageView(
-        data: qr.qrCodeValue,
-        version: QrVersions.auto,
-        size: qrSize,
-        gapless: true,
+    );
+  }
+
+  void _showQrCodeDialog(QRCodeHistory qr) {
+    final roomCode = _resolveDisplayRoomCode(qr);
+    final roomName = _resolveDisplayRoomName(qr);
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.1),
+                    blurRadius: 28,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Room QR Code',
+                          style: AdminStyles.headingStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close_rounded),
+                          color: AdminStyles.textMuted,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AdminStyles.border),
+                      ),
+                      child: QrImageView(
+                        data: qr.qrCodeValue,
+                        version: QrVersions.auto,
+                        size: 200,
+                        gapless: true,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      roomCode,
+                      style: AdminStyles.headingStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      roomName,
+                      textAlign: TextAlign.center,
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 13,
+                        color: AdminStyles.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _printSingleQr(qr);
+                            },
+                            icon: const Icon(Icons.print_rounded, size: 16),
+                            label: const Text('Print Label'),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: AdminStyles.primary.withValues(alpha: 0.3)),
+                              foregroundColor: AdminStyles.primary,
+                              height: 42,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1317,17 +1531,153 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
             icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
             label: const Text('Print'),
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFF93C5FD)),
-              foregroundColor: const Color(0xFF1D4ED8),
+              side: BorderSide(color: AdminStyles.primary.withValues(alpha: 0.3)),
+              foregroundColor: AdminStyles.primary,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(8),
               ),
               visualDensity: VisualDensity.compact,
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildGridView(List<QRCodeHistory> visibleHistory) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth > 1024
+            ? 4
+            : constraints.maxWidth > 700
+                ? 3
+                : constraints.maxWidth > 480
+                    ? 2
+                    : 1;
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: visibleHistory.length,
+          padding: const EdgeInsets.only(bottom: 16),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 0.72,
+          ),
+          itemBuilder: (context, index) {
+            final qr = visibleHistory[index];
+            final roomCode = _resolveDisplayRoomCode(qr);
+            final roomName = _resolveDisplayRoomName(qr);
+
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AdminStyles.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Status Badge
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: qr.isActive
+                            ? AdminStyles.success.withValues(alpha: 0.1)
+                            : AdminStyles.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        qr.isActive ? 'Active' : 'Inactive',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: qr.isActive ? AdminStyles.success : AdminStyles.error,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // QR Image
+                  InkWell(
+                    onTap: () => _showQrCodeDialog(qr),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AdminStyles.border),
+                      ),
+                      child: QrImageView(
+                        data: qr.qrCodeValue,
+                        version: QrVersions.auto,
+                        size: 96,
+                        gapless: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Details
+                  Text(
+                    roomCode,
+                    style: AdminStyles.headingStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    roomName,
+                    textAlign: TextAlign.center,
+                    style: AdminStyles.bodyStyle(
+                      fontSize: 11,
+                      color: AdminStyles.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Created ${_timeAgo(qr.createdAt)}',
+                    style: AdminStyles.bodyStyle(
+                      fontSize: 10,
+                      color: AdminStyles.textMuted,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Action Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 32,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _printSingleQr(qr),
+                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 14),
+                      label: const Text('Print', style: TextStyle(fontSize: 11)),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: AdminStyles.primary.withValues(alpha: 0.3)),
+                        foregroundColor: AdminStyles.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        padding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

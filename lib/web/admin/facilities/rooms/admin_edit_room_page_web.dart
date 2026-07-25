@@ -1441,7 +1441,6 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
   Widget _buildStatusChips() {
     final statuses = [
       {'key': 'available', 'label': 'Available'},
-      {'key': 'reserved', 'label': 'Reserved'},
       {'key': 'maintenance', 'label': 'Unavailable'},
     ];
 
@@ -1454,8 +1453,6 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
         final isSelected = _selectedStatus == key;
         final tone = key == 'maintenance'
             ? const Color.fromRGBO(249, 26, 22, 1)
-            : key == 'reserved'
-            ? const Color(0xFFB45309)
             : const Color(0xFF0F766E);
 
         return GestureDetector(
