@@ -1,0 +1,30 @@
+﻿Analyzing web...                                                
+
+   info - Use the null-aware marker '?' rather than a null check via an 'if' - lib\web\admin\dashboard\dashboard_page_web.dart:614:17 - use_null_aware_elements
+   info - Unnecessary use of 'toList' in a spread - lib\web\admin\facilities\admin_buildings_web.dart:208:14 - unnecessary_to_list_in_spreads
+   info - Unnecessary use of 'toList' in a spread - lib\web\admin\facilities\admin_departments_web.dart:190:14 - unnecessary_to_list_in_spreads
+   info - Unnecessary use of 'toList' in a spread - lib\web\admin\facilities\admin_room_types_web.dart:199:14 - unnecessary_to_list_in_spreads
+   info - The private field _userPhone could be 'final' - lib\web\admin\profile\admin_profile_web.dart:16:10 - prefer_final_fields
+   info - Unnecessary use of multiple underscores - lib\web\admin\shared\about_system_page.dart:272:39 - unnecessary_underscores
+   info - Don't use 'BuildContext's across async gaps - lib\web\admin\shared\notifications_page.dart:122:26 - use_build_context_synchronously
+   info - Statements in an if should be enclosed in a block - lib\web\admin\ticket\admin_post_repair_evaluation_page.dart:42:9 - curly_braces_in_flow_control_structures
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\web\admin\ticket\admin_pre_inspection_review_page.dart:404:25 - deprecated_member_use
+   info - Unnecessary use of multiple underscores - lib\web\admin\ticket\approval_queue_page.dart:279:35 - unnecessary_underscores
+   info - The private field _sortAscending could be 'final' - lib\web\admin\ticket\maintenance_history_page.dart:18:8 - prefer_final_fields
+   info - Don't use 'BuildContext's across async gaps - lib\web\admin\ticket\view_work_request_page.dart:504:37 - use_build_context_synchronously
+   info - Unnecessary use of multiple underscores - lib\web\admin\ticket\work_requests_page.dart:124:35 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\web\admin\ticket\work_requests_page.dart:124:39 - unnecessary_underscores
+   info - Unnecessary use of 'toList' in a spread - lib\web\admin\users\admin_users_web.dart:263:14 - unnecessary_to_list_in_spreads
+   info - Unnecessary use of 'toList' in a spread - lib\web\maintenance\reports\maintenance_reports_web.dart:426:12 - unnecessary_to_list_in_spreads
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\web\maintenance\task\maintenance_accept_task_web.dart:183:58 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\web\maintenance\task\maintenance_accept_task_web.dart:188:51 - use_build_context_synchronously
+   info - Unnecessary use of 'toList' in a spread - lib\web\teacher\reports\teacher_reports_web.dart:433:12 - unnecessary_to_list_in_spreads
+
+flutter : 19 issues found. (ran in 24.8s)
+At line:1 char:1
++ flutter analyze lib/web > final_status.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (19 issues found. (ran in 24.8s):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+

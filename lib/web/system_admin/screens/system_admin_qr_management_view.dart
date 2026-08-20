@@ -33,6 +33,7 @@ class _SystemAdminQrManagementViewState
   // ── Filters ───────────────────────────────────────────────────────────────
   final _searchCtrl = TextEditingController();
   String _statusFilter = 'all'; // 'all' | 'active' | 'inactive'
+  bool _isGridView = false;
 
   // ── Pagination ────────────────────────────────────────────────────────────
   static const _pageSize = 12;
@@ -229,6 +230,55 @@ class _SystemAdminQrManagementViewState
     );
   }
 
+  Future<void> _printAllQrs() async {
+    final list = _filtered;
+    if (list.isEmpty) {
+      _toast('No QR codes to print', isError: true);
+      return;
+    }
+
+    final doc = pw.Document();
+    for (final qr in list) {
+      final room = _roomsMap[qr.roomId];
+      doc.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context context) {
+            return pw.Center(
+              child: pw.Column(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  pw.Text(room?.code ?? 'Unknown Room',
+                      style: pw.TextStyle(
+                          fontSize: 40, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 10),
+                  pw.Text(room?.building ?? '',
+                      style: const pw.TextStyle(fontSize: 20)),
+                  pw.SizedBox(height: 40),
+                  pw.BarcodeWidget(
+                    data: qr.qrCodeValue,
+                    barcode: pw.Barcode.qrCode(),
+                    width: 300,
+                    height: 300,
+                  ),
+                  pw.SizedBox(height: 20),
+                  pw.Text('Scan for Maintenance Request',
+                      style: const pw.TextStyle(fontSize: 16)),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => doc.save(),
+      name: 'All_QR_Codes',
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   //  UI helpers
   // ─────────────────────────────────────────────────────────────────────────
@@ -345,9 +395,11 @@ class _SystemAdminQrManagementViewState
                     horizontal: isMobile ? 16 : 32),
                 child: _filtered.isEmpty
                     ? _buildEmpty()
-                    : isMobile
-                        ? _buildMobileCards()
-                        : _buildDesktopTable(),
+                    : _isGridView
+                        ? _buildGridView(isMobile)
+                        : (isMobile
+                            ? _buildMobileCards()
+                            : _buildDesktopTable()),
               ),
             ),
             if (_filtered.isNotEmpty)
@@ -451,6 +503,20 @@ class _SystemAdminQrManagementViewState
               Text('Manage, print, and track all room QR codes.',
                   style: AdminStyles.bodyStyle(fontSize: 13)),
             ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(
+          onPressed: _printAllQrs,
+          icon: const Icon(Icons.print_rounded, size: 18),
+          label: Text(isMobile ? 'Print All' : 'Print All QR Codes'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AdminStyles.primary,
+            foregroundColor: Colors.white,
+            padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 12 : 20, vertical: 14),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
         const SizedBox(width: 8),
@@ -609,7 +675,13 @@ class _SystemAdminQrManagementViewState
         children: [
           searchBox,
           const SizedBox(height: 8),
-          statusFilter,
+          Row(
+            children: [
+              Expanded(child: statusFilter),
+              const SizedBox(width: 8),
+              _buildViewToggle(),
+            ],
+          ),
         ],
       );
     }
@@ -618,6 +690,8 @@ class _SystemAdminQrManagementViewState
         Expanded(flex: 4, child: searchBox),
         const SizedBox(width: 10),
         Expanded(flex: 2, child: statusFilter),
+        const SizedBox(width: 10),
+        _buildViewToggle(),
       ],
     );
   }
@@ -654,6 +728,255 @@ class _SystemAdminQrManagementViewState
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildViewToggle() {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AdminStyles.border),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            onTap: () => setState(() => _isGridView = false),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: !_isGridView ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: !_isGridView
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Icon(
+                Icons.list_rounded,
+                size: 18,
+                color:
+                    !_isGridView ? AdminStyles.primary : AdminStyles.textMuted,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => setState(() => _isGridView = true),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _isGridView ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: _isGridView
+                    ? [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Icon(
+                Icons.grid_view_rounded,
+                size: 18,
+                color:
+                    _isGridView ? AdminStyles.primary : AdminStyles.textMuted,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGridView(bool isMobile) {
+    final list = _paginated;
+    return GridView.builder(
+      itemCount: list.length,
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: isMobile ? 220 : 280,
+        mainAxisSpacing: isMobile ? 12 : 16,
+        crossAxisSpacing: isMobile ? 12 : 16,
+        childAspectRatio: 0.82,
+      ),
+      itemBuilder: (context, i) => _buildGridCard(list[i]),
+    );
+  }
+
+  Widget _buildGridCard(QRCodeHistory qr) {
+    final room = _roomsMap[qr.roomId];
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AdminStyles.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Top Row: Status and Actions
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _StatusChip(isActive: qr.isActive, compact: true),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert_rounded,
+                      color: AdminStyles.textMuted, size: 18),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  onSelected: (v) {
+                    if (v == 'view') _showDetailDialog(qr, room);
+                    if (v == 'toggle') _toggleActive(qr);
+                    if (v == 'delete') _delete(qr);
+                  },
+                  itemBuilder: (ctx) => [
+                    PopupMenuItem(
+                      value: 'view',
+                      child: Row(children: [
+                        const Icon(Icons.visibility_outlined,
+                            size: 18, color: AdminStyles.secondary),
+                        const SizedBox(width: 10),
+                        Text('View Detail',
+                            style: AdminStyles.bodyStyle(
+                                color: AdminStyles.secondary,
+                                fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                    if (qr.isActive)
+                      PopupMenuItem(
+                        value: 'toggle',
+                        child: Row(children: [
+                          const Icon(Icons.do_not_disturb_on_rounded,
+                              size: 18, color: AdminStyles.warning),
+                          const SizedBox(width: 10),
+                          Text('Deactivate',
+                              style: AdminStyles.bodyStyle(
+                                  color: AdminStyles.warning,
+                                  fontWeight: FontWeight.w600)),
+                        ]),
+                      ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(children: [
+                        const Icon(Icons.delete_outline_rounded,
+                            size: 18, color: AdminStyles.error),
+                        const SizedBox(width: 10),
+                        Text('Delete',
+                            style: AdminStyles.bodyStyle(
+                                color: AdminStyles.error,
+                                fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // QR Image
+          Expanded(
+            child: Center(
+              child: Container(
+                width: 120,
+                height: 120,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: AdminStyles.border.withValues(alpha: 0.5)),
+                ),
+                child: QrImageView(
+                  data: qr.qrCodeValue,
+                  version: QrVersions.auto,
+                ),
+              ),
+            ),
+          ),
+
+          // Info Section
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Column(
+              children: [
+                Text(
+                  room?.code ?? 'Unknown Room',
+                  style: AdminStyles.headingStyle(
+                      fontSize: 15, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  room?.building ?? 'Unknown Building',
+                  style: AdminStyles.bodyStyle(
+                      fontSize: 11, color: AdminStyles.textMuted),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: AdminStyles.border),
+
+          // Bottom row: Stats and Print Button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Scans: ${qr.scannedCount}',
+                        style: AdminStyles.bodyStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        _formatDate(qr.createdAt),
+                        style: AdminStyles.bodyStyle(
+                            fontSize: 9, color: AdminStyles.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _printQr(qr, room),
+                  icon: const Icon(Icons.print_rounded, size: 18),
+                  color: AdminStyles.primary,
+                  tooltip: 'Print PDF',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -789,7 +1112,10 @@ class _SystemAdminQrManagementViewState
           // Status
           Expanded(
             flex: 2,
-            child: _StatusChip(isActive: qr.isActive),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _StatusChip(isActive: qr.isActive),
+            ),
           ),
           // Actions
           Expanded(

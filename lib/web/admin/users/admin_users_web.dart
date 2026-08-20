@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/services/faculty_user_service.dart';
+import '../../../shared/services/chat_service.dart';
 import '../shared/admin_styles.dart';
+import '../admin_main_navigation_web.dart';
+import '../admin_nav_controller.dart';
 
 class AdminUsersWeb extends StatefulWidget {
   const AdminUsersWeb({super.key});
@@ -49,7 +54,8 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
         _users = mapped;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error loading faculty users: $e');
       if (!mounted) return;
       setState(() {
         _users = [];
@@ -134,6 +140,7 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
 
   Widget _buildSearchAndActions(bool isMobile) {
     final searchField = Container(
+      width: isMobile ? double.infinity : 350,
       height: 48,
       decoration: AdminStyles.cardDecoration(borderRadius: 14),
       child: TextField(
@@ -231,6 +238,37 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
                       'Dept: ${user['department']}',
                       style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
                     ),
+                    IconButton(
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20, color: AdminStyles.primary),
+                      onPressed: () async {
+                        final currentUser = context.read<AuthService>().currentUser;
+                        if (currentUser == null) return;
+                        
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (c) => const Center(child: CircularProgressIndicator(color: AdminStyles.primary)),
+                        );
+
+                        try {
+                          final room = await ChatService.findOrCreateDirectRoom(
+                            currentUserId: currentUser.id,
+                            currentUserName: currentUser.name,
+                            currentUserRole: currentUser.role.name,
+                            otherUserId: user['id'],
+                            otherUserName: user['name'],
+                            otherUserRole: 'teacher',
+                          );
+                          if (!context.mounted) return;
+                          Navigator.of(context).pop();
+                          AdminNavController.of(context)?.navigateTo(AdminMainNavigationWeb.chatIndex, chatRoom: room);
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error starting chat: $e')));
+                        }
+                      },
+                    ),
                   ],
                 ),
               ],
@@ -254,9 +292,10 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
             child: Row(
               children: [
                 Expanded(flex: 2, child: _buildTableHeader('Full Name')),
-                Expanded(flex: 2, child: _buildTableHeader('Email Address')),
-                Expanded(flex: 1, child: _buildTableHeader('Department')),
-                Expanded(flex: 1, child: _buildTableHeader('Status')),
+                Expanded(flex: 2, child: _buildTableHeader('Email Address', align: TextAlign.center)),
+                Expanded(flex: 1, child: _buildTableHeader('Department', align: TextAlign.center)),
+                Expanded(flex: 1, child: _buildTableHeader('Status', align: TextAlign.center)),
+                SizedBox(width: 60, child: _buildTableHeader('Action', align: TextAlign.center)),
               ],
             ),
           ),
@@ -275,9 +314,10 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
     );
   }
 
-  Widget _buildTableHeader(String title) {
+  Widget _buildTableHeader(String title, {TextAlign align = TextAlign.left}) {
     return Text(
       title.toUpperCase(),
+      textAlign: align,
       style: AdminStyles.headingStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _subtleText),
     );
   }
@@ -330,6 +370,7 @@ class _UserTableRowState extends State<_UserTableRow> {
               flex: 2,
               child: Text(
                 widget.user['email'],
+                textAlign: TextAlign.center,
                 style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
               ),
             ),
@@ -337,15 +378,16 @@ class _UserTableRowState extends State<_UserTableRow> {
               flex: 1,
               child: Text(
                 widget.user['department'],
+                textAlign: TextAlign.center,
                 style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
               ),
             ),
             Expanded(
               flex: 1,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: AdminStyles.pillDecoration(color: statusColor, isSecondary: true),
-                child: Center(
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: AdminStyles.pillDecoration(color: statusColor, isSecondary: true),
                   child: Text(
                     widget.user['status'].toUpperCase(),
                     style: AdminStyles.headingStyle(
@@ -354,6 +396,42 @@ class _UserTableRowState extends State<_UserTableRow> {
                       color: statusColor,
                     ),
                   ),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 60,
+              child: Center(
+                child: IconButton(
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20, color: AdminStyles.primary),
+                  onPressed: () async {
+                    final currentUser = context.read<AuthService>().currentUser;
+                    if (currentUser == null) return;
+                    
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (c) => const Center(child: CircularProgressIndicator(color: AdminStyles.primary)),
+                    );
+
+                    try {
+                      final room = await ChatService.findOrCreateDirectRoom(
+                        currentUserId: currentUser.id,
+                        currentUserName: currentUser.name,
+                        currentUserRole: currentUser.role.name,
+                        otherUserId: widget.user['id'],
+                        otherUserName: widget.user['name'],
+                        otherUserRole: 'teacher',
+                      );
+                      if (!mounted) return;
+                      Navigator.of(context).pop();
+                      AdminNavController.of(context)?.navigateTo(AdminMainNavigationWeb.chatIndex, chatRoom: room);
+                    } catch (e) {
+                      if (!mounted) return;
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error starting chat: $e')));
+                    }
+                  },
                 ),
               ),
             ),

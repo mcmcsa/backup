@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/providers/work_request_provider.dart';
+import '../../../shared/providers/room_provider.dart';
 
 import '../shared/admin_styles.dart';
 
@@ -29,6 +30,12 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<WorkRequestProvider>().refreshRequests();
+        context.read<RoomProvider>().refreshRooms();
+      }
+    });
   }
 
   List<WorkRequest> get _allRequests {
@@ -86,7 +93,7 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
   Widget build(BuildContext context) {
     if (_error != null) {
       return Center(
-        child: Text('Error loading dashboard: $_error', style: const TextStyle(color: _accentRed)),
+        child: Text('Error loading dashboard: $_error', style: AdminStyles.bodyStyle(color: _accentRed)),
       );
     }
     
@@ -99,8 +106,8 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
 
     final pendingCount = _getCountByStatus('pending');
     final inProgressCount = _getCountByActiveStatuses();
-    final highPriorityCount = _getCountByPriority('high');
     final completedCount = _getCountByStatus('completed');
+    final roomsCount = Provider.of<RoomProvider>(context).rooms.length;
 
     return Container(
       decoration: const BoxDecoration(
@@ -129,8 +136,8 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
                       _buildStatCardsGrid(
                         pendingCount,
                         inProgressCount,
-                        highPriorityCount,
                         completedCount,
+                        roomsCount,
                       ),
                       const SizedBox(height: 20),
                       if (isCompact)
@@ -261,8 +268,8 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
   Widget _buildStatCardsGrid(
     int pendingCount,
     int inProgressCount,
-    int highPriorityCount,
     int completedCount,
+    int roomsCount,
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -287,16 +294,16 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
             icon: Icons.engineering_rounded,
           ),
           _KpiCardData(
-            title: 'High Priority',
-            value: highPriorityCount,
-            color: _accentRed,
-            icon: Icons.report_problem_rounded,
-          ),
-          _KpiCardData(
             title: 'Completed',
             value: completedCount,
             color: _accentGreen,
             icon: Icons.check_circle_rounded,
+          ),
+          _KpiCardData(
+            title: 'Rooms',
+            value: roomsCount,
+            color: Colors.purple,
+            icon: Icons.meeting_room_rounded,
           ),
         ];
 
@@ -327,9 +334,9 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
     return _SectionCard(
       title: 'Performance KPI',
       icon: Icons.analytics_rounded,
-      action: const Text(
+      action: Text(
         'Live',
-        style: TextStyle(
+        style: AdminStyles.headingStyle(
           color: _accentGreen,
           fontSize: 11,
           fontWeight: FontWeight.w700,
@@ -374,9 +381,9 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
           color: _accentRed.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(999),
         ),
-        child: const Text(
+        child: Text(
           'Priority',
-          style: TextStyle(
+          style: AdminStyles.headingStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             color: _accentRed,
@@ -406,9 +413,9 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
           minimumSize: const Size(44, 36),
           padding: const EdgeInsets.symmetric(horizontal: 8),
         ),
-        child: const Text(
+        child: Text(
           'View All',
-          style: TextStyle(
+          style: AdminStyles.headingStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
           ),
@@ -639,7 +646,7 @@ class _MiniProgress extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(
+              style: AdminStyles.bodyStyle(
                 color: _textMuted,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -647,7 +654,7 @@ class _MiniProgress extends StatelessWidget {
             ),
             Text(
               value,
-              style: const TextStyle(
+              style: AdminStyles.headingStyle(
                 color: _textPrimary,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -687,7 +694,7 @@ class _EmptyState extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           message,
-          style: const TextStyle(
+          style: AdminStyles.bodyStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
             color: _textMuted,

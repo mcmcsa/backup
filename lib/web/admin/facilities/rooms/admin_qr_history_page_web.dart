@@ -31,15 +31,6 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
   bool _isGridView = false;
   String _datePreset = 'all';
 
-  final Map<String, String> _datePresets = {
-    'all': 'All Time',
-    'today': 'Today',
-    'yesterday': 'Yesterday',
-    '7days': 'Last 7 Days',
-    '30days': 'Last 30 Days',
-    'custom': 'Custom Range',
-  };
-
   List<QRCodeHistory> get _visibleHistory {
     final nowLocal = DateTime.now();
     final today = DateTime(nowLocal.year, nowLocal.month, nowLocal.day);
@@ -187,15 +178,7 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
     return '$dateText, $hour12:$minute $period';
   }
 
-  String _formatLiveDateTime(DateTime date) {
-    final dateText = _formatDate(date);
-    final hour24 = date.hour;
-    final minute = date.minute.toString().padLeft(2, '0');
-    final second = date.second.toString().padLeft(2, '0');
-    final period = hour24 >= 12 ? 'PM' : 'AM';
-    final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
-    return '$dateText, $hour12:$minute:$second $period';
-  }
+
 
   String _timeAgo(DateTime date) {
     final diff = _now.difference(date);
@@ -218,6 +201,32 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
       initialDate: _filterStartDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AdminStyles.primary,
+              onPrimary: Colors.white,
+              onSurface: AdminStyles.textPrimary,
+              surface: Colors.white,
+            ),
+            dialogTheme: DialogThemeData(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              backgroundColor: Colors.white,
+              elevation: 20,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: AdminStyles.primary,
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked == null) return;
 
@@ -236,6 +245,32 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
       initialDate: _filterEndDate ?? _filterStartDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AdminStyles.primary,
+              onPrimary: Colors.white,
+              onSurface: AdminStyles.textPrimary,
+              surface: Colors.white,
+            ),
+            dialogTheme: DialogThemeData(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              backgroundColor: Colors.white,
+              elevation: 20,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: AdminStyles.primary,
+                textStyle: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked == null) return;
 
@@ -252,13 +287,6 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
 
     setState(() {
       _filterEndDate = picked;
-    });
-  }
-
-  void _clearDateFilter() {
-    setState(() {
-      _filterStartDate = null;
-      _filterEndDate = null;
     });
   }
 
@@ -1018,6 +1046,15 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
   }
 
   Widget _buildDateFilterFields({required bool isMobile}) {
+    final Map<String, String> datePresets = {
+      'all': 'All Time',
+      'today': 'Today',
+      'yesterday': 'Yesterday',
+      '7days': 'Last 7 Days',
+      '30days': 'Last 30 Days',
+      'custom': 'Custom Range',
+    };
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1060,7 +1097,7 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
                     });
                   }
                 },
-                items: _datePresets.entries.map((e) {
+                items: datePresets.entries.map((e) {
                   return DropdownMenuItem<String>(
                     value: e.key,
                     child: Text(e.value),
@@ -1384,7 +1421,7 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
                             style: OutlinedButton.styleFrom(
                               side: BorderSide(color: AdminStyles.primary.withValues(alpha: 0.3)),
                               foregroundColor: AdminStyles.primary,
-                              height: 42,
+                              minimumSize: const Size.fromHeight(42),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),

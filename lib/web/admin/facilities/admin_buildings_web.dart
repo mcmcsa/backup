@@ -32,12 +32,12 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
   List<Department> _departments = [];
   bool _isLoading = true;
 
-  static const Color _primaryBlue = Color(0xFF3B82F6);
-  static const Color _darkText = Color(0xFF0F172A);
-  static const Color _subtleText = Color(0xFF64748B);
-  static const Color _pageBg = Color(0xFFF1F5F9);
-  static const Color _cardBg = Colors.white;
-  static const Color _borderColor = Color(0xFFE2E8F0);
+  static const Color _primaryBlue = AdminStyles.primary;
+  static const Color _darkText = AdminStyles.textPrimary;
+  static const Color _subtleText = AdminStyles.textSecondary;
+  static const Color _pageBg = AdminStyles.bg;
+  static const Color _cardBg = AdminStyles.surface;
+  static const Color _borderColor = AdminStyles.border;
 
   @override
   void initState() {
@@ -579,7 +579,7 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
     final filtered = _filteredBuildings;
     if (filtered.isEmpty) {
       return Center(
-        child: Text('No buildings found', style: TextStyle(color: _subtleText)),
+        child: Text('No buildings found', style: AdminStyles.bodyStyle(color: _subtleText)),
       );
     }
 
@@ -591,130 +591,137 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
     return LayoutBuilder(
       builder: (context, constraints) {
         const horizontalInset = 16.0;
+        final minWidth = constraints.maxWidth > 850.0 ? constraints.maxWidth : 850.0;
 
-        return Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: _cardBg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _borderColor),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: horizontalInset),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: _borderColor)),
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: codeColWidth,
-                        child: _buildTableHeader('Code'),
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: minWidth,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: _cardBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _borderColor),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: horizontalInset),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
                       ),
-                      Expanded(child: _buildTableHeader('Building Name')),
-                      Expanded(child: _buildTableHeader('Department')),
-                      SizedBox(
-                        width: roomsColWidth,
-                        child: Center(child: _buildTableHeader('Rooms')),
+                      decoration: BoxDecoration(
+                        border: Border(bottom: BorderSide(color: _borderColor)),
                       ),
-                      SizedBox(width: columnsGap),
-                      SizedBox(
-                        width: actionsColWidth,
-                        child: _buildTableHeader('Actions'),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: codeColWidth,
+                            child: _buildTableHeader('Code'),
+                          ),
+                          Expanded(child: _buildTableHeader('Building Name')),
+                          Expanded(child: _buildTableHeader('Department')),
+                          SizedBox(
+                            width: roomsColWidth,
+                            child: Center(child: _buildTableHeader('Rooms')),
+                          ),
+                          SizedBox(width: columnsGap),
+                          SizedBox(
+                            width: actionsColWidth,
+                            child: _buildTableHeader('Actions'),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                    ...filtered.asMap().entries.map((entry) {
+                      final isLast = entry.key == filtered.length - 1;
+                      final building = entry.value;
+                      return Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: codeColWidth,
+                                  child: Text(
+                                    '${building['id'] ?? '-'}',
+                                    style: AdminStyles.bodyStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: _darkText,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    '${building['name'] ?? '-'}',
+                                    style: AdminStyles.bodyStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: _subtleText,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    '${building['department'] ?? '-'}',
+                                    style: AdminStyles.bodyStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: _subtleText,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: roomsColWidth,
+                                  child: Center(
+                                    child: Text(
+                                      '${building['rooms'] ?? '-'}',
+                                      style: AdminStyles.bodyStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: _subtleText,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: columnsGap),
+                                SizedBox(
+                                  width: actionsColWidth,
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.edit_outlined,
+                                        size: 20,
+                                        color: _primaryBlue,
+                                      ),
+                                      onPressed: () => _showEditBuildingDialog(
+                                        building['buildingModel'] as Building,
+                                      ),
+                                      tooltip: 'Edit',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!isLast) Divider(height: 1, color: _borderColor),
+                        ],
+                      );
+                    }),
+                  ],
                 ),
-                ...filtered.asMap().entries.map((entry) {
-                  final isLast = entry.key == filtered.length - 1;
-                  final building = entry.value;
-                  return Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 16,
-                        ),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: codeColWidth,
-                              child: Text(
-                                '${building['id'] ?? '-'}',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: _darkText,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                '${building['name'] ?? '-'}',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: _subtleText,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                '${building['department'] ?? '-'}',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: _subtleText,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            SizedBox(
-                              width: roomsColWidth,
-                              child: Center(
-                                child: Text(
-                                  '${building['rooms'] ?? '-'}',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: _subtleText,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: columnsGap),
-                            SizedBox(
-                              width: actionsColWidth,
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.edit_outlined,
-                                    size: 20,
-                                    color: _primaryBlue,
-                                  ),
-                                  onPressed: () => _showEditBuildingDialog(
-                                    building['buildingModel'] as Building,
-                                  ),
-                                  tooltip: 'Edit',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (!isLast) Divider(height: 1, color: _borderColor),
-                    ],
-                  );
-                }),
-              ],
+              ),
             ),
           ),
         );
@@ -723,13 +730,16 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
   }
 
   Widget _buildTableHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: _darkText,
-        letterSpacing: 0.2,
+    return Center(
+      child: Text(
+        title.toUpperCase(),
+        textAlign: TextAlign.center,
+        style: AdminStyles.bodyStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AdminStyles.textSecondary,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

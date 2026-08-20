@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../models/chat_model.dart';
 
 class ChatService {
@@ -71,14 +72,15 @@ class ChatService {
     }
 
     // Create new room
-    final roomResponse = await _db.from('chat_rooms').insert({
+    final roomId = const Uuid().v4();
+    
+    await _db.from('chat_rooms').insert({
+      'id': roomId,
       'type': 'direct',
       'created_by': currentUserId,
       'work_request_id': workRequestId,
       'updated_at': DateTime.now().toIso8601String(),
-    }).select().single();
-
-    final roomId = roomResponse['id'] as String;
+    });
 
     // Add both participants
     await _db.from('chat_participants').insert([

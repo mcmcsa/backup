@@ -5,7 +5,6 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:go_router/go_router.dart';
 import '../../admin/shared/admin_styles.dart';
 import '../teacher_nav_controller.dart';
 

@@ -671,24 +671,39 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
   }
 
   Widget _buildCardGrid(bool isMobile, List<_StatCard> cards) {
-    if (isMobile) {
-      return GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 1.55,
-        children: cards.map(_buildStatCardWidget).toList(),
-      );
-    }
-    return Row(
-      children: cards
-          .map((c) => Expanded(child: _buildStatCardWidget(c)))
-          .toList()
-          .expand((w) => [w, const SizedBox(width: 14)])
-          .toList()
-        ..removeLast(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        if (width < 550) {
+          return GridView.count(
+            crossAxisCount: 1,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 3.5,
+            children: cards.map(_buildStatCardWidget).toList(),
+          );
+        } else if (width < 800) {
+          return GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.55,
+            children: cards.map(_buildStatCardWidget).toList(),
+          );
+        }
+        return Row(
+          children: cards
+              .map((c) => Expanded(child: _buildStatCardWidget(c)))
+              .toList()
+              .expand((w) => [w, const SizedBox(width: 14)])
+              .toList()
+            ..removeLast(),
+        );
+      }
     );
   }
 
@@ -771,6 +786,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
               fontSize: 11,
               color: AdminStyles.textMuted,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

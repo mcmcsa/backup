@@ -73,6 +73,8 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
           children: [
             _buildHeader(user?.name ?? 'Teacher', isCompact),
             SizedBox(height: isCompact ? 24 : 40),
+            _buildQuickStats(pendingCount, activeCount, completedCount, isCompact),
+            SizedBox(height: isCompact ? 24 : 40),
             _buildRequestsSection(isCompact),
           ],
         ),

@@ -53,14 +53,12 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
-  String _selectedPriority = '';
+  final String _selectedPriority = '';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
 
   final List<XFile> _selectedImages = [];
   final ImagePicker _imagePicker = ImagePicker();
-
-  List<String> _buildings = [];
   List<String> _colleges = [];
   List<String> _floors = [];
   List<String> _requestTypes = [];
@@ -101,7 +99,6 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       }
 
       setState(() {
-        _buildings = buildings;
         _colleges = depts;
         _floors = floors.where((f) => f.trim().isNotEmpty).toList();
         if (_floors.isEmpty) _floors = ['N/A'];
@@ -460,12 +457,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                             const Divider(height: 24, color: Color(0xFFE2E8F0)),
                             _buildSuccessDetailRow('Location', '${_submittedRequest!.roomName} - ${_submittedRequest!.buildingName}'),
                             const Divider(height: 24, color: Color(0xFFE2E8F0)),
-                            Row(
-                              children: [
-                                Expanded(child: _buildSuccessDetailRow('Severity', _submittedRequest!.priority.toUpperCase(), isTag: true)),
-                                Expanded(child: _buildSuccessDetailRow('Reported on', '${_submittedRequest!.dateSubmitted.month}/${_submittedRequest!.dateSubmitted.day}/${_submittedRequest!.dateSubmitted.year}')),
-                              ],
-                            ),
+                            _buildSuccessDetailRow('Reported on', '${_submittedRequest!.dateSubmitted.month}/${_submittedRequest!.dateSubmitted.day}/${_submittedRequest!.dateSubmitted.year}'),
                           ],
                         ),
                       ),

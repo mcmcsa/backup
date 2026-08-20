@@ -77,8 +77,10 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.all(40),
-      color: AdminStyles.surface,
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AdminStyles.border))),
+      decoration: BoxDecoration(
+        color: AdminStyles.surface,
+        border: Border(bottom: BorderSide(color: AdminStyles.border)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

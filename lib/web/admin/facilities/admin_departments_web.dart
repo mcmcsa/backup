@@ -28,12 +28,12 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
   List<Map<String, dynamic>> _departments = [];
   bool _isLoading = true;
 
-  static const Color _primaryBlue = Color(0xFF3B82F6);
-  static const Color _darkText = Color(0xFF0F172A);
-  static const Color _subtleText = Color(0xFF64748B);
-  static const Color _pageBg = Color(0xFFF1F5F9);
-  static const Color _cardBg = Colors.white;
-  static const Color _borderColor = Color(0xFFE2E8F0);
+  static const Color _primaryBlue = AdminStyles.primary;
+  static const Color _darkText = AdminStyles.textPrimary;
+  static const Color _subtleText = AdminStyles.textSecondary;
+  static const Color _pageBg = AdminStyles.bg;
+  static const Color _cardBg = AdminStyles.surface;
+  static const Color _borderColor = AdminStyles.border;
 
   @override
   void initState() {
@@ -421,7 +421,7 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
       return Center(
         child: Text(
           'No departments found',
-          style: TextStyle(color: _subtleText),
+          style: AdminStyles.bodyStyle(color: _subtleText),
         ),
       );
     }
@@ -492,7 +492,7 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
                                     Expanded(
                                       child: Text(
                                         '${dept['name'] ?? '-'}',
-                                        style: const TextStyle(
+                                        style: AdminStyles.headingStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
                                           color: _darkText,
@@ -540,13 +540,16 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
   }
 
   Widget _buildTableHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: _darkText,
-        letterSpacing: 0.2,
+    return Center(
+      child: Text(
+        title.toUpperCase(),
+        textAlign: TextAlign.center,
+        style: AdminStyles.bodyStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AdminStyles.textSecondary,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

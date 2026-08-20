@@ -123,49 +123,9 @@ class TeacherRequestSuccessWeb extends StatelessWidget {
                     value: location,
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Severity',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF00BFA5).withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                severity,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF00BFA5),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildDetailRow(
-                          label: 'Reported on',
-                          value: DateFormat('MMMM dd, yyyy').format(reportedDate),
-                        ),
-                      ),
-                    ],
+                  _buildDetailRow(
+                    label: 'Reported on',
+                    value: DateFormat('MMMM dd, yyyy').format(reportedDate),
                   ),
                 ],
               ),

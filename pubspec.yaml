@@ -83,6 +83,7 @@ dependencies:
   universal_html: ^2.3.0
 
   path: any
+  http: ^1.6.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

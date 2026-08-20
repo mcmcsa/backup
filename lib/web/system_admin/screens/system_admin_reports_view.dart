@@ -3,12 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../authentication/models/user_model.dart';
-import '../../../shared/models/building_model.dart';
-import '../../../shared/models/department_model.dart';
 import '../../../shared/models/request_type_model.dart';
 import '../../../shared/models/work_request_model.dart';
-import '../../../shared/services/building_service.dart';
-import '../../../shared/services/department_service.dart';
 import '../../../shared/services/request_type_service.dart';
 import '../../../shared/services/system_admin_service.dart';
 import '../../../shared/services/work_request_service.dart';
@@ -32,14 +28,11 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
 
   List<WorkRequest> _allRequests = [];
   List<AppUser> _allUsers = [];
-  List<Department> _allDepartments = [];
-  List<Building> _allBuildings = [];
   List<RequestType> _allRequestTypes = [];
 
   // ── Filters ───────────────────────────────────────────────────────────────
   DateTime? _startDate;
   DateTime? _endDate;
-  String? _selectedDepartment;
   String? _selectedBuilding;
   String? _selectedRequestType;
 
@@ -59,8 +52,6 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
       final results = await Future.wait([
         WorkRequestService.fetchAll(),
         SystemAdminService.fetchAllUsers(),
-        DepartmentService.fetchAll(),
-        BuildingService.fetchAll(),
         RequestTypeService.fetchAll(),
       ]);
 
@@ -68,9 +59,7 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
         setState(() {
           _allRequests = results[0] as List<WorkRequest>;
           _allUsers = results[1] as List<AppUser>;
-          _allDepartments = results[2] as List<Department>;
-          _allBuildings = results[3] as List<Building>;
-          _allRequestTypes = results[4] as List<RequestType>;
+          _allRequestTypes = results[2] as List<RequestType>;
           _loading = false;
         });
       }
@@ -376,7 +365,6 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
         setState(() {
           _startDate = null;
           _endDate = null;
-          _selectedDepartment = null;
           _selectedBuilding = null;
           _selectedRequestType = null;
         });

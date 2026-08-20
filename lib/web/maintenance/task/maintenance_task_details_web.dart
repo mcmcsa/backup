@@ -660,7 +660,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
   Widget _buildInfoPanel() {
     return Column(
       children: [
-        if (!_isAssignedToMe) ...[
+        if (!_isAssignedToMe && widget.task.status.toLowerCase() != 'pending') ...[
           Container(
             padding: const EdgeInsets.all(20),
             margin: const EdgeInsets.only(bottom: 24),

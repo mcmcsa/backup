@@ -293,7 +293,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.2),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -359,7 +359,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                               color: Colors.white,
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.08),
+                                  color: Colors.black.withValues(alpha: 0.08),
                                   blurRadius: 15,
                                   offset: const Offset(0, 5),
                                 ),
@@ -389,7 +389,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                                           'assets/images/PsuLogo.png',
                                           width: 68,
                                           height: 68,
-                                          errorBuilder: (_, __, ___) => const Icon(Icons.school, size: 48, color: Colors.black),
+                                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.school, size: 48, color: Colors.black),
                                         ),
                                       ),
                                       // Title cell

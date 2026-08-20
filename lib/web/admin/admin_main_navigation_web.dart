@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../shared/widgets/announcements/global_announcement_listener.dart';
 import '../../authentication/services/auth_service.dart';
 import '../../shared/models/room_model.dart';
+import '../../shared/models/chat_model.dart';
 import 'shared/admin_styles.dart';
 import '../../shared/screens/unified_dashboard_page.dart';
 import 'users/admin_users_web.dart';
@@ -34,6 +35,8 @@ import 'tickets/admin_work_process_web.dart';
 import 'admin_nav_controller.dart';
 
 class AdminMainNavigationWeb extends StatefulWidget {
+  static const int aboutIndex = 17;
+  static const int chatIndex = 20;
   final int initialIndex;
 
   const AdminMainNavigationWeb({super.key, this.initialIndex = 0});
@@ -60,7 +63,6 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   static const int _maintenanceIndex = 14;
   static const int _requestTypesIndex = 15;
   static const int _settingsIndex = 16;
-  static const int _aboutIndex = 17;
   static const int _qrHistoryIndex = 18;
   static const int _costTrackingIndex = 19;
   static const int _chatIndex = 20;
@@ -89,6 +91,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   Room? _selectedRoom;
   int _ticketsSubview = _ticketsSubviewList;
   WorkRequest? _selectedTicket;
+  ChatRoom? _selectedChatRoom;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _sidebarScrollController = ScrollController();
 
@@ -337,12 +340,12 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
         return const MaintenanceHistoryPageWeb();
       case _settingsIndex:
         return const SettingsPageWeb();
-      case _aboutIndex:
+      case AdminMainNavigationWeb.aboutIndex:
         return const AboutSystemPage();
       case _qrHistoryIndex:
         return const AdminQrHistoryPageWeb();
       case _chatIndex:
-        return const AdminChatPageWeb();
+        return AdminChatPageWeb(initialRoom: _selectedChatRoom);
       default:
         return Container(); // Fallback
     }
@@ -392,12 +395,15 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   @override
   Widget build(BuildContext context) {
     return AdminNavController(
-      navigateTo: (index, {request}) {
+      navigateTo: (index, {request, chatRoom}) {
         setState(() {
           _selectedIndex = index;
           if (request != null) {
             _selectedTicket = request;
             _ticketsSubview = _ticketsSubviewProcess;
+          }
+          if (chatRoom != null) {
+            _selectedChatRoom = chatRoom;
           }
         });
       },

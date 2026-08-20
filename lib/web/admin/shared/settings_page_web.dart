@@ -8,6 +8,8 @@ import '../../../shared/services/admin_audit_log_service.dart';
 import '../../../shared/services/app_settings_service.dart';
 import 'admin_styles.dart';
 import 'about_system_page.dart';
+import '../admin_main_navigation_web.dart';
+import '../admin_nav_controller.dart';
 
 class SettingsPageWeb extends StatefulWidget {
   const SettingsPageWeb({super.key});
@@ -230,10 +232,7 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded, color: AdminStyles.textSecondary),
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(
-                        appBar: AppBar(title: const Text('About System'), backgroundColor: Colors.white, foregroundColor: Colors.black, elevation: 0),
-                        body: const AboutSystemPage(),
-                      )));
+                      AdminNavController.of(context)?.navigateTo(AdminMainNavigationWeb.aboutIndex);
                     },
                   ),
                 ],

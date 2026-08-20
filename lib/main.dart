@@ -25,10 +25,11 @@ Future<void> main() async {
   }
   
   // Initialize Supabase — prefer .env values; fall back to compile-time config.
-  final url = (dotenv.env['SUPABASE_URL']?.isNotEmpty == true)
+  final isEnvInitialized = dotenv.isInitialized;
+  final url = (isEnvInitialized && dotenv.env['SUPABASE_URL']?.isNotEmpty == true)
       ? dotenv.env['SUPABASE_URL']!
       : supabaseUrl;
-  final anonKey = (dotenv.env['SUPABASE_ANON_KEY']?.isNotEmpty == true)
+  final anonKey = (isEnvInitialized && dotenv.env['SUPABASE_ANON_KEY']?.isNotEmpty == true)
       ? dotenv.env['SUPABASE_ANON_KEY']!
       : supabaseAnonKey;
 

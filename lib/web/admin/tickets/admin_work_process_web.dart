@@ -1,5 +1,10 @@
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
+import '../../../shared/services/chat_service.dart';
+import '../admin_main_navigation_web.dart';
+import '../admin_nav_controller.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/models/pre_inspection_model.dart';
@@ -555,8 +560,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
             ),
           ),
           const SizedBox(width: 20),
-          _buildStatusPill(),
-          const SizedBox(width: 12),
           ElevatedButton.icon(
             onPressed: () {
               showDialog(
@@ -571,6 +574,56 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final currentUser = context.read<AuthService>().currentUser;
+              if (currentUser == null || _request == null) return;
+              
+              final reqId = _request!.requestorId;
+              if (reqId == null || reqId.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cannot message: Unknown requestor.')));
+                return;
+              }
+              
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (c) => const Center(child: CircularProgressIndicator(color: AdminStyles.primary)),
+              );
+
+              try {
+                final room = await ChatService.findOrCreateDirectRoom(
+                  currentUserId: currentUser.id,
+                  currentUserName: currentUser.name,
+                  currentUserRole: currentUser.role.name,
+                  otherUserId: reqId,
+                  otherUserName: _request!.requestorName,
+                  otherUserRole: 'teacher', // Usually teachers are requestors
+                  workRequestId: _request!.id,
+                );
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+                AdminNavController.of(context)?.navigateTo(AdminMainNavigationWeb.chatIndex, chatRoom: room);
+              } catch (e) {
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error starting chat: $e')));
+              }
+            },
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+            label: const Text('Message Requestor', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AdminStyles.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: AdminStyles.primary),
+              ),
               elevation: 0,
             ),
           ),
@@ -874,11 +927,14 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
 
   Widget _buildTimelineItem(_TimelineStep step, {bool isLast = false}) {
     Color color = AdminStyles.primary;
-    if (step.isCompleted) {
+    if (step.isCompleted)
       color = AdminStyles.success;
-    } else if (step.isActive) color = AdminStyles.primary;
-    else if (step.isWarning) color = AdminStyles.error;
-    else color = AdminStyles.textMuted.withValues(alpha: 0.3);
+    else if (step.isActive)
+      color = AdminStyles.primary;
+    else if (step.isWarning)
+      color = AdminStyles.error;
+    else
+      color = AdminStyles.textMuted.withValues(alpha: 0.3);
 
     return IntrinsicHeight(
       child: Row(
@@ -1094,21 +1150,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     );
   }
 
-  Widget _buildTimeMetric(String label, String value) {
-    return Row(
-      children: [
-        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AdminStyles.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.timer_outlined, color: AdminStyles.primary, size: 20)),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-            Text(value, style: AdminStyles.headingStyle(fontSize: 16)),
-          ],
-        ),
-      ],
-    );
-  }
 
   Widget _buildActionCard() {
     final status = _request!.status;
@@ -1217,12 +1258,10 @@ class _TimelineStep {
 /// Header icon button with professional styling and badge support
 class _HeaderIconButton extends StatefulWidget {
   final IconData icon;
-  final int badge;
   final VoidCallback onTap;
 
   const _HeaderIconButton({
     required this.icon,
-    this.badge = 0,
     required this.onTap,
   });
 
@@ -1255,28 +1294,10 @@ class _HeaderIconButtonState extends State<_HeaderIconButton> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.transparent),
                 ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Icon(
-                widget.icon,
-                color: _isHovered ? AdminStyles.primary : const Color(0xFF94A3B8),
-                size: 22,
-              ),
-              if (widget.badge > 0)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AdminStyles.error,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
+          child: Icon(
+            widget.icon,
+            color: _isHovered ? AdminStyles.primary : const Color(0xFF94A3B8),
+            size: 22,
           ),
         ),
       ),

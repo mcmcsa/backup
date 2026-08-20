@@ -36,6 +36,7 @@ import 'package:psu_maintsystem/web/teacher/reports/teacher_request_success_web.
 import '../web/teacher/teacher_navigation_web.dart' as web_teacher;
 import '../web/system_admin/system_admin_main_navigation_web.dart' as web_sysadmin;
 import '../mobile/system_admin/system_admin_main_navigation.dart' as mobile_sysadmin;
+import '../web/landing/landing_page_web.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey =
     GlobalKey<NavigatorState>();
@@ -62,8 +63,12 @@ String? resolveAuthRedirect({
 }) {
   final isAtStartup = location == appStartupRoute;
   final isAtLogin = location == '/login';
+  final isAtRoot = location == '/';
 
   if (!isSessionInitialized) {
+    if (kIsWeb && isAtRoot) {
+      return null;
+    }
     return isAtStartup ? null : appStartupRoute;
   }
 
@@ -72,19 +77,18 @@ String? resolveAuthRedirect({
   }
 
   if (user == null) {
-    if (isAtStartup) {
-      return '/login';
+    if (kIsWeb && isAtRoot) {
+      return null;
     }
-    return isAtLogin ? null : '/login';
+    if (isAtStartup) {
+      return kIsWeb ? '/' : '/login';
+    }
+    return isAtLogin ? null : (kIsWeb ? '/' : '/login');
   }
 
   final dashboardRoute = user.dashboardRoute;
 
-  if (isAtStartup) {
-    return dashboardRoute;
-  }
-
-  if (isAtLogin) {
+  if (isAtRoot || isAtStartup || isAtLogin) {
     if (consumeLoginRedirectPause()) {
       return null;
     }
@@ -113,7 +117,7 @@ String? resolveAuthRedirect({
 GoRouter buildAppRouter(AuthService authService) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: appStartupRoute,
+    initialLocation: kIsWeb ? '/' : appStartupRoute,
     refreshListenable: authService,
     redirect: (context, state) {
       return resolveAuthRedirect(
@@ -134,11 +138,8 @@ GoRouter buildAppRouter(AuthService authService) {
     routes: [
       GoRoute(
         path: '/',
-        redirect: (context, state) {
-          final user = authService.currentUser;
-          if (user == null) return '/login';
-          return user.dashboardRoute;
-        },
+        builder: (context, state) =>
+            kIsWeb ? const LandingPageWeb() : const LoginPage(),
       ),
       GoRoute(
         path: appStartupRoute,
@@ -369,62 +370,36 @@ class _AppStartupPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0B1120),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.03),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    blurRadius: 30,
-                    offset: const Offset(0, 10),
-                  ),
-                  BoxShadow(
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
-                    blurRadius: 20,
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Image.asset(
-                  'assets/images/psu_logo_v3.png',
-                  width: 50,
-                  height: 50,
-                  fit: BoxFit.contain,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: 200,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  minHeight: 4,
-                  backgroundColor: Colors.white.withValues(alpha: 0.1),
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    Color(0xFF3B82F6),
+        child: Transform.translate(
+          offset: const Offset(0, -40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 200,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    minHeight: 4,
+                    backgroundColor: Colors.white.withValues(alpha: 0.1),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFF3B82F6),
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'RESTORING SESSION...',
-              style: TextStyle(
-                color: Color(0xFF94A3B8),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 2.0,
+              const SizedBox(height: 16),
+              const Text(
+                'LOADING...',
+                style: TextStyle(
+                  color: Color(0xFF94A3B8),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2.0,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

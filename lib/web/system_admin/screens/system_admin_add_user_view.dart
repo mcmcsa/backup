@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import '../../../shared/models/department_model.dart';
 import '../../../shared/services/system_admin_service.dart';
 import '../../admin/shared/admin_styles.dart';
 
 class SystemAdminAddUserView extends StatefulWidget {
   final VoidCallback onCancel;
   final VoidCallback onSuccess;
-  final List<dynamic> departments; // Pass in departments from parent
+  final List<Department> departments; // Pass in departments from parent
 
   const SystemAdminAddUserView({
     super.key,

@@ -241,84 +241,91 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
     return Scaffold(
       body: Container(
         color: AdminStyles.bg,
+        width: double.infinity,
+        height: double.infinity,
         child: SingleChildScrollView(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 40),
-            _buildSettingsCategory('Notifications', [
-              _buildSwitchTile(
-                icon: Icons.notifications_active_rounded,
-                title: 'Enable Notifications',
-                description: 'Receive updates about requests and activity.',
-                color: AdminStyles.info,
-                value: _notificationsEnabled,
-                onChanged: _isLoadingPreferences ? null : _toggleMasterNotifications,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 40),
+                  _buildSettingsCategory('Notifications', [
+                    _buildSwitchTile(
+                      icon: Icons.notifications_active_rounded,
+                      title: 'Enable Notifications',
+                      description: 'Receive updates about requests and activity.',
+                      color: AdminStyles.info,
+                      value: _notificationsEnabled,
+                      onChanged: _isLoadingPreferences ? null : _toggleMasterNotifications,
+                    ),
+                    _buildSwitchTile(
+                      icon: Icons.email_rounded,
+                      title: 'Email Notifications',
+                      description: 'Receive updates via email.',
+                      color: AdminStyles.primary,
+                      value: _emailNotifications,
+                      onChanged: (!_isLoadingPreferences && _notificationsEnabled) ? _toggleEmailNotifications : null,
+                    ),
+                    _buildSwitchTile(
+                      icon: Icons.phone_android_rounded,
+                      title: 'Push Notifications',
+                      description: 'Receive browser push alerts.',
+                      color: AdminStyles.success,
+                      value: _pushNotifications,
+                      onChanged: (!_isLoadingPreferences && _notificationsEnabled) ? _togglePushNotifications : null,
+                    ),
+                  ]),
+                  const SizedBox(height: 32),
+                  _buildSettingsCategory('Appearance', [
+                    _buildSwitchTile(
+                      icon: themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode_outlined,
+                      title: 'Dark Mode',
+                      description: themeProvider.isDarkMode ? 'Dark theme enabled' : 'Light theme enabled',
+                      color: AdminStyles.warning,
+                      value: themeProvider.isDarkMode,
+                      onChanged: (value) async {
+                        await themeProvider.setDarkMode(value);
+                        await AdminAuditLogService.logAction(
+                          title: value ? 'Enabled Dark Mode (Web)' : 'Disabled Dark Mode (Web)',
+                          details: 'Web Settings > Appearance',
+                        );
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 32),
+                  _buildSettingsCategory('Security & Access', [
+                    _buildActionTile(
+                      icon: Icons.lock_rounded,
+                      title: 'Update Password',
+                      description: 'Ensure your account remains secure.',
+                      color: AdminStyles.error,
+                      onTap: _showChangePasswordDialog,
+                    ),
+                  ]),
+                  const SizedBox(height: 32),
+                  _buildSettingsCategory('Support', [
+                    _buildActionTile(
+                      icon: Icons.mail_rounded,
+                      title: 'Contact Us',
+                      description: 'Get help or send feedback to our team.',
+                      color: AdminStyles.primary,
+                      onTap: () {
+                        TeacherNavController.of(context)?.navigateTo(10);
+                      },
+                    ),
+                  ]),
+                ],
               ),
-              _buildSwitchTile(
-                icon: Icons.email_rounded,
-                title: 'Email Notifications',
-                description: 'Receive updates via email.',
-                color: AdminStyles.primary,
-                value: _emailNotifications,
-                onChanged: (!_isLoadingPreferences && _notificationsEnabled) ? _toggleEmailNotifications : null,
-              ),
-              _buildSwitchTile(
-                icon: Icons.phone_android_rounded,
-                title: 'Push Notifications',
-                description: 'Receive browser push alerts.',
-                color: AdminStyles.success,
-                value: _pushNotifications,
-                onChanged: (!_isLoadingPreferences && _notificationsEnabled) ? _togglePushNotifications : null,
-              ),
-            ]),
-            const SizedBox(height: 32),
-            _buildSettingsCategory('Appearance', [
-              _buildSwitchTile(
-                icon: themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode_outlined,
-                title: 'Dark Mode',
-                description: themeProvider.isDarkMode ? 'Dark theme enabled' : 'Light theme enabled',
-                color: AdminStyles.warning,
-                value: themeProvider.isDarkMode,
-                onChanged: (value) async {
-                  await themeProvider.setDarkMode(value);
-                  await AdminAuditLogService.logAction(
-                    title: value ? 'Enabled Dark Mode (Web)' : 'Disabled Dark Mode (Web)',
-                    details: 'Web Settings > Appearance',
-                  );
-                },
-              ),
-            ]),
-            const SizedBox(height: 32),
-            _buildSettingsCategory('Security & Access', [
-              _buildActionTile(
-                icon: Icons.lock_rounded,
-                title: 'Update Password',
-                description: 'Ensure your account remains secure.',
-                color: AdminStyles.error,
-                onTap: _showChangePasswordDialog,
-              ),
-            ]),
-            const SizedBox(height: 32),
-            _buildSettingsCategory('Support', [
-              _buildActionTile(
-                icon: Icons.mail_rounded,
-                title: 'Contact Us',
-                description: 'Get help or send feedback to our team.',
-                color: AdminStyles.primary,
-                onTap: () {
-                  TeacherNavController.of(context)?.navigateTo(10);
-                },
-              ),
-            ]),
-          ],
+            ),
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildHeader() {
     return Column(

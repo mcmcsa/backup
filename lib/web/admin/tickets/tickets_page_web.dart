@@ -30,7 +30,7 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
   bool _isRefreshing = false;
   Timer? _autoRefreshTimer;
   int _loadSequence = 0;
-  bool _isGridView = true;
+  bool _isGridView = false;
   Set<String> _duplicateRequestIds = {};
 
   // Professional color palette mapping
@@ -533,20 +533,73 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                             );
                           },
                         )
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: filteredRequests.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 16),
-                          itemBuilder: (context, index) {
-                            return SizedBox(
-                              height: 260,
-                              child: _TicketCard(request: filteredRequests[index]),
-                            );
-                          },
-                        ),
+                      : _buildTicketsTable(filteredRequests),
                 ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTicketsTable(List<WorkRequest> filtered) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: Row(
+              children: [
+                Expanded(flex: 1, child: _buildTableHeader('Ticket ID')),
+                Expanded(flex: 2, child: _buildTableHeader('Requestor')),
+                Expanded(flex: 2, child: _buildTableHeader('Title / Issue')),
+                Expanded(flex: 2, child: _buildTableHeader('Date & Type')),
+                Expanded(flex: 1, child: _buildTableHeader('Status')),
+                Expanded(flex: 1, child: _buildTableHeader('Action')),
+              ],
+            ),
+          ),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filtered.length,
+            separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            itemBuilder: (context, index) {
+              return _TicketTableRow(
+                request: filtered[index],
+                onViewDetails: widget.onViewDetails,
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTableHeader(String title) {
+    return Center(
+      child: Text(
+        title.toUpperCase(),
+        textAlign: TextAlign.center,
+        style: AdminStyles.bodyStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AdminStyles.textSecondary,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
@@ -1047,15 +1100,13 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: AdminStyles.pillDecoration(color: config.textColor, isSecondary: true),
-      child: Center(
-        child: Text(
-          config.label.toUpperCase(),
-          style: AdminStyles.headingStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
-            color: config.textColor,
-            letterSpacing: 0.5,
-          ),
+      child: Text(
+        config.label.toUpperCase(),
+        style: AdminStyles.headingStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          color: config.textColor,
+          letterSpacing: 0.5,
         ),
       ),
     );
@@ -1065,7 +1116,7 @@ class _StatusBadge extends StatelessWidget {
     switch (status.toLowerCase()) {
       case 'pending':
         return _Config(
-          'REVIEW',
+          'PENDING',
           const Color(0xFFFEF3C7),
           const Color(0xFFD97706),
         );
@@ -1154,4 +1205,183 @@ class _Config {
 class _PriorityConfig {
   final Color color;
   _PriorityConfig(this.color);
+}
+
+class _TicketTableRow extends StatefulWidget {
+  final WorkRequest request;
+  final void Function(WorkRequest)? onViewDetails;
+
+  const _TicketTableRow({
+    required this.request,
+    this.onViewDetails,
+  });
+
+  @override
+  State<_TicketTableRow> createState() => _TicketTableRowState();
+}
+
+class _TicketTableRowState extends State<_TicketTableRow> {
+  bool _isHovered = false;
+
+  String _text(String? value, {String fallback = '-'}) {
+    final text = (value ?? '').trim();
+    return text.isEmpty ? fallback : text;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDuplicate = widget.request.status.toLowerCase() == 'duplicate';
+    final formatter = DateFormat('MMM d, yyyy');
+    final shortId = widget.request.id.length > 8 ? widget.request.id.substring(0, 8) : widget.request.id;
+    
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: _isHovered ? AdminStyles.primary.withValues(alpha: 0.02) : Colors.transparent,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 1,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '#${shortId.toUpperCase()}',
+                    style: AdminStyles.headingStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AdminStyles.primary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _text(widget.request.requestorName, fallback: 'Unknown User'),
+                    textAlign: TextAlign.center,
+                    style: AdminStyles.headingStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    _text(widget.request.departmentName, fallback: 'No Department'),
+                    textAlign: TextAlign.center,
+                    style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _text(widget.request.title, fallback: 'No Title'),
+                    textAlign: TextAlign.center,
+                    style: AdminStyles.bodyStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AdminStyles.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    _text(widget.request.roomName, fallback: 'No Room'),
+                    textAlign: TextAlign.center,
+                    style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    formatter.format(widget.request.dateSubmitted),
+                    textAlign: TextAlign.center,
+                    style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textPrimary, fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    _text(widget.request.typeOfRequest),
+                    textAlign: TextAlign.center,
+                    style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              flex: 1,
+              child: Center(
+                child: _StatusBadge(status: isDuplicate ? 'duplicate' : widget.request.status),
+              ),
+            ),
+            Expanded(
+              flex: 1,
+              child: Center(
+                child: Tooltip(
+                  message: 'View Details',
+                  child: InkWell(
+                    onTap: () async {
+                      if (widget.onViewDetails != null) {
+                        widget.onViewDetails!(widget.request);
+                      } else {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AdminWorkProcessWeb(request: widget.request),
+                          ),
+                        );
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: const Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF64748B)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

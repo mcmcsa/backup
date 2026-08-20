@@ -73,7 +73,7 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
               [
                 if ((qr.building ?? '').isNotEmpty) qr.building!,
                 if ((qr.department ?? '').isNotEmpty) qr.department!,
-              ].join(' • '),
+              ].join(' â€¢ '),
               style: const pw.TextStyle(fontSize: 10),
               textAlign: pw.TextAlign.center,
             ),
@@ -125,7 +125,7 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
                     [
                       if ((qr.building ?? '').isNotEmpty) qr.building!,
                       if ((qr.department ?? '').isNotEmpty) qr.department!,
-                    ].join(' • '),
+                    ].join(' â€¢ '),
                     style: const pw.TextStyle(fontSize: 11),
                   ),
                 ],
@@ -313,7 +313,7 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
                                       [
                                         if (qr.building != null && qr.building!.isNotEmpty) qr.building!,
                                         if (qr.department != null && qr.department!.isNotEmpty) qr.department!,
-                                      ].join(' • '),
+                                      ].join(' â€¢ '),
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w500,
@@ -344,7 +344,7 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
                                       if (qr.lastScanned != null) ...[
                                         const SizedBox(width: 8),
                                         Text(
-                                          '• Last: ${_formatDate(qr.lastScanned!)}',
+                                          'â€¢ Last: ${_formatDate(qr.lastScanned!)}',
                                           style: TextStyle(
                                             fontSize: 11,
                                             color: Colors.grey.shade500,

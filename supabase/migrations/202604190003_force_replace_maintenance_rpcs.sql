@@ -33,7 +33,7 @@ BEGIN
       u.name::text AS full_name,
       m.employee_id::text,
       m.specialization::text,
-      m.phone::text,
+      u.phone::text,
       u.is_active,
       a.archive_at AS archived_at,
       COALESCE(a.original_created_at, m.created_at, u.created_at) AS created_at,
@@ -50,7 +50,7 @@ BEGIN
       u.name::text AS full_name,
       m.employee_id::text,
       m.specialization::text,
-      m.phone::text,
+      u.phone::text,
       u.is_active,
       NULL::TIMESTAMP WITH TIME ZONE AS archived_at,
       COALESCE(m.created_at, u.created_at) AS created_at,
@@ -108,6 +108,7 @@ BEGIN
     name,
     role,
     is_active,
+    phone,
     created_at,
     updated_at
   )
@@ -117,6 +118,7 @@ BEGIN
     trim(p_full_name),
     'maintenance',
     true,
+    NULLIF(trim(COALESCE(p_phone, '')), ''),
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
   )
@@ -125,26 +127,24 @@ BEGIN
     name = EXCLUDED.name,
     role = 'maintenance',
     is_active = true,
+    phone = EXCLUDED.phone,
     updated_at = CURRENT_TIMESTAMP;
 
   INSERT INTO public.maintenance_users (
     user_id,
     employee_id,
     specialization,
-    phone,
     created_by_admin_id
   )
   VALUES (
     v_auth_user_id,
     NULLIF(trim(p_employee_id), ''),
     NULLIF(trim(p_specialization), ''),
-    NULLIF(trim(COALESCE(p_phone, '')), ''),
     v_admin_id
   )
   ON CONFLICT (user_id) DO UPDATE SET
     employee_id = EXCLUDED.employee_id,
     specialization = EXCLUDED.specialization,
-    phone = EXCLUDED.phone,
     created_by_admin_id = COALESCE(public.maintenance_users.created_by_admin_id, EXCLUDED.created_by_admin_id),
     updated_at = CURRENT_TIMESTAMP;
 

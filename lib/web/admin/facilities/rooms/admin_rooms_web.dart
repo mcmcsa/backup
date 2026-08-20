@@ -35,7 +35,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
   String _selectedRoomType = _allRoomTypesOption;
   List<Map<String, dynamic>> _rooms = [];
   bool _isLoading = true;
-  bool _isGridView = true;
+  bool _isGridView = false;
 
   static const Color _primaryBlue = AdminStyles.primary;
   static const Color _successGreen = AdminStyles.success;
@@ -478,54 +478,68 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
   }
 
   Widget _buildRoomsTable(List<Map<String, dynamic>> filtered) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          decoration: BoxDecoration(
-            color: AdminStyles.bg.withValues(alpha: 0.5),
-            border: Border(
-              top: BorderSide(color: _borderColor),
-              bottom: BorderSide(color: _borderColor),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final minWidth = constraints.maxWidth > 800.0 ? constraints.maxWidth : 800.0;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: minWidth,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.bg.withValues(alpha: 0.5),
+                    border: Border(
+                      top: BorderSide(color: _borderColor),
+                      bottom: BorderSide(color: _borderColor),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(flex: 1, child: _buildTableHeader('Code')),
+                      Expanded(flex: 2, child: _buildTableHeader('Name')),
+                      Expanded(flex: 2, child: _buildTableHeader('Department')),
+                      Expanded(flex: 2, child: _buildTableHeader('Building')),
+                      Expanded(flex: 1, child: _buildTableHeader('Status')),
+                      Expanded(flex: 1, child: _buildTableHeader('Action')),
+                    ],
+                  ),
+                ),
+                ListView.separated(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor.withValues(alpha: 0.5)),
+                  itemBuilder: (context, index) {
+                    return _RoomTableRow(
+                      room: filtered[index],
+                      onViewRoom: widget.onViewRoom,
+                      onEditRoom: widget.onEditRoom,
+                    );
+                  },
+                ),
+              ],
             ),
           ),
-          child: Row(
-            children: [
-              Expanded(flex: 1, child: _buildTableHeader('Code')),
-              Expanded(flex: 2, child: _buildTableHeader('Name')),
-              Expanded(flex: 2, child: _buildTableHeader('Department')),
-              Expanded(flex: 2, child: _buildTableHeader('Building')),
-              Expanded(flex: 1, child: _buildTableHeader('Status')),
-              Expanded(flex: 1, child: _buildTableHeader('Action')),
-            ],
-          ),
-        ),
-        ListView.separated(
-          shrinkWrap: true,
-          padding: const EdgeInsets.only(bottom: 24),
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: filtered.length,
-          separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor.withValues(alpha: 0.5)),
-          itemBuilder: (context, index) {
-            return _RoomTableRow(
-              room: filtered[index],
-              onViewRoom: widget.onViewRoom,
-              onEditRoom: widget.onEditRoom,
-            );
-          },
-        ),
-      ],
+        );
+      }
     );
   }
 
   Widget _buildTableHeader(String title) {
-    return Text(
-      title.toUpperCase(),
-      style: AdminStyles.bodyStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
-        color: AdminStyles.textSecondary,
-        letterSpacing: 0.5,
+    return Center(
+      child: Text(
+        title.toUpperCase(),
+        textAlign: TextAlign.center,
+        style: AdminStyles.bodyStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AdminStyles.textSecondary,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
@@ -1417,8 +1431,7 @@ class _RoomTableRowState extends State<_RoomTableRow> {
           children: [
             Expanded(
               flex: 1,
-              child: Align(
-                alignment: Alignment.centerLeft,
+              child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -1440,6 +1453,7 @@ class _RoomTableRowState extends State<_RoomTableRow> {
               flex: 2,
               child: Text(
                 _text(widget.room['name'], fallback: 'Unnamed Room'),
+                textAlign: TextAlign.center,
                 style: AdminStyles.headingStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -1452,6 +1466,7 @@ class _RoomTableRowState extends State<_RoomTableRow> {
               flex: 2,
               child: Text(
                 _text(widget.room['department']),
+                textAlign: TextAlign.center,
                 style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1461,6 +1476,7 @@ class _RoomTableRowState extends State<_RoomTableRow> {
               flex: 2,
               child: Text(
                 _text(widget.room['building']),
+                textAlign: TextAlign.center,
                 style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -1468,8 +1484,7 @@ class _RoomTableRowState extends State<_RoomTableRow> {
             ),
             Expanded(
               flex: 1,
-              child: Align(
-                alignment: Alignment.centerLeft,
+              child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: AdminStyles.pillDecoration(color: statusColor, isSecondary: true),
@@ -1488,6 +1503,7 @@ class _RoomTableRowState extends State<_RoomTableRow> {
             Expanded(
               flex: 1,
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _ActionIconButton(

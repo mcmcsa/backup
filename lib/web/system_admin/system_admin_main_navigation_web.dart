@@ -5,7 +5,6 @@ import '../../authentication/services/auth_service.dart';
 
 import 'screens/system_admin_dashboard_view.dart';
 import 'screens/system_admin_users_view.dart';
-import 'screens/system_admin_rooms_view.dart';
 import 'screens/system_admin_qr_management_view.dart';
 import '../../shared/models/room_model.dart';
 import 'screens/system_admin_reports_view.dart';
@@ -54,7 +53,6 @@ class _SystemAdminMainNavigationWebState
   // Colors
   static const _sidebarBg = Color(0xFF0F172A);
   static const _sidebarBorder = Color(0xFF1E293B);
-  static const _headerBg = Colors.white;
   static const _contentBg = Color(0xFFF8FAFC);
   static const _primaryBlue = Color(0xFF0F766E); // Consistent Teal accent
 
@@ -124,8 +122,9 @@ class _SystemAdminMainNavigationWebState
     }
   }
 
-  void _handleLogout() async {
+  Future<void> _handleLogout() async {
     final authService = context.read<AuthService>();
+    if (!mounted) return;
     await authService.handleLogoutButton(context);
   }
 
@@ -146,31 +145,51 @@ class _SystemAdminMainNavigationWebState
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 850;
+
     return GlobalAnnouncementListener(
-        child: Scaffold(
-          backgroundColor: _contentBg,
-          body: Row(
-            children: [
-              _buildSidebar(),
-              Expanded(
-                child: Column(
-                  children: [
-                    _buildHeader(),
-                    Expanded(
-                      child: Container(
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1400),
-                          child: _buildBodyContent(),
+      child: Scaffold(
+        backgroundColor: _contentBg,
+        drawer: isMobile
+            ? Drawer(
+                backgroundColor: _sidebarBg,
+                child: _buildSidebarContents(isMobile: true),
+              )
+            : null,
+        body: Row(
+          children: [
+            if (!isMobile) _buildSidebar(),
+            Expanded(
+              child: Column(
+                children: [
+                  _buildHeader(isMobile: isMobile),
+                  Expanded(
+                    child: Container(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1400),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          transitionBuilder: (Widget child, Animation<double> animation) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            );
+                          },
+                          child: KeyedSubtree(
+                            key: ValueKey<int>(_selectedIndex),
+                            child: _buildBodyContent(),
+                          ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
     );
   }
 
@@ -254,49 +273,56 @@ class _SystemAdminMainNavigationWebState
         color: _sidebarBg,
         border: Border(right: BorderSide(color: _sidebarBorder, width: 1)),
       ),
-      child: Column(
-        children: [
-          // Logo Section
-          Container(
-            height: 70,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            alignment: Alignment.centerLeft,
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: _sidebarBorder)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.shield_outlined, color: Colors.tealAccent, size: 28),
-                if (_isMenuExpanded) ...[
-                  const SizedBox(width: 12),
-                  const Text(
-                    'SYSTEM ADMIN',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0,
-                    ),
+      child: _buildSidebarContents(isMobile: false),
+    );
+  }
+
+  Widget _buildSidebarContents({required bool isMobile}) {
+    return Column(
+      children: [
+        // Logo Section
+        Container(
+          height: 70,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          alignment: Alignment.centerLeft,
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: _sidebarBorder)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.shield_outlined, color: Colors.tealAccent, size: 28),
+              if (isMobile || _isMenuExpanded) ...[
+                const SizedBox(width: 12),
+                const Text(
+                  'SYSTEM ADMIN',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.0,
                   ),
-                ],
+                ),
               ],
-            ),
+            ],
           ),
-          // Nav Items
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-              itemCount: _menuItems.length,
-              itemBuilder: (context, index) {
-                final item = _menuItems[index];
-                return _buildSidebarNavItem(
-                  index: index,
-                  icon: item['icon'] as IconData,
-                  label: item['label'] as String,
-                );
-              },
-            ),
+        ),
+        // Nav Items
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+            itemCount: _menuItems.length,
+            itemBuilder: (context, index) {
+              final item = _menuItems[index];
+              return _buildSidebarNavItem(
+                index: index,
+                icon: item['icon'] as IconData,
+                label: item['label'] as String,
+                isMobile: isMobile,
+              );
+            },
           ),
+        ),
+        if (!isMobile) ...[
           // Collapse Toggle
           IconButton(
             onPressed: () => setState(() => _isMenuExpanded = !_isMenuExpanded),
@@ -309,7 +335,7 @@ class _SystemAdminMainNavigationWebState
           ),
           const SizedBox(height: 16),
         ],
-      ),
+      ],
     );
   }
 
@@ -317,6 +343,7 @@ class _SystemAdminMainNavigationWebState
     required int index,
     required IconData icon,
     required String label,
+    required bool isMobile,
   }) {
     bool isSelected = _selectedIndex == index;
     // Highlight Facility Management if a sub-view is active
@@ -329,7 +356,12 @@ class _SystemAdminMainNavigationWebState
       isSelected = true;
     }
     return InkWell(
-      onTap: () => setState(() => _selectedIndex = index),
+      onTap: () {
+        setState(() => _selectedIndex = index);
+        if (isMobile) {
+          Navigator.pop(context); // Close the drawer
+        }
+      },
       borderRadius: BorderRadius.circular(10),
       child: Container(
         height: 48,
@@ -346,7 +378,7 @@ class _SystemAdminMainNavigationWebState
               color: isSelected ? Colors.white : Colors.white70,
               size: 22,
             ),
-            if (_isMenuExpanded) ...[
+            if (isMobile || _isMenuExpanded) ...[
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -366,47 +398,69 @@ class _SystemAdminMainNavigationWebState
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader({required bool isMobile}) {
     return Container(
       height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
-        border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.2))),
-        boxShadow: [
+        border: Border(bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.2))),
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black12,
             blurRadius: 10,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
-        children: [
-          const Text(
-            'System Management Console',
-            style: TextStyle(
-              color: Color(0xFF1E293B),
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            _userName,
-            style: const TextStyle(
-              color: Color(0xFF475569),
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 16),
-          IconButton(
-            onPressed: _handleLogout,
-            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-            tooltip: 'Logout',
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showFullTitle = constraints.maxWidth > 500;
+          return Row(
+            children: [
+              if (isMobile) ...[
+                Builder(
+                  builder: (context) => IconButton(
+                    icon: const Icon(Icons.menu_rounded, color: Color(0xFF1E293B)),
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child: Text(
+                  showFullTitle ? 'System Management Console' : 'Console',
+                  style: const TextStyle(
+                    color: Color(0xFF1E293B),
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const Spacer(),
+              Flexible(
+                child: Text(
+                  _userName,
+                  style: const TextStyle(
+                    color: Color(0xFF475569),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _handleLogout,
+                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                tooltip: 'Logout',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ],
+          );
+        }
       ),
     );
   }

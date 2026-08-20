@@ -88,8 +88,6 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   // ── View state ────────────────────────────────────────────────────────────
   bool _isAddingUser = false;
 
-  static const _db = Supabase;
-
   // ─────────────────────────────────────────────────────────────────────────
   //  Lifecycle
   // ─────────────────────────────────────────────────────────────────────────
@@ -220,7 +218,8 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     return f.sublist(start, (start + _kPageSize).clamp(0, f.length));
   }
 
-  int get _totalPages => ((_filtered.length - 1) / _kPageSize).ceil();
+  int get _totalPages =>
+      _filtered.isEmpty ? 1 : ((_filtered.length + _kPageSize - 1) / _kPageSize).floor();
 
   int get _totalUsers => _allUsers.length;
   int get _activeUsers => _allUsers.where((u) => u.isActive).length;
@@ -266,8 +265,10 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     if (!confirmed) return;
     try {
       await Supabase.instance.client.auth.resetPasswordForEmail(user.email);
+      if (!mounted) return;
       _toast('Password reset email sent to ${user.email}.');
     } catch (e) {
+      if (!mounted) return;
       _toast('Error: $e', isError: true);
     }
   }
@@ -307,8 +308,9 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     );
     if (!confirmed) return;
     for (final id in _selectedIds) {
-      final user = _allUsers.firstWhere((u) => u.id == id,
-          orElse: () => _allUsers.first);
+      final matches = _allUsers.where((u) => u.id == id);
+      if (matches.isEmpty) continue; // skip stale IDs safely
+      final user = matches.first;
       await SystemAdminService.updateUserAccount(
         id: user.id,
         email: user.email,
@@ -455,11 +457,11 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildPageHeader(isMobile),
+                  _buildPageHeader(isMobile, constraints.maxWidth),
                   const SizedBox(height: 20),
-                  _buildSummaryCards(isMobile),
+                  _buildSummaryCards(isMobile, constraints.maxWidth),
                   const SizedBox(height: 20),
-                  _buildToolbar(isMobile),
+                  _buildToolbar(isMobile, constraints.maxWidth),
                   if (_selectedIds.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _buildBulkBar(),
@@ -561,22 +563,23 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
 
   // ── Page Header ───────────────────────────────────────────────────────────
 
-  Widget _buildPageHeader(bool isMobile) {
-    return Row(
+  Widget _buildPageHeader(bool isMobile, double maxWidth) {
+    final stackHeader = maxWidth < 550;
+
+    final titleCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Users Management',
-                  style: AdminStyles.headingStyle(fontSize: isMobile ? 22 : 28)),
-              const SizedBox(height: 4),
-              Text('Manage all system accounts, roles, and permissions.',
-                  style: AdminStyles.bodyStyle(fontSize: 13)),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
+        Text('Users Management',
+            style: AdminStyles.headingStyle(fontSize: isMobile ? 22 : 28)),
+        const SizedBox(height: 4),
+        Text('Manage all system accounts, roles, and permissions.',
+            style: AdminStyles.bodyStyle(fontSize: 13)),
+      ],
+    );
+
+    final actionRow = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
         ElevatedButton.icon(
           onPressed: () => setState(() => _isAddingUser = true),
           icon: const Icon(Icons.person_add_rounded, size: 18),
@@ -598,11 +601,30 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
         ),
       ],
     );
+
+    if (stackHeader) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          titleCol,
+          const SizedBox(height: 16),
+          actionRow,
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: titleCol),
+        const SizedBox(width: 16),
+        actionRow,
+      ],
+    );
   }
 
   // ── Summary Cards ─────────────────────────────────────────────────────────
 
-  Widget _buildSummaryCards(bool isMobile) {
+  Widget _buildSummaryCards(bool isMobile, double maxWidth) {
     final cards = [
       _SummaryCard('Total Users', _totalUsers, Icons.people_rounded,
           AdminStyles.primary),
@@ -618,11 +640,13 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     ];
 
     if (isMobile) {
+      final crossAxisCount = maxWidth < 480 ? 1 : 2;
+      final childAspectRatio = maxWidth < 480 ? 4.0 : 2.2;
       return GridView.count(
-        crossAxisCount: 2,
+        crossAxisCount: crossAxisCount,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        childAspectRatio: 2.2,
+        childAspectRatio: childAspectRatio,
         mainAxisSpacing: 10,
         crossAxisSpacing: 10,
         children: cards.map(_buildSummaryTile).toList(),
@@ -685,7 +709,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
 
   // ── Toolbar ───────────────────────────────────────────────────────────────
 
-  Widget _buildToolbar(bool isMobile) {
+  Widget _buildToolbar(bool isMobile, double maxWidth) {
     final searchField = Container(
       height: 44,
       decoration: BoxDecoration(
@@ -766,19 +790,28 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     );
 
     if (isMobile) {
+      final stackFilters = maxWidth < 480;
       return Column(
         children: [
           searchField,
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: roleFilter),
-              const SizedBox(width: 8),
-              Expanded(child: statusFilter),
-            ],
-          ),
-          const SizedBox(height: 8),
-          deptFilter,
+          if (stackFilters) ...[
+            roleFilter,
+            const SizedBox(height: 8),
+            statusFilter,
+            const SizedBox(height: 8),
+            deptFilter,
+          ] else ...[
+            Row(
+              children: [
+                Expanded(child: roleFilter),
+                const SizedBox(width: 8),
+                Expanded(child: statusFilter),
+              ],
+            ),
+            const SizedBox(height: 8),
+            deptFilter,
+          ]
         ],
       );
     }
@@ -901,8 +934,8 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
         borderRadius: BorderRadius.circular(16),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 900),
+          child: SizedBox(
+            width: 1100,
             child: Column(
               children: [
                 // Header row
@@ -949,7 +982,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
           _th('Email', flex: 3),
           _th('Role', flex: 2),
           _th('Department', flex: 2),
-          _th('Status', flex: 1),
+          _th('Status', flex: 2),
           _th('Last Login', flex: 2),
           _th('Actions', flex: 2, center: true),
         ],
@@ -974,7 +1007,6 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   }
 
   Widget _buildTableRow(AppUser user) {
-    final rs = _roleStyle(user.role);
     final lastLogin = _lastLoginMap[user.id];
     final isSelected = _selectedIds.contains(user.id);
 
@@ -1056,7 +1088,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
           ),
           // Status
           Expanded(
-            flex: 1,
+            flex: 2,
             child: _StatusBadge(isActive: user.isActive),
           ),
           // Last Login
@@ -1143,8 +1175,6 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   }
 
   Widget _buildMobileCard(AppUser user) {
-    final rs = _roleStyle(user.role);
-    final lastLogin = _lastLoginMap[user.id];
     final isSelected = _selectedIds.contains(user.id);
 
     return GestureDetector(
@@ -1402,27 +1432,30 @@ class _RoleBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rs = _roleStyle(role);
-    return Container(
-      padding: EdgeInsets.symmetric(
-          horizontal: small ? 6 : 8, vertical: small ? 2 : 3),
-      decoration: BoxDecoration(
-        color: rs.bg,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(rs.icon, color: rs.fg, size: small ? 10 : 12),
-          const SizedBox(width: 4),
-          Text(
-            rs.label,
-            style: TextStyle(
-              color: rs.fg,
-              fontSize: small ? 9 : 11,
-              fontWeight: FontWeight.w700,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+            horizontal: small ? 6 : 8, vertical: small ? 2 : 3),
+        decoration: BoxDecoration(
+          color: rs.bg,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(rs.icon, color: rs.fg, size: small ? 10 : 12),
+            const SizedBox(width: 4),
+            Text(
+              rs.label,
+              style: TextStyle(
+                color: rs.fg,
+                fontSize: small ? 9 : 11,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1436,40 +1469,43 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-          horizontal: compact ? 6 : 8, vertical: compact ? 2 : 4),
-      decoration: BoxDecoration(
-        color: isActive
-            ? const Color(0xFFDCFCE7)
-            : const Color(0xFFFEE2E2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: isActive ? AdminStyles.success : AdminStyles.error,
-              shape: BoxShape.circle,
-            ),
-          ),
-          if (!compact) ...[
-            const SizedBox(width: 5),
-            Text(
-              isActive ? 'Active' : 'Inactive',
-              style: TextStyle(
-                color: isActive
-                    ? const Color(0xFF16A34A)
-                    : const Color(0xFFDC2626),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+            horizontal: compact ? 6 : 8, vertical: compact ? 2 : 4),
+        decoration: BoxDecoration(
+          color: isActive
+              ? const Color(0xFFDCFCE7)
+              : const Color(0xFFFEE2E2),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: isActive ? AdminStyles.success : AdminStyles.error,
+                shape: BoxShape.circle,
               ),
             ),
+            if (!compact) ...[
+              const SizedBox(width: 5),
+              Text(
+                isActive ? 'Active' : 'Inactive',
+                style: TextStyle(
+                  color: isActive
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFDC2626),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1620,8 +1656,6 @@ class _UserDetailDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rs = _roleStyle(user.role);
-
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(

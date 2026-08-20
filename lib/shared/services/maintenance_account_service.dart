@@ -96,9 +96,6 @@ class MaintenanceAccountService {
           'specialization': (specialization.trim().isEmpty
               ? null
               : specialization.trim()),
-          'phone': ((contactNo ?? '').trim().isEmpty
-              ? null
-              : contactNo!.trim()),
           'created_by_admin_id': currentUser.id,
         });
       } catch (profileErr) {
@@ -263,7 +260,7 @@ class MaintenanceAccountService {
     final rows = await _db
         .from('users')
         .select(
-          'id, email, name, is_active, created_at, maintenance:maintenance_users!maintenance_users_user_id_fkey(employee_id, specialization, phone, created_at, availability_status, current_location, current_assignment_id, estimated_completion_time, last_active_at, working_hours_start, working_hours_end, status_updated_at)',
+          'id, email, name, phone, is_active, created_at, maintenance:maintenance_users!maintenance_users_user_id_fkey(employee_id, specialization, created_at, availability_status, current_location, current_assignment_id, estimated_completion_time, last_active_at, working_hours_start, working_hours_end, status_updated_at)',
         )
         .eq('role', 'maintenance')
         .eq('is_active', true)
@@ -284,7 +281,7 @@ class MaintenanceAccountService {
           fullName: map['name']?.toString() ?? '',
           employeeId: maintenance?['employee_id']?.toString(),
           specialization: maintenance?['specialization']?.toString(),
-          contactNo: maintenance?['phone']?.toString(),
+          contactNo: map['phone']?.toString(),
           isActive: map['is_active'] == true,
           archivedAt: null,
           createdAt:
@@ -427,13 +424,15 @@ class MaintenanceAccountService {
         return 'Failed to create maintenance account.';
       }
 
-      await _db.from('users').update({'is_active': true}).eq('id', newUser.id);
+      await _db.from('users').update({
+        'is_active': true,
+        'phone': (contactNo ?? '').trim().isEmpty ? null : contactNo!.trim(),
+      }).eq('id', newUser.id);
 
       await _db.from('maintenance_users').upsert({
         'user_id': newUser.id,
         'employee_id': normalizedMaintenanceId,
         'specialization': specialization.trim(),
-        'phone': (contactNo ?? '').trim().isEmpty ? null : contactNo!.trim(),
         'created_by_admin_id': currentUser.id,
       }, onConflict: 'user_id');
       return null;
@@ -527,7 +526,11 @@ class MaintenanceAccountService {
 
       await _db
           .from('users')
-          .update({'email': normalizedEmail, 'name': fullName.trim()})
+          .update({
+            'email': normalizedEmail, 
+            'name': fullName.trim(),
+            'phone': (contactNo ?? '').trim().isEmpty ? null : contactNo!.trim(),
+          })
           .eq('id', userId);
 
       await _db
@@ -537,9 +540,6 @@ class MaintenanceAccountService {
             'created_by_admin_id': currentUser.id,
             'employee_id': normalizedMaintenanceId,
             'specialization': specialization.trim(),
-            'phone': (contactNo ?? '').trim().isEmpty
-                ? null
-                : contactNo!.trim(),
           }, onConflict: 'user_id')
           .eq('user_id', userId);
 
@@ -606,7 +606,7 @@ class MaintenanceAccountService {
       final rows = await _db
           .from('users')
           .select(
-            'id, email, name, is_active, created_at, maintenance:maintenance_users!maintenance_users_user_id_fkey(employee_id, specialization, phone, created_at)',
+            'id, email, name, phone, is_active, created_at, maintenance:maintenance_users!maintenance_users_user_id_fkey(employee_id, specialization, created_at)',
           )
           .eq('role', 'maintenance')
           .eq('is_active', false)
@@ -627,7 +627,7 @@ class MaintenanceAccountService {
             fullName: map['name']?.toString() ?? '',
             employeeId: maintenance?['employee_id']?.toString(),
             specialization: maintenance?['specialization']?.toString(),
-            contactNo: maintenance?['phone']?.toString(),
+            contactNo: map['phone']?.toString(),
             isActive: false,
             archivedAt: null,
             createdAt:

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
 import 'dashboard/teacher_dashboard_web.dart';
@@ -34,8 +33,6 @@ class TeacherNavigationWeb extends StatefulWidget {
 
 class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   late int _selectedIndex;
-  String _userName = 'Teacher';
-  final String _userRole = 'Faculty';
   int _hoveredIndex = -1;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -50,7 +47,6 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   static const _sidebarHover = Color(0xFF1E293B);
   static const _textWhite = Colors.white;
   static const _textMuted = Color(0xFF94A3B8);
-  static const _headerBg = Colors.white;
   static const _contentBg = Color(0xFFF8FAFC);
   static const _badgeRed = Color(0xFFEF4444);
 
@@ -58,18 +54,8 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
-    _loadUserInfo();
   }
 
-  Future<void> _loadUserInfo() async {
-    final authService = context.read<AuthService>();
-    final user = authService.currentUser;
-    if (user != null && mounted) {
-      setState(() {
-        _userName = user.name;
-      });
-    }
-  }
 
   @override
   void didUpdateWidget(covariant TeacherNavigationWeb oldWidget) {
@@ -197,24 +183,6 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
         const TeacherNotificationsWeb(),
       ],
     );
-  }
-
-  String _routeForIndex(int index) {
-    switch (index) {
-      case 0: return teacherDashboardRoute;
-      case 1: return teacherLogsRoute;
-      case 2: return teacherScannerRoute;
-      case 3: return teacherReportsRoute;
-      case 4: return '/teacher/chat';
-      case 5: return teacherArchivesRoute;
-      case 6: return teacherProfileRoute;
-      case 7: return teacherAboutRoute;
-      case 8: return teacherWorkflowRoute;
-      case 9: return teacherSettingsRoute;
-      case 10: return teacherContactRoute;
-      case 11: return teacherCreateRequestRoute;
-      default: return teacherDashboardRoute;
-    }
   }
 
   @override
@@ -384,48 +352,6 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _textMuted.withOpacity(0.5), letterSpacing: 1.2),
-      ),
-    );
-  }
-
-  Widget _buildCreateRequestButton({bool closeDrawerOnTap = false}) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _selectedIndex = 2);
-          if (closeDrawerOnTap && Navigator.of(context).canPop()) {
-            Navigator.of(context).pop();
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            gradient: AdminStyles.primaryGradient,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(color: AdminStyles.primary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
-            ],
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.add_circle_outline_rounded, color: Colors.white, size: 20),
-              SizedBox(width: 10),
-              Text('New Request', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white, letterSpacing: 0.5)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildNavItem({required int index, required IconData icon, required String title, int badge = 0, bool closeDrawerOnTap = false}) {
     final isSelected = _selectedIndex == index;
     final isHovered = _hoveredIndex == index;
@@ -500,6 +426,10 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   }
 
   Widget _buildHeader({bool isCompact = false, VoidCallback? onMenuTap}) {
+    final user = context.watch<AuthService>().currentUser;
+    final userName = user?.name ?? 'Faculty';
+    final userAvatarUrl = user?.profileImage;
+
     return Container(
       height: 70,
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 24),
@@ -551,6 +481,41 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
           _NotificationButton(
             showLabel: !isCompact,
             onTap: () => setState(() => _selectedIndex = 12),
+          ),
+          const SizedBox(width: 12),
+          
+          // User Avatar
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedIndex = 6), // 6 is TeacherProfileWeb
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00BFA5), Color(0xFF0F766E)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  image: userAvatarUrl != null && userAvatarUrl.isNotEmpty
+                      ? DecorationImage(
+                          image: NetworkImage(userAvatarUrl),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                ),
+                child: (userAvatarUrl == null || userAvatarUrl.isEmpty)
+                    ? Center(
+                        child: Text(
+                          userName.isNotEmpty ? userName[0].toUpperCase() : 'T',
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+                        ),
+                      )
+                    : null,
+              ),
+            ),
           ),
         ],
       ),

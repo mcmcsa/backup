@@ -490,8 +490,8 @@ class AuthService extends ChangeNotifier {
           .update({
             'name': updatedUser.name,
             'role': updatedUser.role.name,
-            if (updatedUser.role == UserRole.teacher)
-              'department': updatedUser.department,
+            'phone': updatedUser.phone,
+            'profile_image': updatedUser.profileImage,
           })
           .eq('id', updatedUser.id);
 
@@ -510,15 +510,12 @@ class AuthService extends ChangeNotifier {
           'department_id': departmentId,
           'employee_id': updatedUser.employeeId,
           'position': updatedUser.position,
-          'profile_image': updatedUser.profileImage,
         }, onConflict: 'user_id');
       } else if (updatedUser.role == UserRole.maintenance) {
         await _auth.from('maintenance_users').upsert({
           'user_id': updatedUser.id,
           'employee_id': updatedUser.employeeId,
           'specialization': updatedUser.position,
-          'phone': updatedUser.phone,
-          'profile_image': updatedUser.profileImage,
         }, onConflict: 'user_id');
       }
 
@@ -552,21 +549,9 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final payload = {
-        'user_id': userId,
+      await _auth.from('users').update({
         'profile_image': clear ? null : profileImage,
-      };
-
-      if (role == UserRole.teacher) {
-        await _auth.from('teacher_users').upsert(payload, onConflict: 'user_id');
-      } else if (role == UserRole.maintenance) {
-        await _auth.from('maintenance_users').upsert(
-          payload,
-          onConflict: 'user_id',
-        );
-      } else {
-        return false;
-      }
+      }).eq('id', userId);
 
       _currentUser = await _fetchProfile(userId) ?? _currentUser;
       notifyListeners();

@@ -283,28 +283,11 @@ class _SmartSplashScreenState extends State<SmartSplashScreen>
   }
 
   Widget _buildLogoContainer() {
-    return Container(
-      decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF06B6D4).withValues(alpha: 0.15),
-            blurRadius: 60,
-            spreadRadius: 5,
-          ),
-          BoxShadow(
-            color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-            blurRadius: 40,
-            spreadRadius: 15,
-          ),
-        ],
-      ),
-      child: Image.asset(
-        'assets/images/psu_logo_v3.png',
-        width: 140,
-        height: 140,
-        fit: BoxFit.contain,
-        // Using ColorFilter can make a professional overlay, but for a logo it's better to keep original colors
-      ),
+    return Image.asset(
+      'assets/images/app_logo_v2.png',
+      width: 140,
+      height: 140,
+      fit: BoxFit.contain,
     );
   }
 

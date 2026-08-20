@@ -7,7 +7,8 @@ import '../../../shared/widgets/chat/chat_messages_panel.dart';
 import '../shared/admin_styles.dart';
 
 class AdminChatPageWeb extends StatefulWidget {
-  const AdminChatPageWeb({super.key});
+  final ChatRoom? initialRoom;
+  const AdminChatPageWeb({super.key, this.initialRoom});
 
   @override
   State<AdminChatPageWeb> createState() => _AdminChatPageWebState();
@@ -15,6 +16,20 @@ class AdminChatPageWeb extends StatefulWidget {
 
 class _AdminChatPageWebState extends State<AdminChatPageWeb> {
   ChatRoom? _selectedRoom;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedRoom = widget.initialRoom;
+  }
+
+  @override
+  void didUpdateWidget(covariant AdminChatPageWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialRoom != oldWidget.initialRoom && widget.initialRoom != null) {
+      _selectedRoom = widget.initialRoom;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

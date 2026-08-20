@@ -31,6 +31,9 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
 
     setState(() => _isAccepting = true);
 
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
     try {
       final isOnline = Provider.of<ConnectivityService>(context, listen: false).isConnected.value;
       
@@ -45,10 +48,8 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
           'requestorId': widget.task.requestorId,
         };
         await OfflineSyncService().queueAction('accept_work_request', payload);
-        if (mounted) {
-          _showSuccess('You are offline. Task acceptance has been queued and will sync when reconnected.');
-          Navigator.pop(context, true);
-        }
+        _showSuccess(messenger, 'You are offline. Task acceptance has been queued and will sync when reconnected.');
+        navigator.pop(true);
         return;
       }
 
@@ -80,14 +81,12 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
         requestorId: widget.task.requestorId,
       );
 
-      if (mounted) {
-        _showSuccess('Task accepted successfully. You can now begin the maintenance work.');
-        Navigator.pop(context, true);
-      }
+      _showSuccess(messenger, 'Task accepted successfully. You can now begin the maintenance work.');
+      navigator.pop(true);
     } catch (e) {
       if (mounted) {
         setState(() => _isAccepting = false);
-        _showError('Failed to accept task: $e');
+        _showError(messenger, 'Failed to accept task: $e');
       }
     }
   }
@@ -216,6 +215,6 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
     );
   }
 
-  void _showSuccess(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.success));
-  void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.error));
+  void _showSuccess(ScaffoldMessengerState messenger, String msg) => messenger.showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.success));
+  void _showError(ScaffoldMessengerState messenger, String msg) => messenger.showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.error));
 }

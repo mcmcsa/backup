@@ -1,0 +1,203 @@
+﻿   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\authentication\screens\login_page.dart:57:30 - use_build_context_synchronously
+warning - The value of the field '_fadeHeader' isn't used - lib\authentication\screens\login_screen_web.dart:32:32 - unused_field
+warning - The declaration '_buildMetric' isn't referenced - lib\authentication\screens\login_screen_web.dart:622:10 - unused_element
+warning - The declaration '_FeatureChip' isn't referenced - lib\authentication\screens\login_screen_web.dart:650:7 - unused_element
+   info - 'userDeleted' is deprecated and shouldn't be used. Was never in use and might be removed in the future - lib\authentication\services\auth_service.dart:69:30 - deprecated_member_use
+   info - Statements in an if should be enclosed in a block - lib\authentication\services\auth_service.dart:245:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\authentication\services\auth_service.dart:246:54 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\authentication\services\auth_service.dart:247:52 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\authentication\services\auth_service.dart:248:56 - curly_braces_in_flow_control_structures
+   info - Don't use 'BuildContext's across async gaps - lib\authentication\services\auth_service.dart:598:21 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\departments\department_building_management_page.dart:266:50 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\departments\department_building_management_page.dart:462:50 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\departments\department_building_management_page.dart:617:50 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\departments\department_building_management_page.dart:753:50 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\departments\department_building_management_page.dart:852:50 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\departments\department_building_management_page.dart:979:50 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\departments\department_building_management_page.dart:1078:50 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\departments\department_building_management_page.dart:1212:50 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\departments\department_building_management_page.dart:1311:50 - use_build_context_synchronously
+   info - Unnecessary use of multiple underscores - lib\mobile\admin\departments\department_building_management_page.dart:1540:29 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\admin\departments\department_building_management_page.dart:1589:29 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\admin\departments\department_building_management_page.dart:1623:29 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\admin\departments\department_building_management_page.dart:1658:29 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\admin\departments\department_building_management_page.dart:1692:29 - unnecessary_underscores
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\admin\room_types\room_type_management_page.dart:327:28 - use_build_context_synchronously
+   info - Unnecessary use of multiple underscores - lib\mobile\admin\shared\about_system_page.dart:272:39 - unnecessary_underscores
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\shared\maintenance_management_page.dart:164:50 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\admin\shared\maintenance_management_page.dart:176:48 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\shared\maintenance_management_page.dart:568:50 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\admin\shared\maintenance_management_page.dart:580:48 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\admin\shared\notifications_page.dart:122:26 - use_build_context_synchronously
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\mobile\admin\ticket\admin_approval_signature_page.dart:270:27 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\admin\ticket\approval_queue_page.dart:241:29 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\admin\ticket\approval_queue_page.dart:242:36 - use_build_context_synchronously
+   info - Unnecessary use of multiple underscores - lib\mobile\admin\ticket\approval_queue_page.dart:296:35 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\admin\ticket\request_details_page.dart:267:49 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\admin\ticket\request_details_page.dart:267:53 - unnecessary_underscores
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\admin\ticket\request_details_page.dart:493:7 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\admin\ticket\request_details_page.dart:503:21 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\mobile\admin\ticket\request_details_page.dart:646:17 - use_build_context_synchronously
+warning - The declaration '_buildEvidencePlaceholder' isn't referenced - lib\mobile\admin\ticket\request_details_page.dart:1458:10 - unused_element
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\admin\ticket\view_work_request_page.dart:504:37 - use_build_context_synchronously
+   info - 'WillPopScope' is deprecated and shouldn't be used. Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre - lib\mobile\admin\ticket\work_request_completion_page.dart:14:12 - deprecated_member_use
+   info - Unnecessary use of multiple underscores - lib\mobile\admin\ticket\work_requests_page.dart:212:35 - unnecessary_underscores
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\system_admin\system_admin_main_navigation.dart:506:37 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\system_admin\system_admin_main_navigation.dart:508:46 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\system_admin\system_admin_main_navigation.dart:513:46 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\system_admin\system_admin_main_navigation.dart:650:37 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\system_admin\system_admin_main_navigation.dart:652:46 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\system_admin\system_admin_main_navigation.dart:657:46 - use_build_context_synchronously
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\menu_pages\about_us_page.dart:56:39 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\menu_pages\about_us_page.dart:56:43 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\menu_pages\archives_page.dart:180:43 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\profile\student_profile_page.dart:467:35 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\profile\student_profile_page.dart:467:39 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\profile\student_profile_page_new.dart:256:49 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\profile\student_profile_page_new.dart:256:53 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\profile\student_profile_page_new.dart:265:59 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\profile\student_profile_page_new.dart:265:63 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\reports\request_details_page.dart:253:49 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\reports\request_details_page.dart:253:53 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\reports\student_reports_page.dart:259:47 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\student_teacher_dashboard.dart:26:35 - unnecessary_underscores
+   info - Don't use 'BuildContext's across async gaps - lib\mobile\teacher\student_teacher_dashboard.dart:131:58 - use_build_context_synchronously
+   info - 'WillPopScope' is deprecated and shouldn't be used. Use PopScope instead. The Android predictive back feature will not work with WillPopScope. This feature was deprecated after v3.12.0-1.0.pre - lib\mobile\teacher\student_teacher_navigation.dart:60:12 - deprecated_member_use
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\widgets\student_drawer.dart:30:43 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\mobile\teacher\widgets\student_drawer.dart:30:47 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\router\app_router.dart:258:23 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\router\app_router.dart:262:23 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\router\app_router.dart:266:23 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\router\app_router.dart:270:23 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\router\app_router.dart:274:23 - unnecessary_underscores
+warning - The declaration '_surface' isn't referenced - lib\shared\screens\unified_dashboard_page.dart:10:13 - unused_element
+warning - The value of the local variable 'requesterSig' isn't used - lib\shared\services\iso_pdf_service.dart:19:11 - unused_local_variable
+warning - The value of the local variable 'adminSig' isn't used - lib\shared\services\iso_pdf_service.dart:20:11 - unused_local_variable
+warning - The value of the local variable 'completionSig' isn't used - lib\shared\services\iso_pdf_service.dart:21:11 - unused_local_variable
+warning - Dead code - lib\shared\services\iso_pdf_service.dart:88:84 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\shared\services\iso_pdf_service.dart:88:87 - dead_null_aware_expression
+   info - Statements in an if should be enclosed in a block - lib\shared\services\login_activity_service.dart:108:38 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\shared\services\login_activity_service.dart:109:47 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\shared\services\login_activity_service.dart:110:45 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\shared\services\login_activity_service.dart:111:49 - curly_braces_in_flow_control_structures
+   info - Don't invoke 'print' in production code - lib\shared\services\maintenance_account_service.dart:105:9 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\services\maintenance_account_service.dart:110:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\services\maintenance_account_service.dart:246:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\services\maintenance_account_service.dart:599:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\services\maintenance_account_service.dart:646:7 - avoid_print
+warning - Dead code - lib\shared\services\offline_handlers.dart:61:45 - dead_code
+warning - The left operand can't be null, so the right operand is never executed - lib\shared\services\offline_handlers.dart:61:48 - dead_null_aware_expression
+   info - Don't invoke 'print' in production code - lib\shared\utils\dropdown_data_helper.dart:58:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\utils\dropdown_data_helper.dart:70:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\utils\dropdown_data_helper.dart:84:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\utils\dropdown_data_helper.dart:103:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\utils\dropdown_data_helper.dart:120:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\utils\dropdown_data_helper.dart:139:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\utils\dropdown_data_helper.dart:159:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\utils\dropdown_data_helper.dart:202:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\shared\utils\dropdown_data_helper.dart:220:7 - avoid_print
+   info - Unnecessary use of multiple underscores - lib\shared\widgets\chat\chat_bubble.dart:242:29 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\shared\widgets\chat\chat_bubble.dart:242:33 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\shared\widgets\chat\chat_composer.dart:217:33 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\shared\widgets\chat\chat_messages_panel.dart:679:20 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\shared\widgets\common_app_bar.dart:82:33 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\shared\widgets\common_app_bar.dart:82:37 - unnecessary_underscores
+   info - 'translate' is deprecated and shouldn't be used. Use translateByVector3, translateByVector4, or translateByDouble instead - lib\shared\widgets\modern_dashboard_widgets.dart:41:40 - deprecated_member_use
+   info - The private field _isMenuExpanded could be 'final' - lib\web\admin\admin_main_navigation_web.dart:87:8 - prefer_final_fields
+warning - The value of the field '_isMenuExpanded' isn't used - lib\web\admin\admin_main_navigation_web.dart:87:8 - unused_field
+warning - The declaration '_buildDropdownHeader' isn't referenced - lib\web\admin\admin_main_navigation_web.dart:725:10 - unused_element
+warning - The value of the local variable 'anchor' isn't used - lib\web\admin\analytics\admin_cost_tracking_dashboard_web.dart:111:11 - unused_local_variable
+warning - The declaration '_surface' isn't referenced - lib\web\admin\dashboard\dashboard_page_web.dart:10:13 - unused_element
+   info - Unnecessary use of multiple underscores - lib\web\admin\facilities\rooms\add_room_page.dart:871:39 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\web\admin\facilities\rooms\admin_edit_room_page_web.dart:382:39 - unnecessary_underscores
+warning - The declaration '_buildPageHeader' isn't referenced - lib\web\admin\facilities\rooms\admin_edit_room_page_web.dart:774:10 - unused_element
+   info - The private field _selectedDepartment could be 'final' - lib\web\admin\facilities\rooms\admin_rooms_web.dart:33:10 - prefer_final_fields
+   info - The private field _selectedBuilding could be 'final' - lib\web\admin\facilities\rooms\admin_rooms_web.dart:34:10 - prefer_final_fields
+   info - The private field _selectedRoomType could be 'final' - lib\web\admin\facilities\rooms\admin_rooms_web.dart:35:10 - prefer_final_fields
+warning - The declaration '_departmentOptions' isn't referenced - lib\web\admin\facilities\rooms\admin_rooms_web.dart:164:20 - unused_element
+warning - The declaration '_buildingOptions' isn't referenced - lib\web\admin\facilities\rooms\admin_rooms_web.dart:165:20 - unused_element
+warning - The declaration '_roomTypeOptions' isn't referenced - lib\web\admin\facilities\rooms\admin_rooms_web.dart:166:20 - unused_element
+warning - The declaration '_countByFilter' isn't referenced - lib\web\admin\facilities\rooms\admin_rooms_web.dart:168:7 - unused_element
+warning - The declaration '_selectedFilterLabel' isn't referenced - lib\web\admin\facilities\rooms\admin_rooms_web.dart:181:14 - unused_element
+warning - The value of the local variable 'dropdownWidth' isn't used - lib\web\admin\facilities\rooms\admin_rooms_web.dart:231:11 - unused_local_variable
+warning - The value of the local variable 'desktopSearchWidth' isn't used - lib\web\admin\facilities\rooms\admin_rooms_web.dart:236:11 - unused_local_variable
+warning - The value of the local variable 'desktopAddButtonWidth' isn't used - lib\web\admin\facilities\rooms\admin_rooms_web.dart:237:11 - unused_local_variable
+warning - The value of the local variable 'desktopRefreshButtonWidth' isn't used - lib\web\admin\facilities\rooms\admin_rooms_web.dart:238:11 - unused_local_variable
+   info - Unnecessary use of multiple underscores - lib\web\admin\facilities\rooms\admin_rooms_web.dart:508:33 - unnecessary_underscores
+warning - The declaration '_buildFilterDropdown' isn't referenced - lib\web\admin\facilities\rooms\admin_rooms_web.dart:737:10 - unused_element
+warning - The declaration '_buildFilterChip' isn't referenced - lib\web\admin\facilities\rooms\admin_rooms_web.dart:772:10 - unused_element
+warning - The declaration '_buildRoomCard' isn't referenced - lib\web\admin\facilities\rooms\admin_rooms_web.dart:797:10 - unused_element
+   info - The private field _isHovered could be 'final' - lib\web\admin\facilities\rooms\admin_rooms_web.dart:1072:8 - prefer_final_fields
+warning - The value of the field '_isHovered' isn't used - lib\web\admin\facilities\rooms\admin_rooms_web.dart:1072:8 - unused_field
+   info - Unnecessary use of multiple underscores - lib\web\admin\shared\about_system_page.dart:336:33 - unnecessary_underscores
+   info - Don't use 'BuildContext's across async gaps - lib\web\admin\shared\notifications_page.dart:122:26 - use_build_context_synchronously
+warning - The value of the local variable 'isAdmin' isn't used - lib\web\admin\shared\settings_page_web.dart:127:11 - unused_local_variable
+warning - The declaration '_formatDate' isn't referenced - lib\web\admin\tickets\admin_approval_signature_web.dart:949:10 - unused_element
+warning - The value of the field '_buildings' isn't used - lib\web\admin\tickets\admin_create_request_web.dart:55:16 - unused_field
+   info - Don't use 'BuildContext's across async gaps - lib\web\admin\tickets\admin_create_request_web.dart:154:27 - use_build_context_synchronously
+   info - Statements in an if should be enclosed in a block - lib\web\admin\tickets\admin_work_process_web.dart:879:31 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\web\admin\tickets\admin_work_process_web.dart:880:30 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\web\admin\tickets\admin_work_process_web.dart:881:10 - curly_braces_in_flow_control_structures
+warning - The declaration '_buildTimeMetric' isn't referenced - lib\web\admin\tickets\admin_work_process_web.dart:1097:10 - unused_element
+warning - A value for optional parameter 'badge' isn't ever given - lib\web\admin\tickets\admin_work_process_web.dart:1225:10 - unused_element_parameter
+warning - The declaration '_showAddMaintenanceDialog' isn't referenced - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:118:16 - unused_element
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:307:50 - use_build_context_synchronously
+warning - The declaration '_showEditMaintenanceDialog' isn't referenced - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:341:16 - unused_element
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:479:50 - use_build_context_synchronously
+warning - The declaration '_archiveMaintenanceAccount' isn't referenced - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:511:16 - unused_element
+warning - The declaration '_restoreMaintenanceAccount' isn't referenced - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:554:16 - unused_element
+warning - The value of the local variable 'history' isn't used - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:614:11 - unused_local_variable
+   info - Unnecessary use of multiple underscores - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:737:41 - unnecessary_underscores
+warning - The declaration '_buildHistorySection' isn't referenced - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:803:10 - unused_element
+   info - Unnecessary use of multiple underscores - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:866:41 - unnecessary_underscores
+warning - The declaration '_StatCard' isn't referenced - lib\web\admin\tickets\maintenance\maintenance_management_page_web.dart:1041:7 - unused_element
+warning - The value of the field '_filters' isn't used - lib\web\admin\tickets\tickets_page_web.dart:44:22 - unused_field
+warning - The declaration '_buildStatsRow' isn't referenced - lib\web\admin\tickets\tickets_page_web.dart:255:10 - unused_element
+warning - The declaration '_TableHeader' isn't referenced - lib\web\admin\tickets\tickets_page_web.dart:880:7 - unused_element
+warning - The declaration '_getStatusColor' isn't referenced - lib\web\admin\tickets\tickets_page_web.dart:1027:9 - unused_element
+warning - The value of the field '_successGreen' isn't used - lib\web\admin\users\admin_users_web.dart:20:22 - unused_field
+warning - The value of the field '_darkText' isn't used - lib\web\admin\users\admin_users_web.dart:21:22 - unused_field
+   info - Unnecessary use of multiple underscores - lib\web\admin\users\admin_users_web.dart:184:31 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\web\admin\users\admin_users_web.dart:267:35 - unnecessary_underscores
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\web\admin\users\users_page_web.dart:145:46 - use_build_context_synchronously
+warning - The value of the field '_allDepartments' isn't used - lib\web\system_admin\screens\system_admin_reports_view.dart:35:20 - unused_field
+warning - The value of the field '_allBuildings' isn't used - lib\web\system_admin\screens\system_admin_reports_view.dart:36:18 - unused_field
+warning - The value of the field '_selectedDepartment' isn't used - lib\web\system_admin\screens\system_admin_reports_view.dart:42:11 - unused_field
+warning - The value of the field '_db' isn't used - lib\web\system_admin\screens\system_admin_users_view.dart:91:16 - unused_field
+warning - The value of the local variable 'rs' isn't used - lib\web\system_admin\screens\system_admin_users_view.dart:977:11 - unused_local_variable
+warning - The value of the local variable 'rs' isn't used - lib\web\system_admin\screens\system_admin_users_view.dart:1146:11 - unused_local_variable
+warning - The value of the local variable 'lastLogin' isn't used - lib\web\system_admin\screens\system_admin_users_view.dart:1147:11 - unused_local_variable
+warning - The value of the local variable 'rs' isn't used - lib\web\system_admin\screens\system_admin_users_view.dart:1623:11 - unused_local_variable
+warning - Unused import: 'screens/system_admin_rooms_view.dart' - lib\web\system_admin\system_admin_main_navigation_web.dart:8:8 - unused_import
+warning - The value of the field '_headerBg' isn't used - lib\web\system_admin\system_admin_main_navigation_web.dart:57:16 - unused_field
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\system_admin\system_admin_main_navigation_web.dart:375:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\system_admin\system_admin_main_navigation_web.dart:378:33 - deprecated_member_use
+warning - The value of the local variable 'pendingCount' isn't used - lib\web\teacher\dashboard\teacher_dashboard_web.dart:56:11 - unused_local_variable
+warning - The value of the local variable 'activeCount' isn't used - lib\web\teacher\dashboard\teacher_dashboard_web.dart:57:11 - unused_local_variable
+warning - The value of the local variable 'completedCount' isn't used - lib\web\teacher\dashboard\teacher_dashboard_web.dart:58:11 - unused_local_variable
+warning - The declaration '_buildQuickStats' isn't referenced - lib\web\teacher\dashboard\teacher_dashboard_web.dart:126:10 - unused_element
+   info - The private field _selectedPriority could be 'final' - lib\web\teacher\reports\teacher_create_request_web.dart:56:10 - prefer_final_fields
+warning - The value of the field '_buildings' isn't used - lib\web\teacher\reports\teacher_create_request_web.dart:63:16 - unused_field
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\reports\teacher_official_form_web.dart:296:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\reports\teacher_official_form_web.dart:362:55 - deprecated_member_use
+   info - Unnecessary use of multiple underscores - lib\web\teacher\reports\teacher_official_form_web.dart:392:61 - unnecessary_underscores
+   info - Unnecessary use of multiple underscores - lib\web\teacher\reports\teacher_official_form_web.dart:392:65 - unnecessary_underscores
+warning - Unused import: 'package:go_router/go_router.dart' - lib\web\teacher\reports\teacher_reports_web.dart:8:8 - unused_import
+warning - Unused import: 'package:go_router/go_router.dart' - lib\web\teacher\scanner\teacher_scanner_web.dart:2:8 - unused_import
+warning - Unused import: 'package:go_router/go_router.dart' - lib\web\teacher\teacher_navigation_web.dart:2:8 - unused_import
+warning - The value of the field '_userName' isn't used - lib\web\teacher\teacher_navigation_web.dart:37:10 - unused_field
+warning - The value of the field '_userRole' isn't used - lib\web\teacher\teacher_navigation_web.dart:38:16 - unused_field
+warning - The value of the field '_headerBg' isn't used - lib\web\teacher\teacher_navigation_web.dart:53:16 - unused_field
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\teacher_navigation_web.dart:98:41 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\teacher_navigation_web.dart:115:46 - deprecated_member_use
+warning - The declaration '_routeForIndex' isn't referenced - lib\web\teacher\teacher_navigation_web.dart:202:10 - unused_element
+warning - The declaration '_buildSectionTitle' isn't referenced - lib\web\teacher\teacher_navigation_web.dart:387:10 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\teacher_navigation_web.dart:392:87 - deprecated_member_use
+warning - The declaration '_buildCreateRequestButton' isn't referenced - lib\web\teacher\teacher_navigation_web.dart:397:10 - unused_element
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\teacher_navigation_web.dart:413:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\teacher_navigation_web.dart:454:52 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\teacher_navigation_web.dart:456:71 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\teacher_navigation_web.dart:485:30 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\teacher_navigation_web.dart:487:49 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\teacher_navigation_web.dart:508:62 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\web\teacher\teacher_navigation_web.dart:511:33 - deprecated_member_use

@@ -1,6 +1,7 @@
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
 
 class LoginScreenWeb extends StatefulWidget {
@@ -285,6 +286,45 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
                             child: _buildValuePanel(),
                           ),
                       ],
+                    ),
+                    // Floating Back Button
+                    Positioned(
+                      top: 20,
+                      left: 20,
+                      child: Tooltip(
+                        message: 'Back to Landing Page',
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () => context.go('/'),
+                            borderRadius: BorderRadius.circular(24),
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: const Color(0xFFE2E8F0),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.arrow_back_rounded,
+                                color: _brandNavy,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
 
 

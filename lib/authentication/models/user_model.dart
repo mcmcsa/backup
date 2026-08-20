@@ -42,20 +42,16 @@ class AppUser {
       isActive: map['is_active'] ?? true,
       campus: map['campus'],
       department:
+          teacherProfile['department'] ??
           teacherProfile['department_name'] ??
           teacherDepartment['name'] ??
-          map['department'] ??
-          teacherProfile['department_id'] ??
-          maintenanceProfile['department_id'],
+          map['department'],
       position:
           teacherProfile['position'] ?? maintenanceProfile['specialization'],
       employeeId:
           teacherProfile['employee_id'] ?? maintenanceProfile['employee_id'],
-      phone: teacherProfile['phone'] ?? maintenanceProfile['phone'],
-      profileImage:
-          map['profile_image'] ??
-          teacherProfile['profile_image'] ??
-          maintenanceProfile['profile_image'],
+      phone: map['phone'],
+      profileImage: map['profile_image'],
       createdAt:
           map['created_at'] != null
               ? DateTime.tryParse(map['created_at'].toString())

@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'department_service.dart';
 
 class FacultyUserAccount {
   final String userId;
@@ -36,8 +37,13 @@ class FacultyUserService {
       final userMap = Map<String, dynamic>.from(row as Map);
       final userId = userMap['id']?.toString() ?? '';
       
-      final tUsers = userMap['teacher_users'] as List?;
-      final teacherMap = (tUsers != null && tUsers.isNotEmpty) ? tUsers.first as Map<String, dynamic> : null;
+      final tUsers = userMap['teacher_users'];
+      Map<String, dynamic>? teacherMap;
+      if (tUsers is List && tUsers.isNotEmpty) {
+        teacherMap = tUsers.first as Map<String, dynamic>;
+      } else if (tUsers is Map) {
+        teacherMap = Map<String, dynamic>.from(tUsers);
+      }
       
       final deptsMap = teacherMap?['departments'] as Map?;
       final departmentName = deptsMap?['name']?.toString() ?? 'No Department';
@@ -69,14 +75,8 @@ class FacultyUserService {
 
     String? deptId;
     if (department.trim().isNotEmpty) {
-      final deptRow = await _db
-          .from('departments')
-          .select('id')
-          .eq('name', department.trim())
-          .maybeSingle();
-      if (deptRow != null) {
-        deptId = deptRow['id']?.toString();
-      }
+      final dept = await DepartmentService.findOrCreateByName(department.trim());
+      deptId = dept.id;
     }
 
     final updateData = <String, dynamic>{};

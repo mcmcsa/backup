@@ -19,26 +19,29 @@ class MaintenanceNavigationWeb extends StatefulWidget {
   const MaintenanceNavigationWeb({super.key, this.initialIndex = 0});
 
   @override
-  State<MaintenanceNavigationWeb> createState() => _MaintenanceNavigationWebState();
+  State<MaintenanceNavigationWeb> createState() =>
+      _MaintenanceNavigationWebState();
 }
 
 class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   late int _selectedIndex;
   WorkRequest? _selectedRequestForDetails;
   String _userName = 'Maintenance';
-  final String _userRole = 'Staff';
+  String _userSpecialization = 'Staff';
+  String? _userAvatarUrl;
   int _hoveredIndex = -1;
   bool _isUserMenuHovered = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // Professional color palette - Slate theme for maintenance
-  static const _sidebarBg = Color(0xFF1E293B); // Dark slate sidebar
-  static const _sidebarSelected = Color(0xFF0EA5E9); // Sky blue accent
-  static const _sidebarHover = Color(0xFF334155);
+  // ─── Design Tokens ────────────────────────────────────────────────────────
+  static const _sidebarBg = Color(0xFF0F172A);       // Slate-900 (deeper)
+  static const _sidebarBorder = Color(0xFF1E293B);   // Subtle internal divider
+  static const _accent = Color(0xFF0EA5E9);           // Sky-500
+  static const _sidebarHover = Color(0xFF1E293B);    // Slate-800
   static const _textWhite = Colors.white;
-  static const _textMuted = Color(0xFF94A3B8);
+  static const _textMuted = Color(0xFF94A3B8);        // Slate-400
+  static const _contentBg = Color(0xFFF1F5F9);        // Slate-100
   static const _headerBg = Colors.white;
-  static const _contentBg = Color(0xFFF8FAFC);
   static const _badgeRed = Color(0xFFEF4444);
 
   @override
@@ -49,16 +52,10 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   }
 
   Future<void> _loadUserInfo() async {
-    final authService = context.read<AuthService>();
-    final user = authService.currentUser;
-    if (user != null && mounted) {
-      setState(() {
-        _userName = user.name;
-      });
-    }
+    // Info is now dynamically loaded in build()
   }
 
-  void _handleLogout() async {
+  Future<void> _handleLogout() async {
     final confirm = await showDialog<bool>(
       context: context,
       barrierColor: Colors.black54,
@@ -71,12 +68,12 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
+                    color: Colors.black.withValues(alpha: 0.18),
+                    blurRadius: 32,
+                    offset: const Offset(0, 12),
                   ),
                 ],
               ),
@@ -84,64 +81,45 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.fromLTRB(28, 32, 28, 24),
                     child: Column(
                       children: [
                         Container(
-                          width: 56,
-                          height: 56,
+                          width: 64,
+                          height: 64,
                           decoration: BoxDecoration(
-                            color: _badgeRed.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(14),
+                            color: _badgeRed.withValues(alpha: 0.08),
+                            shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.logout_rounded,
-                            color: _badgeRed,
-                            size: 28,
-                          ),
+                          child: const Icon(Icons.logout_rounded, color: _badgeRed, size: 30),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 20),
                         const Text(
                           'Sign Out',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1E293B),
-                          ),
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Are you sure you want to sign out?',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF64748B),
-                          ),
+                          'Are you sure you want to sign out of the maintenance portal?',
+                          style: TextStyle(fontSize: 14, color: Color(0xFF64748B), height: 1.5),
                           textAlign: TextAlign.center,
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.vertical(
-                        bottom: Radius.circular(16),
-                      ),
-                    ),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                     child: Row(
                       children: [
                         Expanded(
-                          child: TextButton(
+                          child: OutlinedButton(
                             onPressed: () => Navigator.of(dialogContext).pop(false),
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFF64748B),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFE2E8F0)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: const Text(
-                              'Cancel',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
+                            child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -150,16 +128,12 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _badgeRed,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
                             ),
                             onPressed: () => Navigator.of(dialogContext).pop(true),
-                            child: const Text(
-                              'Sign Out',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
+                            child: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                         ),
                       ],
@@ -197,11 +171,11 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
       children: const [
         MaintenanceDashboardWeb(),
         MaintenanceReportsWeb(),
-        MaintenanceChatPageWeb(), // Message
-        MaintenanceHistoryWeb(), // History
-        MaintenanceProfileWeb(), // Profile
-        MaintenanceSettingsWeb(), // Settings
-        MaintenanceWorkflowWeb(), // System Work Flow
+        MaintenanceChatPageWeb(),
+        MaintenanceHistoryWeb(),
+        MaintenanceProfileWeb(),
+        MaintenanceSettingsWeb(),
+        MaintenanceWorkflowWeb(),
       ],
     );
   }
@@ -217,188 +191,244 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 1100;
+          final isCompact = constraints.maxWidth < 1100;
 
-        if (isCompact) {
-          return Scaffold(
-            key: _scaffoldKey,
-            backgroundColor: _contentBg,
-            drawer: Drawer(
-              width: 260,
-              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-              child: _buildSidebar(width: 260, closeDrawerOnTap: true),
-            ),
-            body: Column(
-              children: [
-                _buildHeader(
-                  isCompact: true,
-                  onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
-                ),
-                Expanded(
-                  child: Container(
-                    color: _contentBg,
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1400),
-                      child: _buildIndexedStack(),
+          if (isCompact) {
+            return Scaffold(
+              key: _scaffoldKey,
+              backgroundColor: _contentBg,
+              drawer: Drawer(
+                width: 270,
+                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                child: _buildSidebar(width: 270, closeDrawerOnTap: true),
+              ),
+              body: Column(
+                children: [
+                  _buildHeader(isCompact: true, onMenuTap: () => _scaffoldKey.currentState?.openDrawer()),
+                  Expanded(
+                    child: Container(
+                      color: _contentBg,
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1400),
+                        child: _buildIndexedStack(),
+                      ),
                     ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Scaffold(
+            backgroundColor: _contentBg,
+            body: Row(
+              children: [
+                _buildSidebar(),
+                Expanded(
+                  child: Column(
+                    children: [
+                      _buildHeader(),
+                      Expanded(
+                        child: Container(
+                          color: _contentBg,
+                          alignment: Alignment.topCenter,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 1400),
+                            child: _buildIndexedStack(),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           );
-        }
+        },
+      ),
+    );
+  }
 
-        return Scaffold(
-          backgroundColor: _contentBg,
-          body: Row(
-            children: [
-              // Dark Sidebar
-              _buildSidebar(),
+  Widget _buildSidebar({double width = 250, bool closeDrawerOnTap = false}) {
+    final user = context.watch<AuthService>().currentUser;
+    final userName = user?.name ?? 'Maintenance';
+    final userSpecialization = user?.position ?? 'Maintenance Staff';
+    final userAvatarUrl = user?.profileImage;
 
-              // Main Content Area
-              Expanded(
-                child: Column(
-                  children: [
-                    // Header Bar
-                    _buildHeader(),
-
-                    // Page Content
-                    Expanded(
-                      child: Container(
-                        color: _contentBg,
-                        alignment: Alignment.topCenter,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1400),
-                          child: _buildIndexedStack(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    ),
-  );
-}
-
-  Widget _buildSidebar({double width = 240, bool closeDrawerOnTap = false}) {
     return Container(
       width: width,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: _sidebarBg,
+        border: Border(right: BorderSide(color: _sidebarBorder)),
       ),
       child: Column(
         children: [
-          // Logo Section
+          // ── Logo / Brand ─────────────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: _sidebarBorder.withValues(alpha: 0.8))),
+            ),
             child: Row(
               children: [
-                // Logo icon
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: _sidebarSelected,
-                    borderRadius: BorderRadius.circular(10),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.35),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  child: const Icon(
-                    Icons.engineering_rounded,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  child: const Icon(Icons.engineering_rounded, color: Colors.white, size: 24),
                 ),
                 const SizedBox(width: 12),
-                const Column(
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'PSU Maintenance',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: _textWhite,
-                      ),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _textWhite, letterSpacing: -0.3),
                     ),
                     Text(
                       'Work Portal',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _textMuted,
-                      ),
+                      style: TextStyle(fontSize: 11, color: _textMuted, fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Section Label ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'NAVIGATION',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _textMuted.withValues(alpha: 0.5), letterSpacing: 1.2),
+              ),
+            ),
+          ),
+
+          // ── Nav Items ─────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Column(
+              children: [
+                _buildNavItem(index: 0, icon: Icons.dashboard_rounded, title: 'Dashboard', closeDrawerOnTap: closeDrawerOnTap),
+                _buildNavItem(index: 1, icon: Icons.assignment_rounded, title: 'Work Tasks', closeDrawerOnTap: closeDrawerOnTap),
+                _buildNavItem(index: 2, icon: Icons.chat_bubble_outline_rounded, title: 'Messages', closeDrawerOnTap: closeDrawerOnTap),
+                _buildNavItem(index: 3, icon: Icons.history_rounded, title: 'History', closeDrawerOnTap: closeDrawerOnTap),
               ],
             ),
           ),
 
           const SizedBox(height: 8),
 
-          // Navigation Items
+          // ── Divider ──────────────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'ACCOUNT',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _textMuted.withValues(alpha: 0.5), letterSpacing: 1.2),
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Column(
               children: [
-                _buildNavItem(
-                  index: 0,
-                  icon: Icons.home_rounded,
-                  title: 'Home',
-                  closeDrawerOnTap: closeDrawerOnTap,
+                _buildNavItem(index: 4, icon: Icons.person_outline_rounded, title: 'Profile', closeDrawerOnTap: closeDrawerOnTap),
+                _buildNavItem(index: 5, icon: Icons.settings_outlined, title: 'Settings', closeDrawerOnTap: closeDrawerOnTap),
+                _buildNavItem(index: 6, icon: Icons.account_tree_outlined, title: 'Work Flow', closeDrawerOnTap: closeDrawerOnTap),
+              ],
+            ),
+          ),
+          
+          // User Profile & Logout
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: _sidebarBorder)),
+            ),
+            child: Column(
+              children: [
+                // Avatar
+                Container(
+                  margin: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _sidebarHover,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      // Avatar
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          image: userAvatarUrl != null && userAvatarUrl.isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(userAvatarUrl),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: (userAvatarUrl == null || userAvatarUrl.isEmpty)
+                            ? Center(
+                                child: Text(
+                                  userName.isNotEmpty ? userName[0].toUpperCase() : 'M',
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(userName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _textWhite), overflow: TextOverflow.ellipsis),
+                            Text(userSpecialization, style: const TextStyle(fontSize: 11, color: _textMuted), overflow: TextOverflow.ellipsis),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(color: Color(0xFF10B981), shape: BoxShape.circle),
+                      ),
+                    ],
+                  ),
                 ),
-                _buildNavItem(
-                  index: 1,
-                  icon: Icons.work_rounded,
-                  title: 'Task',
-                  closeDrawerOnTap: closeDrawerOnTap,
-                ),
-                _buildNavItem(
-                  index: 2,
-                  icon: Icons.chat_bubble_rounded,
-                  title: 'Message',
-                  closeDrawerOnTap: closeDrawerOnTap,
-                ),
-                _buildNavItem(
-                  index: 3,
-                  icon: Icons.history_rounded,
-                  title: 'History',
-                  closeDrawerOnTap: closeDrawerOnTap,
-                ),
-                _buildNavItem(
-                  index: 4,
-                  icon: Icons.person_rounded,
-                  title: 'Profile',
-                  closeDrawerOnTap: closeDrawerOnTap,
-                ),
-                _buildNavItem(
-                  index: 5,
-                  icon: Icons.settings_rounded,
-                  title: 'Settings',
-                  closeDrawerOnTap: closeDrawerOnTap,
-                ),
-                _buildNavItem(
-                  index: 6,
-                  icon: Icons.account_tree_rounded,
-                  title: 'System Work Flow',
-                  closeDrawerOnTap: closeDrawerOnTap,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                  child: _buildLogoutButton(),
                 ),
               ],
             ),
           ),
-
-          const Spacer(),
-
-          // Log Out button
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: _buildLogoutButton(),
-          ),
-
-          const SizedBox(height: 12),
         ],
       ),
     );
@@ -415,7 +445,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
     final isHovered = _hoveredIndex == index;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 2),
       child: MouseRegion(
         onEnter: (_) => setState(() => _hoveredIndex = index),
         onExit: (_) => setState(() => _hoveredIndex = -1),
@@ -432,51 +462,37 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             decoration: BoxDecoration(
               color: isSelected
-                  ? _sidebarSelected.withValues(alpha: 0.2)
+                  ? _accent.withValues(alpha: 0.15)
                   : isHovered
                       ? _sidebarHover
                       : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
               border: isSelected
-                  ? Border.all(color: _sidebarSelected.withValues(alpha: 0.3))
+                  ? Border(left: BorderSide(color: _accent, width: 3))
                   : null,
             ),
             child: Row(
               children: [
-                Icon(
-                  icon,
-                  color: isSelected ? _sidebarSelected : _textMuted,
-                  size: 20,
-                ),
+                Icon(icon, color: isSelected ? _accent : _textMuted, size: 19),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     title,
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                      color: isSelected ? _sidebarSelected : _textMuted,
+                      fontSize: 13,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected ? _textWhite : _textMuted,
                     ),
                   ),
                 ),
                 if (badge > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _badgeRed,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '$badge',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
+                    decoration: BoxDecoration(color: _badgeRed, borderRadius: BorderRadius.circular(10)),
+                    child: Text('$badge', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white)),
                   ),
               ],
             ),
@@ -492,31 +508,18 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
       child: GestureDetector(
         onTap: _handleLogout,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           decoration: BoxDecoration(
-            color: _badgeRed.withValues(alpha: 0.15),
+            color: _badgeRed.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: _badgeRed.withValues(alpha: 0.3),
-            ),
+            border: Border.all(color: _badgeRed.withValues(alpha: 0.2)),
           ),
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.logout_rounded,
-                color: Color(0xFFFCA5A5),
-                size: 18,
-              ),
-              SizedBox(width: 10),
-              Text(
-                'Log out',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFFFCA5A5),
-                ),
-              ),
+              Icon(Icons.logout_rounded, color: Color(0xFFFCA5A5), size: 17),
+              SizedBox(width: 8),
+              Text('Log Out', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFFCA5A5))),
             ],
           ),
         ),
@@ -525,15 +528,22 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   }
 
   Widget _buildHeader({bool isCompact = false, VoidCallback? onMenuTap}) {
+    final pageTitles = ['Dashboard', 'Work Tasks', 'Messages', 'History', 'Profile', 'Settings', 'Work Flow'];
+    final pageTitle = _selectedIndex < pageTitles.length ? pageTitles[_selectedIndex] : 'Maintenance';
+    final user = context.watch<AuthService>().currentUser;
+    final userName = user?.name ?? 'Maintenance';
+    final userAvatarUrl = user?.profileImage;
+
     return Container(
-      height: 70,
+      height: 66,
       decoration: BoxDecoration(
         color: _headerBg,
+        border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -543,89 +553,34 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
           if (isCompact) ...[
             IconButton(
               onPressed: onMenuTap,
-              icon: const Icon(Icons.menu_rounded, color: Color(0xFF1E293B)),
+              icon: const Icon(Icons.menu_rounded, color: Color(0xFF1E293B), size: 22),
               tooltip: 'Open menu',
             ),
             const SizedBox(width: 4),
           ],
-          // Search Bar
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 320),
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search requests...',
-                    hintStyle: TextStyle(
-                      color: Colors.grey.shade400,
-                      fontSize: 13,
-                    ),
-                    prefixIcon: Padding(
-                      padding: const EdgeInsets.only(left: 12, right: 8),
-                      child: Icon(
-                        Icons.search_rounded,
-                        color: Colors.grey.shade400,
-                        size: 20,
-                      ),
-                    ),
-                    prefixIconConstraints: const BoxConstraints(
-                      minWidth: 44,
-                      minHeight: 44,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
+          
+          // Breadcrumb / page title
           if (!isCompact) ...[
-            // USER ROLE section
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                const Text(
-                  'MAINTENANCE STAFF',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1E293B),
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _userRole,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-              ],
+            const Text(
+              'PSU Maintenance',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF94A3B8)),
             ),
-            const SizedBox(width: 20),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFFCBD5E1)),
+            ),
+            Text(
+              pageTitle,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+            ),
           ],
-
+          
+          const Spacer(),
+          
           // Notification Bell
-          _HeaderIconButton(
-            icon: Icons.notifications_outlined,
-            badge: 0,
-            onTap: () {},
-          ),
-
-          const SizedBox(width: 12),
-
+          _HeaderIconButton(icon: Icons.notifications_outlined, badge: 0, onTap: () {}),
+          const SizedBox(width: 8),
+          
           // User Avatar
           MouseRegion(
             onEnter: (_) => setState(() => _isUserMenuHovered = true),
@@ -635,13 +590,11 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
               onTap: () => setState(() => _selectedIndex = 4),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.all(3),
+                padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _isUserMenuHovered
-                        ? _sidebarSelected
-                        : Colors.transparent,
+                    color: _isUserMenuHovered ? _accent : Colors.transparent,
                     width: 2,
                   ),
                 ),
@@ -649,19 +602,27 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: _sidebarSelected,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: Text(
-                      _userName.isNotEmpty ? _userName[0].toUpperCase() : 'M',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
+                    borderRadius: BorderRadius.circular(10),
+                    image: userAvatarUrl != null && userAvatarUrl.isNotEmpty
+                        ? DecorationImage(
+                            image: NetworkImage(userAvatarUrl),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
+                  child: (userAvatarUrl == null || userAvatarUrl.isEmpty)
+                      ? Center(
+                          child: Text(
+                            userName.isNotEmpty ? userName[0].toUpperCase() : 'M',
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+                          ),
+                        )
+                      : null,
                 ),
               ),
             ),
@@ -672,17 +633,12 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   }
 }
 
-/// Header icon button with optional badge
 class _HeaderIconButton extends StatefulWidget {
   final IconData icon;
   final int badge;
   final VoidCallback onTap;
 
-  const _HeaderIconButton({
-    required this.icon,
-    this.badge = 0,
-    required this.onTap,
-  });
+  const _HeaderIconButton({required this.icon, this.badge = 0, required this.onTap});
 
   @override
   State<_HeaderIconButton> createState() => _HeaderIconButtonState();
@@ -699,44 +655,27 @@ class _HeaderIconButtonState extends State<_HeaderIconButton> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Container(
-          width: 44,
-          height: 44,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 42,
+          height: 42,
           decoration: BoxDecoration(
-            color: _isHovered
-                ? Colors.grey.shade100
-                : Colors.transparent,
+            color: _isHovered ? const Color(0xFFF1F5F9) : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(
-                widget.icon,
-                color: Colors.grey.shade600,
-                size: 22,
-              ),
+              Icon(widget.icon, color: const Color(0xFF64748B), size: 21),
               if (widget.badge > 0)
                 Positioned(
                   top: 6,
                   right: 6,
                   child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFEF4444),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${widget.badge}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
+                    width: 16,
+                    height: 16,
+                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
+                    child: Center(child: Text('${widget.badge}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white))),
                   ),
                 ),
             ],

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../shared/providers/theme_provider.dart';
+import '../../../shared/services/app_settings_service.dart';
+import '../../../shared/services/admin_audit_log_service.dart';
 import '../../admin/shared/admin_styles.dart';
 
 class MaintenanceSettingsWeb extends StatefulWidget {
@@ -11,267 +14,396 @@ class MaintenanceSettingsWeb extends StatefulWidget {
 }
 
 class _MaintenanceSettingsWebState extends State<MaintenanceSettingsWeb> {
-  bool _emailNotifications = true;
+  bool _notificationsEnabled = true;
+  bool _emailNotifications = false;
   bool _pushNotifications = true;
-  bool _smsAlerts = false;
-  bool _highContrast = false;
-  String _selectedLanguage = 'English';
+  bool _isLoadingPreferences = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final settings = await AppSettingsService.getNotificationSettings();
+    if (!mounted) return;
+    setState(() {
+      _notificationsEnabled = settings['notificationsEnabled'] ?? true;
+      _emailNotifications = settings['emailNotifications'] ?? false;
+      _pushNotifications = settings['pushNotifications'] ?? true;
+      _isLoadingPreferences = false;
+    });
+  }
+
+  Future<void> _saveNotificationPreferences() async {
+    await AppSettingsService.setNotificationSettings(
+      notificationsEnabled: _notificationsEnabled,
+      emailNotifications: _emailNotifications,
+      pushNotifications: _pushNotifications,
+    );
+  }
+
+  Future<void> _toggleMasterNotifications(bool value) async {
+    setState(() {
+      _notificationsEnabled = value;
+      if (!value) {
+        _emailNotifications = false;
+        _pushNotifications = false;
+      }
+    });
+    await _saveNotificationPreferences();
+  }
+
+  Future<void> _toggleEmailNotifications(bool value) async {
+    if (!_notificationsEnabled) return;
+    setState(() => _emailNotifications = value);
+    await _saveNotificationPreferences();
+  }
+
+  Future<void> _togglePushNotifications(bool value) async {
+    if (!_notificationsEnabled) return;
+    setState(() => _pushNotifications = value);
+    await _saveNotificationPreferences();
+  }
+
+  void _showChangePasswordDialog() {
+    final formKey = GlobalKey<FormState>();
+    final oldPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool obscureOld = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+    bool isSaving = false;
+
+    String? validateStrongPassword(String? value) {
+      final password = value ?? '';
+      if (password.isEmpty) return 'New password is required';
+      if (password.length < 8) return 'Password must be at least 8 characters';
+      if (!RegExp(r'[A-Z]').hasMatch(password)) {
+        return 'Password must include at least 1 uppercase letter';
+      }
+      if (!RegExp(r'[a-z]').hasMatch(password)) {
+        return 'Password must include at least 1 lowercase letter';
+      }
+      if (!RegExp(r'[0-9]').hasMatch(password)) {
+        return 'Password must include at least 1 number';
+      }
+      if (!RegExp(r'[^A-Za-z0-9]').hasMatch(password)) {
+        return 'Password must include at least 1 special character';
+      }
+      if (password == oldPasswordController.text) {
+        return 'New password must be different from old password';
+      }
+      return null;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold)),
+              content: SizedBox(
+                width: 400,
+                child: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: oldPasswordController,
+                          obscureText: obscureOld,
+                          decoration: InputDecoration(
+                            labelText: 'Old Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(obscureOld ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setDialogState(() => obscureOld = !obscureOld),
+                            ),
+                          ),
+                          validator: (value) => (value == null || value.isEmpty) ? 'Required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: newPasswordController,
+                          obscureText: obscureNew,
+                          decoration: InputDecoration(
+                            labelText: 'New Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(obscureNew ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setDialogState(() => obscureNew = !obscureNew),
+                            ),
+                          ),
+                          validator: validateStrongPassword,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: confirmPasswordController,
+                          obscureText: obscureConfirm,
+                          decoration: InputDecoration(
+                            labelText: 'Confirm Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(obscureConfirm ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) return 'Confirm password is required';
+                            if (value != newPasswordController.text) return 'Passwords do not match';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Password must contain at least 8 characters, with uppercase, lowercase, number, and special character.',
+                          style: TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.primary, foregroundColor: Colors.white),
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() => isSaving = true);
+
+                          final authService = context.read<AuthService>();
+                          final error = await authService.changePassword(
+                            oldPassword: oldPasswordController.text,
+                            newPassword: newPasswordController.text,
+                          );
+
+                          setDialogState(() => isSaving = false);
+
+                          if (!context.mounted) return;
+                          
+                          if (error != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(error), backgroundColor: Colors.red),
+                            );
+                            return;
+                          }
+
+                          Navigator.of(dialogContext).pop();
+
+                          if (!mounted) return;
+
+                          await showDialog<void>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (okContext) => AlertDialog(
+                              title: const Text('Password Updated'),
+                              content: const Text('Your password was changed successfully. Please login again.'),
+                              actions: [
+                                ElevatedButton(
+                                  onPressed: () => Navigator.of(okContext).pop(),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (context.mounted) {
+                            await authService.handleLogoutButton(context);
+                          }
+                        },
+                  child: isSaving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Update'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthService>();
-    final user = auth.currentUser;
+    final themeProvider = context.watch<ThemeProvider>();
 
-    return Container(
-      color: AdminStyles.bg,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Title Header
-            Row(
-              children: [
-                const Icon(Icons.settings_suggest_rounded, color: AdminStyles.primary, size: 36),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('System Settings', style: AdminStyles.headingStyle(fontSize: 26)),
-                    Text(
-                      'Manage your portal settings and notification preferences',
-                      style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 13),
+    return Scaffold(
+      body: Container(
+        color: AdminStyles.bg,
+        width: double.infinity,
+        height: double.infinity,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 680),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: 40),
+                  _buildSettingsCategory('Notifications', [
+                    _buildSwitchTile(
+                      icon: Icons.notifications_active_rounded,
+                      title: 'Enable Notifications',
+                      description: 'Receive updates about requests and activity.',
+                      color: AdminStyles.info,
+                      value: _notificationsEnabled,
+                      onChanged: _isLoadingPreferences ? null : _toggleMasterNotifications,
                     ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 32),
-
-            // Content Grid/Layout
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left Column: User details & Notifications
-                Expanded(
-                  flex: 6,
-                  child: Column(
-                    children: [
-                      _buildSettingsCard(
-                        title: 'Profile Information',
-                        icon: Icons.person_rounded,
-                        children: [
-                          _buildDetailRow('Full Name', user?.name ?? 'Maintenance Staff'),
-                          _buildDetailRow('Email Address', user?.email ?? 'N/A'),
-                          _buildDetailRow('Security Role', 'Maintenance Technician'),
-                          _buildDetailRow('Account Status', 'Active'),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      _buildSettingsCard(
-                        title: 'Notification Preferences',
-                        icon: Icons.notifications_active_rounded,
-                        children: [
-                          _buildSwitchRow(
-                            'Email Notifications',
-                            'Receive daily digest and major updates via email',
-                            _emailNotifications,
-                            (v) => setState(() => _emailNotifications = v),
-                          ),
-                          const Divider(height: 24),
-                          _buildSwitchRow(
-                            'Push Notifications',
-                            'Get real-time job assignment alerts instantly',
-                            _pushNotifications,
-                            (v) => setState(() => _pushNotifications = v),
-                          ),
-                          const Divider(height: 24),
-                          _buildSwitchRow(
-                            'SMS Alert Dispatches',
-                            'Get text messages for critical high-priority tickets',
-                            _smsAlerts,
-                            (v) => setState(() => _smsAlerts = v),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 32),
-
-                // Right Column: Regional & General Settings
-                Expanded(
-                  flex: 4,
-                  child: Column(
-                    children: [
-                      _buildSettingsCard(
-                        title: 'Interface Settings',
-                        icon: Icons.palette_rounded,
-                        children: [
-                          _buildSwitchRow(
-                            'High Contrast Mode',
-                            'Increases visibility for text and labels',
-                            _highContrast,
-                            (v) => setState(() => _highContrast = v),
-                          ),
-                          const Divider(height: 24),
-                          _buildDropdownRow(
-                            'Display Language',
-                            'Choose your primary working language',
-                            _selectedLanguage,
-                            ['English', 'Tagalog', 'Spanish'],
-                            (v) => setState(() => _selectedLanguage = v ?? 'English'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      _buildSettingsCard(
-                        title: 'System Information',
-                        icon: Icons.info_outline_rounded,
-                        children: [
-                          _buildDetailRow('App Version', 'v1.4.2 (Production)'),
-                          _buildDetailRow('Environment', 'Cloud / Web Client'),
-                          _buildDetailRow('Database Connection', 'Connected'),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Preferences saved successfully!'),
-                                    backgroundColor: AdminStyles.success,
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.save_rounded, size: 18),
-                              label: const Text('Save Settings', style: TextStyle(fontWeight: FontWeight.bold)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AdminStyles.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsCard({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    return Container(
-      decoration: AdminStyles.cardDecoration(hasShadow: true),
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: AdminStyles.primary, size: 22),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: AdminStyles.headingStyle(fontSize: 16),
+                    _buildSwitchTile(
+                      icon: Icons.email_rounded,
+                      title: 'Email Notifications',
+                      description: 'Receive updates via email.',
+                      color: AdminStyles.primary,
+                      value: _emailNotifications,
+                      onChanged: (!_isLoadingPreferences && _notificationsEnabled) ? _toggleEmailNotifications : null,
+                    ),
+                    _buildSwitchTile(
+                      icon: Icons.phone_android_rounded,
+                      title: 'Push Notifications',
+                      description: 'Receive browser push alerts.',
+                      color: AdminStyles.success,
+                      value: _pushNotifications,
+                      onChanged: (!_isLoadingPreferences && _notificationsEnabled) ? _togglePushNotifications : null,
+                    ),
+                  ]),
+                  const SizedBox(height: 32),
+                  _buildSettingsCategory('Appearance', [
+                    _buildSwitchTile(
+                      icon: themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode_outlined,
+                      title: 'Dark Mode',
+                      description: themeProvider.isDarkMode ? 'Dark theme enabled' : 'Light theme enabled',
+                      color: AdminStyles.warning,
+                      value: themeProvider.isDarkMode,
+                      onChanged: (value) async {
+                        await themeProvider.setDarkMode(value);
+                        await AdminAuditLogService.logAction(
+                          title: value ? 'Enabled Dark Mode (Web)' : 'Disabled Dark Mode (Web)',
+                          details: 'Web Settings > Appearance',
+                        );
+                      },
+                    ),
+                  ]),
+                  const SizedBox(height: 32),
+                  _buildSettingsCategory('Security & Access', [
+                    _buildActionTile(
+                      icon: Icons.lock_rounded,
+                      title: 'Update Password',
+                      description: 'Ensure your account remains secure.',
+                      color: AdminStyles.error,
+                      onTap: _showChangePasswordDialog,
+                    ),
+                  ]),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
-          Text(value, style: AdminStyles.dataStyle(fontSize: 13, color: AdminStyles.textPrimary)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSwitchRow(String title, String subtitle, bool value, ValueChanged<bool> onChanged) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textPrimary)),
-              const SizedBox(height: 4),
-              Text(subtitle, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary)),
-            ],
+            ),
           ),
         ),
-        Switch.adaptive(
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Settings', style: AdminStyles.headingStyle(fontSize: 32)),
+        const SizedBox(height: 8),
+        Text('Personalize your experience and manage account security.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 16)),
+      ],
+    );
+  }
+
+  Widget _buildSettingsCategory(String title, List<Widget> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 16),
+          child: Text(title.toUpperCase(), style: AdminStyles.headingStyle(fontSize: 12, color: AdminStyles.textMuted, letterSpacing: 1.0)),
+        ),
+        Container(
+          decoration: AdminStyles.cardDecoration(),
+          child: Column(children: items),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSwitchTile({
+    required IconData icon,
+    required String title,
+    required String description,
+    required Color color,
+    required bool value,
+    required ValueChanged<bool>? onChanged,
+  }) {
+    return Column(
+      children: [
+        SwitchListTile.adaptive(
           value: value,
           onChanged: onChanged,
           activeThumbColor: AdminStyles.primary,
-          activeTrackColor: AdminStyles.primary.withValues(alpha: 0.5),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          secondary: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          title: Text(title, style: AdminStyles.headingStyle(fontSize: 15)),
+          subtitle: Text(description, style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
         ),
+        Divider(height: 1, color: AdminStyles.border),
       ],
     );
   }
 
-  Widget _buildDropdownRow(
-    String title,
-    String subtitle,
-    String value,
-    List<String> options,
-    ValueChanged<String?> onChanged,
-  ) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textPrimary)),
-              const SizedBox(height: 4),
-              Text(subtitle, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary)),
-            ],
-          ),
+  Widget _buildActionTile({
+    required IconData icon,
+    required String title,
+    required String description,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: AdminStyles.headingStyle(fontSize: 15)),
+                  const SizedBox(height: 4),
+                  Text(description, style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: AdminStyles.textMuted),
+          ],
         ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AdminStyles.border),
-          ),
-          child: DropdownButton<String>(
-            value: value,
-            underline: const SizedBox(),
-            items: options.map((opt) {
-              return DropdownMenuItem(
-                value: opt,
-                child: Text(opt, style: AdminStyles.bodyStyle(fontSize: 13)),
-              );
-            }).toList(),
-            onChanged: onChanged,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
