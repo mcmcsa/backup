@@ -385,8 +385,13 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                 ),
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    // Logic to download APK.
-                    html.window.open('/downloads/psu_maintsystem.apk', '_blank');
+                    // Logic to download APK using programmatic anchor click for mobile/desktop compatibility.
+                    final anchor = html.AnchorElement(href: '/downloads/psu_maintsystem.apk')
+                      ..setAttribute('download', 'psu_maintsystem.apk')
+                      ..style.display = 'none';
+                    html.document.body?.append(anchor);
+                    anchor.click();
+                    anchor.remove();
                   },
                   icon: const Icon(Icons.android_rounded, size: 20, color: _royalBlue),
                   label: const Text(
