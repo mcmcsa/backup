@@ -412,58 +412,64 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
 
     return Container(
       decoration: AdminStyles.cardDecoration(),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _borderColor))),
-            child: Row(
-              children: [
-                Expanded(flex: 1, child: _buildTableHeader('Tracking #')),
-                Expanded(flex: 2, child: _buildTableHeader('Title')),
-                Expanded(flex: 1, child: _buildTableHeader('Room')),
-                Expanded(flex: 1, child: _buildTableHeader('Status')),
-                Expanded(flex: 1, child: _buildTableHeader('Priority')),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final isLast = index == filtered.length - 1;
-                final req = filtered[index];
-                return Column(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: 800,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                decoration: BoxDecoration(border: Border(bottom: BorderSide(color: _borderColor))),
+                child: Row(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                      child: Row(
-                        children: [
-                          Expanded(flex: 1, child: Text(req.id.substring(0, 8).toUpperCase(), style: AdminStyles.dataStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _darkText))),
-                          Expanded(flex: 2, child: Text(req.title, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _darkText), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                          Expanded(flex: 1, child: Text(req.roomName ?? 'N/A', style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                          Expanded(
-                            flex: 1,
-                            child: Container(
-                              alignment: Alignment.centerLeft,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: _getStatusColor(req.status).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                                child: Text(req.status.replaceAll('_', ' ').toUpperCase(), style: AdminStyles.headingStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _getStatusColor(req.status)), textAlign: TextAlign.center),
-                              ),
-                            ),
-                          ),
-                          Expanded(flex: 1, child: Text(req.priority, style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                        ],
-                      ),
-                    ),
-                    if (!isLast) Divider(height: 1, color: _borderColor),
+                    Expanded(flex: 1, child: _buildTableHeader('Tracking #')),
+                    Expanded(flex: 2, child: _buildTableHeader('Title')),
+                    Expanded(flex: 1, child: _buildTableHeader('Room')),
+                    Expanded(flex: 1, child: _buildTableHeader('Status')),
+                    Expanded(flex: 1, child: _buildTableHeader('Priority')),
                   ],
-                );
-              },
-            ),
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final isLast = index == filtered.length - 1;
+                    final req = filtered[index];
+                    return Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          child: Row(
+                            children: [
+                              Expanded(flex: 1, child: Text(req.id.substring(0, 8).toUpperCase(), style: AdminStyles.dataStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _darkText))),
+                              Expanded(flex: 2, child: Text(req.title, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _darkText), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                              Expanded(flex: 1, child: Text(req.roomName ?? 'N/A', style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                              Expanded(
+                                flex: 1,
+                                child: Container(
+                                  alignment: Alignment.centerLeft,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(color: _getStatusColor(req.status).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                                    child: Text(req.status.replaceAll('_', ' ').toUpperCase(), style: AdminStyles.headingStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _getStatusColor(req.status)), textAlign: TextAlign.center),
+                                  ),
+                                ),
+                              ),
+                              Expanded(flex: 1, child: Text(req.priority, style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                            ],
+                          ),
+                        ),
+                        if (!isLast) Divider(height: 1, color: _borderColor),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

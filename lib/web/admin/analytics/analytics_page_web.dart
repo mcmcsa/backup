@@ -155,82 +155,139 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
       color: _pageBg,
       child: _isLoading
           ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header with period selector
-                  _buildHeader(),
-                  const SizedBox(height: 24),
-
-                  // Stats Cards Row
-                  _buildStatsRow(),
-                  const SizedBox(height: 24),
-
-                  // Charts Row
-                  Row(
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final isMobile = constraints.maxWidth < 900;
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Left Column - Performance & Status
-                      Expanded(
-                        flex: 4,
-                        child: Column(
+                      // Header with period selector
+                      _buildHeader(isMobile),
+                      const SizedBox(height: 24),
+
+                      // Stats Cards Row
+                      _buildStatsRow(isMobile),
+                      const SizedBox(height: 24),
+
+                      // Charts Row
+                      if (isMobile)
+                        Column(
                           children: [
                             _buildPerformanceCard(),
                             const SizedBox(height: 20),
                             _buildStatusDistributionCard(),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 20),
-                      // Right Column - Priority & Rooms
-                      Expanded(
-                        flex: 3,
-                        child: Column(
-                          children: [
+                            const SizedBox(height: 20),
                             _buildPriorityCard(),
                             const SizedBox(height: 20),
                             _buildRoomStatsCard(),
                           ],
+                        )
+                      else
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Left Column - Performance & Status
+                            Expanded(
+                              flex: 4,
+                              child: Column(
+                                children: [
+                                  _buildPerformanceCard(),
+                                  const SizedBox(height: 20),
+                                  _buildStatusDistributionCard(),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 20),
+                            // Right Column - Priority & Rooms
+                            Expanded(
+                              flex: 3,
+                              child: Column(
+                                children: [
+                                  _buildPriorityCard(),
+                                  const SizedBox(height: 20),
+                                  _buildRoomStatsCard(),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
                     ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: _primaryBlue.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.bar_chart_rounded, color: _primaryBlue, size: 20),
-        ),
-        const SizedBox(width: 12),
-        const Column(
+  Widget _buildHeader(bool isMobile) {
+    return isMobile 
+      ? Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Analytics Dashboard',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _darkText, letterSpacing: -0.5),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _primaryBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.bar_chart_rounded, color: _primaryBlue, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Analytics Dashboard',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _darkText, letterSpacing: -0.5),
+                    ),
+                    Text(
+                      'Performance metrics',
+                      style: TextStyle(fontSize: 14, color: _subtleText, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            Text(
-              'Performance metrics and insights',
-              style: TextStyle(fontSize: 14, color: _subtleText, fontWeight: FontWeight.w500),
-            ),
+            const SizedBox(height: 16),
+            _buildPeriodSelector(),
           ],
-        ),
-        const Spacer(),
-        // Period Selector
-        Container(
+        )
+      : Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _primaryBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.bar_chart_rounded, color: _primaryBlue, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Analytics Dashboard',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _darkText, letterSpacing: -0.5),
+                ),
+                Text(
+                  'Performance metrics and insights',
+                  style: TextStyle(fontSize: 14, color: _subtleText, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const Spacer(),
+            _buildPeriodSelector(),
+          ],
+        );
+  }
+
+  Widget _buildPeriodSelector() {
+    return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -262,7 +319,7 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
     );
   }
 
-  Widget _buildStatsRow() {
+  Widget _buildStatsRow(bool isMobile) {
     final now = DateTime.now();
     final currentStart = _periodStart(now);
     final currentEnd = _currentPeriodEnd(now);
@@ -311,52 +368,49 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
     final previousCompletionRate = previousTotal == 0 ? 0 : (previousCompleted / previousTotal) * 100;
     final completionRateTrend = currentCompletionRate - previousCompletionRate;
 
+    final cards = [
+      _StatCard(
+        title: 'Total Requests',
+        value: '$_totalRequests',
+        icon: Icons.description_rounded,
+        iconColor: _primaryBlue,
+        trend: '${totalTrend >= 0 ? '+' : ''}${totalTrend.toStringAsFixed(1)}%',
+        trendUp: totalTrend >= 0,
+      ),
+      _StatCard(
+        title: 'Completion Rate',
+        value: '${_completionRate.toStringAsFixed(1)}%',
+        icon: Icons.check_circle_rounded,
+        iconColor: _successGreen,
+        trend: '${completionRateTrend >= 0 ? '+' : ''}${completionRateTrend.toStringAsFixed(1)}%',
+        trendUp: completionRateTrend >= 0,
+      ),
+      _StatCard(
+        title: 'Pending',
+        value: '$_pendingRequests',
+        icon: Icons.hourglass_empty_rounded,
+        iconColor: _warningYellow,
+        trend: '${pendingTrend >= 0 ? '+' : ''}${pendingTrend.toStringAsFixed(1)}%',
+        trendUp: pendingTrend <= 0,
+      ),
+      _StatCard(
+        title: 'High Priority',
+        value: '$_highPriority',
+        icon: Icons.priority_high_rounded,
+        iconColor: _dangerRed,
+        trend: '${highPriorityTrend >= 0 ? '+' : ''}${highPriorityTrend.toStringAsFixed(1)}%',
+        trendUp: highPriorityTrend <= 0,
+      ),
+    ];
+
+    if (isMobile) {
+      return Column(
+        children: cards.expand((card) => [card, const SizedBox(height: 16)]).toList()..removeLast(),
+      );
+    }
+
     return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            title: 'Total Requests',
-            value: '$_totalRequests',
-            icon: Icons.description_rounded,
-            iconColor: _primaryBlue,
-            trend: '${totalTrend >= 0 ? '+' : ''}${totalTrend.toStringAsFixed(1)}%',
-            trendUp: totalTrend >= 0,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _StatCard(
-            title: 'Completion Rate',
-            value: '${_completionRate.toStringAsFixed(1)}%',
-            icon: Icons.check_circle_rounded,
-            iconColor: _successGreen,
-            trend: '${completionRateTrend >= 0 ? '+' : ''}${completionRateTrend.toStringAsFixed(1)}%',
-            trendUp: completionRateTrend >= 0,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _StatCard(
-            title: 'Pending',
-            value: '$_pendingRequests',
-            icon: Icons.hourglass_empty_rounded,
-            iconColor: _warningYellow,
-            trend: '${pendingTrend >= 0 ? '+' : ''}${pendingTrend.toStringAsFixed(1)}%',
-            trendUp: pendingTrend <= 0,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _StatCard(
-            title: 'High Priority',
-            value: '$_highPriority',
-            icon: Icons.priority_high_rounded,
-            iconColor: _dangerRed,
-            trend: '${highPriorityTrend >= 0 ? '+' : ''}${highPriorityTrend.toStringAsFixed(1)}%',
-            trendUp: highPriorityTrend <= 0,
-          ),
-        ),
-      ],
+      children: cards.expand((card) => [Expanded(child: card), const SizedBox(width: 16)]).toList()..removeLast(),
     );
   }
 

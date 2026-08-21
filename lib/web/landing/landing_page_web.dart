@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:universal_html/html.dart' as html;
 
 class LandingPageWeb extends StatefulWidget {
   const LandingPageWeb({super.key});
@@ -20,6 +21,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
   int _hoveredNavIndex = -1;
   bool _isLoginHovered = false;
   bool _isGetStartedHovered = false;
+  bool _isDownloadAppHovered = false;
   bool _isQrCardHovered = false;
 
   final List<bool> _hoveredSteps = [false, false, false, false, false];
@@ -315,47 +317,99 @@ class _LandingPageWebState extends State<LandingPageWeb> {
           ),
         ),
         const SizedBox(height: 32),
-        MouseRegion(
-          onEnter: (_) => setState(() => _isGetStartedHovered = true),
-          onExit: (_) => setState(() => _isGetStartedHovered = false),
-          cursor: SystemMouseCursors.click,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: _isGetStartedHovered ? _royalBlue.withBlue(200) : _royalBlue,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: _isGetStartedHovered
-                  ? [
-                      BoxShadow(
-                        color: _royalBlue.withOpacity(0.3),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      )
-                    ]
-                  : [],
-            ),
-            child: ElevatedButton.icon(
-              onPressed: () => context.go('/login'),
-              icon: const Icon(Icons.qr_code_scanner_rounded, size: 20, color: Colors.white),
-              label: const Text(
-                'Get Started',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 22),
-                shape: RoundedRectangleBorder(
+        Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            MouseRegion(
+              onEnter: (_) => setState(() => _isGetStartedHovered = true),
+              onExit: (_) => setState(() => _isGetStartedHovered = false),
+              cursor: SystemMouseCursors.click,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: _isGetStartedHovered ? _royalBlue.withBlue(200) : _royalBlue,
                   borderRadius: BorderRadius.circular(8),
+                  boxShadow: _isGetStartedHovered
+                      ? [
+                          BoxShadow(
+                            color: _royalBlue.withOpacity(0.3),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          )
+                        ]
+                      : [],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: () => context.go('/login'),
+                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 20, color: Colors.white),
+                  label: const Text(
+                    'Get Started',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 22),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
+            MouseRegion(
+              onEnter: (_) => setState(() => _isDownloadAppHovered = true),
+              onExit: (_) => setState(() => _isDownloadAppHovered = false),
+              cursor: SystemMouseCursors.click,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: _isDownloadAppHovered ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _royalBlue, width: 2),
+                  boxShadow: _isDownloadAppHovered
+                      ? [
+                          BoxShadow(
+                            color: _royalBlue.withOpacity(0.1),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          )
+                        ]
+                      : [],
+                ),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // Logic to download APK.
+                    html.window.open('/downloads/psu_maintsystem.apk', '_blank');
+                  },
+                  icon: const Icon(Icons.android_rounded, size: 20, color: _royalBlue),
+                  label: const Text(
+                    'Download App',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: _royalBlue,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6), // Compensating for border
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 36),
         // Inline Features highlights styled as premium pill badges

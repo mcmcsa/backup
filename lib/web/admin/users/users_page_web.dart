@@ -318,37 +318,43 @@ class _UsersPageWebState extends State<UsersPageWeb> {
                             ],
                           ),
                         )
-                      : Column(
-                          children: [
-                            // Table Header
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 24, vertical: 14),
-                              decoration: const BoxDecoration(
-                                border: Border(
-                                    bottom: BorderSide(color: AdminStyles.border)),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(flex: 3, child: _buildTableHeader('User')),
-                                  Expanded(flex: 2, child: _buildTableHeader('Role')),
-                                  Expanded(flex: 2, child: _buildTableHeader('Details')),
-                                  Expanded(flex: 1, child: _buildTableHeader('Status')),
-                                ],
-                              ),
+                      : SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SizedBox(
+                            width: 800,
+                            child: Column(
+                              children: [
+                                // Table Header
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 24, vertical: 14),
+                                  decoration: const BoxDecoration(
+                                    border: Border(
+                                        bottom: BorderSide(color: AdminStyles.border)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(flex: 3, child: _buildTableHeader('User')),
+                                      Expanded(flex: 2, child: _buildTableHeader('Role')),
+                                      Expanded(flex: 2, child: _buildTableHeader('Details')),
+                                      Expanded(flex: 1, child: _buildTableHeader('Status')),
+                                    ],
+                                  ),
+                                ),
+                                // Rows
+                                Expanded(
+                                  child: ListView.separated(
+                                    itemCount: filtered.length,
+                                    separatorBuilder: (_, __) =>
+                                        const Divider(height: 1, color: AdminStyles.border),
+                                    itemBuilder: (context, index) {
+                                      return _UserRow(user: filtered[index]);
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
-                            // Rows
-                            Expanded(
-                              child: ListView.separated(
-                                itemCount: filtered.length,
-                                separatorBuilder: (_, __) =>
-                                    const Divider(height: 1, color: AdminStyles.border),
-                                itemBuilder: (context, index) {
-                                  return _UserRow(user: filtered[index]);
-                                },
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
             ),
           ),

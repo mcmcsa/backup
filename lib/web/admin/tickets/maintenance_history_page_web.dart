@@ -212,34 +212,40 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
                               ),
                             ),
                           )
-                        : Column(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                decoration: const BoxDecoration(
-                                  border: Border(bottom: BorderSide(color: AdminStyles.border)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(flex: 1, child: _buildTableHeader('Ticket ID')),
-                                    Expanded(flex: 2, child: _buildTableHeader('Requestor')),
-                                    Expanded(flex: 2, child: _buildTableHeader('Title / Issue')),
-                                    Expanded(flex: 2, child: _buildTableHeader('Date & Location')),
-                                    Expanded(flex: 1, child: _buildTableHeader('Status')),
-                                    Expanded(flex: 1, child: _buildTableHeader('Action')),
-                                  ],
-                                ),
+                        : SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SizedBox(
+                              width: 1000,
+                              child: Column(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                    decoration: const BoxDecoration(
+                                      border: Border(bottom: BorderSide(color: AdminStyles.border)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(flex: 1, child: _buildTableHeader('Ticket ID')),
+                                        Expanded(flex: 2, child: _buildTableHeader('Requestor')),
+                                        Expanded(flex: 2, child: _buildTableHeader('Title / Issue')),
+                                        Expanded(flex: 2, child: _buildTableHeader('Date & Location')),
+                                        Expanded(flex: 1, child: _buildTableHeader('Status')),
+                                        Expanded(flex: 1, child: _buildTableHeader('Action')),
+                                      ],
+                                    ),
+                                  ),
+                                  ListView.separated(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    itemCount: filtered.length,
+                                    separatorBuilder: (_, index) => const Divider(height: 1, color: AdminStyles.border),
+                                    itemBuilder: (context, index) {
+                                      return _HistoryTableRow(request: filtered[index]);
+                                    },
+                                  ),
+                                ],
                               ),
-                              ListView.separated(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: filtered.length,
-                                separatorBuilder: (_, index) => const Divider(height: 1, color: AdminStyles.border),
-                                itemBuilder: (context, index) {
-                                  return _HistoryTableRow(request: filtered[index]);
-                                },
-                              ),
-                            ],
+                            ),
                           ),
               ),
             ],

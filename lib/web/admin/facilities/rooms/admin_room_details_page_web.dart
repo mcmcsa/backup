@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../shared/models/room_model.dart';
 import '../../shared/admin_styles.dart';
@@ -163,6 +164,8 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
                                         onPressed: () {
                                           if (Navigator.canPop(context)) {
                                             Navigator.pop(context);
+                                          } else {
+                                            context.go('/admin/facilities');
                                           }
                                         },
                                         icon: const Icon(
@@ -225,6 +228,8 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
                                       onPressed: () {
                                         if (Navigator.canPop(context)) {
                                           Navigator.pop(context);
+                                        } else {
+                                          context.go('/admin/facilities');
                                         }
                                       },
                                       icon: const Icon(

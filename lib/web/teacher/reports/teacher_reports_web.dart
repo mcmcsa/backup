@@ -422,23 +422,29 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: [
-            _buildTableHeader(),
-            Expanded(
-              child: ListView.separated(
-                itemCount: _filteredRequests.length,
-                separatorBuilder:
-                    (context, index) => const Divider(
-                      height: 1,
-                      color: Color(0xFFF1F5F9),
-                    ),
-                itemBuilder:
-                    (context, index) =>
-                        _buildTableRow(_filteredRequests[index], index),
-              ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: 900,
+            child: Column(
+              children: [
+                _buildTableHeader(),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _filteredRequests.length,
+                    separatorBuilder:
+                        (context, index) => const Divider(
+                          height: 1,
+                          color: Color(0xFFF1F5F9),
+                        ),
+                    itemBuilder:
+                        (context, index) =>
+                            _buildTableRow(_filteredRequests[index], index),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

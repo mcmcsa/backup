@@ -137,7 +137,7 @@ class _MaintenanceManagementPageWebState
             return AlertDialog(
               title: const Text('Create Maintenance Account'),
               content: SizedBox(
-                width: 460,
+                width: MediaQuery.of(context).size.width > 500 ? 460 : MediaQuery.of(context).size.width * 0.85,
                 child: Form(
                   key: formKey,
                   child: SingleChildScrollView(
@@ -362,7 +362,7 @@ class _MaintenanceManagementPageWebState
             return AlertDialog(
               title: const Text('Edit Maintenance Account'),
               content: SizedBox(
-                width: 460,
+                width: MediaQuery.of(context).size.width > 500 ? 460 : MediaQuery.of(context).size.width * 0.85,
                 child: Form(
                   key: formKey,
                   child: SingleChildScrollView(
@@ -978,7 +978,7 @@ class _MaintenanceManagementPageWebState
       builder: (dialogContext) => AlertDialog(
         title: const Text('Maintenance Account Details'),
         content: SizedBox(
-          width: 420,
+          width: MediaQuery.of(context).size.width > 460 ? 420 : MediaQuery.of(context).size.width * 0.85,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

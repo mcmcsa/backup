@@ -127,7 +127,7 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
             children: [
               _buildHeader(),
               const SizedBox(height: 32),
-              _buildProfileHero(user, authService.isLoading),
+              _buildProfileHero(user, authService.isLoading, isMobile),
               const SizedBox(height: 32),
               isMobile
                   ? Column(
@@ -169,9 +169,102 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
     );
   }
 
-  Widget _buildProfileHero(AppUser? user, bool isLoading) {
+  Widget _buildProfileHero(AppUser? user, bool isLoading, bool isMobile) {
+    final avatar = Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        color: AdminStyles.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Center(
+        child: Text(
+          (_nameController.text.isNotEmpty)
+              ? _nameController.text[0].toUpperCase()
+              : 'A',
+          style: AdminStyles.headingStyle(
+              fontSize: 48, fontWeight: FontWeight.w700, color: AdminStyles.primary),
+        ),
+      ),
+    );
+
+    final userInfo = Column(
+      crossAxisAlignment: isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        Text(
+          user?.name ?? 'Administrator',
+          style: AdminStyles.headingStyle(fontSize: 22, fontWeight: FontWeight.w700),
+          textAlign: isMobile ? TextAlign.center : TextAlign.left,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          user?.email ?? '',
+          style: AdminStyles.bodyStyle(fontSize: 14, color: AdminStyles.textSecondary),
+          textAlign: isMobile ? TextAlign.center : TextAlign.left,
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: isMobile ? WrapAlignment.center : WrapAlignment.start,
+          children: [
+            _buildBadge(user?.roleLabel ?? 'Campus Administrator', AdminStyles.primary),
+            if ((user?.position ?? '').isNotEmpty)
+              _buildBadge(user!.position!, AdminStyles.secondary),
+          ],
+        ),
+      ],
+    );
+
+    final actions = _isEditing
+        ? Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: isMobile ? WrapAlignment.center : WrapAlignment.end,
+            children: [
+              OutlinedButton(
+                onPressed: () {
+                  _syncControllers(user);
+                  setState(() => _isEditing = false);
+                },
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AdminStyles.border),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: Text('Cancel', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
+              ),
+              ElevatedButton.icon(
+                onPressed: isLoading ? null : _saveProfile,
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.save_rounded, size: 18),
+                label: const Text('Save Changes'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminStyles.success,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          )
+        : ElevatedButton.icon(
+            onPressed: () => setState(() => _isEditing = true),
+            icon: const Icon(Icons.edit_rounded, size: 18),
+            label: const Text('Edit Profile'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminStyles.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(isMobile ? 20 : 32),
       decoration: BoxDecoration(
         color: AdminStyles.surface,
         borderRadius: BorderRadius.circular(16),
@@ -184,101 +277,26 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          // Avatar
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              color: AdminStyles.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Text(
-                (_nameController.text.isNotEmpty)
-                    ? _nameController.text[0].toUpperCase()
-                    : 'A',
-                style: AdminStyles.headingStyle(
-                    fontSize: 48, fontWeight: FontWeight.w700, color: AdminStyles.primary),
-              ),
-            ),
-          ),
-          const SizedBox(width: 24),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  user?.name ?? 'Administrator',
-                  style: AdminStyles.headingStyle(fontSize: 22, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  user?.email ?? '',
-                  style: AdminStyles.bodyStyle(fontSize: 14, color: AdminStyles.textSecondary),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildBadge(user?.roleLabel ?? 'Campus Administrator', AdminStyles.primary),
-                    if ((user?.position ?? '').isNotEmpty)
-                      _buildBadge(user!.position!, AdminStyles.secondary),
-                  ],
-                ),
+                avatar,
+                const SizedBox(height: 20),
+                userInfo,
+                const SizedBox(height: 24),
+                actions,
+              ],
+            )
+          : Row(
+              children: [
+                avatar,
+                const SizedBox(width: 24),
+                Expanded(child: userInfo),
+                const SizedBox(width: 24),
+                actions,
               ],
             ),
-          ),
-          // Edit / Save button
-          _isEditing
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () {
-                        _syncControllers(user);
-                        setState(() => _isEditing = false);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: AdminStyles.border),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: Text('Cancel', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: isLoading ? null : _saveProfile,
-                      icon: isLoading
-                          ? const SizedBox(
-                              width: 16, height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.save_rounded, size: 18),
-                      label: const Text('Save Changes'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AdminStyles.success,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ],
-                )
-              : ElevatedButton.icon(
-                  onPressed: () => setState(() => _isEditing = true),
-                  icon: const Icon(Icons.edit_rounded, size: 18),
-                  label: const Text('Edit Profile'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminStyles.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-        ],
-      ),
     );
   }
 

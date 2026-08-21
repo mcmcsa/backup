@@ -250,14 +250,16 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 900;
+
     return Scaffold(
       backgroundColor: AdminStyles.bg,
       body: Column(
         children: [
-          _buildHeader(),
+          _buildHeader(isMobile),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(isMobile ? 16 : 32),
               child: Center(
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 1000),
@@ -266,14 +268,19 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(flex: 6, child: _buildMainForm()),
-                            const SizedBox(width: 32),
-                            Expanded(flex: 4, child: _buildSidePanel()),
-                          ],
-                        ),
+                        if (isMobile) ...[
+                          _buildMainForm(isMobile),
+                          const SizedBox(height: 24),
+                          _buildSidePanel(isMobile),
+                        ] else
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(flex: 6, child: _buildMainForm(isMobile)),
+                              const SizedBox(width: 32),
+                              Expanded(flex: 4, child: _buildSidePanel(isMobile)),
+                            ],
+                          ),
                       ],
                     ),
                   ),
@@ -286,109 +293,182 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isMobile) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: isMobile ? 16 : 24),
       color: AdminStyles.surface,
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AdminStyles.border))),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
-            onPressed: () => context.go('/admin/dashboard'),
-          ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Submit Work Request', style: AdminStyles.headingStyle(fontSize: 24)),
-              Text('Report maintenance issues within your assigned rooms', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
-            ],
-          ),
-          const Spacer(),
-          ElevatedButton.icon(
-            onPressed: _isSubmitting ? null : _submitRequest,
-            icon: _isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded),
-            label: const Text('Submit Request'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminStyles.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
+                      onPressed: () => context.go('/admin/dashboard'),
+                    ),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('Submit Work Request', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSubmitting ? null : _submitRequest,
+                    icon: _isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded),
+                    label: const Text('Submit Request'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminStyles.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
+                  onPressed: () => context.go('/admin/dashboard'),
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Submit Work Request', style: AdminStyles.headingStyle(fontSize: 24)),
+                    Text('Report maintenance issues within your assigned rooms', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+                  ],
+                ),
+                const Spacer(),
+                ElevatedButton.icon(
+                  onPressed: _isSubmitting ? null : _submitRequest,
+                  icon: _isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded),
+                  label: const Text('Submit Request'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminStyles.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 
-  Widget _buildMainForm() {
+  Widget _buildMainForm(bool isMobile) {
     return Column(
       children: [
         _buildCard(
           title: 'Location Details',
           icon: Icons.location_on_rounded,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInputField(
-                    label: 'Room Code',
-                    controller: _roomNumberController,
-                    hint: 'e.g. 101, 205',
-                    validator: (v) => v!.isEmpty ? 'Required' : null,
+            if (isMobile) ...[
+              _buildInputField(
+                label: 'Room Code',
+                controller: _roomNumberController,
+                hint: 'e.g. 101, 205',
+                validator: (v) => v!.isEmpty ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              _buildInputField(
+                label: 'Room Name (Optional)',
+                controller: _officeRoomNameController,
+                hint: 'e.g. CS Lab 1',
+              ),
+            ] else
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInputField(
+                      label: 'Room Code',
+                      controller: _roomNumberController,
+                      hint: 'e.g. 101, 205',
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildInputField(
-                    label: 'Room Name (Optional)',
-                    controller: _officeRoomNameController,
-                    hint: 'e.g. CS Lab 1',
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildInputField(
+                      label: 'Room Name (Optional)',
+                      controller: _officeRoomNameController,
+                      hint: 'e.g. CS Lab 1',
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDropdownField(
-                    label: 'Department/College',
-                    value: _selectedCollege,
-                    items: _colleges,
-                    onChanged: (v) => setState(() {
-                      _selectedCollege = v!;
-                      _selectedBuilding = _buildingsByDepartment[v]?.first ?? '';
-                    }),
+            if (isMobile) ...[
+              _buildDropdownField(
+                label: 'Department/College',
+                value: _selectedCollege,
+                items: _colleges,
+                onChanged: (v) => setState(() {
+                  _selectedCollege = v!;
+                  _selectedBuilding = _buildingsByDepartment[v]?.first ?? '';
+                }),
+              ),
+              const SizedBox(height: 16),
+              _buildDropdownField(
+                label: 'Building',
+                value: _selectedBuilding,
+                items: _buildingsByDepartment[_selectedCollege] ?? [],
+                onChanged: (v) => setState(() => _selectedBuilding = v!),
+              ),
+            ] else
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDropdownField(
+                      label: 'Department/College',
+                      value: _selectedCollege,
+                      items: _colleges,
+                      onChanged: (v) => setState(() {
+                        _selectedCollege = v!;
+                        _selectedBuilding = _buildingsByDepartment[v]?.first ?? '';
+                      }),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildDropdownField(
-                    label: 'Building',
-                    value: _selectedBuilding,
-                    items: _buildingsByDepartment[_selectedCollege] ?? [],
-                    onChanged: (v) => setState(() => _selectedBuilding = v!),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildDropdownField(
+                      label: 'Building',
+                      value: _selectedBuilding,
+                      items: _buildingsByDepartment[_selectedCollege] ?? [],
+                      onChanged: (v) => setState(() => _selectedBuilding = v!),
+                    ),
                   ),
-                ),
-              ],
-            ),
+                ],
+              ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDropdownField(
-                    label: 'Floor',
-                    value: _selectedFloor,
-                    items: _floors,
-                    onChanged: (v) => setState(() => _selectedFloor = v!),
+            if (isMobile)
+              _buildDropdownField(
+                label: 'Floor',
+                value: _selectedFloor,
+                items: _floors,
+                onChanged: (v) => setState(() => _selectedFloor = v!),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDropdownField(
+                      label: 'Floor',
+                      value: _selectedFloor,
+                      items: _floors,
+                      onChanged: (v) => setState(() => _selectedFloor = v!),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                const Expanded(child: SizedBox()),
-              ],
-            ),
+                  const SizedBox(width: 16),
+                  const Expanded(child: SizedBox()),
+                ],
+              ),
           ],
         ),
         const SizedBox(height: 24),
@@ -515,7 +595,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
     );
   }
 
-  Widget _buildSidePanel() {
+  Widget _buildSidePanel(bool isMobile) {
     return Column(
       children: [
         _buildCard(

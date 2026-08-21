@@ -17,6 +17,6 @@ echo "Creating dummy .env file for Vercel asset bundler..."
 touch .env
 
 echo "Building Flutter Web (verbose mode)..."
-flutter build web --release -v
+flutter build web --release --base-href "/" -v
 
 echo "Build completed successfully!"

@@ -311,7 +311,11 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final perRow = constraints.maxWidth > 1024 ? 4 : 2;
+        final perRow = constraints.maxWidth > 1024
+            ? 4
+            : constraints.maxWidth > 600
+                ? 2
+                : 1;
         final cardWidth = (constraints.maxWidth - ((perRow - 1) * 12)) / perRow;
 
         final cards = [

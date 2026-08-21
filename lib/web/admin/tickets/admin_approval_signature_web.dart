@@ -257,26 +257,41 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                           child: Center(
                             child: ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 1400),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Left Column: Sticky Context
-                                  SizedBox(
-                                    width: 400,
-                                    child: _buildDetailsColumn(),
-                                  ),
-                                  const SizedBox(width: 40),
-                                  // Right Column: Professional Flow
-                                  Expanded(
-                                    child: Column(
-                                      children: [
-                                        _buildSignatureFlow(),
-                                        const SizedBox(height: 100),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
+                               child: LayoutBuilder(
+                                 builder: (context, constraints) {
+                                   final isMobile = constraints.maxWidth < 900;
+                                   if (isMobile) {
+                                     return Column(
+                                       children: [
+                                         _buildDetailsColumn(),
+                                         const SizedBox(height: 24),
+                                         _buildSignatureFlow(),
+                                         const SizedBox(height: 60),
+                                       ],
+                                     );
+                                   }
+                                   return Row(
+                                     crossAxisAlignment: CrossAxisAlignment.start,
+                                     children: [
+                                       // Left Column: Sticky Context
+                                       SizedBox(
+                                         width: 400,
+                                         child: _buildDetailsColumn(),
+                                       ),
+                                       const SizedBox(width: 40),
+                                       // Right Column: Professional Flow
+                                       Expanded(
+                                         child: Column(
+                                           children: [
+                                             _buildSignatureFlow(),
+                                             const SizedBox(height: 100),
+                                           ],
+                                         ),
+                                       ),
+                                     ],
+                                   );
+                                 },
+                               ),
                             ),
                           ),
                         ),

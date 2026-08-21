@@ -280,36 +280,42 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
 
     return Container(
       decoration: AdminStyles.cardDecoration(borderRadius: 20),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-            decoration: BoxDecoration(
-              color: AdminStyles.bg.withValues(alpha: 0.5),
-              border: Border(bottom: BorderSide(color: _borderColor)),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Row(
-              children: [
-                Expanded(flex: 2, child: _buildTableHeader('Full Name')),
-                Expanded(flex: 2, child: _buildTableHeader('Email Address', align: TextAlign.center)),
-                Expanded(flex: 1, child: _buildTableHeader('Department', align: TextAlign.center)),
-                Expanded(flex: 1, child: _buildTableHeader('Status', align: TextAlign.center)),
-                SizedBox(width: 60, child: _buildTableHeader('Action', align: TextAlign.center)),
-              ],
-            ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(
+          width: 800,
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                decoration: BoxDecoration(
+                  color: AdminStyles.bg.withValues(alpha: 0.5),
+                  border: Border(bottom: BorderSide(color: _borderColor)),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(flex: 2, child: _buildTableHeader('Full Name')),
+                    Expanded(flex: 2, child: _buildTableHeader('Email Address', align: TextAlign.center)),
+                    Expanded(flex: 1, child: _buildTableHeader('Department', align: TextAlign.center)),
+                    Expanded(flex: 1, child: _buildTableHeader('Status', align: TextAlign.center)),
+                    SizedBox(width: 60, child: _buildTableHeader('Action', align: TextAlign.center)),
+                  ],
+                ),
+              ),
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor.withValues(alpha: 0.5)),
+                itemBuilder: (context, index) {
+                  final user = filtered[index];
+                  return _UserTableRow(user: user);
+                },
+              ),
+            ],
           ),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: filtered.length,
-            separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor.withValues(alpha: 0.5)),
-            itemBuilder: (context, index) {
-              final user = filtered[index];
-              return _UserTableRow(user: user);
-            },
-          ),
-        ],
+        ),
       ),
     );
   }
