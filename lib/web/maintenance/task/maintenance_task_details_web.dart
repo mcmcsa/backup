@@ -1203,7 +1203,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
         children: [
           Text('Reference Data', style: AdminStyles.headingStyle(fontSize: 15, color: AdminStyles.textSecondary)),
           const SizedBox(height: 20),
-          _buildSummaryRow('Requestor', task.requestorName),
+          _buildSummaryRow('Requestor', task.requestorName.isNotEmpty ? task.requestorName : 'Unknown Requestor'),
           _buildSummaryRow('Submitted', DateFormat('MMM dd, yyyy').format(task.dateSubmitted)),
           if (task.acceptedDate != null) _buildSummaryRow('Started', DateFormat('MMM dd, yyyy hh:mm a').format(task.acceptedDate!)),
           if (task.dateCompleted != null) _buildSummaryRow('Completed', DateFormat('MMM dd, yyyy hh:mm a').format(task.dateCompleted!)),
