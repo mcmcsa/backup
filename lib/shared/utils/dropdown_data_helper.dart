@@ -226,9 +226,7 @@ class DropdownDataHelper {
   List<String> getRoomStatuses() {
     return [
       'available',
-      'reserved',
-      'maintenance',
-      'inactive',
+      'unavailable',
     ];
   }
 

@@ -66,12 +66,25 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
 
   List<WorkRequest> get _filteredRequests {
     List<WorkRequest> filtered = _requests;
-    if (_selectedFilter == 'Pending') {
-      filtered = filtered.where((r) => r.status == 'pending').toList();
-    } else if (_selectedFilter == 'In Progress') {
-      filtered = filtered.where((r) => r.status == 'in_progress' || r.status == 'under_maintenance').toList();
-    } else if (_selectedFilter == 'Completed') {
-      filtered = filtered.where((r) => r.status == 'completed').toList();
+    final f = _selectedFilter.toLowerCase();
+    if (f == 'pending') {
+      filtered = filtered.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').toList();
+    } else if (f == 'in progress') {
+      filtered = filtered.where((r) => r.status.toLowerCase() == 'in progress' || r.status.toLowerCase() == 'in_progress' || r.status.toLowerCase() == 'assigned' || r.status.toLowerCase() == 'accepted by maintenance').toList();
+    } else if (f == 'declined') {
+      filtered = filtered.where((r) => r.status.toLowerCase() == 'declined' || r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined/cancelled').toList();
+    } else if (f == 'confirmed') {
+      filtered = filtered.where((r) => r.status.toLowerCase() == 'confirmed').toList();
+    } else if (f == 'pre-inspection approved') {
+      filtered = filtered.where((r) => r.status.toLowerCase() == 'pre-inspection approved').toList();
+    } else if (f == 'under maintenance') {
+      filtered = filtered.where((r) => r.status.toLowerCase() == 'under_maintenance').toList();
+    } else if (f == 'rework') {
+      filtered = filtered.where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'for rework').toList();
+    } else if (f == 'completed') {
+      filtered = filtered.where((r) => r.status.toLowerCase() == 'completed').toList();
+    } else if (f == 'duplicates') {
+      filtered = filtered.where((r) => r.duplicateOfId != null).toList();
     }
     
     final query = _searchController.text.toLowerCase();
@@ -82,10 +95,28 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
   }
 
   Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
+    final s = status.toLowerCase();
+    switch (s) {
       case 'completed': return _successGreen;
-      case 'in_progress': case 'under_maintenance': return _infoBlue;
-      case 'pending': return _warningOrange;
+      case 'in progress':
+      case 'in_progress':
+      case 'assigned':
+      case 'accepted by maintenance':
+        return _infoBlue;
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'under_maintenance':
+        return _primaryBlue;
+      case 'pending':
+      case 'pending assignment':
+        return _warningOrange;
+      case 'declined':
+      case 'cancelled':
+      case 'declined/cancelled':
+        return AdminStyles.error;
+      case 'rework':
+      case 'for rework':
+        return const Color(0xFFEA580C);
       default: return _subtleText;
     }
   }
@@ -167,16 +198,19 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
           ),
         ),
         const SizedBox(height: 16),
-        Row(
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
           children: [
             _buildFilterChip('All'),
-            const SizedBox(width: 12),
             _buildFilterChip('Pending'),
-            const SizedBox(width: 12),
+            _buildFilterChip('Pre-Inspection Approved'),
+            _buildFilterChip('Confirmed'),
             _buildFilterChip('In Progress'),
-            const SizedBox(width: 12),
+            _buildFilterChip('Under Maintenance'),
+            _buildFilterChip('Declined'),
+            _buildFilterChip('Rework'),
             _buildFilterChip('Completed'),
-            const SizedBox(width: 12),
             _buildDuplicatesFilterChip(),
           ],
         ),
@@ -443,7 +477,7 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                           child: Row(
                             children: [
-                              Expanded(flex: 1, child: Text(req.id.substring(0, 8).toUpperCase(), style: AdminStyles.dataStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _darkText))),
+                              Expanded(flex: 1, child: Text(req.id.substring(0, 8).toUpperCase(), style: AdminStyles.dataStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _darkText), maxLines: 1, overflow: TextOverflow.ellipsis)),
                               Expanded(flex: 2, child: Text(req.title, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _darkText), maxLines: 1, overflow: TextOverflow.ellipsis)),
                               Expanded(flex: 1, child: Text(req.roomName ?? 'N/A', style: AdminStyles.bodyStyle(fontSize: 13, color: _subtleText), maxLines: 1, overflow: TextOverflow.ellipsis)),
                               Expanded(
@@ -453,7 +487,7 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(color: _getStatusColor(req.status).withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                                    child: Text(req.status.replaceAll('_', ' ').toUpperCase(), style: AdminStyles.headingStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _getStatusColor(req.status)), textAlign: TextAlign.center),
+                                    child: Text(req.status.replaceAll('_', ' ').toUpperCase(), style: AdminStyles.headingStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _getStatusColor(req.status)), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
                                   ),
                                 ),
                               ),

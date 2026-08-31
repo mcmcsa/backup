@@ -82,7 +82,7 @@ class DuplicateDetectionService {
     });
 
     await _db.from('work_requests').update({
-      'status': 'cancelled',
+      'status': 'Declined',
       'maintenance_notes':
           'Merged into request #$primaryRequestId. Original request cancelled.',
     }).eq('id', mergedRequestId);
@@ -111,7 +111,8 @@ class DuplicateDetectionService {
           .select('*, building:buildings(name), room:rooms(name), '
               'department:departments(name), request_type:request_types(name), '
               'requestor:users!work_requests_requestor_id_fkey(name)')
-          .neq('status', 'cancelled')
+          .neq('status', 'Completed')
+          .neq('status', 'Declined')
           .gte('date_submitted', cutoff.toIso8601String())
           .order('room_id', ascending: true)
           .order('type_of_request', ascending: true);
@@ -149,8 +150,8 @@ class DuplicateDetectionService {
             'department:departments(name), request_type:request_types(name), '
             'requestor:users!work_requests_requestor_id_fkey(name)')
         .eq('room_id', roomId)
-        .neq('status', 'cancelled')
-        .neq('status', 'completed');
+        .neq('status', 'Completed')
+        .neq('status', 'Declined');
 
     // Fetch recently completed requests for same room
     final recentData = await _db
@@ -160,7 +161,7 @@ class DuplicateDetectionService {
             'department:departments(name), request_type:request_types(name), '
             'requestor:users!work_requests_requestor_id_fkey(name)')
         .eq('room_id', roomId)
-        .eq('status', 'completed')
+        .eq('status', 'Completed')
         .gte('date_submitted', cutoff);
 
     final combined = [

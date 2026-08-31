@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -53,10 +54,11 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
-  String _selectedPriority = '';
+  String _selectedPriority = ''; // Priority is set by admin, not on submission
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
-  String? _recordedVoicePath;
+  Uint8List? _recordedVoiceBytes;
+  String _recordedVoiceExt = 'm4a';
 
   final List<File> _selectedImages = [];
   final ImagePicker _imagePicker = ImagePicker();
@@ -303,7 +305,13 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           if (result.choice == DuplicateDialogChoice.viewExisting) {
             final req = result.selectedRequest!;
             setState(() => _isSubmitting = false);
-            context.push('/work-request/${req.id}');
+            context.push(
+              '/request-details',
+              extra: {
+                'trackingNumber': req.id,
+                'status': req.status,
+              },
+            );
             return;
           }
 
@@ -363,7 +371,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           id: '',
           title: 'Work Request – $typeLabel',
           description: _issueDetailsController.text.trim(),
-          status: 'pending',
+          status: 'Pending Assignment',
           priority: _selectedPriority,
           buildingName: _selectedBuilding,
           buildingId: selectedBuildingRecord?.id,
@@ -406,9 +414,13 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           insertedRequest = updatedRequest;
         }
 
-        if (_recordedVoicePath != null) {
+        if (_recordedVoiceBytes != null) {
           try {
-            final voiceUrl = await WorkRequestService.uploadVoiceNote(_recordedVoicePath!, insertedRequest.id);
+            final voiceUrl = await WorkRequestService.uploadVoiceNoteBytes(
+              _recordedVoiceBytes!,
+              insertedRequest.id,
+              ext: _recordedVoiceExt,
+            );
             final updatedVoiceReq = insertedRequest.copyWith(voiceNotes: [voiceUrl]);
             await WorkRequestService.update(updatedVoiceReq);
           } catch (e) {
@@ -424,7 +436,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
               signerId: authUser.id,
               signerName: _fullNameController.text.trim(),
               signerRole: 'teacher',
-              signatureType: 'approval',
+              signatureType: 'requestor',
               signatureData: _requesterSignatureBase64!,
               signedAt: DateTime.now(),
               notes: 'Requester e-signature at submission',
@@ -776,14 +788,17 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   _buildLabel('Voice Explanation (optional)'),
                   const SizedBox(height: 8),
                   VoiceRecorderWidget(
-                    onRecordingComplete: (path) {
+                    onRecordingComplete: (bytes, path) {
                       setState(() {
-                        _recordedVoicePath = path;
+                        _recordedVoiceBytes = bytes;
+                        _recordedVoiceExt = path.isNotEmpty
+                            ? path.split('.').last
+                            : 'm4a';
                       });
                     },
                     onRecordingDeleted: () {
                       setState(() {
-                        _recordedVoicePath = null;
+                        _recordedVoiceBytes = null;
                       });
                     },
                   ),

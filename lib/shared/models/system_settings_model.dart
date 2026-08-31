@@ -32,7 +32,7 @@ class SystemSettings {
   factory SystemSettings.fromMap(Map<String, dynamic> map) {
     return SystemSettings(
       id: map['id']?.toString() ?? '1',
-      systemName: map['system_name'] ?? 'PSU Maintenance System',
+      systemName: map['system_name'] ?? 'PSU MMS',
       campusName: map['campus_name'] ?? 'Main Campus',
       schoolLogo: map['school_logo'],
       primaryColor: map['primary_color'] ?? '#0F172A',

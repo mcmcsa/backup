@@ -80,6 +80,8 @@ class _LandingPageWebState extends State<LandingPageWeb> {
 
   // --- NAVBAR ---
   Widget _buildNavbar(bool isDesktop) {
+    final width = MediaQuery.of(context).size.width;
+
     return Container(
       height: 80,
       decoration: const BoxDecoration(
@@ -88,7 +90,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
           bottom: BorderSide(color: _borderSlate, width: 1),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 40),
+      padding: EdgeInsets.symmetric(horizontal: width < 600 ? 16 : 40),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -97,37 +99,40 @@ class _LandingPageWebState extends State<LandingPageWeb> {
             children: [
               Image.asset(
                 'assets/images/psu_logo_v3.png',
-                height: 48,
+                height: width < 600 ? 36 : 48,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(
+                errorBuilder: (_, __, ___) => Icon(
                   Icons.engineering_rounded,
                   color: _royalBlue,
-                  size: 40,
+                  size: width < 600 ? 30 : 40,
                 ),
               ),
-              const SizedBox(width: 12),
-              const Column(
+              SizedBox(width: width < 600 ? 8 : 12),
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    'PSU QR-MMS',
+                    'PSU MMS',
                     style: TextStyle(
                       fontFamily: 'Outfit',
-                      fontSize: 22,
+                      fontSize: width < 600 ? 16 : 22,
                       fontWeight: FontWeight.bold,
                       color: _navyBlue,
                       height: 1.1,
                     ),
                   ),
-                  Text(
-                    'Maintenance Management System',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 11,
-                      color: _textSlate,
+                  if (width >= 600) ...[
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Maintenance Management System',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 11,
+                        color: _textSlate,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ],
@@ -177,12 +182,12 @@ class _LandingPageWebState extends State<LandingPageWeb> {
               ),
               child: ElevatedButton.icon(
                 onPressed: () => context.go('/login'),
-                icon: const Icon(Icons.login_rounded, size: 16, color: Colors.white),
-                label: const Text(
+                icon: Icon(Icons.login_rounded, size: width < 600 ? 14 : 16, color: Colors.white),
+                label: Text(
                   'Login',
                   style: TextStyle(
                     fontFamily: 'Inter',
-                    fontSize: 14,
+                    fontSize: width < 600 ? 12 : 14,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -190,7 +195,10 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,
                   shadowColor: Colors.transparent,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: width < 600 ? 12 : 20,
+                    vertical: width < 600 ? 12 : 18,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -250,7 +258,10 @@ class _LandingPageWebState extends State<LandingPageWeb> {
           colors: [Colors.white, Color(0xFFF0F9FF)], // Sky blue background light tint
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 60),
+      padding: EdgeInsets.symmetric(
+        horizontal: screenWidth < 600 ? 16 : 40,
+        vertical: screenWidth < 600 ? 32 : 60,
+      ),
       child: isDesktop
           ? Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -271,29 +282,32 @@ class _LandingPageWebState extends State<LandingPageWeb> {
   }
 
   Widget _buildHeroLeftContent(double width) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final titleFontSize = screenWidth < 600 ? 24.0 : (screenWidth < 1024 ? 32.0 : 44.0);
+
     return Column(
       key: _aboutKey,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'PANGASINAN STATE UNIVERSITY – SAN CARLOS CAMPUS',
           style: TextStyle(
             fontFamily: 'Outfit',
-            fontSize: 13,
+            fontSize: screenWidth < 600 ? 11 : 13,
             fontWeight: FontWeight.bold,
             color: _accentAmber,
             letterSpacing: 1.2,
           ),
         ),
         const SizedBox(height: 16),
-        const Text(
-          'Maintenance Management\nSystem with QR-Based\nFacility Tracking',
+        Text(
+          'Maintenance Management System with QR-Based Facility Tracking',
           style: TextStyle(
             fontFamily: 'Outfit',
-            fontSize: 44,
+            fontSize: titleFontSize,
             fontWeight: FontWeight.w900,
             color: _navyBlue,
-            height: 1.15,
+            height: 1.2,
           ),
         ),
         const SizedBox(height: 12),
@@ -307,19 +321,19 @@ class _LandingPageWebState extends State<LandingPageWeb> {
           ),
         ),
         const SizedBox(height: 24),
-        const Text(
+        Text(
           'A smart and efficient way to report, monitor, and manage facility maintenance requests across the campus.',
           style: TextStyle(
             fontFamily: 'Inter',
-            fontSize: 16,
+            fontSize: screenWidth < 600 ? 14 : 16,
             color: _textSlate,
             height: 1.5,
           ),
         ),
         const SizedBox(height: 32),
         Wrap(
-          spacing: 16,
-          runSpacing: 16,
+          spacing: screenWidth < 600 ? 12 : 16,
+          runSpacing: screenWidth < 600 ? 12 : 16,
           children: [
             MouseRegion(
               onEnter: (_) => setState(() => _isGetStartedHovered = true),
@@ -342,12 +356,12 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                 ),
                 child: ElevatedButton.icon(
                   onPressed: () => context.go('/login'),
-                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 20, color: Colors.white),
-                  label: const Text(
+                  icon: Icon(Icons.qr_code_scanner_rounded, size: screenWidth < 600 ? 16 : 20, color: Colors.white),
+                  label: Text(
                     'Get Started',
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontSize: 16,
+                      fontSize: screenWidth < 600 ? 14 : 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
@@ -355,7 +369,10 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 22),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: screenWidth < 600 ? 20 : 32,
+                      vertical: screenWidth < 600 ? 14 : 20,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -393,12 +410,12 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                     anchor.click();
                     anchor.remove();
                   },
-                  icon: const Icon(Icons.android_rounded, size: 20, color: _royalBlue),
-                  label: const Text(
+                  icon: Icon(Icons.android_rounded, size: screenWidth < 600 ? 16 : 20, color: _royalBlue),
+                  label: Text(
                     'Download App',
                     style: TextStyle(
                       fontFamily: 'Inter',
-                      fontSize: 16,
+                      fontSize: screenWidth < 600 ? 14 : 16,
                       fontWeight: FontWeight.bold,
                       color: _royalBlue,
                     ),
@@ -406,7 +423,10 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: screenWidth < 600 ? 20 : 32,
+                      vertical: screenWidth < 600 ? 14 : 20,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(6), // Compensating for border
                     ),
@@ -477,71 +497,77 @@ class _LandingPageWebState extends State<LandingPageWeb> {
   }
 
   Widget _buildHeroRightContent(double width) {
-    return SizedBox(
-      height: 480,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Background Radial Soft Blue Glow
-          Positioned(
-            right: 0,
-            top: 40,
-            width: 420,
-            height: 420,
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    const Color(0xFFE0F2FE),
-                    const Color(0xFFE0F2FE).withOpacity(0.0),
-                  ],
+    return Center(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: SizedBox(
+          width: 420,
+          height: 480,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Background Radial Soft Blue Glow
+              Positioned(
+                right: 0,
+                top: 40,
+                width: 420,
+                height: 420,
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        const Color(0xFFE0F2FE),
+                        const Color(0xFFE0F2FE).withOpacity(0.0),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
 
-          // 1. Gear emblem background (Rightmost Brand) - Proportional, Not Stretched
-          Positioned(
-            right: -10,
-            top: 50,
-            width: 400,
-            height: 400,
-            child: Image.asset(
-              'assets/images/login_brand.png',
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-            ),
-          ),
-
-          // 2. Floating smartphone mockup showing form (Obsidian Bezel)
-          Positioned(
-            left: 20,
-            top: 0,
-            width: 250,
-            height: 480,
-            child: _buildSmartphoneMockup(),
-          ),
-
-          // 3. Scan QR Code Card overlay - Hover animated
-          Positioned(
-            left: 210,
-            bottom: 40,
-            width: 170,
-            child: MouseRegion(
-              onEnter: (_) => setState(() => _isQrCardHovered = true),
-              onExit: (_) => setState(() => _isQrCardHovered = false),
-              cursor: SystemMouseCursors.click,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                transform: Matrix4.identity()
-                  ..translate(_isQrCardHovered ? 4.0 : 0.0, _isQrCardHovered ? -6.0 : 0.0)
-                  ..scale(_isQrCardHovered ? 1.03 : 1.0),
-                child: _buildQrScanCard(),
+              // 1. Gear emblem background (Rightmost Brand) - Proportional, Not Stretched
+              Positioned(
+                right: -10,
+                top: 50,
+                width: 400,
+                height: 400,
+                child: Image.asset(
+                  'assets/images/login_brand.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
               ),
-            ),
+
+              // 2. Floating smartphone mockup showing form (Obsidian Bezel)
+              Positioned(
+                left: 20,
+                top: 0,
+                width: 250,
+                height: 480,
+                child: _buildSmartphoneMockup(),
+              ),
+
+              // 3. Scan QR Code Card overlay - Hover animated
+              Positioned(
+                left: 210,
+                bottom: 40,
+                width: 170,
+                child: MouseRegion(
+                  onEnter: (_) => setState(() => _isQrCardHovered = true),
+                  onExit: (_) => setState(() => _isQrCardHovered = false),
+                  cursor: SystemMouseCursors.click,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    transform: Matrix4.identity()
+                      ..translate(_isQrCardHovered ? 4.0 : 0.0, _isQrCardHovered ? -6.0 : 0.0)
+                      ..scale(_isQrCardHovered ? 1.03 : 1.0),
+                    child: _buildQrScanCard(),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1099,13 +1125,21 @@ class _LandingPageWebState extends State<LandingPageWeb> {
           ? Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildFooterItem(0, Icons.verified_user_outlined, 'Secure & Reliable', 'Your data is safe with us.'),
+                Expanded(
+                  child: _buildFooterItem(0, Icons.verified_user_outlined, 'Secure & Reliable', 'Your data is safe with us.'),
+                ),
                 _buildFooterDivider(),
-                _buildFooterItem(1, Icons.notifications_active_outlined, 'Real-time Notifications', 'Stay updated on request status.'),
+                Expanded(
+                  child: _buildFooterItem(1, Icons.notifications_active_outlined, 'Real-time Notifications', 'Stay updated on request status.'),
+                ),
                 _buildFooterDivider(),
-                _buildFooterItem(2, Icons.query_stats_rounded, 'Track & Monitor', 'Monitor all maintenance activities.'),
+                Expanded(
+                  child: _buildFooterItem(2, Icons.query_stats_rounded, 'Track & Monitor', 'Monitor all maintenance activities.'),
+                ),
                 _buildFooterDivider(),
-                _buildFooterItem(3, Icons.domain_verification_rounded, 'Better Campus Environment', 'Well-maintained facilities for all.'),
+                Expanded(
+                  child: _buildFooterItem(3, Icons.domain_verification_rounded, 'Better Campus Environment', 'Well-maintained facilities for all.'),
+                ),
               ],
             )
           : Column(
@@ -1140,7 +1174,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
         duration: const Duration(milliseconds: 200),
         transform: Matrix4.translationValues(0, isHovered ? -4 : 0, 0),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -1156,29 +1190,31 @@ class _LandingPageWebState extends State<LandingPageWeb> {
               ),
             ),
             const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: isHovered ? _accentAmber : Colors.white,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: isHovered ? _accentAmber : Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  desc,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 12,
-                    color: isHovered ? Colors.white : Colors.white.withOpacity(0.6),
+                  const SizedBox(height: 4),
+                  Text(
+                    desc,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: 12,
+                      color: isHovered ? Colors.white : Colors.white.withOpacity(0.6),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

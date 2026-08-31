@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../maintenance_nav_controller.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../shared/widgets/room_comparison_dialog.dart';
 
 const Color _blue = Color(0xFF0EA5E9);
 const Color _green = Color(0xFF10B981);
@@ -33,7 +35,10 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
   Future<void> _loadHistory() async {
     try {
       final data = await WorkRequestService.fetchAll();
-      final completed = data.where((r) => r.status == 'completed').toList();
+      final completed = data.where((r) {
+        final st = r.status.toLowerCase();
+        return st == 'completed' || st == 'declined';
+      }).toList();
       if (mounted) setState(() { _history = completed; _isLoading = false; });
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
@@ -97,7 +102,7 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Header ──────────────────────────────────────────────────
-            _buildHeader(filtered.length),
+            _buildHeader(filtered.length, isMobile),
             const SizedBox(height: 24),
 
             // ── Search ───────────────────────────────────────────────────
@@ -117,7 +122,32 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
                     padding: const EdgeInsets.only(bottom: 10),
                     child: _HistoryCard(
                       request: r,
-                      onTap: () => MaintenanceNavController.of(context)?.navigateTo(3, request: r),
+                      onTap: () async {
+                        final roomId = r.roomId;
+                        bool showComparison = false;
+                        if (roomId != null && roomId.isNotEmpty) {
+                          try {
+                            final response = await Supabase.instance.client
+                                .from('room_versions')
+                                .select('id')
+                                .eq('room_id', roomId);
+                            if ((response as List).length >= 2) {
+                              showComparison = true;
+                            }
+                          } catch (_) {}
+                        }
+
+                        if (!mounted) return;
+
+                        if (showComparison) {
+                          showDialog(
+                            context: context,
+                            builder: (context) => RoomComparisonDialog(roomId: roomId!),
+                          );
+                        } else {
+                          MaintenanceNavController.of(context)?.navigateTo(3, request: r);
+                        }
+                      },
                     ),
                   )),
                   const SizedBox(height: 16),
@@ -129,34 +159,49 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
     );
   }
 
-  Widget _buildHeader(int count) {
+  Widget _buildHeader(int count, bool isMobile) {
+    final titleCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: const [
+        Text('Task History', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+        SizedBox(height: 6),
+        Text('All completed work requests and resolved maintenance tasks.', style: TextStyle(fontSize: 14, color: _muted)),
+      ],
+    );
+
+    final recordsIndicator = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: _green.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _green.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_circle_rounded, size: 14, color: _green),
+          const SizedBox(width: 6),
+          Text('$count completed', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _green)),
+        ],
+      ),
+    );
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          titleCol,
+          const SizedBox(height: 12),
+          recordsIndicator,
+        ],
+      );
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text('Task History', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-              SizedBox(height: 6),
-              Text('All completed work requests and resolved maintenance tasks.', style: TextStyle(fontSize: 14, color: _muted)),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: _green.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _green.withValues(alpha: 0.2)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, size: 14, color: _green),
-              const SizedBox(width: 6),
-              Text('$count completed', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _green)),
-            ],
-          ),
-        ),
+        Expanded(child: titleCol),
+        const SizedBox(width: 16),
+        recordsIndicator,
       ],
     );
   }

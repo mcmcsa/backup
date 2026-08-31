@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/room_model.dart';
 import '../services/room_type_service.dart';
 import 'admin_audit_log_service.dart';
+import 'work_request_service.dart';
+import 'app_notification_service.dart';
 
 class RoomService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -137,6 +139,47 @@ class RoomService {
 
   // ─── Update ──────────────────────────────────────────────────────────────
 
+  static Future<void> logRoomVersion(String roomId, Room? oldRoom) async {
+    try {
+      final updatedRoom = await fetchById(roomId);
+      if (updatedRoom == null) return;
+
+      final versionCountRes = await _db.from('room_versions').select('id').eq('room_id', roomId);
+      final currentVersionCount = (versionCountRes as List).length;
+
+      if (currentVersionCount == 0 && oldRoom != null) {
+        // Log original version (v1)
+        await _db.from('room_versions').insert({
+          'room_id': roomId,
+          'version': 1,
+          'room_data': oldRoom.toMap(),
+          'created_at': oldRoom.updatedAt?.toIso8601String() ?? oldRoom.createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+        });
+        
+        // Log the new version (v2)
+        final currentUser = _db.auth.currentUser;
+        await _db.from('room_versions').insert({
+          'room_id': roomId,
+          'version': 2,
+          'room_data': updatedRoom.toMap(),
+          'edited_by': currentUser?.id,
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      } else {
+        // Log subsequent version (vN)
+        final nextVersion = currentVersionCount == 0 ? 2 : currentVersionCount + 1;
+        final currentUser = _db.auth.currentUser;
+        await _db.from('room_versions').insert({
+          'room_id': roomId,
+          'version': nextVersion,
+          'room_data': updatedRoom.toMap(),
+          'edited_by': currentUser?.id,
+          'created_at': DateTime.now().toIso8601String(),
+        });
+      }
+    } catch (_) {}
+  }
+
   static Future<String?> updateRoom({
     required String id,
     required String name,
@@ -155,6 +198,14 @@ class RoomService {
       );
       if (duplicateCode) return 'A room with number/code "$code" already exists.';
 
+      // Guard: Block editing if there is an active work request
+      final hasActive = await WorkRequestService.hasActiveRequestForRoom(id);
+      if (hasActive) {
+        return 'This room cannot be edited while it has an ongoing work request.';
+      }
+
+      final oldRoom = await fetchById(id);
+
       await _db.from(_table).update({
         'name': name.trim(),
         'code': code.trim().toUpperCase(),
@@ -171,6 +222,50 @@ class RoomService {
         title: 'Updated Room',
         details: 'Room: $name ($code)',
       );
+
+      // Log version
+      await logRoomVersion(id, oldRoom);
+
+      // Fetch resolved requests for historical reports on this room
+      final historicalRequests = await WorkRequestService.fetchByRoom(id);
+      final resolvedRequests = historicalRequests.where((req) {
+        final statusLower = req.status.toLowerCase();
+        return statusLower == 'completed' || statusLower == 'declined';
+      }).toList();
+
+      // Notify Campus Admin
+      await AppNotificationService.createForRole(
+        targetRole: 'campadmin',
+        title: 'Room Updated',
+        message: 'Room $code was updated again by System Admin — tap to view what changed.',
+        type: 'room_edit',
+        targetPage: 'room_id:$id',
+      );
+
+      // Notify Requestors and Maintenance Technicians per report
+      for (final req in resolvedRequests) {
+        if (req.requestorId != null && req.requestorId!.isNotEmpty) {
+          await AppNotificationService.createForUser(
+            targetUserId: req.requestorId!,
+            title: 'Room Updated',
+            message: 'Room $code was updated again by System Admin — tap to view what changed.',
+            type: 'room_edit',
+            workRequestId: req.id,
+            targetPage: 'room_id:$id',
+          );
+        }
+        if (req.assignedToId != null && req.assignedToId!.isNotEmpty) {
+          await AppNotificationService.createForUser(
+            targetUserId: req.assignedToId!,
+            title: 'Room Updated',
+            message: 'Room $code was updated again by System Admin — tap to view what changed.',
+            type: 'room_edit',
+            workRequestId: req.id,
+            targetPage: 'room_id:$id',
+          );
+        }
+      }
+
       return null;
     } catch (e) {
       return e.toString();
@@ -179,11 +274,13 @@ class RoomService {
 
   // Legacy update
   static Future<void> update(Room room) async {
+    final oldRoom = await fetchById(room.id);
     await _db.from(_table).update(room.toMap()).eq('id', room.id);
     await AdminAuditLogService.logAction(
       title: 'Updated Room',
       details: 'Room: ${room.name} (${room.id})',
     );
+    await logRoomVersion(room.id, oldRoom);
   }
 
   static Future<void> updateStatus(String id, String status) async {
@@ -256,5 +353,29 @@ class RoomService {
     );
     final list = await _mapRooms([inserted]);
     return list.first;
+  }
+
+  static RealtimeChannel listenToAllRooms(
+    Function(List<Room>) onUpdate,
+  ) {
+    final channel = _db.realtime.channel('realtime:rooms');
+
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: _table,
+          callback: (payload) async {
+            try {
+              final data = await fetchAll();
+              onUpdate(data);
+            } catch (_) {
+              // Silently ignore errors
+            }
+          },
+        )
+        .subscribe();
+
+    return channel;
   }
 }

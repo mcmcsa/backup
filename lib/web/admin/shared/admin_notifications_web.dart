@@ -4,6 +4,11 @@ import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/work_request_service.dart';
+import '../admin_nav_controller.dart';
+import '../tickets/admin_work_process_web.dart';
+import '../../../shared/services/chat_service.dart';
+import '../../../shared/widgets/room_comparison_dialog.dart';
 
 class AdminNotificationsWeb extends StatefulWidget {
   const AdminNotificationsWeb({super.key});
@@ -15,6 +20,7 @@ class AdminNotificationsWeb extends StatefulWidget {
 class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
   List<AppNotification> _notifications = [];
   bool _isLoading = true;
+  bool _showAll = false;
 
   static const Color _primaryBlue = Color(0xFF3B82F6);
   static const Color _warningOrange = Color(0xFFF59E0B);
@@ -84,6 +90,8 @@ class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
               targetRole: notification.targetRole,
               targetUserId: notification.targetUserId,
               workRequestId: notification.workRequestId,
+              chatRoomId: notification.chatRoomId,
+              targetPage: notification.targetPage,
               isRead: true,
               createdAt: notification.createdAt,
             ),
@@ -102,12 +110,18 @@ class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
 
   IconData _iconForType(String type) {
     switch (type) {
+      case 'room_edit':
+        return Icons.edit_location_alt_rounded;
       case 'work_request_submitted':
         return Icons.assignment_rounded;
       case 'work_request_approved':
         return Icons.check_circle_rounded;
       case 'work_request_accepted':
         return Icons.handshake_rounded;
+      case 'pre_inspection_submitted':
+        return Icons.search_rounded;
+      case 'post_repair_submitted':
+        return Icons.build_circle_rounded;
       case 'work_request_completed':
         return Icons.task_alt_rounded;
       case 'work_request_declined':
@@ -117,18 +131,24 @@ class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
       case 'work_request_completion_ready_for_requestor':
         return Icons.fact_check_rounded;
       default:
-        return Icons.notifications_active_rounded;
+        return Icons.notifications_rounded;
     }
   }
 
   Color _colorForType(String type) {
     switch (type) {
+      case 'room_edit':
+        return const Color(0xFF8B5CF6);
       case 'work_request_submitted':
         return const Color(0xFF4169E1);
       case 'work_request_approved':
       case 'work_request_accepted':
       case 'work_request_completed':
         return const Color(0xFF059669);
+      case 'pre_inspection_submitted':
+        return const Color(0xFFF59E0B);
+      case 'post_repair_submitted':
+        return const Color(0xFF3B82F6);
       case 'work_request_declined':
         return const Color(0xFFDC2626);
       case 'work_request_completion_submitted':
@@ -136,7 +156,7 @@ class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
       case 'work_request_completion_ready_for_requestor':
         return const Color(0xFF0D9488);
       default:
-        return _primaryBlue;
+        return const Color(0xFF6B7280);
     }
   }
 
@@ -267,72 +287,200 @@ class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
   }
 
   Widget _buildNotificationsList() {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _notifications.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final notification = _notifications[index];
-        final color = _colorForType(notification.type);
+    final hasMoreThan20 = _notifications.length > 20;
+    final displayCount = _showAll ? _notifications.length : (hasMoreThan20 ? 20 : _notifications.length);
 
-        return Container(
-          decoration: BoxDecoration(
-            color: notification.isRead ? _cardBg : const Color(0xFFF0F9FF),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: notification.isRead ? _borderColor : color.withValues(alpha: 0.2),
-            ),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(_iconForType(notification.type), color: color, size: 22),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      notification.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _darkText,
+    return Column(
+      children: [
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: displayCount,
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final notification = _notifications[index];
+            final color = _colorForType(notification.type);
+
+            return GestureDetector(
+              onTap: () async {
+                if (!notification.isRead) {
+                  await _markOneAsRead(notification);
+                }
+                if (notification.type == 'room_edit') {
+                  final targetPage = notification.targetPage ?? '';
+                  final roomId = targetPage.startsWith('room_id:') 
+                      ? targetPage.replaceFirst('room_id:', '') 
+                      : targetPage;
+                  if (roomId.isNotEmpty && mounted) {
+                    showDialog(
+                      context: context,
+                      builder: (context) => RoomComparisonDialog(roomId: roomId),
+                    );
+                  }
+                  return;
+                }
+                if ((notification.type == 'chat' || notification.type == 'chat_message') && notification.chatRoomId != null && notification.chatRoomId!.isNotEmpty) {
+                  if (mounted) {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (BuildContext context) {
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                    );
+                  }
+                  try {
+                    final room = await ChatService.fetchRoom(notification.chatRoomId!);
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                    }
+                    if (room != null && mounted) {
+                      final controller = AdminNavController.of(context);
+                      if (controller != null) {
+                        controller.navigateTo(20, chatRoom: room);
+                      }
+                    }
+                  } catch (_) {
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  }
+                  return;
+                }
+
+                if (notification.workRequestId != null && notification.workRequestId!.isNotEmpty) {
+                  if (mounted) {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (BuildContext context) {
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                    );
+                  }
+                  try {
+                    final workRequest = await WorkRequestService.fetchById(notification.workRequestId!);
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                    }
+                    if (workRequest != null && mounted) {
+                      final controller = AdminNavController.of(context);
+                      if (controller != null) {
+                        controller.openWorkProcess(workRequest);
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AdminWorkProcessWeb(request: workRequest),
+                          ),
+                        );
+                      }
+                    }
+                  } catch (_) {
+                    if (mounted) {
+                      Navigator.of(context).pop();
+                    }
+                  }
+                }
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: notification.isRead ? _cardBg : const Color(0xFFF0F9FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: notification.isRead ? _borderColor : color.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(_iconForType(notification.type), color: color, size: 22),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      notification.message,
-                      style: const TextStyle(fontSize: 13, color: _subtleText),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _relativeTimestamp(notification.createdAt),
-                      style: TextStyle(fontSize: 12, color: _subtleText.withValues(alpha: 0.7)),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              notification.title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: _darkText,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              notification.message,
+                              style: const TextStyle(fontSize: 13, color: _subtleText),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _relativeTimestamp(notification.createdAt),
+                              style: TextStyle(fontSize: 12, color: _subtleText.withValues(alpha: 0.7)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!notification.isRead)
+                        TextButton(
+                          onPressed: () => _markOneAsRead(notification),
+                          child: const Text('Mark read'),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        if (hasMoreThan20 && !_showAll) ...[
+          const SizedBox(height: 16),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => setState(() => _showAll = true),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _borderColor),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-              ),
-              if (!notification.isRead)
-                TextButton(
-                  onPressed: () => _markOneAsRead(notification),
-                  child: const Text('Mark read'),
+                child: const Center(
+                  child: Text(
+                    'View All Notifications',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF3B82F6),
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
-            ],
+              ),
+            ),
           ),
-        );
-      },
+        ],
+      ],
     );
   }
 }

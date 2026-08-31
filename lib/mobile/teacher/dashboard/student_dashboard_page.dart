@@ -8,6 +8,7 @@ import '../../../shared/services/work_request_service.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../router/app_router.dart';
 import 'package:intl/intl.dart';
+import '../../admin/shared/notifications_page.dart';
 
 class StudentTeacherDashboard extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -26,7 +27,21 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _loadRequests();
+  }
+
+  List<WorkRequest> get _filteredRequests {
+    final query = _searchController.text.toLowerCase();
+    if (query.isEmpty) return _requests;
+    return _requests.where((r) {
+      return r.id.toLowerCase().contains(query) ||
+             (r.officeRoom?.toLowerCase().contains(query) ?? false) ||
+             r.title.toLowerCase().contains(query) ||
+             (r.buildingName?.toLowerCase().contains(query) ?? false);
+    }).toList();
   }
 
   Future<void> _loadRequests() async {
@@ -59,8 +74,16 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
       backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
         roleText: 'Teacher',
-        primaryColor: const Color(0xFF00BFA5),
+        primaryColor: themeProvider.primaryColor,
         onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
+        onNotificationPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const NotificationsPage(),
+            ),
+          );
+        },
       ),
       body: RefreshIndicator(
         onRefresh: _loadRequests,
@@ -141,7 +164,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                 Expanded(
                   child: _buildStatCard(
                     'IN PROGRESS',
-                    '${_requests.where((r) => r.status == 'in_progress').length}',
+                    '${_requests.where((r) => r.status.toLowerCase() != 'completed' && r.status.toLowerCase() != 'declined' && r.status.toLowerCase() != 'cancelled' && r.status.toLowerCase() != 'declined/cancelled').length}',
                     Colors.orange,
                     themeProvider,
                   ),
@@ -154,7 +177,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                 Expanded(
                   child: _buildStatCard(
                     'RESOLVED',
-                    '${_requests.where((r) => r.status == 'completed').length}',
+                    '${_requests.where((r) => r.status.toLowerCase() == 'completed').length}',
                     Colors.green,
                     themeProvider,
                   ),
@@ -163,7 +186,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                 Expanded(
                   child: _buildStatCard(
                     'DECLINED',
-                    '${_requests.where((r) => r.status == 'cancelled').length}',
+                    '${_requests.where((r) => r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined' || r.status.toLowerCase() == 'declined/cancelled' || r.status.toLowerCase() == 'pre-inspection declined').length}',
                     Colors.red,
                     themeProvider,
                   ),
@@ -236,15 +259,43 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
             const SizedBox(height: 12),
 
             // Recent Reports List
-            ..._requests.take(5).map((r) {
-              final statusLabel = r.status == 'completed' ? 'RESOLVED'
-                  : r.status == 'in_progress' ? 'IN PROGRESS'
-                  : r.status == 'cancelled' ? 'DECLINED'
-                  : 'PENDING';
-              final statusColor = r.status == 'completed' ? Colors.green
-                  : r.status == 'in_progress' ? Colors.orange
-                  : r.status == 'cancelled' ? Colors.red
-                  : const Color(0xFF00BFA5);
+            ..._filteredRequests.take(5).map((r) {
+              Color statusColor;
+              String statusLabel;
+              switch (r.status.toLowerCase()) {
+                case 'completed':
+                  statusColor = Colors.green;
+                  statusLabel = 'RESOLVED';
+                  break;
+                case 'in progress':
+                case 'in_progress':
+                case 'assigned':
+                case 'accepted by maintenance':
+                  statusColor = Colors.orange;
+                  statusLabel = 'IN PROGRESS';
+                  break;
+                case 'declined':
+                case 'cancelled':
+                case 'declined/cancelled':
+                case 'pre-inspection declined':
+                  statusColor = Colors.red;
+                  statusLabel = 'DECLINED';
+                  break;
+                case 'confirmed':
+                case 'pre-inspection approved':
+                case 'under_maintenance':
+                  statusColor = Colors.blue;
+                  statusLabel = 'CONFIRMED';
+                  break;
+                case 'rework':
+                case 'for rework':
+                  statusColor = Colors.deepOrange;
+                  statusLabel = 'REWORK';
+                  break;
+                default:
+                  statusColor = Colors.grey;
+                  statusLabel = r.status.toUpperCase();
+              }
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _buildReportCard(
@@ -253,14 +304,23 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                   iconBgColor: themeProvider.primaryColor.withValues(alpha: 0.1),
                   title: r.title,
                   location: '${r.officeRoom}, ${r.buildingName}',
-                  date: DateFormat('MMM dd, yyyy â€¢ hh:mm a').format(r.dateSubmitted).toUpperCase(),
+                  date: DateFormat('MMM dd, yyyy • hh:mm a').format(r.dateSubmitted).toUpperCase(),
                   status: statusLabel,
                   statusColor: statusColor,
                   themeProvider: themeProvider,
+                  onTap: () {
+                    context.push(
+                      '/request-details',
+                      extra: {
+                        'trackingNumber': r.id,
+                        'status': statusLabel,
+                      },
+                    );
+                  },
                 ),
               );
             }),
-            if (_requests.isEmpty)
+            if (_filteredRequests.isEmpty)
               Center(
                 child: Padding(
                   padding: const EdgeInsets.all(32),
@@ -268,7 +328,10 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                     children: [
                       Icon(Icons.inbox_outlined, size: 48, color: themeProvider.subtitleColor),
                       const SizedBox(height: 12),
-                      Text('No reports yet', style: TextStyle(color: themeProvider.subtitleColor)),
+                      Text(
+                        _requests.isEmpty ? 'No reports yet' : 'No reports matching search',
+                        style: TextStyle(color: themeProvider.subtitleColor),
+                      ),
                     ],
                   ),
                 ),
@@ -338,77 +401,82 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
     required String status,
     required Color statusColor,
     required ThemeProvider themeProvider,
+    required VoidCallback onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: themeProvider.cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: themeProvider.borderColor),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: themeProvider.textColor,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  location,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: themeProvider.subtitleColor,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  date,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: themeProvider.subtitleColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              status,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                color: statusColor,
-                letterSpacing: 0.5,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: themeProvider.cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: themeProvider.borderColor),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: iconColor,
+                size: 24,
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: themeProvider.textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    location,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: themeProvider.subtitleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    date,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: themeProvider.subtitleColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: statusColor,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

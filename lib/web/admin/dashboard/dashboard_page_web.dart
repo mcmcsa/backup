@@ -66,9 +66,13 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
     return _allRequests
         .where((r) {
           final status = r.status.toLowerCase();
-          return status == 'in_progress' ||
-              status == 'approved' ||
-              status == 'under_maintenance';
+          return status == 'in progress' ||
+              status == 'in_progress' ||
+              status == 'assigned' ||
+              status == 'accepted by maintenance' ||
+              status == 'pre-inspection submitted' ||
+              status == 'confirmed' ||
+              status == 'rework';
         })
         .length;
   }
@@ -84,6 +88,7 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
     return _allRequests
         .where((r) =>
             r.status.toLowerCase() != 'completed' &&
+            r.status.toLowerCase() != 'declined' &&
             now.difference(r.dateSubmitted).inDays > 3)
         .take(4)
         .toList();
@@ -755,6 +760,8 @@ class _RequestTableRowState extends State<_RequestTableRow> {
                       fontWeight: FontWeight.w600,
                       color: AdminStyles.textPrimary,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -792,14 +799,33 @@ class _StatusBadge extends StatelessWidget {
 
     switch (status.toLowerCase()) {
       case 'pending':
-        color = _accentAmber;
+      case 'pending assignment':
+        color = _textMuted;
         label = 'Pending';
         break;
+      case 'in progress':
       case 'in_progress':
-      case 'approved':
-      case 'under_maintenance':
+      case 'assigned':
+      case 'accepted by maintenance':
         color = _accentCyan;
         label = 'In Progress';
+        break;
+      case 'declined':
+      case 'cancelled':
+      case 'declined/cancelled':
+        color = _accentRed;
+        label = 'Declined';
+        break;
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'under_maintenance':
+        color = AdminStyles.primary;
+        label = 'Confirmed';
+        break;
+      case 'rework':
+      case 'for rework':
+        color = _accentAmber;
+        label = 'Rework';
         break;
       case 'completed':
         color = _accentGreen;

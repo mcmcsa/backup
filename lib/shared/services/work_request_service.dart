@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -74,6 +75,38 @@ class WorkRequestService {
     return (data as List).map((e) => WorkRequest.fromMap(e)).toList();
   }
 
+  static Future<List<WorkRequest>> fetchAwaitingPreInspection() async {
+    final data = await _db
+        .from('pre_inspections')
+        .select('work_request_id')
+        .eq('status', 'Pending');
+    final ids = (data as List).map((e) => e['work_request_id'] as String).toList();
+    if (ids.isEmpty) return [];
+    
+    final requestsData = await _db
+        .from(_table)
+        .select(_selectWithRelations)
+        .inFilter('id', ids)
+        .order('date_submitted', ascending: false);
+    return (requestsData as List).map((e) => WorkRequest.fromMap(e)).toList();
+  }
+
+  static Future<List<WorkRequest>> fetchAwaitingPostRepair() async {
+    final data = await _db
+        .from('post_repairs')
+        .select('work_request_id')
+        .eq('status', 'Pending');
+    final ids = (data as List).map((e) => e['work_request_id'] as String).toList();
+    if (ids.isEmpty) return [];
+    
+    final requestsData = await _db
+        .from(_table)
+        .select(_selectWithRelations)
+        .inFilter('id', ids)
+        .order('date_submitted', ascending: false);
+    return (requestsData as List).map((e) => WorkRequest.fromMap(e)).toList();
+  }
+
   static Future<List<WorkRequest>> fetchByPriority(String priority) async {
     final data = await _db
         .from(_table)
@@ -122,9 +155,24 @@ class WorkRequestService {
     return requests.any((request) {
       final status = request.status.toLowerCase();
       return status != 'completed' &&
-          status != 'completed' &&
-          status != 'cancelled';
+          status != 'declined';
     });
+  }
+
+  static Future<void> updateRoomStatusFromRequests(String roomId) async {
+    final normalizedRoomId = roomId.trim();
+    if (normalizedRoomId.isEmpty) return;
+
+    try {
+      final hasActive = await hasActiveRequestForRoom(normalizedRoomId);
+      if (hasActive) {
+        await RoomService.updateStatus(normalizedRoomId, 'maintenance');
+      } else {
+        await RoomService.updateStatus(normalizedRoomId, 'available');
+      }
+    } catch (_) {
+      // Silently ignore failures
+    }
   }
 
   static Future<List<WorkRequest>> fetchByRequestor(String requestorId) async {
@@ -142,7 +190,37 @@ class WorkRequestService {
         .select(_selectWithRelations)
         .eq('assigned_to_id', userId)
         .order('date_submitted', ascending: false);
-    return (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+    final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+
+    // Enrich any requests where requestorName is still empty but requestorId is known
+    final missing = requests
+        .where((r) => r.requestorName.trim().isEmpty && r.requestorId != null)
+        .toList();
+
+    if (missing.isNotEmpty) {
+      final ids = missing.map((r) => r.requestorId!).toSet().toList();
+      try {
+        final users = await _db
+            .from('users')
+            .select('id, name')
+            .inFilter('id', ids);
+        final nameMap = <String, String>{
+          for (final u in (users as List))
+            if (u['id'] != null && u['name'] != null)
+              u['id'].toString(): u['name'].toString(),
+        };
+        return requests.map((r) {
+          if (r.requestorName.trim().isEmpty &&
+              r.requestorId != null &&
+              nameMap.containsKey(r.requestorId)) {
+            return r.copyWith(requestorName: nameMap[r.requestorId]);
+          }
+          return r;
+        }).toList();
+      } catch (_) {}
+    }
+
+    return requests;
   }
 
   static Future<WorkRequest?> fetchById(String id) async {
@@ -163,7 +241,23 @@ class WorkRequestService {
     }
     
     if (data == null) return null;
-    return WorkRequest.fromMap(data);
+    final request = WorkRequest.fromMap(data);
+
+    // Enrich requestorName if still empty but requestorId is known
+    if (request.requestorName.trim().isEmpty && request.requestorId != null) {
+      try {
+        final userData = await _db
+            .from('users')
+            .select('name')
+            .eq('id', request.requestorId!)
+            .maybeSingle();
+        if (userData != null && userData['name'] != null) {
+          return request.copyWith(requestorName: userData['name'].toString());
+        }
+      } catch (_) {}
+    }
+
+    return request;
   }
 
   static Future<void> updateStatus(String id, String status) async {
@@ -172,6 +266,13 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update({'status': status}).eq('id', id);
     }
+
+    try {
+      final request = await fetchById(id);
+      if (request?.roomId != null) {
+        await updateRoomStatusFromRequests(request!.roomId!);
+      }
+    } catch (_) {}
   }
 
   static Future<void> updatePriority(String id, String priority) async {
@@ -197,6 +298,22 @@ class WorkRequestService {
     final fileName = '${requestId}_voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
     
     await _db.storage.from('voice_recordings').upload(fileName, file);
+    return _db.storage.from('voice_recordings').getPublicUrl(fileName);
+  }
+
+  /// Upload voice note from raw bytes — works on both Web and mobile.
+  static Future<String> uploadVoiceNoteBytes(
+    Uint8List bytes,
+    String requestId, {
+    String ext = 'm4a',
+  }) async {
+    final fileName = '${requestId}_voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final mimeType = ext == 'webm' ? 'audio/webm' : 'audio/mp4';
+    await _db.storage.from('voice_recordings').uploadBinary(
+      fileName,
+      bytes,
+      fileOptions: FileOptions(contentType: mimeType),
+    );
     return _db.storage.from('voice_recordings').getPublicUrl(fileName);
   }
 
@@ -249,7 +366,7 @@ class WorkRequestService {
     }
 
     final updateData = {
-      'status': 'in_progress',
+      'status': 'In Progress',
       'maintenance_start_time': DateTime.now().toIso8601String(),
       'approved_by_id': approvedById,
       'approved_date': DateTime.now().toIso8601String(),
@@ -263,11 +380,18 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update(updateData).eq('id', id);
     }
+
+    try {
+      final request = await fetchById(id);
+      if (request?.roomId != null) {
+        await updateRoomStatusFromRequests(request!.roomId!);
+      }
+    } catch (_) {}
   }
 
   static Future<void> completeRequest(String id) async {
     final updateData = {
-      'status': 'completed',
+      'status': 'Completed',
       'date_completed': DateTime.now().toIso8601String(),
       'maintenance_end_time': DateTime.now().toIso8601String(),
     };
@@ -283,11 +407,9 @@ class WorkRequestService {
       await MaintenanceStatusService.setAvailableOnCompletion(request!.assignedToId!);
     }
 
-    // Set room back to available
+    // Update room status
     if (request?.roomId != null && request!.roomId!.isNotEmpty) {
-      try {
-        await RoomService.updateStatus(request.roomId!, 'available');
-      } catch (_) {}
+      await updateRoomStatusFromRequests(request.roomId!);
     }
   }
 
@@ -297,11 +419,33 @@ class WorkRequestService {
     String maintenanceId,
     String maintenanceName,
   ) async {
+    DateTime? dateDue;
+    try {
+      final request = await fetchById(id);
+      final estimatedDuration = request?.maintenanceNotes;
+      if (estimatedDuration != null && estimatedDuration.trim().isNotEmpty) {
+        final durLower = estimatedDuration.toLowerCase();
+        if (durLower.contains('hour')) {
+          final hours = int.tryParse(durLower.replaceAll(RegExp(r'[^0-9]'), '')) ?? 2;
+          dateDue = DateTime.now().add(Duration(hours: hours));
+        } else if (durLower.contains('day')) {
+          final days = int.tryParse(durLower.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+          dateDue = DateTime.now().add(Duration(days: days));
+        } else if (durLower.contains('week')) {
+          final weeks = int.tryParse(durLower.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+          dateDue = DateTime.now().add(Duration(days: weeks * 7));
+        } else {
+          dateDue = DateTime.now().add(const Duration(days: 1));
+        }
+      }
+    } catch (_) {}
+
     final updateData = {
-      'status': 'under_maintenance',
+      'status': 'In Progress',
       'accepted_date': DateTime.now().toIso8601String(),
       'assigned_to_id': maintenanceId,
       'maintenance_start_time': DateTime.now().toIso8601String(),
+      if (dateDue != null) 'date_due': dateDue.toIso8601String(),
     };
     if (id.startsWith('WR-')) {
       await _db.from(_table).update(updateData).eq('legacy_id', id);
@@ -310,12 +454,19 @@ class WorkRequestService {
     }
     
     await MaintenanceStatusService.setBusyOnAssignment(maintenanceId, id);
+
+    try {
+      final request = await fetchById(id);
+      if (request?.roomId != null) {
+        await updateRoomStatusFromRequests(request!.roomId!);
+      }
+    } catch (_) {}
   }
 
-  /// Set status to under_maintenance (after admin approves pre-inspection)
+  /// Set status to Confirmed (after admin approves pre-inspection)
   static Future<void> setUnderMaintenance(String id) async {
     final updateData = {
-      'status': 'under_maintenance',
+      'status': 'Confirmed',
       'maintenance_start_time': DateTime.now().toIso8601String(),
     };
     if (id.startsWith('WR-')) {
@@ -323,6 +474,13 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update(updateData).eq('id', id);
     }
+
+    try {
+      final request = await fetchById(id);
+      if (request?.roomId != null) {
+        await updateRoomStatusFromRequests(request!.roomId!);
+      }
+    } catch (_) {}
   }
 
   /// Set status to rework
@@ -330,7 +488,7 @@ class WorkRequestService {
     final request = await fetchById(id);
     final currentCount = request?.reworkCount ?? 0;
     final updateData = {
-      'status': 'rework',
+      'status': 'Rework',
       'rework_count': currentCount + 1,
       'rework_notes': reworkNotes,
       'maintenance_end_time': null,
@@ -339,6 +497,10 @@ class WorkRequestService {
       await _db.from(_table).update(updateData).eq('legacy_id', id);
     } else {
       await _db.from(_table).update(updateData).eq('id', id);
+    }
+
+    if (request?.roomId != null) {
+      await updateRoomStatusFromRequests(request!.roomId!);
     }
   }
 
@@ -379,12 +541,12 @@ class WorkRequestService {
 
   /// Get under maintenance count
   static Future<int> getUnderMaintenanceCount() async {
-    return getCountByStatus('under_maintenance');
+    return getCountByStatus('Confirmed');
   }
 
   /// Get approved count (waiting for maintenance acceptance)
   static Future<int> getApprovedCount() async {
-    return getCountByStatus('approved');
+    return getCountByStatus('In Progress');
   }
 
   static Future<WorkRequest> insert(WorkRequest request) async {
@@ -393,15 +555,32 @@ class WorkRequestService {
       payload['id'] = _generateWorkRequestId();
     }
 
+    // Automatically check for duplicates in the same room
+    final roomId = payload['room_id'];
+    if (roomId != null && roomId.toString().isNotEmpty) {
+      try {
+        final active = await _db
+            .from(_table)
+            .select('id')
+            .eq('room_id', roomId)
+            .neq('status', 'Completed')
+            .neq('status', 'Declined')
+            .order('date_submitted', ascending: true)
+            .limit(1)
+            .maybeSingle();
+        if (active != null) {
+          payload['duplicate_of_id'] = active['id'];
+        }
+      } catch (_) {
+        // Silently ignore detection failures to not block submission
+      }
+    }
+
     final data = await _insertWithSchemaFallback(payload);
     
-    // Update room status to maintenance (Unavailable)
+    // Update room status
     if (request.roomId != null && request.roomId!.isNotEmpty) {
-      try {
-        await RoomService.updateStatus(request.roomId!, 'maintenance');
-      } catch (_) {
-        // Silently ignore update status failures
-      }
+      await updateRoomStatusFromRequests(request.roomId!);
     }
 
     return WorkRequest.fromMap(data);
@@ -409,19 +588,32 @@ class WorkRequestService {
 
   static Future<void> update(WorkRequest request) async {
     await _updateWithSchemaFallback(request.id, request.toMap());
+    if (request.roomId != null && request.roomId!.isNotEmpty) {
+      await updateRoomStatusFromRequests(request.roomId!);
+    }
   }
 
   static Future<void> delete(String id) async {
+    String? roomId;
+    try {
+      final request = await fetchById(id);
+      roomId = request?.roomId;
+    } catch (_) {}
+
     if (id.startsWith('WR-')) {
       await _db.from(_table).delete().eq('legacy_id', id);
     } else {
       await _db.from(_table).delete().eq('id', id);
     }
+
+    if (roomId != null && roomId.isNotEmpty) {
+      await updateRoomStatusFromRequests(roomId);
+    }
   }
 
   // Analytics methods
   static Future<int> getPendingCount() async {
-    final data = await _db.from(_table).select('id').eq('status', 'pending');
+    final data = await _db.from(_table).select('id').eq('status', 'Pending');
     return (data as List?)?.length ?? 0;
   }
 
@@ -429,12 +621,12 @@ class WorkRequestService {
     final data = await _db
         .from(_table)
         .select('id')
-        .eq('status', 'in_progress');
+        .eq('status', 'In Progress');
     return (data as List?)?.length ?? 0;
   }
 
   static Future<int> getCompletedCount() async {
-    final data = await _db.from(_table).select('id').eq('status', 'completed');
+    final data = await _db.from(_table).select('id').eq('status', 'Completed');
     return (data as List?)?.length ?? 0;
   }
 

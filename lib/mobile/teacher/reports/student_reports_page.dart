@@ -10,6 +10,7 @@ import '../../../shared/services/work_request_service.dart';
 import '../../../authentication/services/auth_service.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../admin/shared/notifications_page.dart';
 
 class StudentReportsPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -94,15 +95,23 @@ class _StudentReportsPageState extends State<StudentReportsPage>
   List<WorkRequest> get _filteredRequests {
     List<WorkRequest> filtered = _requests;
     if (_selectedFilter == 'Pending') {
-      filtered = filtered.where((r) => r.status == 'pending').toList();
+      filtered = filtered.where((r) => r.status == 'Pending Assignment').toList();
     } else if (_selectedFilter == 'In Progress') {
       filtered = filtered
           .where(
-            (r) => r.status == 'in_progress' || r.status == 'under_maintenance',
+            (r) => r.status == 'Assigned' ||
+                   r.status == 'Accepted by Maintenance' ||
+                   r.status == 'Pre-Inspection Submitted' ||
+                   r.status == 'Pre-Inspection Approved' ||
+                   r.status == 'Pre-Inspection Declined' ||
+                   r.status == 'In Progress (Post-Repair)' ||
+                   r.status == 'Post-Repair Submitted' ||
+                   r.status == 'Under Evaluation' ||
+                   r.status == 'For Rework',
           )
           .toList();
     } else if (_selectedFilter == 'Complete') {
-      filtered = filtered.where((r) => r.status == 'completed').toList();
+      filtered = filtered.where((r) => r.status == 'Completed').toList();
     }
     final query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
@@ -139,6 +148,14 @@ class _StudentReportsPageState extends State<StudentReportsPage>
             roleText: 'Teacher',
             primaryColor: themeProvider.primaryColor,
             onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
+            onNotificationPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificationsPage(),
+                ),
+              );
+            },
           ),
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,25 +275,21 @@ class _StudentReportsPageState extends State<StudentReportsPage>
                         itemCount: _filteredRequests.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
-                          final r = _filteredRequests[index];
-                          final statusLabel = r.status == 'completed'
-                              ? 'COMPLETED'
-                              : r.status == 'under_maintenance'
-                              ? 'UNDER MAINTENANCE'
-                              : r.status == 'in_progress'
-                              ? 'IN PROGRESS'
-                              : r.status == 'cancelled'
-                              ? 'CANCELLED'
-                              : 'PENDING';
-                          final statusColor = r.status == 'completed'
-                              ? const Color(0xFF4CAF50)
-                              : r.status == 'under_maintenance'
-                              ? const Color(0xFF9C27B0)
-                              : r.status == 'in_progress'
-                              ? const Color(0xFF2196F3)
-                              : r.status == 'cancelled'
-                              ? Colors.red
-                              : const Color(0xFFFF9800);
+                           final r = _filteredRequests[index];
+                           final statusLabel = r.statusLabel;
+                            final statusColor = r.status == 'Completed'
+                                ? const Color(0xFF4CAF50)
+                                : (r.status == 'Declined/Cancelled' || r.status == 'Pre-Inspection Declined')
+                                ? Colors.red
+                                : r.status == 'Pending Assignment'
+                                ? const Color(0xFFFF9800)
+                                : r.status == 'Pre-Inspection Submitted'
+                                ? const Color(0xFF9C27B0)
+                                : r.status == 'Pre-Inspection Approved'
+                                ? const Color(0xFF00BFA5)
+                                : r.status == 'Post-Repair Submitted'
+                                ? const Color(0xFF0284C7)
+                                : const Color(0xFF2196F3);
                           return _buildReportCard(
                             trackingNumber: r.id,
                             title: '${r.officeRoom} - ${r.buildingName}',

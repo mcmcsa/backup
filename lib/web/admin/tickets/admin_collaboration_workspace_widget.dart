@@ -71,33 +71,54 @@ class _AdminCollaborationWorkspaceWidgetState extends State<AdminCollaborationWo
           const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
           Padding(
             padding: const EdgeInsets.all(24),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 900;
+
+                if (!isWide) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _buildCollaboratorsList(),
                       const SizedBox(height: 32),
                       _buildTasksSection(),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 32),
-                Expanded(
-                  flex: 2,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                      const SizedBox(height: 32),
                       _buildNotesSection(),
                       const SizedBox(height: 32),
                       _buildActivitySection(),
                     ],
-                  ),
-                ),
-              ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildCollaboratorsList(),
+                          const SizedBox(height: 32),
+                          _buildTasksSection(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 32),
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildNotesSection(),
+                          const SizedBox(height: 32),
+                          _buildActivitySection(),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -119,7 +140,9 @@ class _AdminCollaborationWorkspaceWidgetState extends State<AdminCollaborationWo
             child: const Icon(Icons.group_work_rounded, color: Color(0xFF10B981), size: 24),
           ),
           const SizedBox(width: 16),
-          Text('Collaboration Workspace', style: AdminStyles.headingStyle(fontSize: 18, color: AdminStyles.textPrimary)),
+          Expanded(
+            child: Text('Collaboration Workspace', style: AdminStyles.headingStyle(fontSize: 18, color: AdminStyles.textPrimary)),
+          ),
         ],
       ),
     );
@@ -448,10 +471,16 @@ class _AdminCollaborationWorkspaceWidgetState extends State<AdminCollaborationWo
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: VoiceRecorderWidget(
-                    onRecordingComplete: (path) async {
+                    onRecordingComplete: (bytes, path) async {
                       final user = context.read<AuthService>().currentUser;
-                      if (user != null) {
-                        await CollaborationService.addVoiceNote(widget.workRequestId, user.id, path);
+                      if (user != null && bytes.isNotEmpty) {
+                        final ext = path.isNotEmpty ? path.split('.').last : 'm4a';
+                        await CollaborationService.addVoiceNoteBytes(
+                          widget.workRequestId,
+                          user.id,
+                          bytes,
+                          ext: ext,
+                        );
                         widget.onDataChanged();
                       }
                       setState(() => _isRecordingVoice = false);
@@ -533,21 +562,23 @@ class _AdminCollaborationWorkspaceWidgetState extends State<AdminCollaborationWo
           ),
           child: widget.activities.isEmpty
               ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          shape: BoxShape.circle,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.history_rounded, color: AdminStyles.textMuted, size: 24),
                         ),
-                        child: const Icon(Icons.history_rounded, color: AdminStyles.textMuted, size: 24),
-                      ),
-                      const SizedBox(height: 10),
-                      Text('No activities logged yet', style: AdminStyles.bodyStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AdminStyles.textSecondary)),
-                      Text('System action events will list here.', style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted)),
-                    ],
+                        const SizedBox(height: 10),
+                        Text('No activities logged yet', style: AdminStyles.bodyStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AdminStyles.textSecondary)),
+                        Text('System action events will list here.', style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted)),
+                      ],
+                    ),
                   ),
                 )
               : ListView.builder(

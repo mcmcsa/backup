@@ -6,6 +6,7 @@ import 'admin_logs_page.dart';
 import 'maintenance_management_page.dart';
 import '../users/users_page.dart';
 import '../../teacher/menu_pages/settings_page.dart';
+import '../ticket/approval_queue_page.dart';
 
 class MenuDrawer extends StatelessWidget {
   const MenuDrawer({super.key});
@@ -117,6 +118,21 @@ class MenuDrawer extends StatelessWidget {
               child: ListView(
                 padding: EdgeInsets.fromLTRB(isCompact ? 14 : 16, isCompact ? 6 : 0, isCompact ? 14 : 16, 0),
                 children: [
+                  _buildMenuItem(
+                    icon: Icons.pending_actions_rounded,
+                    title: 'Approvals',
+                    isCompact: isCompact,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ApprovalQueuePage(),
+                        ),
+                      );
+                    },
+                  ),
+
                   _buildMenuItem(
                     icon: Icons.list_alt_rounded,
                     title: 'Logs',

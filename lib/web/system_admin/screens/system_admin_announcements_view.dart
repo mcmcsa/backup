@@ -279,11 +279,23 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
     ];
 
     if (isMobile) {
-      return Row(
-        children: cards.asMap().entries.expand((e) => [
-          Expanded(child: _buildStatTile(e.value)),
-          if (e.key < cards.length - 1) const SizedBox(width: 10),
-        ]).toList(),
+      return LayoutBuilder(
+        builder: (context, cardConstraints) {
+          if (cardConstraints.maxWidth < 450) {
+            return Column(
+              children: cards.map((c) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: SizedBox(width: double.infinity, child: _buildStatTile(c)),
+              )).toList(),
+            );
+          }
+          return Row(
+            children: cards.asMap().entries.expand((e) => [
+              Expanded(child: _buildStatTile(e.value)),
+              if (e.key < cards.length - 1) const SizedBox(width: 10),
+            ]).toList(),
+          );
+        },
       );
     }
     return Row(
@@ -679,12 +691,15 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600),
+        constraints: BoxConstraints(maxWidth: isMobile ? width * 0.95 : 600),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(28),
+          padding: EdgeInsets.all(isMobile ? 18 : 28),
           child: Form(
             key: _formKey,
             child: Column(
@@ -697,7 +712,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                     child: const Icon(Icons.campaign_rounded, color: AdminStyles.primary, size: 22),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(child: Text(widget.announcement == null ? 'Create Announcement' : 'Edit Announcement', style: AdminStyles.headingStyle(fontSize: 20))),
+                  Expanded(child: Text(widget.announcement == null ? 'Create Announcement' : 'Edit Announcement', style: AdminStyles.headingStyle(fontSize: isMobile ? 18 : 20))),
                   IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded, color: AdminStyles.textMuted)),
                 ]),
                 const SizedBox(height: 24),
@@ -721,145 +736,242 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                 ),
                 const SizedBox(height: 16),
 
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Priority'),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            initialValue: _priority,
-                            decoration: _inputDecor(Icons.flag_outlined),
-                            items: const [
-                              DropdownMenuItem(value: 'low', child: Text('Low')),
-                              DropdownMenuItem(value: 'normal', child: Text('Normal')),
-                              DropdownMenuItem(value: 'high', child: Text('High')),
-                              DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
-                            ],
-                            onChanged: (v) => setState(() => _priority = v ?? 'normal'),
-                          ),
-                        ],
+                if (isMobile) ...[
+                  _label('Priority'),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: _priority,
+                    decoration: _inputDecor(Icons.flag_outlined),
+                    items: const [
+                      DropdownMenuItem(value: 'low', child: Text('Low')),
+                      DropdownMenuItem(value: 'normal', child: Text('Normal')),
+                      DropdownMenuItem(value: 'high', child: Text('High')),
+                      DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
+                    ],
+                    onChanged: (v) => setState(() => _priority = v ?? 'normal'),
+                  ),
+                  const SizedBox(height: 16),
+                  _label('Status'),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: _status,
+                    decoration: _inputDecor(Icons.toggle_on_outlined),
+                    items: const [
+                      DropdownMenuItem(value: 'draft', child: Text('Draft')),
+                      DropdownMenuItem(value: 'published', child: Text('Published')),
+                      DropdownMenuItem(value: 'expired', child: Text('Expired')),
+                    ],
+                    onChanged: (v) => setState(() => _status = v ?? 'draft'),
+                  ),
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _label('Priority'),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              initialValue: _priority,
+                              decoration: _inputDecor(Icons.flag_outlined),
+                              items: const [
+                                DropdownMenuItem(value: 'low', child: Text('Low')),
+                                DropdownMenuItem(value: 'normal', child: Text('Normal')),
+                                DropdownMenuItem(value: 'high', child: Text('High')),
+                                DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
+                              ],
+                              onChanged: (v) => setState(() => _priority = v ?? 'normal'),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Status'),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            initialValue: _status,
-                            decoration: _inputDecor(Icons.toggle_on_outlined),
-                            items: const [
-                              DropdownMenuItem(value: 'draft', child: Text('Draft')),
-                              DropdownMenuItem(value: 'published', child: Text('Published')),
-                              DropdownMenuItem(value: 'expired', child: Text('Expired')),
-                            ],
-                            onChanged: (v) => setState(() => _status = v ?? 'draft'),
-                          ),
-                        ],
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _label('Status'),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              initialValue: _status,
+                              decoration: _inputDecor(Icons.toggle_on_outlined),
+                              items: const [
+                                DropdownMenuItem(value: 'draft', child: Text('Draft')),
+                                DropdownMenuItem(value: 'published', child: Text('Published')),
+                                DropdownMenuItem(value: 'expired', child: Text('Expired')),
+                              ],
+                              onChanged: (v) => setState(() => _status = v ?? 'draft'),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
 
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Schedule Publish Date'),
-                          const SizedBox(height: 8),
-                          InkWell(
-                            onTap: () => _pickDate(true),
-                            child: Container(
-                              height: 52, padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AdminStyles.border)),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.schedule_rounded, size: 18, color: AdminStyles.textSecondary),
-                                  const SizedBox(width: 10),
-                                  Expanded(child: Text(_scheduledFor == null ? 'Immediately' : DateFormat('MMM d, yyyy').format(_scheduledFor!), style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600))),
-                                  if (_scheduledFor != null)
-                                    GestureDetector(onTap: () => setState(() => _scheduledFor = null), child: const Icon(Icons.clear_rounded, size: 16, color: AdminStyles.textMuted))
-                                ],
-                              ),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Expiration Date'),
-                          const SizedBox(height: 8),
-                          InkWell(
-                            onTap: () => _pickDate(false),
-                            child: Container(
-                              height: 52, padding: const EdgeInsets.symmetric(horizontal: 12),
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AdminStyles.border)),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.event_busy_rounded, size: 18, color: AdminStyles.textSecondary),
-                                  const SizedBox(width: 10),
-                                  Expanded(child: Text(_expiresAt == null ? 'Never' : DateFormat('MMM d, yyyy').format(_expiresAt!), style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600))),
-                                  if (_expiresAt != null)
-                                    GestureDetector(onTap: () => setState(() => _expiresAt = null), child: const Icon(Icons.clear_rounded, size: 16, color: AdminStyles.textMuted))
-                                ],
-                              ),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _label('Display Type'),
-                          const SizedBox(height: 8),
-                          DropdownButtonFormField<String>(
-                            initialValue: _displayType,
-                            decoration: _inputDecor(Icons.web_asset_rounded),
-                            items: const [
-                              DropdownMenuItem(value: 'notification', child: Text('Standard Notification')),
-                              DropdownMenuItem(value: 'banner', child: Text('Top Banner')),
-                              DropdownMenuItem(value: 'popup', child: Text('Modal Popup')),
-                            ],
-                            onChanged: (v) => setState(() => _displayType = v ?? 'notification'),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
+                if (isMobile) ...[
+                  _label('Schedule Publish Date'),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () => _pickDate(true),
+                    child: Container(
+                      height: 52, padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AdminStyles.border)),
                       child: Row(
                         children: [
-                          Switch(
-                            value: _isPinned,
-                            onChanged: (v) => setState(() => _isPinned = v),
-                            activeThumbColor: AdminStyles.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          const Expanded(child: Text('Pin to top of lists', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+                          const Icon(Icons.schedule_rounded, size: 18, color: AdminStyles.textSecondary),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text(_scheduledFor == null ? 'Immediately' : DateFormat('MMM d, yyyy').format(_scheduledFor!), style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600))),
+                          if (_scheduledFor != null)
+                            GestureDetector(onTap: () => setState(() => _scheduledFor = null), child: const Icon(Icons.clear_rounded, size: 16, color: AdminStyles.textMuted))
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 16),
+                  _label('Expiration Date'),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () => _pickDate(false),
+                    child: Container(
+                      height: 52, padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AdminStyles.border)),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event_busy_rounded, size: 18, color: AdminStyles.textSecondary),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text(_expiresAt == null ? 'Never' : DateFormat('MMM d, yyyy').format(_expiresAt!), style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600))),
+                          if (_expiresAt != null)
+                            GestureDetector(onTap: () => setState(() => _expiresAt = null), child: const Icon(Icons.clear_rounded, size: 16, color: AdminStyles.textMuted))
+                        ],
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _label('Schedule Publish Date'),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: () => _pickDate(true),
+                              child: Container(
+                                height: 52, padding: const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AdminStyles.border)),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.schedule_rounded, size: 18, color: AdminStyles.textSecondary),
+                                    const SizedBox(width: 10),
+                                    Expanded(child: Text(_scheduledFor == null ? 'Immediately' : DateFormat('MMM d, yyyy').format(_scheduledFor!), style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600))),
+                                    if (_scheduledFor != null)
+                                      GestureDetector(onTap: () => setState(() => _scheduledFor = null), child: const Icon(Icons.clear_rounded, size: 16, color: AdminStyles.textMuted))
+                                  ],
+                                ),
+                              ),
+                            )
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _label('Expiration Date'),
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: () => _pickDate(false),
+                              child: Container(
+                                height: 52, padding: const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: AdminStyles.border)),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.event_busy_rounded, size: 18, color: AdminStyles.textSecondary),
+                                    const SizedBox(width: 10),
+                                    Expanded(child: Text(_expiresAt == null ? 'Never' : DateFormat('MMM d, yyyy').format(_expiresAt!), style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600))),
+                                    if (_expiresAt != null)
+                                      GestureDetector(onTap: () => setState(() => _expiresAt = null), child: const Icon(Icons.clear_rounded, size: 16, color: AdminStyles.textMuted))
+                                  ],
+                                ),
+                              ),
+                            )
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 16),
+
+                if (isMobile) ...[
+                  _label('Display Type'),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: _displayType,
+                    decoration: _inputDecor(Icons.web_asset_rounded),
+                    items: const [
+                      DropdownMenuItem(value: 'notification', child: Text('Standard Notification')),
+                      DropdownMenuItem(value: 'banner', child: Text('Top Banner')),
+                      DropdownMenuItem(value: 'popup', child: Text('Modal Popup')),
+                    ],
+                    onChanged: (v) => setState(() => _displayType = v ?? 'notification'),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Switch(
+                        value: _isPinned,
+                        onChanged: (v) => setState(() => _isPinned = v),
+                        activeThumbColor: AdminStyles.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      const Expanded(child: Text('Pin to top of lists', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+                    ],
+                  ),
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _label('Display Type'),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              initialValue: _displayType,
+                              decoration: _inputDecor(Icons.web_asset_rounded),
+                              items: const [
+                                DropdownMenuItem(value: 'notification', child: Text('Standard Notification')),
+                                DropdownMenuItem(value: 'banner', child: Text('Top Banner')),
+                                DropdownMenuItem(value: 'popup', child: Text('Modal Popup')),
+                              ],
+                              onChanged: (v) => setState(() => _displayType = v ?? 'notification'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Switch(
+                              value: _isPinned,
+                              onChanged: (v) => setState(() => _isPinned = v),
+                              activeThumbColor: AdminStyles.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(child: Text('Pin to top of lists', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
                 _label('Target Audience (Select all that apply)'),
                 const SizedBox(height: 8),

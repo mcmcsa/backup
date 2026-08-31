@@ -99,6 +99,11 @@ class AuthService extends ChangeNotifier {
     }
 
     _currentUser = await _fetchProfile(supabaseUser.id);
+    if (_currentUser?.role == UserRole.maintenance) {
+      try {
+        await MaintenanceStatusService.setOnlineOnLogin(_currentUser!.id);
+      } catch (_) {}
+    }
   }
 
   bool consumeLoginRedirectPause() {

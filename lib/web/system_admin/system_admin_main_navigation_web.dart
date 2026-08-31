@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
+import '../../shared/utils/workflow_guide_dialog.dart';
 
 
 import 'screens/system_admin_dashboard_view.dart';
@@ -215,7 +216,11 @@ class _SystemAdminMainNavigationWebState
               return AdminEditRoomPageWeb(room: _selectedRoom!, onClose: _backToRoomsList);
             }
             if (_roomsSubview == _roomsSubviewDetails && _selectedRoom != null) {
-              return AdminRoomDetailsPageWeb(room: _selectedRoom!, onEditRoom: _openEditRoomInShell);
+              return AdminRoomDetailsPageWeb(
+                room: _selectedRoom!,
+                onEditRoom: _openEditRoomInShell,
+                onBack: _backToRoomsList,
+              );
             }
             return AdminRoomsWeb(onAddRoom: _openAddRoomInShell, onEditRoom: _openEditRoomInShell, onViewRoom: _openRoomDetailsInShell);
           }
@@ -439,6 +444,15 @@ class _SystemAdminMainNavigationWebState
                 ),
               ),
               const Spacer(),
+              IconButton(
+                onPressed: () {
+                  final user = context.read<AuthService>().currentUser;
+                  showWorkflowGuideDialog(context, role: user?.role.name);
+                },
+                icon: const Icon(Icons.help_outline_rounded, color: Color(0xFF475569)),
+                tooltip: 'Workflow Guide',
+              ),
+              const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   _userName,

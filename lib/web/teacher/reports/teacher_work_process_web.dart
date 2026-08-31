@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/models/e_signature_model.dart';
+import '../../../shared/models/pre_inspection_model.dart';
+import '../../../shared/models/post_repair_model.dart';
 import '../../../shared/services/e_signature_service.dart';
+import '../../../shared/services/pre_inspection_service.dart';
+import '../../../shared/services/post_repair_service.dart';
+import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/user_service.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 import '../../admin/shared/admin_styles.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'teacher_official_form_web.dart';
-import '../../../authentication/services/auth_service.dart';
-import '../../../shared/widgets/signature_pad_widget.dart';
-import '../../../shared/services/work_request_service.dart';
-import 'package:provider/provider.dart';
+import 'dart:async';
+
 
 class TeacherWorkProcessWeb extends StatefulWidget {
   final WorkRequest request;
@@ -26,7 +30,11 @@ class TeacherWorkProcessWeb extends StatefulWidget {
 class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
     with SingleTickerProviderStateMixin {
   List<ESignature> _signatures = [];
+  PreInspectionReport? _preInspectionReport;
+  List<PostRepairReport> _postRepairReports = [];
   bool _isLoading = true;
+  final Map<String, String> _userNames = {};
+  Timer? _autoRefreshTimer;
   late final AnimationController _animController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 700),
@@ -43,99 +51,320 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
     super.initState();
     _currentRequest = widget.request;
     _loadSignatures();
+    _startAutoRefresh();
   }
 
   @override
   void dispose() {
     _animController.dispose();
+    _autoRefreshTimer?.cancel();
     super.dispose();
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _loadSignatures();
+    });
   }
 
   Future<void> _loadSignatures() async {
     try {
+      final request = await WorkRequestService.fetchById(_req.id) ?? _req;
       final sigs = await ESignatureService.fetchByWorkRequest(_req.id);
+      
+      // Populate cache of user names from signatures to bypass RLS issues
+      for (final sig in sigs) {
+        if (sig.signerId.isNotEmpty && sig.signerName.isNotEmpty) {
+          final isAdm = sig.signerRole.toLowerCase() == 'campadmin';
+          _userNames[sig.signerId] = isAdm ? 'Campus Admin - ${sig.signerName}' : sig.signerName;
+        }
+      }
+
+      final preInsp = await PreInspectionService.fetchLatestByWorkRequest(_req.id);
+      final postRepairs = await PostRepairService.fetchByWorkRequest(_req.id);
+      
+      final userIds = <String>{};
+      if (preInsp?.adminApprovedBy != null) userIds.add(preInsp!.adminApprovedBy!);
+      for (final report in postRepairs) {
+        if (report.adminEvaluatedBy != null) userIds.add(report.adminEvaluatedBy!);
+      }
+      final missingIds = userIds.where((id) => !_userNames.containsKey(id)).toList();
+      if (missingIds.isNotEmpty) {
+        final names = await UserService.fetchNamesByIds(missingIds);
+        if (names.isNotEmpty) {
+          _userNames.addAll(names);
+        }
+      }
+
       if (mounted) {
-        setState(() { _signatures = sigs; _isLoading = false; });
-        _animController.forward();
+        setState(() {
+          _currentRequest = request;
+          _signatures = sigs;
+          _preInspectionReport = preInsp;
+          _postRepairReports = postRepairs;
+          if (_isLoading) {
+            _isLoading = false;
+            _animController.forward();
+          }
+        });
       }
     } catch (_) {
-      if (mounted) { setState(() => _isLoading = false); _animController.forward(); }
+      if (mounted) {
+        setState(() {
+          if (_isLoading) {
+            _isLoading = false;
+            _animController.forward();
+          }
+        });
+      }
     }
   }
 
   // ─── Status Helpers ──────────────────────────────────────────────────────────
   Color get _statusColor {
-    switch (_status) {
-      case 'completed': return AdminStyles.success;
-      case 'in_progress':
-      case 'under_maintenance': return AdminStyles.info;
-      case 'pending': return AdminStyles.warning;
-      case 'cancelled': return AdminStyles.error;
-      default: return AdminStyles.textMuted;
+    final status = _status;
+    final hasPreInsp = _preInspectionReport != null;
+    final isPreInspReviewed = hasPreInsp && 
+        (_preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined');
+    final isPreInspApproved = hasPreInsp && _preInspectionReport!.status == 'Approved';
+    final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
+    
+    PostRepairReport? latestPostRepair;
+    if (_postRepairReports.isNotEmpty) {
+      final list = List<PostRepairReport>.from(_postRepairReports)
+        ..sort((a, b) {
+          int cmp = a.repairDate.compareTo(b.repairDate);
+          if (cmp != 0) return cmp;
+          return a.attemptNumber.compareTo(b.attemptNumber);
+        });
+      latestPostRepair = list.last;
+    }
+    final hasPostRepair = latestPostRepair != null;
+    final isPostRepairEvaluated = latestPostRepair?.adminEvaluation != null;
+    final isRework = latestPostRepair?.adminEvaluation == 'rework' || status == 'rework';
+    final isCompleted = status == 'completed';
+
+    if (isCompleted) {
+      return AdminStyles.success;
+    } else if (status == 'declined' || status == 'cancelled' || status == 'declined/cancelled' || isPreInspDeclined) {
+      return AdminStyles.error;
+    } else if (isRework) {
+      return AdminStyles.warning;
+    } else if (hasPostRepair && !isPostRepairEvaluated) {
+      return AdminStyles.primary;
+    } else if (hasPostRepair) {
+      return AdminStyles.primary;
+    } else if (isPreInspApproved) {
+      return AdminStyles.primary;
+    } else if (hasPreInsp && !isPreInspReviewed) {
+      return AdminStyles.warning;
+    } else if (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance') {
+      return AdminStyles.info;
+    } else {
+      return AdminStyles.textMuted;
     }
   }
 
   String get _statusLabel {
-    switch (_status) {
-      case 'in_progress': return 'IN PROGRESS';
-      case 'under_maintenance': return 'UNDER MAINTENANCE';
-      case 'cancelled': return 'CANCELLED';
-      default: return _status.toUpperCase();
+    final status = _status;
+    final hasPreInsp = _preInspectionReport != null;
+    final isPreInspReviewed = hasPreInsp && 
+        (_preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined');
+    final isPreInspApproved = hasPreInsp && _preInspectionReport!.status == 'Approved';
+    final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
+    
+    PostRepairReport? latestPostRepair;
+    if (_postRepairReports.isNotEmpty) {
+      final list = List<PostRepairReport>.from(_postRepairReports)
+        ..sort((a, b) {
+          int cmp = a.repairDate.compareTo(b.repairDate);
+          if (cmp != 0) return cmp;
+          return a.attemptNumber.compareTo(b.attemptNumber);
+        });
+      latestPostRepair = list.last;
+    }
+    final hasPostRepair = latestPostRepair != null;
+    final isPostRepairEvaluated = latestPostRepair?.adminEvaluation != null;
+    final isRework = latestPostRepair?.adminEvaluation == 'rework' || status == 'rework';
+    final isCompleted = status == 'completed';
+
+    if (isCompleted) {
+      return 'COMPLETED';
+    } else if (status == 'declined' || status == 'cancelled' || status == 'declined/cancelled' || isPreInspDeclined) {
+      return 'DECLINED';
+    } else if (isRework) {
+      return 'REWORK NEEDED';
+    } else if (hasPostRepair && !isPostRepairEvaluated) {
+      return 'UNDER EVALUATION';
+    } else if (hasPostRepair) {
+      return 'POST-REPAIR INSPECTION SUBMITTED';
+    } else if (isPreInspApproved) {
+      return 'CONFIRMED';
+    } else if (hasPreInsp && !isPreInspReviewed) {
+      return 'PRE-INSPECTION SUBMITTED';
+    } else if (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance') {
+      if (_req.acceptedDate == null) {
+        return 'APPROVED';
+      } else {
+        return 'ACCEPTED';
+      }
+    } else {
+      return 'AWAITING REVIEW';
     }
   }
 
-  // Timeline step data
   List<_TimelineStep> get _steps {
-    final submitted = _req.dateSubmitted;
-    final approved = _req.approvedDate;
-    final started = _req.maintenanceStartTime;
-    final ended = _req.maintenanceEndTime ?? _req.dateCompleted;
+    final steps = <_TimelineStep>[];
+    final task = _req;
 
-    final isAssigned = _status != 'pending';
-    final isInProgress = ['in_progress', 'under_maintenance', 'completed'].contains(_status);
-    final isDone = _status == 'completed';
+    // 1. Request Submitted
+    steps.add(_TimelineStep(
+      icon: Icons.assignment_turned_in_rounded,
+      title: 'Request Submitted',
+      desc: 'Initial request submitted by ${task.displayRequestorName}.',
+      date: task.dateSubmitted,
+      isCompleted: true,
+      color: AdminStyles.primary,
+    ));
 
-    return [
-      _TimelineStep(
-        icon: Icons.assignment_turned_in_rounded,
-        title: 'Request Submitted',
-        desc: 'You submitted a maintenance request for ${_req.roomName ?? 'a room'}.',
-        date: submitted,
+    // 2. Admin Review & Approval
+    final isApproved = ['assigned', 'confirmed', 'rework', 'completed', 'in progress', 'in_progress', 'declined'].contains(task.status.toLowerCase());
+    final isDeclinedInitially = task.status.toLowerCase() == 'declined' && task.preInspectionId == null;
+    steps.add(_TimelineStep(
+      icon: Icons.admin_panel_settings_rounded,
+      title: isDeclinedInitially ? 'Request Declined' : 'Admin Review & Approval',
+      desc: isDeclinedInitially
+          ? 'Request was declined and closed.'
+          : (isApproved
+              ? 'Request approved by ${task.approvedByName ?? "Admin"}.'
+              : 'Waiting for admin approval.'),
+      date: task.approvedDate,
+      isCompleted: isApproved,
+      color: isDeclinedInitially ? AdminStyles.error : AdminStyles.secondary,
+    ));
+
+    if (isDeclinedInitially) return steps;
+
+    // 3. Maintenance Assignment & Acceptance
+    final isAccepted = task.acceptedDate != null;
+    steps.add(_TimelineStep(
+      icon: Icons.engineering_rounded,
+      title: 'Maintenance Assignment',
+      desc: isAccepted
+          ? 'Accepted by ${task.acceptedByName ?? "Technician"}.'
+          : (task.assignedToId != null
+              ? 'Assigned to ${task.acceptedByName ?? "Technician"}. Awaiting acceptance.'
+              : 'Pending technician assignment.'),
+      date: task.acceptedDate,
+      isCompleted: isAccepted,
+      color: AdminStyles.info,
+    ));
+
+    // 4. Pre-Inspection Report Submitted
+    final hasPreInsp = _preInspectionReport != null;
+    steps.add(_TimelineStep(
+      icon: Icons.search_rounded,
+      title: 'Pre-Inspection',
+      desc: hasPreInsp
+          ? 'Submitted by ${_preInspectionReport!.inspectorName}'
+          : 'Awaiting pre-inspection.',
+      date: _preInspectionReport?.inspectionDate,
+      isCompleted: hasPreInsp,
+      color: AdminStyles.warning,
+    ));
+
+    // 5. Pre-Inspection Review Decision
+    if (hasPreInsp) {
+      final isReviewed = _preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined';
+      final isPreInspDeclined = _preInspectionReport!.status == 'Declined';
+      final approvedByName = _preInspectionReport!.adminApprovedBy != null
+          ? (_userNames[_preInspectionReport!.adminApprovedBy] ?? _preInspectionReport!.adminApprovedBy)
+          : "Admin";
+      
+      steps.add(_TimelineStep(
+        icon: isPreInspDeclined ? Icons.cancel_rounded : Icons.fact_check_rounded,
+        title: isPreInspDeclined ? 'Pre-Inspection Declined' : 'Pre-Inspection Approved',
+        desc: isReviewed
+            ? '${_preInspectionReport!.status} by $approvedByName'
+            : 'Awaiting pre-inspection review.',
+        date: _preInspectionReport?.adminApprovedDate,
+        isCompleted: isReviewed && !isPreInspDeclined,
+        color: isPreInspDeclined ? AdminStyles.error : AdminStyles.success,
+      ));
+
+      if (isPreInspDeclined) return steps;
+    }
+
+    // 6. Post-Repair Attempts
+    final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
+      ..sort((a, b) {
+        int cmp = a.repairDate.compareTo(b.repairDate);
+        if (cmp != 0) return cmp;
+        return a.attemptNumber.compareTo(b.attemptNumber);
+      });
+
+    for (int i = 0; i < sortedAttempts.length; i++) {
+      final report = sortedAttempts[i];
+      steps.add(_TimelineStep(
+        icon: Icons.build_circle_rounded,
+        title: 'Post-Repair Report Submitted',
+        desc: 'Submitted by ${report.technicianName}',
+        date: report.repairDate,
         isCompleted: true,
         color: AdminStyles.primary,
-      ),
-      _TimelineStep(
-        icon: Icons.admin_panel_settings_rounded,
-        title: 'Admin Review & Approval',
-        desc: isAssigned
-            ? (_req.approvedByName != null ? 'Approved by ${_req.approvedByName}.' : 'Request approved and assigned.')
-            : 'Waiting for an admin to review your request.',
-        date: approved,
-        isCompleted: isAssigned,
-        color: AdminStyles.secondary,
-      ),
-      _TimelineStep(
-        icon: Icons.engineering_rounded,
-        title: 'Maintenance In Progress',
-        desc: isInProgress
-            ? (_req.acceptedByName != null ? 'Assigned to ${_req.acceptedByName}.' : 'Maintenance staff is working on the issue.')
-            : 'Pending assignment to a maintenance technician.',
-        date: started,
-        isCompleted: isInProgress,
-        color: AdminStyles.info,
-      ),
-      _TimelineStep(
-        icon: Icons.verified_rounded,
-        title: 'Completed & Verified',
-        desc: isDone
-            ? 'The issue has been resolved. Thank you for your patience!'
-            : 'Awaiting resolution and sign-off.',
-        date: ended,
-        isCompleted: isDone,
-        color: AdminStyles.success,
-        isLast: true,
-      ),
-    ];
+      ));
+
+      final isEvaluated = report.adminEvaluation != null;
+      final isRework = report.adminEvaluation == 'rework';
+      final evaluatedByName = report.adminEvaluatedBy != null
+          ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
+          : "Admin";
+      
+      final isLatestReport = i == sortedAttempts.length - 1;
+      if (isEvaluated || isLatestReport) {
+        steps.add(_TimelineStep(
+          icon: isRework ? Icons.refresh_rounded : Icons.check_circle_rounded,
+          title: isRework ? 'Post-Repair Evaluation Completed - Rework' : 'Post-Repair Evaluation',
+          desc: isEvaluated
+              ? (isRework
+                  ? 'Rework required by $evaluatedByName'
+                  : 'Approved by $evaluatedByName')
+              : 'Awaiting evaluation.',
+          date: report.adminEvaluatedDate,
+          isCompleted: isEvaluated,
+          color: isRework ? AdminStyles.warning : AdminStyles.success,
+          customBadge: isRework ? 'Rework' : null,
+        ));
+      }
+    }
+
+    // If the latest evaluation was rework, append a pending Post-Repair Report step
+    if (sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'rework') {
+      steps.add(const _TimelineStep(
+        icon: Icons.build_circle_rounded,
+        title: 'Post-Repair Report',
+        desc: 'Awaiting post-repair report (Rework).',
+        isCompleted: false,
+        color: Colors.grey,
+      ));
+    }
+
+    // 7. Final Completion
+    final isCompleted = task.status.toLowerCase() == 'completed';
+    steps.add(_TimelineStep(
+      icon: Icons.verified_rounded,
+      title: 'Completed & Verified',
+      desc: isCompleted
+          ? 'Work request fully verified and completed.'
+          : 'Awaiting final verification and close out.',
+      date: task.dateCompleted,
+      isCompleted: isCompleted,
+      color: AdminStyles.success,
+      isLast: true,
+    ));
+
+    return steps;
   }
 
   @override
@@ -190,13 +419,15 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
 
   // ─── Header Bar ──────────────────────────────────────────────────────────────
   Widget _buildHeader() {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 600;
     final trackId = _req.id.length > 8
         ? _req.id.substring(0, 8).toUpperCase()
         : _req.id.toUpperCase();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
-      height: 68,
+      padding: EdgeInsets.symmetric(horizontal: isNarrow ? 12 : 24, vertical: isNarrow ? 10 : 0),
+      height: isNarrow ? null : 68,
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
@@ -208,29 +439,32 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
             onTap: widget.onBack ?? () => context.pop(),
             borderRadius: BorderRadius.circular(10),
             child: Container(
-              padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.all(isNarrow ? 8 : 10),
               decoration: BoxDecoration(
                 color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.arrow_back_rounded, size: 20, color: AdminStyles.textPrimary),
+              child: Icon(Icons.arrow_back_rounded, size: isNarrow ? 18 : 20, color: AdminStyles.textPrimary),
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: isNarrow ? 8 : 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Request Progress', style: AdminStyles.headingStyle(fontSize: 20)),
+                Text('Request Progress', style: AdminStyles.headingStyle(fontSize: isNarrow ? 15 : 20)),
+                const SizedBox(height: 2),
                 Text(
                   'Tracking ID: #$trackId',
-                  style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+                  style: AdminStyles.bodyStyle(fontSize: isNarrow ? 11 : 12, color: AdminStyles.textMuted),
                 ),
               ],
             ),
           ),
-          ElevatedButton.icon(
+          SizedBox(width: isNarrow ? 8 : 16),
+          ElevatedButton(
             onPressed: () {
               showDialog(
                 context: context,
@@ -241,22 +475,30 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
               backgroundColor: AdminStyles.primary,
               foregroundColor: Colors.white,
               elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(horizontal: isNarrow ? 10 : 14, vertical: isNarrow ? 10 : 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            icon: const Icon(Icons.assignment_rounded, size: 16),
-            label: const Text('View Official Form', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            child: isNarrow
+                ? const Icon(Icons.assignment_rounded, size: 18)
+                : const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.assignment_rounded, size: 16),
+                      SizedBox(width: 8),
+                      Text('View Official Form', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    ],
+                  ),
           ),
-          const SizedBox(width: 16),
-          _buildStatusBadge(),
+          SizedBox(width: isNarrow ? 8 : 16),
+          _buildStatusBadge(isNarrow: isNarrow),
         ],
       ),
     );
   }
 
-  Widget _buildStatusBadge() {
+  Widget _buildStatusBadge({bool isNarrow = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: isNarrow ? 10 : 16, vertical: isNarrow ? 6 : 8),
       decoration: BoxDecoration(
         color: _statusColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(30),
@@ -265,9 +507,17 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 7, height: 7, decoration: BoxDecoration(color: _statusColor, shape: BoxShape.circle)),
-          const SizedBox(width: 8),
-          Text(_statusLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _statusColor, letterSpacing: 0.5)),
+          Container(width: 6, height: 6, decoration: BoxDecoration(color: _statusColor, shape: BoxShape.circle)),
+          SizedBox(width: isNarrow ? 6 : 8),
+          Text(
+            _statusLabel, 
+            style: TextStyle(
+              fontSize: isNarrow ? 10 : 12, 
+              fontWeight: FontWeight.w700, 
+              color: _statusColor, 
+              letterSpacing: 0.5
+            )
+          ),
         ],
       ),
     );
@@ -278,31 +528,137 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
     String title, desc;
     IconData icon;
 
-    switch (_status) {
-      case 'in_progress':
-      case 'under_maintenance':
-        title = 'Maintenance In Progress';
-        desc = 'Our technicians are currently working on resolving the issue.';
-        icon = Icons.construction_rounded;
-        break;
-      case 'completed':
-        title = 'Issue Resolved ✓';
-        desc = 'This maintenance request has been completed and verified. Thank you!';
-        icon = Icons.task_alt_rounded;
-        break;
-      case 'cancelled':
-        title = 'Request Cancelled';
-        desc = 'This maintenance request has been cancelled.';
-        icon = Icons.cancel_rounded;
-        break;
-      default:
-        title = 'Awaiting Review';
-        desc = 'Your request has been received and is pending admin review.';
-        icon = Icons.pending_actions_rounded;
+    final req = _req;
+    final status = _status;
+    final hasPreInsp = _preInspectionReport != null;
+    final isPreInspReviewed = hasPreInsp && 
+        (_preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined');
+    final isPreInspApproved = hasPreInsp && _preInspectionReport!.status == 'Approved';
+    final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
+    
+    // Check post-repair reports
+    PostRepairReport? latestPostRepair;
+    if (_postRepairReports.isNotEmpty) {
+      final list = List<PostRepairReport>.from(_postRepairReports)
+        ..sort((a, b) {
+          int cmp = a.repairDate.compareTo(b.repairDate);
+          if (cmp != 0) return cmp;
+          return a.attemptNumber.compareTo(b.attemptNumber);
+        });
+      latestPostRepair = list.last;
+    }
+    final hasPostRepair = latestPostRepair != null;
+    final isPostRepairEvaluated = latestPostRepair?.adminEvaluation != null;
+    final isRework = latestPostRepair?.adminEvaluation == 'rework' || status == 'rework';
+    final isCompleted = status == 'completed';
+
+    if (isCompleted) {
+      title = 'Completed';
+      desc = 'This maintenance request has been completed and verified. Thank you!';
+      icon = Icons.task_alt_rounded;
+    } else if (status == 'declined' || status == 'cancelled' || status == 'declined/cancelled' || isPreInspDeclined) {
+      title = 'Declined';
+      desc = 'This maintenance request has been declined or cancelled.';
+      icon = Icons.cancel_rounded;
+    } else if (isRework) {
+      title = 'Rework Needed';
+      desc = 'The administrator requested rework on the performed repairs.';
+      icon = Icons.history_rounded;
+    } else if (hasPostRepair && !isPostRepairEvaluated) {
+      // Step 7: Campus Admin reviews/evaluates post-repair inspection -> Under Evaluation
+      title = 'Under Evaluation';
+      desc = 'The campus admin is currently evaluating the post-repair inspection.';
+      icon = Icons.rate_review_rounded;
+    } else if (hasPostRepair) {
+      // Step 6: Maintenance user submits post-repair inspection -> Post-Repair Inspection Submitted
+      title = 'Post-Repair Inspection Submitted';
+      desc = 'Repair completed. Post-repair report has been submitted.';
+      icon = Icons.fact_check_rounded;
+    } else if (isPreInspApproved) {
+      // Step 5: Campus Admin confirms -> Confirmed
+      title = 'Confirmed';
+      desc = 'The pre-inspection has been confirmed. The repair is in progress.';
+      icon = Icons.construction_rounded;
+    } else if (hasPreInsp && !isPreInspReviewed) {
+      // Step 4: Maintenance user submits pre-inspection -> Pre-Inspection Submitted
+      title = 'Pre-Inspection Submitted';
+      desc = 'Pre-inspection report has been submitted and is awaiting admin decision.';
+      icon = Icons.search_rounded;
+    } else if (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance') {
+      if (req.acceptedDate == null) {
+        // Step 2: Campus Admin reviews and approves -> Approved
+        title = 'Approved';
+        desc = 'The request has been approved and assigned to a technician. Awaiting acceptance.';
+        icon = Icons.thumb_up_rounded;
+      } else {
+        // Step 3: Maintenance user accepts the work request -> Accepted
+        title = 'Accepted';
+        desc = 'The maintenance user accepted the task and is working on it.';
+        icon = Icons.assignment_turned_in_rounded;
+      }
+    } else {
+      // Step 1: Work request submitted -> Awaiting Review
+      title = 'Awaiting Review';
+      desc = 'Your request has been received and is pending admin review.';
+      icon = Icons.pending_actions_rounded;
     }
 
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
+
+    Widget iconContainer = Container(
+      width: isMobile ? 60 : 80,
+      height: isMobile ? 60 : 80,
+      decoration: BoxDecoration(
+        color: _statusColor.withValues(alpha: 0.15),
+        shape: BoxShape.circle,
+        border: Border.all(color: _statusColor.withValues(alpha: 0.3), width: 2),
+      ),
+      child: Icon(icon, color: _statusColor, size: isMobile ? 28 : 38),
+    );
+
+    Widget textColumn = Column(
+      crossAxisAlignment: isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        Text(
+          title, 
+          textAlign: isMobile ? TextAlign.center : TextAlign.start,
+          style: AdminStyles.headingStyle(fontSize: isMobile ? 18 : 26, color: _statusColor),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          desc, 
+          textAlign: isMobile ? TextAlign.center : TextAlign.start,
+          style: AdminStyles.bodyStyle(fontSize: isMobile ? 13 : 15, color: AdminStyles.textSecondary, height: 1.5),
+        ),
+        if (_req.maintenanceNotes != null && _req.maintenanceNotes!.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AdminStyles.info.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AdminStyles.info.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.sticky_note_2_rounded, color: AdminStyles.info, size: 16),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _req.maintenanceNotes!,
+                    style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary, height: 1.4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(isMobile ? 20 : 32),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -317,54 +673,23 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
         border: Border.all(color: _statusColor.withValues(alpha: 0.25)),
         color: Colors.white,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: _statusColor.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
-              border: Border.all(color: _statusColor.withValues(alpha: 0.3), width: 2),
-            ),
-            child: Icon(icon, color: _statusColor, size: 38),
-          ),
-          const SizedBox(width: 28),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(title, style: AdminStyles.headingStyle(fontSize: 26, color: _statusColor)),
-                const SizedBox(height: 8),
-                Text(desc, style: AdminStyles.bodyStyle(fontSize: 15, color: AdminStyles.textSecondary, height: 1.5)),
-                if (_req.maintenanceNotes != null && _req.maintenanceNotes!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AdminStyles.info.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AdminStyles.info.withValues(alpha: 0.2)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.sticky_note_2_rounded, color: AdminStyles.info, size: 16),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _req.maintenanceNotes!,
-                            style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary, height: 1.4),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                iconContainer,
+                const SizedBox(height: 16),
+                textColumn,
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                iconContainer,
+                const SizedBox(width: 28),
+                Expanded(child: textColumn),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -417,18 +742,18 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: step.isCompleted
+                    color: (step.isCompleted || step.customBadge != null)
                         ? step.color.withValues(alpha: 0.12)
                         : const Color(0xFFF1F5F9),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: step.isCompleted ? step.color : const Color(0xFFE2E8F0),
+                      color: (step.isCompleted || step.customBadge != null) ? step.color : const Color(0xFFE2E8F0),
                       width: 2,
                     ),
                   ),
                   child: Icon(
-                    step.isCompleted ? step.icon : Icons.radio_button_unchecked_rounded,
-                    color: step.isCompleted ? step.color : const Color(0xFFCBD5E1),
+                    (step.isCompleted || step.customBadge != null) ? step.icon : Icons.radio_button_unchecked_rounded,
+                    color: (step.isCompleted || step.customBadge != null) ? step.color : const Color(0xFFCBD5E1),
                     size: 20,
                   ),
                 ),
@@ -474,7 +799,7 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
                           ),
                         ),
                       ),
-                      if (step.isCompleted)
+                      if (step.isCompleted || step.customBadge != null)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
@@ -482,7 +807,7 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            'Done',
+                            step.customBadge ?? 'Done',
                             style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: step.color),
                           ),
                         ),
@@ -521,15 +846,8 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
 
   // ─── Info Panel ──────────────────────────────────────────────────────────────
   Widget _buildInfoPanel() {
-    final hasAdminCompletion = _signatures.any((s) => s.signatureType == 'completion' && (s.signerRole == 'admin' || s.signerRole == 'approver'));
-    final hasUserCompletion = _signatures.any((s) => s.signatureType == 'completion' && s.signerRole == 'teacher');
-
     return Column(
       children: [
-        if (hasAdminCompletion) ...[
-          _buildCompletionConfirmationCard(hasUserCompletion),
-          const SizedBox(height: 20),
-        ],
         _buildRequestInfoCard(),
         if (_signatures.isNotEmpty) ...[
           const SizedBox(height: 20),
@@ -537,147 +855,6 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
         ],
       ],
     );
-  }
-
-  Widget _buildCompletionConfirmationCard(bool hasUserCompletion) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(28),
-      decoration: BoxDecoration(
-        color: hasUserCompletion ? const Color(0xFFF0FDF4) : const Color(0xFFEFF6FF),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: hasUserCompletion ? const Color(0xFFBBF7D0) : const Color(0xFFBFDBFE)),
-        boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 12, offset: Offset(0, 4))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: hasUserCompletion ? const Color(0xFFDCFCE7) : const Color(0xFFDBEAFE),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  hasUserCompletion ? Icons.verified_rounded : Icons.pending_actions_rounded,
-                  color: hasUserCompletion ? const Color(0xFF15803D) : const Color(0xFF1D4ED8),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                hasUserCompletion ? 'Work Completion Confirmed' : 'Confirm Work Request Completion',
-                style: AdminStyles.headingStyle(
-                  fontSize: 17,
-                  color: hasUserCompletion ? const Color(0xFF166534) : const Color(0xFF1E40AF),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            hasUserCompletion
-                ? 'You have verified and signed the completion confirmation form for this request.'
-                : 'The maintenance work has been accomplished by the technician and signed by the Campus Admin. Please review the work and sign the confirmation to officially close this ticket.',
-            style: AdminStyles.bodyStyle(
-              fontSize: 13,
-              color: hasUserCompletion ? const Color(0xFF166534) : const Color(0xFF1E40AF),
-            ),
-          ),
-          if (!hasUserCompletion) ...[
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _openConfirmSignatureDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              icon: const Icon(Icons.draw_rounded, size: 18),
-              label: const Text('Sign Confirm Work Request Form', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  void _openConfirmSignatureDialog() async {
-    final user = context.read<AuthService>().currentUser;
-    if (user == null) return;
-
-    final signatureBase64 = await showDialog<String>(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SignaturePadWidget(
-                title: 'Confirm Completion Signature',
-                subtitle: 'Please draw your signature below to verify completion.',
-                onSignatureComplete: (base64) {
-                  Navigator.of(context).pop(base64);
-                },
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel', style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (signatureBase64 != null) {
-      setState(() => _isLoading = true);
-      try {
-        await ESignatureService.insert(
-          ESignature(
-            id: '',
-            workRequestId: _req.id,
-            signerId: user.id,
-            signerName: user.name,
-            signerRole: 'teacher',
-            signatureType: 'completion',
-            signatureData: signatureBase64,
-            signedAt: DateTime.now(),
-            notes: 'Requestor completion confirmation signature',
-          ),
-        );
-
-        await WorkRequestService.completeRequest(_req.id);
-        
-        final updated = await WorkRequestService.fetchById(_req.id);
-        if (updated != null && mounted) {
-          setState(() {
-            _currentRequest = updated;
-          });
-          await _loadSignatures();
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error signing completion: $e'), backgroundColor: AdminStyles.error),
-          );
-        }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    }
   }
 
   Widget _buildRequestInfoCard() {
@@ -782,14 +959,63 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
                             showDialog(
                               context: context,
                               builder: (context) => Dialog(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8.0),
-                                  child: Image.network(url, fit: BoxFit.contain),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                clipBehavior: Clip.antiAlias,
+                                child: Container(
+                                  constraints: BoxConstraints(
+                                    maxWidth: MediaQuery.of(context).size.width * 0.85,
+                                    maxHeight: MediaQuery.of(context).size.height * 0.75,
+                                  ),
+                                  color: Colors.black,
+                                  child: Stack(
+                                    alignment: Alignment.center,
+                                    children: [
+                                      InteractiveViewer(
+                                        maxScale: 3.0,
+                                        child: Image.network(
+                                          url,
+                                          fit: BoxFit.contain,
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null) return child;
+                                            return const Center(
+                                              child: CircularProgressIndicator(
+                                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 12,
+                                        right: 12,
+                                        child: CircleAvatar(
+                                          backgroundColor: Colors.black.withValues(alpha: 0.5),
+                                          child: IconButton(
+                                            icon: const Icon(Icons.close_rounded, color: Colors.white),
+                                            onPressed: () => Navigator.of(context).pop(),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             );
                           },
-                          child: Image.network(url, fit: BoxFit.cover),
+                          child: Image.network(
+                            url,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return const Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: AdminStyles.primary),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
@@ -909,7 +1135,33 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(s.signerName, style: AdminStyles.headingStyle(fontSize: 13)),
-                  Text(s.signerRole.toUpperCase(), style: AdminStyles.bodyStyle(fontSize: 10, color: AdminStyles.textMuted)),
+                  Text(
+                    () {
+                      final role = s.signerRole.trim().toLowerCase();
+                      final type = s.signatureType.trim().toLowerCase();
+                      if (role == 'teacher' || role == 'requestor') {
+                        if (type == 'approval' || type == 'submission') {
+                          return 'Requestor Approval';
+                        } else if (type == 'completion') {
+                          return 'Requestor Completion';
+                        }
+                      } else if (role == 'admin' || role == 'approver') {
+                        if (type == 'completion') {
+                          return 'Admin Completion';
+                        } else {
+                          return 'Admin Approval';
+                        }
+                      } else if (role == 'maintenance' || role == 'technician') {
+                        if (type == 'completion') {
+                          return 'Maintenance Completion';
+                        } else {
+                          return 'Maintenance Sign';
+                        }
+                      }
+                      return s.signerRole.toUpperCase();
+                    }(),
+                    style: AdminStyles.bodyStyle(fontSize: 10, color: AdminStyles.textMuted),
+                  ),
                   if (signatureBytes != null) ...[
                     const SizedBox(height: 8),
                     Container(
@@ -956,6 +1208,7 @@ class _TimelineStep {
   final bool isCompleted;
   final bool isLast;
   final Color color;
+  final String? customBadge;
 
   const _TimelineStep({
     required this.icon,
@@ -965,5 +1218,6 @@ class _TimelineStep {
     required this.isCompleted,
     this.isLast = false,
     required this.color,
+    this.customBadge,
   });
 }

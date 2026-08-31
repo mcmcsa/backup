@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../shared/services/app_notification_service.dart';
 import '../../authentication/services/auth_service.dart';
+import '../../../shared/utils/workflow_guide_dialog.dart';
 import 'dashboard/teacher_dashboard_web.dart';
 import 'profile/teacher_profile_web.dart';
 import 'reports/teacher_reports_web.dart';
@@ -20,6 +23,7 @@ import 'notifications/teacher_notifications_web.dart';
 import '../../shared/widgets/lazy_indexed_stack.dart';
 import '../../shared/widgets/announcements/global_announcement_listener.dart';
 import '../../shared/models/work_request_model.dart';
+import '../../shared/models/chat_model.dart';
 import 'teacher_nav_controller.dart';
 
 class TeacherNavigationWeb extends StatefulWidget {
@@ -34,12 +38,53 @@ class TeacherNavigationWeb extends StatefulWidget {
 class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   late int _selectedIndex;
   int _hoveredIndex = -1;
+  bool _isLogoutHovered = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   String? _createRoomId;
   String? _createRoomName;
   String? _createBuildingName;
   WorkRequest? _selectedRequestForDetails;
+  ChatRoom? _selectedChatRoom;
+
+  int _unreadNotificationCount = 0;
+  RealtimeChannel? _notificationsChannel;
+
+  Future<void> _loadUnreadNotificationCount() async {
+    try {
+      final authService = context.read<AuthService>();
+      final currentUser = authService.currentUser;
+      if (currentUser == null) return;
+
+      final count = await AppNotificationService.getUnreadCount(
+        role: currentUser.role.name,
+        userId: currentUser.id,
+      );
+      if (mounted) {
+        setState(() {
+          _unreadNotificationCount = count;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _subscribeNotifications() {
+    final authService = context.read<AuthService>();
+    final currentUser = authService.currentUser;
+    if (currentUser == null) return;
+
+    _notificationsChannel = Supabase.instance.client
+        .channel('teacher_notifications_realtime')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'app_notifications',
+          callback: (payload) {
+            _loadUnreadNotificationCount();
+          },
+        )
+        .subscribe();
+  }
 
   // Professional color palette
   static const _sidebarBg = Color(0xFF0F172A);
@@ -54,6 +99,16 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _loadUnreadNotificationCount();
+    _subscribeNotifications();
+  }
+
+  @override
+  void dispose() {
+    if (_notificationsChannel != null) {
+      Supabase.instance.client.removeChannel(_notificationsChannel!);
+    }
+    super.dispose();
   }
 
 
@@ -81,7 +136,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
+                    color: Colors.black.withValues(alpha: 0.15),
                     blurRadius: 24,
                     offset: const Offset(0, 8),
                   ),
@@ -98,15 +153,15 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                           width: 56,
                           height: 56,
                           decoration: BoxDecoration(
-                            color: _badgeRed.withOpacity(0.1),
+                            color: _badgeRed.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(Icons.logout_rounded, color: _badgeRed, size: 28),
                         ),
                         const SizedBox(height: 16),
-                        Text('Sign Out', style: AdminStyles.headingStyle(fontSize: 18)),
+                        Text('Log Out', style: AdminStyles.headingStyle(fontSize: 18)),
                         const SizedBox(height: 8),
-                        Text('Are you sure you want to sign out?', style: AdminStyles.bodyStyle()),
+                        Text('Are you sure you want to log out?', style: AdminStyles.bodyStyle()),
                       ],
                     ),
                   ),
@@ -129,7 +184,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(backgroundColor: _badgeRed, foregroundColor: Colors.white),
                             onPressed: () => Navigator.of(dialogContext).pop(true),
-                            child: const Text('Sign Out'),
+                            child: const Text('Log Out'),
                           ),
                         ),
                       ],
@@ -167,7 +222,10 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                 },
               )
             : const TeacherReportsWeb(),
-        const TeacherChatWeb(),
+        TeacherChatWeb(
+          key: ValueKey('chat-page-${_selectedChatRoom?.id}'),
+          initialRoom: _selectedChatRoom,
+        ),
         const TeacherArchivesWeb(),
         const TeacherProfileWeb(),
         const TeacherAboutWeb(),
@@ -209,10 +267,13 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                 ),
                 Expanded(
                   child: TeacherNavController(
-                    navigateTo: (i, {roomId, roomName, buildingName, request}) {
+                    navigateTo: (i, {roomId, roomName, buildingName, request, chatRoom}) {
                       setState(() {
                         _selectedIndex = i;
                         _selectedRequestForDetails = request;
+                        if (chatRoom != null) {
+                          _selectedChatRoom = chatRoom;
+                        }
                         if (i == 11) {
                           _createRoomId = roomId;
                           _createRoomName = roomName;
@@ -246,10 +307,13 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                     _buildHeader(),
                     Expanded(
                       child: TeacherNavController(
-                        navigateTo: (i, {roomId, roomName, buildingName, request}) {
+                        navigateTo: (i, {roomId, roomName, buildingName, request, chatRoom}) {
                           setState(() {
                             _selectedIndex = i;
                             _selectedRequestForDetails = request;
+                            if (chatRoom != null) {
+                              _selectedChatRoom = chatRoom;
+                            }
                             if (i == 11) {
                               _createRoomId = roomId;
                               _createRoomName = roomName;
@@ -303,7 +367,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'PSU QR-MMS',
+                        'PSU MMS',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -403,21 +467,55 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   Widget _buildLogoutButton() {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isLogoutHovered = true),
+      onExit: (_) => setState(() => _isLogoutHovered = false),
       child: GestureDetector(
         onTap: _handleLogout,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: _badgeRed.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _badgeRed.withOpacity(0.2)),
+            gradient: _isLogoutHovered
+                ? const LinearGradient(
+                    colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: _isLogoutHovered ? null : const Color(0xFFEF4444).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _isLogoutHovered ? Colors.transparent : const Color(0xFFEF4444).withValues(alpha: 0.2),
+              width: 1.5,
+            ),
+            boxShadow: _isLogoutHovered
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    )
+                  ]
+                : [],
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.logout_rounded, color: Color(0xFFFCA5A5), size: 18),
-              SizedBox(width: 10),
-              Text('Log out', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFFFCA5A5))),
+              Icon(
+                Icons.logout_rounded,
+                color: _isLogoutHovered ? Colors.white : const Color(0xFFFCA5A5),
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Log out',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: _isLogoutHovered ? Colors.white : const Color(0xFFFCA5A5),
+                  letterSpacing: 0.3,
+                ),
+              ),
             ],
           ),
         ),
@@ -454,16 +552,6 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
             ),
             const SizedBox(width: 4),
           ],
-          // PSU Logo + Name
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.asset(
-              'assets/images/PsuLogo.png',
-              width: 36,
-              height: 36,
-              fit: BoxFit.contain,
-            ),
-          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -477,10 +565,21 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
               maxLines: 1,
             ),
           ),
+          // Guide Button
+          IconButton(
+            onPressed: () {
+              final user = context.read<AuthService>().currentUser;
+              showWorkflowGuideDialog(context, role: user?.role.name);
+            },
+            icon: const Icon(Icons.help_outline_rounded, color: AdminStyles.textSecondary),
+            tooltip: 'Workflow Guide',
+          ),
+          const SizedBox(width: 8),
           // Notification button — shows label on wide, icon-only on compact
           _NotificationButton(
             showLabel: !isCompact,
             onTap: () => setState(() => _selectedIndex = 12),
+            badge: _unreadNotificationCount,
           ),
           const SizedBox(width: 12),
           
@@ -526,7 +625,8 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
 class _NotificationButton extends StatefulWidget {
   final bool showLabel;
   final VoidCallback onTap;
-  const _NotificationButton({required this.showLabel, required this.onTap});
+  final int badge;
+  const _NotificationButton({required this.showLabel, required this.onTap, required this.badge});
 
   @override
   State<_NotificationButton> createState() => _NotificationButtonState();
@@ -559,10 +659,14 @@ class _NotificationButtonState extends State<_NotificationButton> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.notifications_outlined,
-                color: _isHovered ? const Color(0xFF0F766E) : Colors.grey.shade600,
-                size: 22,
+              Badge(
+                isLabelVisible: widget.badge > 0,
+                label: Text('${widget.badge}'),
+                child: Icon(
+                  Icons.notifications_outlined,
+                  color: _isHovered ? const Color(0xFF0F766E) : Colors.grey.shade600,
+                  size: 22,
+                ),
               ),
               if (widget.showLabel) ...[
                 const SizedBox(width: 8),

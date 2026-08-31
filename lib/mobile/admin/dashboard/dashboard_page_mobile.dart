@@ -95,16 +95,16 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 final pendingCount = _requests
-                    .where((r) => r.status == 'pending')
+                    .where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment')
                     .length;
                 final ongoingCount = _requests
-                    .where((r) => r.status == 'in_progress')
+                    .where((r) => ['in progress', 'in_progress', 'assigned', 'accepted by maintenance', 'confirmed', 'rework'].contains(r.status.toLowerCase()))
                     .length;
                 final highPriorityCount = _requests
                     .where((r) => r.priority == 'high')
                     .length;
                 final completedCount = _requests
-                    .where((r) => r.status == 'completed')
+                    .where((r) => r.status.toLowerCase() == 'completed')
                     .length;
 
                 return GridView.count(
@@ -169,10 +169,10 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
 
             _buildInsightCard(
               'Avg. Resolution Time',
-              _requests.where((r) => r.status == 'completed' && r.dateCompleted != null).isEmpty
+              _requests.where((r) => r.status.toLowerCase() == 'completed' && r.dateCompleted != null).isEmpty
                   ? 'N/A'
-                  : '${(_requests.where((r) => r.status == 'completed' && r.dateCompleted != null).map((r) => r.dateCompleted!.difference(r.dateSubmitted).inHours).fold<int>(0, (a, b) => a + b) / _requests.where((r) => r.status == 'completed' && r.dateCompleted != null).length).toStringAsFixed(1)}h',
-              _requests.where((r) => r.status == 'completed' && r.dateCompleted != null).isEmpty ? 0.0 : 0.5,
+                  : '${(_requests.where((r) => r.status.toLowerCase() == 'completed' && r.dateCompleted != null).map((r) => r.dateCompleted!.difference(r.dateSubmitted).inHours).fold<int>(0, (a, b) => a + b) / _requests.where((r) => r.status.toLowerCase() == 'completed' && r.dateCompleted != null).length).toStringAsFixed(1)}h',
+              _requests.where((r) => r.status.toLowerCase() == 'completed' && r.dateCompleted != null).isEmpty ? 0.0 : 0.5,
               Colors.blue,
               Icons.access_time,
             ),
@@ -181,8 +181,8 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
               'Resolution Rate',
               _requests.isEmpty
                   ? '0%'
-                  : '${(_requests.where((r) => r.status == 'completed').length * 100 / _requests.length).round()}%',
-              _requests.isEmpty ? 0.0 : _requests.where((r) => r.status == 'completed').length / _requests.length,
+                  : '${(_requests.where((r) => r.status.toLowerCase() == 'completed').length * 100 / _requests.length).round()}%',
+              _requests.isEmpty ? 0.0 : _requests.where((r) => r.status.toLowerCase() == 'completed').length / _requests.length,
               Colors.green,
               Icons.shield_outlined,
             ),
@@ -507,7 +507,12 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
 
   Widget _buildAgingTicketsSection() {
     final agingRequests = _requests
-        .where((r) => r.status == 'pending' || r.status == 'in_progress')
+        .where((r) =>
+          r.status.toLowerCase() != 'completed' &&
+          r.status.toLowerCase() != 'declined' &&
+          r.status.toLowerCase() != 'cancelled' &&
+          r.status.toLowerCase() != 'declined/cancelled'
+        )
         .toList()
       ..sort((a, b) => a.dateSubmitted.compareTo(b.dateSubmitted));
     final top = agingRequests.take(3).toList();
@@ -589,9 +594,34 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
             ),
           ),
           ...top.map((r) {
-            final statusColor = r.status == 'completed'
-                ? Colors.green
-                : (r.status == 'in_progress' ? Colors.blue : Colors.orange);
+            Color statusColor;
+            switch (r.status.toLowerCase()) {
+              case 'completed':
+                statusColor = Colors.green;
+                break;
+              case 'declined':
+              case 'cancelled':
+              case 'declined/cancelled':
+                statusColor = Colors.red;
+                break;
+              case 'in progress':
+              case 'in_progress':
+              case 'assigned':
+              case 'accepted by maintenance':
+                statusColor = Colors.blue;
+                break;
+              case 'confirmed':
+              case 'pre-inspection approved':
+              case 'under_maintenance':
+                statusColor = const Color(0xFF00BFA5);
+                break;
+              case 'rework':
+              case 'for rework':
+                statusColor = Colors.orange;
+                break;
+              default:
+                statusColor = Colors.grey;
+            }
             final statusLabel = r.status.toUpperCase();
             return _buildRequestRow(_ticketCode(r.id), r.title, statusLabel, statusColor);
           }),

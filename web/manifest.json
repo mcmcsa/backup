@@ -1,6 +1,6 @@
 {
-    "name": "PSU MaintSystem",
-    "short_name": "PSU",
+    "name": "PSU MMS",
+    "short_name": "PSU MMS",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",

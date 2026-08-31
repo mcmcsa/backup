@@ -173,7 +173,7 @@ class WorkRequestCompletionPageWeb extends StatelessWidget {
                             children: [
                               Text('Request: ${request.title}'),
                               const SizedBox(height: 8),
-                              Text('Type: ${request.typeOfRequest}'),
+                              Text('Type: ${request.typeDisplay}'),
                               const SizedBox(height: 8),
                               Text('Location: ${request.buildingName}, ${request.officeRoom}'),
                               const SizedBox(height: 8),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,14 @@ import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
+import 'pre_inspection_page.dart';
+import '../../../shared/models/pre_inspection_model.dart';
+import '../../../shared/services/pre_inspection_service.dart';
+import '../../admin/ticket/admin_pre_inspection_review_page.dart';
+import '../../../shared/models/post_repair_model.dart';
+import '../../../shared/services/post_repair_service.dart';
+import 'post_repair_page.dart';
+import '../../../shared/services/user_service.dart';
 
 class TaskDetailsPage extends StatefulWidget {
   final String taskId;
@@ -35,6 +44,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
   WorkRequest? _request;
   List<ESignature> _signatures = [];
   final ImagePicker _picker = ImagePicker();
+  final Map<String, String> _userNames = {};
   AuthService? _cachedAuthService;
   bool _didBindAuthService = false;
   Timer? _autoRefreshTimer;
@@ -80,15 +90,49 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
     });
   }
 
+  PreInspectionReport? _preInspectionReport;
+  List<PostRepairReport> _postRepairReports = [];
+
   Future<void> _loadRequest() async {
     try {
       final request = await WorkRequestService.fetchById(widget.taskId);
       final signatures = request != null
           ? await ESignatureService.fetchByWorkRequest(request.id)
           : <ESignature>[];
+          
+      // Populate cache of user names from signatures to bypass RLS issues
+      for (final sig in signatures) {
+        if (sig.signerId.isNotEmpty && sig.signerName.isNotEmpty) {
+          final isAdm = sig.signerRole.toLowerCase() == 'campadmin';
+          _userNames[sig.signerId] = isAdm ? 'Campus Admin - ${sig.signerName}' : sig.signerName;
+        }
+      }
+
+      final preInspection = request != null
+          ? await PreInspectionService.fetchLatestByWorkRequest(request.id)
+          : null;
+      final postRepairs = request != null
+          ? await PostRepairService.fetchByWorkRequest(request.id)
+          : <PostRepairReport>[];
+
+      final userIds = <String>{};
+      if (preInspection?.adminApprovedBy != null) userIds.add(preInspection!.adminApprovedBy!);
+      for (final report in postRepairs) {
+        if (report.adminEvaluatedBy != null) userIds.add(report.adminEvaluatedBy!);
+      }
+      final missingIds = userIds.where((id) => !_userNames.containsKey(id)).toList();
+      if (missingIds.isNotEmpty) {
+        final names = await UserService.fetchNamesByIds(missingIds);
+        if (names.isNotEmpty) {
+          _userNames.addAll(names);
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         _request = request;
+        _preInspectionReport = preInspection;
+        _postRepairReports = postRepairs;
         _signatures = signatures;
         _isLoading = false;
       });
@@ -127,7 +171,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
     final request = _request;
     if (request == null) return false;
     final status = (request.status).toLowerCase();
-    const allowedStatuses = {'approved', 'in_progress', 'under_maintenance'};
+    const allowedStatuses = {'in progress', 'in_progress'};
     final hasAccepted = request.acceptedDate != null;
     return _isAssignedToCurrentUser &&
         !hasAccepted &&
@@ -260,14 +304,14 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
         adminId: request.approvedById,
       );
 
-      await WorkRequestService.updateStatus(request.id, 'under_maintenance');
+      await WorkRequestService.updateStatus(request.id, request.status);
       await _loadRequest();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Completion signature submitted. Status remains Under Maintenance until requestor signs.',
+            'Completion signature submitted. Awaiting admin approval.',
           ),
           backgroundColor: Color(0xFF059669),
         ),
@@ -790,22 +834,13 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                   ),
                 ],
               ),
-              if (_signatures.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                _buildDetailCard(
-                  title: 'SIGNATURES',
-                  children:
-                      ([..._signatures]
-                            ..sort((a, b) => a.signedAt.compareTo(b.signedAt)))
-                          .map(
-                            (sig) => _buildDetailRow(
-                              _signatureLabel(sig, request),
-                              '${sig.signerName} • ${_formatDate(sig.signedAt)}',
-                            ),
-                          )
-                          .toList(),
-                ),
-              ],
+              const SizedBox(height: 16),
+              _buildDetailCard(
+                title: 'WORKFLOW TIMELINE',
+                children: [
+                  _buildWorkflowTimeline(),
+                ],
+              ),
               const SizedBox(height: 16),
               if (!assignedToCurrentUser)
                 Container(
@@ -873,7 +908,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                     child: Text(
                       (request?.acceptedDate != null)
                           ? 'You already confirmed this request.'
-                          : request?.status == 'pending'
+                          : (request?.status.toLowerCase() == 'pending' || request?.status.toLowerCase() == 'pending assignment')
                           ? 'Waiting for admin approval before you can confirm this request.'
                           : 'This request cannot be confirmed at the moment.',
                       style: const TextStyle(
@@ -883,7 +918,111 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                       ),
                     ),
                   ),
-                  if (request?.acceptedDate != null) ...[
+                  if ((request?.status.toLowerCase() == 'in progress' || request?.status.toLowerCase() == 'in_progress') && _preInspectionReport == null) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PreInspectionPage(request: request!),
+                          ),
+                        ).then((_) => _loadRequest());
+                      },
+                      icon: const Icon(Icons.assignment_outlined, color: Colors.white),
+                      label: const Text(
+                        'Start Pre-Inspection',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4169E1),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (_preInspectionReport != null) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AdminPreInspectionReviewPage(request: request!),
+                          ),
+                        ).then((_) => _loadRequest());
+                      },
+                      icon: const Icon(Icons.assignment_outlined, color: Colors.white),
+                      label: const Text(
+                        'View Pre-Inspection Report',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4169E1),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (request?.status.toLowerCase() == 'confirmed' || request?.status.toLowerCase() == 'rework') ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PostRepairPage(request: request!),
+                          ),
+                        ).then((_) => _loadRequest());
+                      },
+                      icon: const Icon(Icons.build_circle_outlined, color: Colors.white),
+                      label: const Text(
+                        'Start Post-Repair Inspection',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00BFA5),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (_postRepairReports.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PostRepairPage(request: request!),
+                          ),
+                        ).then((_) => _loadRequest());
+                      },
+                      icon: const Icon(Icons.history, color: Colors.white),
+                      label: const Text(
+                        'View Post-Repair Reports',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4169E1),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (request?.status.toLowerCase() == 'confirmed' || request?.status.toLowerCase() == 'rework') ...[
                     const SizedBox(height: 16),
                     if (_isConfirmingWork)
                       const Padding(
@@ -919,7 +1058,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                                 : 'Confirm Work Request',
                             style: TextStyle(
                               fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -1105,19 +1244,27 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
   String _statusLabel(String? value) {
     switch ((value ?? '').toLowerCase()) {
       case 'pending':
+      case 'pending assignment':
         return 'Pending';
-      case 'approved':
-        return 'Approved';
+      case 'in progress':
       case 'in_progress':
+      case 'assigned':
+      case 'accepted by maintenance':
         return 'In Progress';
+      case 'declined':
+      case 'cancelled':
+      case 'declined/cancelled':
+      case 'pre-inspection declined':
+        return 'Declined';
+      case 'confirmed':
+      case 'pre-inspection approved':
       case 'under_maintenance':
-        return 'Under Maintenance';
+        return 'Confirmed';
+      case 'rework':
+      case 'for rework':
+        return 'Rework';
       case 'completed':
         return 'Completed';
-      case 'rework':
-        return 'Rework';
-      case 'cancelled':
-        return 'Cancelled';
       default:
         return _safeValue(value);
     }
@@ -1202,6 +1349,371 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
       'No usable storage bucket found for work evidence upload. '
       'Tried: ${candidateBuckets.join(', ')}. '
       'Last error: ${lastError?.toString() ?? 'unknown'}',
+    );
+  }
+
+  bool _isUnassigned(String? staffId) {
+    final normalized = staffId?.trim().toLowerCase();
+    return normalized == null || normalized.isEmpty || normalized == 'null';
+  }
+
+  String _assignedMaintenanceName(String? staffId) {
+    if (_isUnassigned(staffId)) return 'Unassigned';
+    return _request?.acceptedByName ?? 'Assigned Staff';
+  }
+
+  Widget _buildTimelineItem({
+    required String title,
+    required bool isDone,
+    bool isRework = false,
+    String? subtitle,
+    Widget? details,
+    ESignature? signature,
+    bool isLast = false,
+  }) {
+    final circleColor = isRework
+        ? const Color(0xFFD97706)
+        : (isDone ? const Color(0xFF059669) : Colors.grey.shade300);
+    final iconData = isRework
+        ? Icons.refresh_rounded
+        : (isDone ? Icons.check : Icons.circle);
+    final iconSize = (isRework || isDone) ? 14.0 : 8.0;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: circleColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                iconData,
+                size: iconSize,
+                color: Colors.white,
+              ),
+            ),
+            if (!isLast)
+              Container(
+                width: 2,
+                height: 48,
+                color: circleColor,
+              ),
+          ],
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: isRework
+                      ? const Color(0xFFD97706)
+                      : (isDone ? const Color(0xFF111827) : Colors.grey.shade600),
+                ),
+              ),
+              if (subtitle != null && subtitle.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+              if (details != null) ...[
+                const SizedBox(height: 6),
+                details,
+              ],
+              if (signature != null && signature.signatureData.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                _buildTimelineSignatureImage(signature.signatureData),
+              ],
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimelineSignatureImage(String base64Str) {
+    try {
+      final cleaned = base64Str.trim().replaceAll(RegExp(r'\s+'), '');
+      final base64Data = cleaned.contains(',') ? cleaned.split(',')[1] : cleaned;
+      return Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Image.memory(
+          base64Decode(base64Data),
+          height: 35,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => const Icon(Icons.gesture, size: 25, color: Colors.grey),
+        ),
+      );
+    } catch (_) {
+      return const Icon(Icons.gesture, size: 25, color: Colors.grey);
+    }
+  }
+
+  String _formatDateTime(DateTime? dt) {
+    if (dt == null) return '';
+    return '${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildWorkflowTimeline() {
+    final request = _request;
+    if (request == null) return const SizedBox.shrink();
+
+    final List<Widget> items = [];
+
+    // 1. Submission
+    final reqSig = _signatures.firstWhere(
+      (s) => s.signatureType == 'requestor',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+    items.add(
+      _buildTimelineItem(
+        title: 'Work Request Submitted',
+        isDone: true,
+        subtitle: 'By ${request.requestorName} on ${_formatDateTime(request.dateSubmitted)}',
+        signature: reqSig.signatureData.isNotEmpty ? reqSig : null,
+      ),
+    );
+
+    // 2. Assignment
+    final isAssigned = !_isUnassigned(request.assignedToId);
+    final assignSig = _signatures.firstWhere(
+      (s) => s.signatureType == 'approval',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+    items.add(
+      _buildTimelineItem(
+        title: 'Admin Approved & Assigned',
+        isDone: isAssigned,
+        subtitle: isAssigned
+            ? 'Approved and assigned to ${_assignedMaintenanceName(request.assignedToId)}'
+            : 'Awaiting admin review & assignment',
+        signature: assignSig.signatureData.isNotEmpty ? assignSig : null,
+      ),
+    );
+
+    // 3. Acceptance
+    final acceptSig = _signatures.firstWhere(
+      (s) => s.signatureType == 'acceptance',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+    final isAccepted = acceptSig.signatureData.isNotEmpty ||
+        (request.status.toLowerCase() != 'pending' && request.status.toLowerCase() != 'pending assignment');
+    items.add(
+      _buildTimelineItem(
+        title: 'Technician Accepted Task',
+        isDone: isAccepted,
+        subtitle: isAccepted
+            ? 'Accepted by ${request.acceptedByName ?? _assignedMaintenanceName(request.assignedToId)} on ${_formatDateTime(request.acceptedDate ?? acceptSig.signedAt)}'
+            : 'Awaiting technician acceptance',
+        signature: acceptSig.signatureData.isNotEmpty ? acceptSig : null,
+      ),
+    );
+
+    // 4. Pre-Inspection
+    final preInspection = _preInspectionReport;
+    final preInspSig = _signatures.firstWhere(
+      (s) => s.signatureType == 'pre_inspection',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+    final isPreInspectionSubmitted = preInspection != null;
+    items.add(
+      _buildTimelineItem(
+        title: 'Pre-Inspection Report Filed',
+        isDone: isPreInspectionSubmitted,
+        subtitle: isPreInspectionSubmitted
+            ? 'Submitted by ${preInspection.inspectorName}'
+            : 'Awaiting pre-inspection submission',
+        signature: preInspSig.signatureData.isNotEmpty ? preInspSig : null,
+        details: null,
+      ),
+    );
+
+    // 5. Pre-Inspection Approval/Decline
+    final preInspApprovalSig = _signatures.firstWhere(
+      (s) => s.signatureType == 'pre_inspection_approval',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+    final isPreInspectionReviewed = preInspection != null &&
+        (preInspection.status == 'Approved' || preInspection.status == 'Declined');
+    final approvedByName = preInspection?.adminApprovedBy != null
+        ? (_userNames[preInspection!.adminApprovedBy] ?? preInspection.adminApprovedBy)
+        : "Admin";
+    items.add(
+      _buildTimelineItem(
+        title: 'Pre-Inspection Review Decision',
+        isDone: isPreInspectionReviewed,
+        subtitle: isPreInspectionReviewed
+            ? '${preInspection.status} by $approvedByName'
+            : 'Awaiting admin pre-inspection decision',
+        signature: preInspApprovalSig.signatureData.isNotEmpty ? preInspApprovalSig : null,
+        details: null,
+      ),
+    );
+
+    // 6. Post-Repair Attempts
+    final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
+      ..sort((a, b) {
+        int cmp = a.repairDate.compareTo(b.repairDate);
+        if (cmp != 0) return cmp;
+        return a.attemptNumber.compareTo(b.attemptNumber);
+      });
+
+    for (int i = 0; i < sortedAttempts.length; i++) {
+      final report = sortedAttempts[i];
+      final attemptTechSig = _signatures.firstWhere(
+        (s) => s.signatureType == 'post_repair' && s.signerId == report.technicianId,
+        orElse: () => ESignature(
+          id: '',
+          workRequestId: '',
+          signerId: '',
+          signerName: '',
+          signerRole: '',
+          signatureType: '',
+          signatureData: '',
+          signedAt: DateTime.now(),
+        ),
+      );
+      items.add(
+        _buildTimelineItem(
+          title: 'Post-Repair Report Submitted',
+          isDone: true,
+          subtitle: 'Submitted by ${report.technicianName}',
+          signature: attemptTechSig.signatureData.isNotEmpty ? attemptTechSig : null,
+          details: null,
+        ),
+      );
+
+      final isEvaluated = report.adminEvaluation != null;
+      final isRework = report.adminEvaluation == 'rework';
+      final attemptAdminSig = _signatures.firstWhere(
+        (s) => s.signatureType == 'completion' && s.signerId == report.adminEvaluatedBy,
+        orElse: () => ESignature(
+          id: '',
+          workRequestId: '',
+          signerId: '',
+          signerName: '',
+          signerRole: '',
+          signatureType: '',
+          signatureData: '',
+          signedAt: DateTime.now(),
+        ),
+      );
+      final evaluatedByName = report.adminEvaluatedBy != null
+          ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
+          : "Admin";
+      
+      final isLatestReport = i == sortedAttempts.length - 1;
+      if (isEvaluated || isLatestReport) {
+        items.add(
+          _buildTimelineItem(
+            title: isRework
+                ? 'Post-Repair Evaluation Completed - Rework'
+                : 'Post-Repair Evaluation',
+            isDone: isEvaluated && !isRework,
+            isRework: isRework,
+            subtitle: isEvaluated
+                ? '${report.adminEvaluation == "satisfied" ? "SATISFIED (Approved)" : "REWORK REQUIRED"} by $evaluatedByName'
+                : 'Awaiting admin post-repair evaluation',
+            signature: attemptAdminSig.signatureData.isNotEmpty ? attemptAdminSig : null,
+            details: null,
+          ),
+        );
+      }
+    }
+
+    // If the latest evaluation was rework, append a pending Post-Repair Report step
+    if (sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'rework') {
+      items.add(
+        _buildTimelineItem(
+          title: 'Post-Repair Report',
+          isDone: false,
+          subtitle: 'Awaiting post-repair report (Rework).',
+          signature: null,
+          details: null,
+        ),
+      );
+    }
+
+    // 7. Final Completion
+    final isCompleted = request.status.toLowerCase() == 'completed';
+    items.add(
+      _buildTimelineItem(
+        title: 'Work Completed & Closed',
+        isDone: isCompleted,
+        subtitle: isCompleted
+            ? 'Completed on ${_formatDateTime(request.updatedAt)}'
+            : 'Awaiting final completion approval',
+        isLast: true,
+      ),
+    );
+
+    return Column(
+      children: items,
     );
   }
 }

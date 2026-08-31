@@ -315,7 +315,7 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
                 ],
               ),
               child: Text(
-                'PSU MAINTENANCE MANAGEMENT SYSTEM',
+                'PSU MMS',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 10,

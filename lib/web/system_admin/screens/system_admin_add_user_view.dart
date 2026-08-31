@@ -166,48 +166,110 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: AdminStyles.cardDecoration(borderRadius: 16),
-                        child: Wrap(
-                          spacing: 24,
-                          runSpacing: 20,
-                          children: [
-                            _buildInputWrapper(
-                              label: 'Full Name',
-                              child: _buildTextField(
-                                controller: _nameController,
-                                hint: 'e.g. Juan Dela Cruz',
-                                icon: Icons.person_outline_rounded,
-                                validator: (v) => v!.isEmpty ? 'Required' : null,
-                              ),
-                            ),
-                            _buildInputWrapper(
-                              label: 'Email Address',
-                              child: _buildTextField(
-                                controller: _emailController,
-                                hint: 'e.g. juan@psu.edu.ph',
-                                icon: Icons.alternate_email_rounded,
-                                validator: (v) => v!.isEmpty ? 'Required' : null,
-                              ),
-                            ),
-                            _buildInputWrapper(
-                              label: 'Password',
-                              child: _buildTextField(
-                                controller: _passwordController,
-                                hint: 'Min. 6 characters',
-                                icon: Icons.lock_outline_rounded,
-                                obscure: _obscurePassword,
-                                validator: (v) => v!.length < 6 ? 'Min 6 characters' : null,
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                    color: AdminStyles.textSecondary,
-                                    size: 20,
+                        child: MediaQuery.of(context).size.width < 600
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _buildInputWrapper(
+                                    label: 'Full Name',
+                                    child: _buildTextField(
+                                      controller: _nameController,
+                                      hint: 'e.g. Juan Dela Cruz',
+                                      icon: Icons.person_outline_rounded,
+                                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                                    ),
                                   ),
-                                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                                ),
+                                  const SizedBox(height: 20),
+                                  _buildInputWrapper(
+                                    label: 'Email Address',
+                                    child: _buildTextField(
+                                      controller: _emailController,
+                                      hint: 'e.g. juan@psu.edu.ph',
+                                      icon: Icons.alternate_email_rounded,
+                                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _buildInputWrapper(
+                                    label: 'Password',
+                                    child: _buildTextField(
+                                      controller: _passwordController,
+                                      hint: 'Min. 6 characters',
+                                      icon: Icons.lock_outline_rounded,
+                                      obscure: _obscurePassword,
+                                      validator: (v) => v!.length < 6 ? 'Min 6 characters' : null,
+                                      suffixIcon: IconButton(
+                                        icon: Icon(
+                                          _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                          color: AdminStyles.textSecondary,
+                                          size: 20,
+                                        ),
+                                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: _buildInputWrapper(
+                                          label: 'Full Name',
+                                          child: _buildTextField(
+                                            controller: _nameController,
+                                            hint: 'e.g. Juan Dela Cruz',
+                                            icon: Icons.person_outline_rounded,
+                                            validator: (v) => v!.isEmpty ? 'Required' : null,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 24),
+                                      Expanded(
+                                        child: _buildInputWrapper(
+                                          label: 'Email Address',
+                                          child: _buildTextField(
+                                            controller: _emailController,
+                                            hint: 'e.g. juan@psu.edu.ph',
+                                            icon: Icons.alternate_email_rounded,
+                                            validator: (v) => v!.isEmpty ? 'Required' : null,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: _buildInputWrapper(
+                                          label: 'Password',
+                                          child: _buildTextField(
+                                            controller: _passwordController,
+                                            hint: 'Min. 6 characters',
+                                            icon: Icons.lock_outline_rounded,
+                                            obscure: _obscurePassword,
+                                            validator: (v) => v!.length < 6 ? 'Min 6 characters' : null,
+                                            suffixIcon: IconButton(
+                                              icon: Icon(
+                                                _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                                color: AdminStyles.textSecondary,
+                                                size: 20,
+                                              ),
+                                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 24),
+                                      const Expanded(child: SizedBox()),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
                       ),
                       const SizedBox(height: 32),
 
@@ -218,63 +280,153 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                         Container(
                           padding: const EdgeInsets.all(24),
                           decoration: AdminStyles.cardDecoration(borderRadius: 16),
-                          child: Wrap(
-                            spacing: 24,
-                            runSpacing: 20,
-                            children: [
-                              _buildInputWrapper(
-                                label: 'Employee ID',
-                                child: _buildTextField(
-                                  controller: _empIdController,
-                                  hint: 'Optional',
-                                  icon: Icons.badge_outlined,
+                          child: MediaQuery.of(context).size.width < 600
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    _buildInputWrapper(
+                                      label: 'Employee ID',
+                                      child: _buildTextField(
+                                        controller: _empIdController,
+                                        hint: 'Optional',
+                                        icon: Icons.badge_outlined,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    _buildInputWrapper(
+                                      label: 'Phone Number',
+                                      child: _buildTextField(
+                                        controller: _phoneController,
+                                        hint: 'Optional',
+                                        icon: Icons.phone_outlined,
+                                      ),
+                                    ),
+                                    if (_selectedRole == 'teacher') ...[
+                                      const SizedBox(height: 20),
+                                      _buildInputWrapper(
+                                        label: 'Department',
+                                        child: DropdownButtonFormField<String>(
+                                          initialValue: _selectedDeptId,
+                                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textSecondary),
+                                          decoration: _inputDecoration(icon: Icons.business_rounded),
+                                          items: widget.departments.map<DropdownMenuItem<String>>((d) {
+                                            return DropdownMenuItem<String>(
+                                              value: d.id,
+                                              child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
+                                            );
+                                          }).toList(),
+                                          onChanged: (v) => setState(() => _selectedDeptId = v),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      _buildInputWrapper(
+                                        label: 'Position',
+                                        child: _buildTextField(
+                                          controller: _posController,
+                                          hint: 'e.g. Associate Professor',
+                                          icon: Icons.work_outline_rounded,
+                                        ),
+                                      ),
+                                    ],
+                                    if (_selectedRole == 'maintenance') ...[
+                                      const SizedBox(height: 20),
+                                      _buildInputWrapper(
+                                        label: 'Specialization',
+                                        child: _buildTextField(
+                                          controller: _specController,
+                                          hint: 'e.g. Electrical, Plumbing',
+                                          icon: Icons.build_circle_outlined,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                )
+                              : Column(
+                                  children: [
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: _buildInputWrapper(
+                                            label: 'Employee ID',
+                                            child: _buildTextField(
+                                              controller: _empIdController,
+                                              hint: 'Optional',
+                                              icon: Icons.badge_outlined,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 24),
+                                        Expanded(
+                                          child: _buildInputWrapper(
+                                            label: 'Phone Number',
+                                            child: _buildTextField(
+                                              controller: _phoneController,
+                                              hint: 'Optional',
+                                              icon: Icons.phone_outlined,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (_selectedRole == 'teacher') ...[
+                                      const SizedBox(height: 20),
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: _buildInputWrapper(
+                                              label: 'Department',
+                                              child: DropdownButtonFormField<String>(
+                                                initialValue: _selectedDeptId,
+                                                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textSecondary),
+                                                decoration: _inputDecoration(icon: Icons.business_rounded),
+                                                items: widget.departments.map<DropdownMenuItem<String>>((d) {
+                                                  return DropdownMenuItem<String>(
+                                                    value: d.id,
+                                                    child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
+                                                  );
+                                                }).toList(),
+                                                onChanged: (v) => setState(() => _selectedDeptId = v),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 24),
+                                          Expanded(
+                                            child: _buildInputWrapper(
+                                              label: 'Position',
+                                              child: _buildTextField(
+                                                controller: _posController,
+                                                hint: 'e.g. Associate Professor',
+                                                icon: Icons.work_outline_rounded,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                    if (_selectedRole == 'maintenance') ...[
+                                      const SizedBox(height: 20),
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: _buildInputWrapper(
+                                              label: 'Specialization',
+                                              child: _buildTextField(
+                                                controller: _specController,
+                                                hint: 'e.g. Electrical, Plumbing',
+                                                icon: Icons.build_circle_outlined,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 24),
+                                          const Expanded(child: SizedBox()),
+                                        ],
+                                      ),
+                                    ],
+                                  ],
                                 ),
-                              ),
-                              _buildInputWrapper(
-                                label: 'Phone Number',
-                                child: _buildTextField(
-                                  controller: _phoneController,
-                                  hint: 'Optional',
-                                  icon: Icons.phone_outlined,
-                                ),
-                              ),
-                              if (_selectedRole == 'teacher') ...[
-                                _buildInputWrapper(
-                                  label: 'Department',
-                                  child: DropdownButtonFormField<String>(
-                                    initialValue: _selectedDeptId,
-                                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textSecondary),
-                                    decoration: _inputDecoration(icon: Icons.business_rounded),
-                                    items: widget.departments.map<DropdownMenuItem<String>>((d) {
-                                      return DropdownMenuItem<String>(
-                                        value: d.id,
-                                        child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
-                                      );
-                                    }).toList(),
-                                    onChanged: (v) => setState(() => _selectedDeptId = v),
-                                  ),
-                                ),
-                                _buildInputWrapper(
-                                  label: 'Position',
-                                  child: _buildTextField(
-                                    controller: _posController,
-                                    hint: 'e.g. Associate Professor',
-                                    icon: Icons.work_outline_rounded,
-                                  ),
-                                ),
-                              ],
-                              if (_selectedRole == 'maintenance') ...[
-                                _buildInputWrapper(
-                                  label: 'Specialization',
-                                  child: _buildTextField(
-                                    controller: _specController,
-                                    hint: 'e.g. Electrical, Plumbing',
-                                    icon: Icons.build_circle_outlined,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
                         ),
                         const SizedBox(height: 32),
                       ],
@@ -327,6 +479,65 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
   }
 
   Widget _buildRoleSelector() {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    if (isMobile) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _RoleOptionCard(
+                  title: 'System Admin',
+                  desc: 'Full access to all system features.',
+                  icon: Icons.shield_rounded,
+                  color: AdminStyles.error,
+                  isSelected: _selectedRole == 'admin',
+                  onTap: () => setState(() => _selectedRole == 'admin'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _RoleOptionCard(
+                  title: 'Campus Admin',
+                  desc: 'Manage requests for a campus.',
+                  icon: Icons.admin_panel_settings_rounded,
+                  color: AdminStyles.warning,
+                  isSelected: _selectedRole == 'campadmin',
+                  onTap: () => setState(() => _selectedRole == 'campadmin'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _RoleOptionCard(
+                  title: 'Teacher',
+                  desc: 'Submit and track work requests.',
+                  icon: Icons.school_rounded,
+                  color: AdminStyles.primary,
+                  isSelected: _selectedRole == 'teacher',
+                  onTap: () => setState(() => _selectedRole == 'teacher'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _RoleOptionCard(
+                  title: 'Maintenance',
+                  desc: 'Resolve and manage assigned work.',
+                  icon: Icons.handyman_rounded,
+                  color: Colors.purple,
+                  isSelected: _selectedRole == 'maintenance',
+                  onTap: () => setState(() => _selectedRole == 'maintenance'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
     return Wrap(
       spacing: 16,
       runSpacing: 16,
@@ -337,7 +548,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
           icon: Icons.shield_rounded,
           color: AdminStyles.error,
           isSelected: _selectedRole == 'admin',
-          onTap: () => setState(() => _selectedRole = 'admin'),
+          onTap: () => setState(() => _selectedRole == 'admin'),
         ),
         _RoleOptionCard(
           title: 'Campus Admin',
@@ -345,7 +556,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
           icon: Icons.admin_panel_settings_rounded,
           color: AdminStyles.warning,
           isSelected: _selectedRole == 'campadmin',
-          onTap: () => setState(() => _selectedRole = 'campadmin'),
+          onTap: () => setState(() => _selectedRole == 'campadmin'),
         ),
         _RoleOptionCard(
           title: 'Teacher',
@@ -353,7 +564,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
           icon: Icons.school_rounded,
           color: AdminStyles.primary,
           isSelected: _selectedRole == 'teacher',
-          onTap: () => setState(() => _selectedRole = 'teacher'),
+          onTap: () => setState(() => _selectedRole == 'teacher'),
         ),
         _RoleOptionCard(
           title: 'Maintenance',
@@ -361,23 +572,20 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
           icon: Icons.handyman_rounded,
           color: Colors.purple,
           isSelected: _selectedRole == 'maintenance',
-          onTap: () => setState(() => _selectedRole = 'maintenance'),
+          onTap: () => setState(() => _selectedRole == 'maintenance'),
         ),
       ],
     );
   }
 
   Widget _buildInputWrapper({required String label, required Widget child}) {
-    return SizedBox(
-      width: 340, 
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AdminStyles.textSecondary)),
-          const SizedBox(height: 8),
-          child,
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AdminStyles.textSecondary)),
+        const SizedBox(height: 8),
+        child,
+      ],
     );
   }
 
@@ -451,7 +659,7 @@ class _RoleOptionCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 180,
+        width: MediaQuery.of(context).size.width < 600 ? null : 180,
         height: 140,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(

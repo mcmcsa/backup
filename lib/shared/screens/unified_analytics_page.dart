@@ -35,6 +35,11 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
   void initState() {
     super.initState();
     _loadRooms();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<WorkRequestProvider>().refreshRequests();
+      }
+    });
   }
 
   Future<void> _loadRooms() async {
@@ -69,11 +74,10 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
   int get _totalRequests => _requests.length;
   int get _completedRequests => _requests.where((r) => r.status.toLowerCase() == 'completed').length;
   int get _pendingRequests => _requests.where((r) => r.status.toLowerCase() == 'pending').length;
-  int get _activeRequests => _requests.where((r) =>
-    r.status.toLowerCase() == 'in_progress' ||
-    r.status.toLowerCase() == 'approved' ||
-    r.status.toLowerCase() == 'under_maintenance'
-  ).length;
+  int get _activeRequests => _requests.where((r) {
+    final s = r.status.toLowerCase();
+    return s == 'in progress' || s == 'confirmed' || s == 'rework';
+  }).length;
   int get _highPriority => _requests.where((r) => r.priority.toLowerCase() == 'high').length;
   double get _completionRate => _totalRequests > 0 ? (_completedRequests / _totalRequests * 100) : 0;
 
@@ -435,6 +439,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
         iconColor: _primaryBlue,
         trend: '${totalTrend >= 0 ? '+' : ''}${totalTrend.toStringAsFixed(1)}%',
         trendUp: totalTrend >= 0,
+        isMobile: isMobile,
       ),
       _StatCard(
         title: 'Completion Rate',
@@ -443,6 +448,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
         iconColor: _successGreen,
         trend: '${completionRateTrend >= 0 ? '+' : ''}${completionRateTrend.toStringAsFixed(1)}%',
         trendUp: completionRateTrend >= 0,
+        isMobile: isMobile,
       ),
       _StatCard(
         title: 'Pending',
@@ -451,6 +457,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
         iconColor: _warningYellow,
         trend: '${pendingTrend >= 0 ? '+' : ''}${pendingTrend.toStringAsFixed(1)}%',
         trendUp: pendingTrend <= 0,
+        isMobile: isMobile,
       ),
       _StatCard(
         title: 'High Priority',
@@ -459,19 +466,35 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
         iconColor: _dangerRed,
         trend: '${highPriorityTrend >= 0 ? '+' : ''}${highPriorityTrend.toStringAsFixed(1)}%',
         trendUp: highPriorityTrend <= 0,
+        isMobile: isMobile,
       ),
     ];
 
     if (isMobile) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final width = (constraints.maxWidth - 12) / 2;
-          return Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: cards.map((c) => SizedBox(width: width, child: c)).toList(),
-          );
-        },
+      return Column(
+        children: [
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: cards[0]),
+                const SizedBox(width: 12),
+                Expanded(child: cards[1]),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: cards[2]),
+                const SizedBox(width: 12),
+                Expanded(child: cards[3]),
+              ],
+            ),
+          ),
+        ],
       );
     }
 
@@ -563,8 +586,10 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
 
   Widget _buildRoomStatsCard() {
     final available = _rooms.where((r) => r.status.toLowerCase() == 'available').length;
-    final reserved = _rooms.where((r) => r.status.toLowerCase() == 'reserved').length;
-    final maintenance = _rooms.where((r) => r.status.toLowerCase() == 'maintenance').length;
+    final unavailable = _rooms.where((r) {
+      final s = r.status.toLowerCase();
+      return s == 'unavailable' || s == 'maintenance' || s == 'inactive' || s == 'reserved';
+    }).length;
 
     return _Card(
       title: 'Room Status',
@@ -573,9 +598,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
         children: [
           _RoomStatRow(icon: Icons.check_circle_rounded, color: _successGreen, label: 'Available', value: available),
           const SizedBox(height: 14),
-          _RoomStatRow(icon: Icons.event_busy_rounded, color: _warningYellow, label: 'Reserved', value: reserved),
-          const SizedBox(height: 14),
-          _RoomStatRow(icon: Icons.build_rounded, color: _dangerRed, label: 'Maintenance', value: maintenance),
+          _RoomStatRow(icon: Icons.cancel_rounded, color: _dangerRed, label: 'Unavailable', value: unavailable),
         ],
       ),
     );
@@ -591,6 +614,7 @@ class _StatCard extends StatefulWidget {
   final Color iconColor;
   final String trend;
   final bool trendUp;
+  final bool isMobile;
 
   const _StatCard({
     required this.title,
@@ -599,6 +623,7 @@ class _StatCard extends StatefulWidget {
     required this.iconColor,
     required this.trend,
     required this.trendUp,
+    required this.isMobile,
   });
 
   @override
@@ -610,7 +635,7 @@ class _StatCardState extends State<_StatCard> {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = widget.isMobile;
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -635,73 +660,142 @@ class _StatCardState extends State<_StatCard> {
             ),
           ],
         ),
-        child: Row(
-          children: [
-            Container(
-              width: isMobile ? 36 : 48,
-              height: isMobile ? 36 : 48,
-              decoration: BoxDecoration(
-                color: widget.iconColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
-              ),
-              child: Icon(widget.icon, color: widget.iconColor, size: isMobile ? 18 : 24),
-            ),
-            SizedBox(width: isMobile ? 10 : 16),
-            Expanded(
-              child: Column(
+        child: isMobile
+            ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: widget.iconColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(widget.icon, color: widget.iconColor, size: 16),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: widget.trendUp
+                              ? const Color(0xFF22C55E).withValues(alpha: 0.1)
+                              : const Color(0xFFEF4444).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              widget.trendUp ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                              size: 11,
+                              color: widget.trendUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              widget.trend,
+                              style: AdminStyles.dataStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: widget.trendUp ? AdminStyles.success : AdminStyles.error,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   Text(
                     widget.value,
                     style: AdminStyles.headingStyle(
-                      fontSize: isMobile ? 20 : 26,
+                      fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: AdminStyles.textPrimary,
                     ),
                   ),
+                  const SizedBox(height: 2),
                   Text(
                     widget.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AdminStyles.bodyStyle(
-                      fontSize: isMobile ? 11 : 13,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: AdminStyles.textSecondary,
                     ),
                   ),
                 ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: widget.trendUp
-                    ? const Color(0xFF22C55E).withValues(alpha: 0.1)
-                    : const Color(0xFFEF4444).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              )
+            : Row(
                 children: [
-                  Icon(
-                    widget.trendUp ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                    size: 14,
-                    color: widget.trendUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: widget.iconColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(widget.icon, color: widget.iconColor, size: 24),
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    widget.trend,
-                    style: AdminStyles.dataStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: widget.trendUp ? AdminStyles.success : AdminStyles.error,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.value,
+                          style: AdminStyles.headingStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: AdminStyles.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          widget.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AdminStyles.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: widget.trendUp
+                          ? const Color(0xFF22C55E).withValues(alpha: 0.1)
+                          : const Color(0xFFEF4444).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          widget.trendUp ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                          size: 14,
+                          color: widget.trendUp ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          widget.trend,
+                          style: AdminStyles.dataStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: widget.trendUp ? AdminStyles.success : AdminStyles.error,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

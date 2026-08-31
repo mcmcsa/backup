@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/utils/workflow_guide_dialog.dart';
 import 'notifications_page.dart';
 
 class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -50,21 +51,6 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
         padding: const EdgeInsets.only(left: 0),
         child: Row(
           children: [
-            SizedBox(
-              height: 40,
-              width: 40,
-              child: Image.asset(
-                'assets/images/psu_logo_v3.png',
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-                isAntiAlias: true,
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.school,
-                  color: Color(0xFF4169E1),
-                  size: 28,
-                ),
-              ),
-            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -98,6 +84,17 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
       ),
       actions: [
+        IconButton(
+          icon: const Icon(
+            Icons.help_outline_rounded,
+            color: Colors.black87,
+          ),
+          tooltip: 'Workflow Guide',
+          onPressed: () {
+            final user = context.read<AuthService>().currentUser;
+            showWorkflowGuideDialog(context, role: user?.role.name);
+          },
+        ),
         FutureBuilder<int>(
           future: _fetchUnreadCount(context),
           builder: (context, snapshot) {

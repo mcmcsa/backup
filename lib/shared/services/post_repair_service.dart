@@ -44,7 +44,7 @@ class PostRepairService {
     final data = await _db
         .from(_table)
         .select()
-        .eq('status', 'submitted')
+        .eq('status', 'Pending')
         .order('created_at', ascending: false);
     return (data as List).map((e) => PostRepairReport.fromMap(e)).toList();
   }
@@ -66,7 +66,7 @@ class PostRepairService {
       'admin_evaluation_notes': notes,
       'admin_evaluated_by': adminId,
       'admin_evaluated_date': DateTime.now().toIso8601String(),
-      'status': 'evaluated',
+      'status': 'Completed',
       'updated_at': DateTime.now().toIso8601String(),
     }).eq('id', id);
   }
@@ -78,7 +78,7 @@ class PostRepairService {
       'admin_evaluation_notes': reworkNotes,
       'admin_evaluated_by': adminId,
       'admin_evaluated_date': DateTime.now().toIso8601String(),
-      'status': 'rework',
+      'status': 'Rework',
       'updated_at': DateTime.now().toIso8601String(),
     }).eq('id', id);
   }

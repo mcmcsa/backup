@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import '../../shared/models/work_request_model.dart';
+import '../../shared/models/chat_model.dart';
 
 /// A simple InheritedWidget that exposes a callback so any child widget
 /// inside the teacher navigation can switch pages without using go_router.
 class TeacherNavController extends InheritedWidget {
-  final void Function(int index, {String? roomId, String? roomName, String? buildingName, WorkRequest? request}) navigateTo;
+  final void Function(
+    int index, {
+    String? roomId,
+    String? roomName,
+    String? buildingName,
+    WorkRequest? request,
+    ChatRoom? chatRoom,
+  }) navigateTo;
 
   const TeacherNavController({
     super.key,

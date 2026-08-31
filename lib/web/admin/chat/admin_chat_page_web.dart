@@ -36,10 +36,69 @@ class _AdminChatPageWebState extends State<AdminChatPageWeb> {
     final user = context.watch<AuthService>().currentUser;
     if (user == null) return const SizedBox.shrink();
 
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 768;
+
+    Widget mainContent;
+    if (isMobile) {
+      if (_selectedRoom != null) {
+        mainContent = ChatMessagesPanel(
+          key: ValueKey(_selectedRoom!.id),
+          room: _selectedRoom!,
+          currentUserId: user.id,
+          currentUserName: user.name,
+          currentUserRole: user.role.name,
+          onBack: () => setState(() => _selectedRoom = null),
+        );
+      } else {
+        mainContent = ChatListPanel(
+          currentUserId: user.id,
+          currentUserName: user.name,
+          currentUserRole: user.role.name,
+          selectedRoomId: _selectedRoom?.id,
+          onRoomSelected: (room) => setState(() => _selectedRoom = room),
+        );
+      }
+    } else {
+      mainContent = Row(
+        children: [
+          // Left panel: Room list
+          Container(
+            width: 300,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              border: Border(
+                right: BorderSide(color: AdminStyles.border),
+              ),
+            ),
+            child: ChatListPanel(
+              currentUserId: user.id,
+              currentUserName: user.name,
+              currentUserRole: user.role.name,
+              selectedRoomId: _selectedRoom?.id,
+              onRoomSelected: (room) => setState(() => _selectedRoom = room),
+            ),
+          ),
+          // Right panel: Messages
+          Expanded(
+            child: _selectedRoom == null
+                ? _buildEmptyState()
+                : ChatMessagesPanel(
+                    key: ValueKey(_selectedRoom!.id),
+                    room: _selectedRoom!,
+                    currentUserId: user.id,
+                    currentUserName: user.name,
+                    currentUserRole: user.role.name,
+                  ),
+          ),
+        ],
+      );
+    }
+
     return Container(
       color: AdminStyles.bg,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isMobile ? 10 : 20),
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -55,39 +114,7 @@ class _AdminChatPageWebState extends State<AdminChatPageWeb> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: Row(
-              children: [
-                // Left panel: Room list
-                Container(
-                  width: 300,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    border: Border(
-                      right: BorderSide(color: AdminStyles.border),
-                    ),
-                  ),
-                  child: ChatListPanel(
-                    currentUserId: user.id,
-                    currentUserName: user.name,
-                    currentUserRole: user.role.name,
-                    selectedRoomId: _selectedRoom?.id,
-                    onRoomSelected: (room) => setState(() => _selectedRoom = room),
-                  ),
-                ),
-                // Right panel: Messages
-                Expanded(
-                  child: _selectedRoom == null
-                      ? _buildEmptyState()
-                      : ChatMessagesPanel(
-                          key: ValueKey(_selectedRoom!.id),
-                          room: _selectedRoom!,
-                          currentUserId: user.id,
-                          currentUserName: user.name,
-                          currentUserRole: user.role.name,
-                        ),
-                ),
-              ],
-            ),
+            child: mainContent,
           ),
         ),
       ),

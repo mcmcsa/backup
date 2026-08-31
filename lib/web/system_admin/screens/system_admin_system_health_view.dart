@@ -87,38 +87,56 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
   }
 
   Widget _buildHeader(bool isMobile) {
+    final titleCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('System Health', style: AdminStyles.headingStyle(fontSize: isMobile ? 22 : 28)),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            const Icon(Icons.circle, color: AdminStyles.success, size: 10),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'All Systems Operational. Last updated: ${_lastRefresh.hour}:${_lastRefresh.minute.toString().padLeft(2, '0')}:${_lastRefresh.second.toString().padLeft(2, '0')}',
+                style: AdminStyles.bodyStyle(fontSize: 13),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final refreshBtn = ElevatedButton.icon(
+      onPressed: () => _loadData(),
+      icon: const Icon(Icons.refresh_rounded, size: 18),
+      label: const Text('Refresh'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: AdminStyles.primary,
+        side: const BorderSide(color: AdminStyles.border),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          titleCol,
+          const SizedBox(height: 16),
+          refreshBtn,
+        ],
+      );
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('System Health', style: AdminStyles.headingStyle(fontSize: isMobile ? 22 : 28)),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.circle, color: AdminStyles.success, size: 10),
-                  const SizedBox(width: 6),
-                  Text('All Systems Operational. Last updated: ${_lastRefresh.hour}:${_lastRefresh.minute.toString().padLeft(2, '0')}:${_lastRefresh.second.toString().padLeft(2, '0')}', style: AdminStyles.bodyStyle(fontSize: 13)),
-                ],
-              ),
-            ],
-          ),
-        ),
-        if (!isMobile) ...[
-          ElevatedButton.icon(
-            onPressed: () => _loadData(),
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Refresh'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: AdminStyles.primary,
-              side: const BorderSide(color: AdminStyles.border),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ],
+        Expanded(child: titleCol),
+        const SizedBox(width: 16),
+        refreshBtn,
       ],
     );
   }

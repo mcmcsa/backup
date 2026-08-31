@@ -955,7 +955,7 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
                           ),
                           const SizedBox(height: 14),
                           const Text(
-                            'The new room has been registered in the PSU Maintenance Management System.',
+                            'The new room has been registered in the PSU MMS.',
                             style: TextStyle(
                               fontSize: 13,
                               height: 1.5,

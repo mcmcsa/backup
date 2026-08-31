@@ -6,7 +6,8 @@ import '../../../shared/widgets/chat/chat_list_panel.dart';
 import '../../../shared/widgets/chat/chat_messages_panel.dart';
 
 class MaintenanceChatPageWeb extends StatefulWidget {
-  const MaintenanceChatPageWeb({super.key});
+  final ChatRoom? initialRoom;
+  const MaintenanceChatPageWeb({super.key, this.initialRoom});
 
   @override
   State<MaintenanceChatPageWeb> createState() => _MaintenanceChatPageWebState();
@@ -19,14 +20,89 @@ class _MaintenanceChatPageWebState extends State<MaintenanceChatPageWeb> {
   static const _bg = Color(0xFFF8FAFC);
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.initialRoom != null) {
+      _selectedRoom = widget.initialRoom;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant MaintenanceChatPageWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialRoom != null && widget.initialRoom != oldWidget.initialRoom) {
+      setState(() {
+        _selectedRoom = widget.initialRoom;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthService>().currentUser;
     if (user == null) return const SizedBox.shrink();
 
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 768;
+
+    Widget mainContent;
+    if (isMobile) {
+      if (_selectedRoom != null) {
+        mainContent = ChatMessagesPanel(
+          key: ValueKey(_selectedRoom!.id),
+          room: _selectedRoom!,
+          currentUserId: user.id,
+          currentUserName: user.name,
+          currentUserRole: user.role.name,
+          onBack: () => setState(() => _selectedRoom = null),
+        );
+      } else {
+        mainContent = ChatListPanel(
+          currentUserId: user.id,
+          currentUserName: user.name,
+          currentUserRole: user.role.name,
+          selectedRoomId: _selectedRoom?.id,
+          onRoomSelected: (room) => setState(() => _selectedRoom = room),
+        );
+      }
+    } else {
+      mainContent = Row(
+        children: [
+          // Left: Room list
+          Container(
+            width: 300,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8FAFC),
+              border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: ChatListPanel(
+              currentUserId: user.id,
+              currentUserName: user.name,
+              currentUserRole: user.role.name,
+              selectedRoomId: _selectedRoom?.id,
+              onRoomSelected: (room) => setState(() => _selectedRoom = room),
+            ),
+          ),
+          // Right: Messages
+          Expanded(
+            child: _selectedRoom == null
+                ? _buildEmptyState()
+                : ChatMessagesPanel(
+                    key: ValueKey(_selectedRoom!.id),
+                    room: _selectedRoom!,
+                    currentUserId: user.id,
+                    currentUserName: user.name,
+                    currentUserRole: user.role.name,
+                  ),
+          ),
+        ],
+      );
+    }
+
     return Container(
       color: _bg,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(isMobile ? 10 : 20),
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -42,37 +118,7 @@ class _MaintenanceChatPageWebState extends State<MaintenanceChatPageWeb> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: Row(
-              children: [
-                // Left: Room list
-                Container(
-                  width: 300,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF8FAFC),
-                    border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
-                  ),
-                  child: ChatListPanel(
-                    currentUserId: user.id,
-                    currentUserName: user.name,
-                    currentUserRole: user.role.name,
-                    selectedRoomId: _selectedRoom?.id,
-                    onRoomSelected: (room) => setState(() => _selectedRoom = room),
-                  ),
-                ),
-                // Right: Messages
-                Expanded(
-                  child: _selectedRoom == null
-                      ? _buildEmptyState()
-                      : ChatMessagesPanel(
-                          key: ValueKey(_selectedRoom!.id),
-                          room: _selectedRoom!,
-                          currentUserId: user.id,
-                          currentUserName: user.name,
-                          currentUserRole: user.role.name,
-                        ),
-                ),
-              ],
-            ),
+            child: mainContent,
           ),
         ),
       ),

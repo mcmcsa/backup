@@ -445,7 +445,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     if (_error != null) return _buildError();
 
     return LayoutBuilder(builder: (ctx, constraints) {
-      final isMobile = constraints.maxWidth < 800;
+      final isMobile = constraints.maxWidth < 950;
       return Container(
         color: AdminStyles.bg,
         child: Column(
@@ -932,27 +932,21 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: 1100,
-            child: Column(
-              children: [
-                // Header row
-                _buildTableHeader(allPageSelected, users),
-                const Divider(height: 1, color: AdminStyles.border),
-                // Data rows
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: users.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1, color: AdminStyles.border),
-                    itemBuilder: (_, i) => _buildTableRow(users[i]),
-                  ),
-                ),
-              ],
+        child: Column(
+          children: [
+            // Header row
+            _buildTableHeader(allPageSelected, users),
+            const Divider(height: 1, color: AdminStyles.border),
+            // Data rows
+            Expanded(
+              child: ListView.separated(
+                itemCount: users.length,
+                separatorBuilder: (context, index) =>
+                    const Divider(height: 1, color: AdminStyles.border),
+                itemBuilder: (_, i) => _buildTableRow(users[i]),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -1656,6 +1650,9 @@ class _UserDetailDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isCompact = width < 500;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
@@ -1666,30 +1663,58 @@ class _UserDetailDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
-              Row(
-                children: [
-                  _Avatar(name: user.name, role: user.role, size: 52),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
+              isCompact
+                  ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _Avatar(name: user.name, role: user.role, size: 52),
+                            IconButton(
+                              onPressed: () => Navigator.pop(context),
+                              icon: const Icon(Icons.close_rounded,
+                                  color: AdminStyles.textMuted),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
                         Text(user.name,
                             style: AdminStyles.headingStyle(fontSize: 18)),
                         const SizedBox(height: 4),
-                        _RoleBadge(role: user.role),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            _RoleBadge(role: user.role),
+                            _StatusBadge(isActive: user.isActive),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        _Avatar(name: user.name, role: user.role, size: 52),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(user.name,
+                                  style: AdminStyles.headingStyle(fontSize: 18)),
+                              const SizedBox(height: 4),
+                              _RoleBadge(role: user.role),
+                            ],
+                          ),
+                        ),
+                        _StatusBadge(isActive: user.isActive),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.close_rounded,
+                              color: AdminStyles.textMuted),
+                        ),
                       ],
                     ),
-                  ),
-                  _StatusBadge(isActive: user.isActive),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded,
-                        color: AdminStyles.textMuted),
-                  ),
-                ],
-              ),
               const SizedBox(height: 24),
               const Divider(color: AdminStyles.border),
               const SizedBox(height: 16),

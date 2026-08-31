@@ -59,15 +59,7 @@ class _MaintenanceDashboardMobileState
 
       final data = await WorkRequestService.fetchAssignedTo(user.id);
       final maintenanceQueue = data
-          .where(
-            (r) =>
-                r.status == 'pending' ||
-                r.status == 'approved' ||
-                r.status == 'in_progress' ||
-                r.status == 'under_maintenance' ||
-                r.status == 'completed' ||
-                r.status == 'completed',
-          )
+          .where((r) => r.status != 'Declined/Cancelled')
           .toList();
       if (mounted) {
         setState(() {
@@ -86,27 +78,35 @@ class _MaintenanceDashboardMobileState
 
   @override
   Widget build(BuildContext context) {
-    final assigned = _requests.where((r) => r.status == 'pending').length;
+    final assigned = _requests.where((r) => r.status == 'Assigned').length;
     final inspection = _requests
         .where(
           (r) =>
-              r.status == 'in_progress' &&
-              r.typeOfRequest.toLowerCase().contains('inspection'),
+              r.status == 'Pre-Inspection Submitted' ||
+              r.status == 'Pre-Inspection Declined',
         )
         .length;
     final repair = _requests
         .where(
           (r) =>
-              r.status == 'in_progress' &&
-              !r.typeOfRequest.toLowerCase().contains('inspection'),
+              r.status == 'Pre-Inspection Approved' ||
+              r.status == 'Post-Repair Submitted' ||
+              r.status == 'For Rework' ||
+              r.status == 'Accepted by Maintenance',
         )
         .length;
-    final completed = _requests.where((r) => r.status == 'completed').length;
+    final completed = _requests.where((r) => r.status == 'Completed').length;
     final activeRequests = _requests
-        .where((r) => r.status == 'pending' || r.status == 'in_progress')
+        .where((r) =>
+            r.status == 'Assigned' ||
+            r.status == 'Accepted by Maintenance' ||
+            r.status == 'Pre-Inspection Approved' ||
+            r.status == 'Pre-Inspection Declined' ||
+            r.status == 'Post-Repair Submitted' ||
+            r.status == 'For Rework')
         .toList();
     final highPriority = _requests
-        .where((r) => r.priority == 'high' && r.status != 'completed')
+        .where((r) => r.priority == 'high' && r.status != 'Completed' && r.status != 'Declined/Cancelled')
         .toList();
 
     if (_isLoading) {
@@ -364,7 +364,7 @@ class _MaintenanceDashboardMobileState
                                   : '#${r.id}',
                               r.title,
                               '${r.buildingName}, ${r.officeRoom}',
-                              r.status == 'pending' ? 'Pending' : 'In Progress',
+                              r.statusLabel,
                               r.priority == 'high'
                                   ? 'HIGH ATTENTION'
                                   : 'JUST ASSIGNED',
@@ -450,7 +450,7 @@ class _MaintenanceDashboardMobileState
                       r.id,
                       r.title,
                       '${r.buildingName}, ${r.officeRoom}',
-                      r.status == 'pending' ? 'Assigned' : 'In Progress',
+                      r.statusLabel,
                       priorityLabel,
                       priorityColor,
                     ),

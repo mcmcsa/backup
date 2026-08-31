@@ -358,36 +358,6 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
     );
   }
 
-  Widget _buildArchiveToggle() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: SegmentedButton<bool>(
-        showSelectedIcon: false,
-        expandedInsets: EdgeInsets.zero,
-        style: ButtonStyle(
-          visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        segments: [
-          ButtonSegment<bool>(
-            value: false,
-            label: Text('Active (${_activeAccounts.length})'),
-            icon: const Icon(Icons.list_alt_outlined),
-          ),
-          ButtonSegment<bool>(
-            value: true,
-            label: Text('Archived (${_archivedAccounts.length})'),
-            icon: const Icon(Icons.archive_outlined),
-          ),
-        ],
-        selected: {_showArchived},
-        onSelectionChanged: (value) {
-          setState(() => _showArchived = value.first);
-        },
-      ),
-    );
-  }
-
   Future<void> _showAddMaintenanceDialog() async {
     final formKey = GlobalKey<FormState>();
     final emailController = TextEditingController();
@@ -629,10 +599,6 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: _buildArchiveToggle(),
-                ),
                 Expanded(
                   child: displayedAccounts.isEmpty
                       ? Center(

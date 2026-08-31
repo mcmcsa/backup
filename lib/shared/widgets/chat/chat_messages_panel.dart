@@ -42,6 +42,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
   List<ChatMessage> _searchResults = [];
 
   ChatMessage? _replyTo;
+  ChatMessage? _editingMessage;
   RealtimeChannel? _msgChannel;
   RealtimeChannel? _updateChannel;
   RealtimeChannel? _typingChannel;
@@ -69,6 +70,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
         _typingUsers = [];
         _isLoading = true;
         _replyTo = null;
+        _editingMessage = null;
       });
       _load();
       _subscribeRealtime();
@@ -188,39 +190,73 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
     });
   }
 
-  Future<void> _sendText(String text) async {
-    try {
-      await ChatService.sendTextMessage(
-        roomId: widget.room.id,
-        senderId: widget.currentUserId,
-        senderName: widget.currentUserName,
-        senderRole: widget.currentUserRole,
-        content: text,
-        replyToId: _replyTo?.id,
-        replyToContent: _replyTo?.previewText,
-        replyToSenderName: _replyTo?.senderName,
+  Future<void> _handleSend(String text, List<AttachmentItem> attachments) async {
+    if (text.isEmpty && attachments.isEmpty) return;
+
+    if (_editingMessage != null) {
+      try {
+        await ChatService.editMessage(_editingMessage!.id, text);
+        setState(() => _editingMessage = null);
+      } catch (e) {
+        _showError('Failed to edit: $e');
+      }
+      return;
+    }
+
+    if (attachments.isNotEmpty && mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0F766E)),
+          ),
+        ),
       );
-      _notifyOtherParticipants(text);
+    }
+
+    try {
+      // 1. Send all attachments first
+      for (final attach in attachments) {
+        await ChatService.sendAttachmentMessageBytes(
+          roomId: widget.room.id,
+          senderId: widget.currentUserId,
+          senderName: widget.currentUserName,
+          senderRole: widget.currentUserRole,
+          bytes: attach.bytes,
+          fileName: attach.name,
+          messageType: attach.type,
+          replyToId: _replyTo?.id,
+        );
+      }
+
+      // 2. Send the text message if present
+      if (text.isNotEmpty) {
+        await ChatService.sendTextMessage(
+          roomId: widget.room.id,
+          senderId: widget.currentUserId,
+          senderName: widget.currentUserName,
+          senderRole: widget.currentUserRole,
+          content: text,
+          replyToId: _replyTo?.id,
+          replyToContent: _replyTo?.previewText,
+          replyToSenderName: _replyTo?.senderName,
+        );
+        _notifyOtherParticipants(text);
+      } else if (attachments.isNotEmpty) {
+        final preview = attachments.length == 1
+            ? (attachments.first.type == MessageType.image ? '📷 Image' : '📎 ${attachments.first.name}')
+            : '📷 Sent ${attachments.length} attachments';
+        _notifyOtherParticipants(preview);
+      }
+
       setState(() => _replyTo = null);
     } catch (e) {
       _showError('Failed to send: $e');
-    }
-  }
-
-  Future<void> _sendAttachment(String path, MessageType type) async {
-    try {
-      await ChatService.sendAttachmentMessage(
-        roomId: widget.room.id,
-        senderId: widget.currentUserId,
-        senderName: widget.currentUserName,
-        senderRole: widget.currentUserRole,
-        filePath: path,
-        messageType: type,
-        replyToId: _replyTo?.id,
-      );
-      setState(() => _replyTo = null);
-    } catch (e) {
-      _showError('Upload failed: $e');
+    } finally {
+      if (attachments.isNotEmpty && mounted) {
+        Navigator.of(context).pop(); // dismiss loading indicator
+      }
     }
   }
 
@@ -233,6 +269,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
         title: '💬 ${widget.currentUserName}',
         message: preview.length > 80 ? '${preview.substring(0, 80)}…' : preview,
         type: 'chat_message',
+        targetPage: 'chat_room_id:${widget.room.id}',
       );
     }
   }
@@ -257,6 +294,13 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
       ),
     );
     if (confirm == true) await ChatService.deleteMessage(msg.id);
+  }
+
+  void _handleEdit(ChatMessage msg) {
+    setState(() {
+      _editingMessage = msg;
+      _replyTo = null;
+    });
   }
 
   Future<void> _searchMessages(String query) async {
@@ -295,9 +339,10 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
         if (_typingUsers.isNotEmpty) _buildTypingIndicator(),
         ChatComposer(
           replyTo: _replyTo,
-          onSendText: _sendText,
-          onSendAttachment: _sendAttachment,
+          editingMessage: _editingMessage,
+          onSend: _handleSend,
           onCancelReply: () => setState(() => _replyTo = null),
+          onCancelEdit: () => setState(() => _editingMessage = null),
           onTypingChanged: (isTyping) {
             ChatService.setTyping(
               widget.room.id,
@@ -552,6 +597,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
                 onForward: _handleForward,
                 onPin: _handlePin,
                 onDelete: _handleDelete,
+                onEdit: _handleEdit,
               ),
             ),
           ],

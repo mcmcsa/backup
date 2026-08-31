@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:universal_html/html.dart' as html;
 
 class VoiceRecorderWidget extends StatefulWidget {
-  final Function(String filePath) onRecordingComplete;
+  /// On Web, [filePath] will be empty — use [bytes] instead.
+  /// On native, [bytes] may be empty — read [filePath] from disk.
+  final Function(Uint8List bytes, String filePath) onRecordingComplete;
   final VoidCallback? onRecordingDeleted;
 
   const VoiceRecorderWidget({
@@ -43,12 +47,15 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
   Future<void> _startRecording() async {
     try {
       if (await _audioRecorder.hasPermission()) {
-        final dir = await getTemporaryDirectory();
-        final path = '${dir.path}/voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        String? path;
+        if (!kIsWeb) {
+          final dir = await getTemporaryDirectory();
+          path = '${dir.path}/voice_note_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        }
 
         await _audioRecorder.start(
           const RecordConfig(encoder: AudioEncoder.aacLc),
-          path: path,
+          path: path ?? '',
         );
 
         setState(() {
@@ -93,7 +100,17 @@ class _VoiceRecorderWidgetState extends State<VoiceRecorderWidget> {
 
     if (path != null) {
       setState(() => _recordedFilePath = path);
-      widget.onRecordingComplete(path);
+      Uint8List bytes;
+      if (kIsWeb) {
+        final xhr = await html.HttpRequest.request(
+          path,
+          responseType: 'arraybuffer',
+        );
+        bytes = (xhr.response as ByteBuffer).asUint8List();
+      } else {
+        bytes = await File(path).readAsBytes();
+      }
+      widget.onRecordingComplete(bytes, path);
     }
   }
 

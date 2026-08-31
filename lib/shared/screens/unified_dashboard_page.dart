@@ -45,6 +45,16 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
   }
 
   int _getCountByStatus(String status) {
+    if (status.toLowerCase() == 'pending') {
+      return _allRequests
+          .where((r) => r.status == 'Pending')
+          .length;
+    }
+    if (status.toLowerCase() == 'completed') {
+      return _allRequests
+          .where((r) => r.status == 'Completed')
+          .length;
+    }
     return _allRequests
         .where((r) => r.status.toLowerCase() == status.toLowerCase())
         .length;
@@ -59,10 +69,10 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
   int _getCountByActiveStatuses() {
     return _allRequests
         .where((r) {
-          final status = r.status.toLowerCase();
-          return status == 'in_progress' ||
-              status == 'approved' ||
-              status == 'under_maintenance';
+          final s = r.status;
+          return s != 'Pending' &&
+              s != 'Completed' &&
+              s != 'Declined';
         })
         .length;
   }
@@ -77,7 +87,8 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
     final now = DateTime.now();
     return _allRequests
         .where((r) =>
-            r.status.toLowerCase() != 'completed' &&
+            r.status != 'Completed' &&
+            r.status != 'Declined' &&
             now.difference(r.dateSubmitted).inDays > 3)
         .take(4)
         .toList();
@@ -372,13 +383,31 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
     return _SectionCard(
       title: 'Performance KPI',
       icon: Icons.analytics_rounded,
-      action: const Text(
-        'Live',
-        style: TextStyle(
-          color: _accentGreen,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
+      action: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Tooltip(
+            message: 'Resolution Rate: Percentage of requests completed.\n'
+                'High Priority Share: Percentage of requests marked High priority.\n'
+                'Active Ticket Share: Percentage of requests currently active.',
+            padding: const EdgeInsets.all(12),
+            textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+            child: Icon(
+              Icons.info_outline_rounded,
+              size: 16,
+              color: AdminStyles.textSecondary.withValues(alpha: 0.8),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'Live',
+            style: TextStyle(
+              color: _accentGreen,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -828,46 +857,81 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color color;
-    String label;
-
-    switch (status.toLowerCase()) {
-      case 'pending':
-        color = _accentAmber;
-        label = 'Pending';
-        break;
-      case 'in_progress':
-      case 'approved':
-      case 'under_maintenance':
-        color = _accentCyan;
-        label = 'In Progress';
-        break;
-      case 'completed':
-        color = _accentGreen;
-        label = 'Completed';
-        break;
-      default:
-        color = _textMuted;
-        label = status;
-    }
-
+    final config = _getConfig();
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: AdminStyles.pillDecoration(color: config.textColor, isSecondary: true),
       child: Text(
-        label.toUpperCase(),
+        config.label.toUpperCase(),
         style: AdminStyles.headingStyle(
           fontSize: 10,
-          fontWeight: FontWeight.w800,
-          color: color,
+          fontWeight: FontWeight.w900,
+          color: config.textColor,
+          letterSpacing: 0.5,
         ),
       ),
     );
   }
+
+  _StatusConfig _getConfig() {
+    final s = status.toLowerCase().replaceAll('_', ' ').replaceAll('-', ' ').trim();
+    switch (s) {
+      case 'pending':
+      case 'pending assignment':
+        return _StatusConfig(
+          'PENDING',
+          const Color(0xFF6B7280),
+        );
+      case 'in progress':
+      case 'assigned':
+      case 'accepted by maintenance':
+      case 'pre inspection submitted':
+        return _StatusConfig(
+          'IN PROGRESS',
+          const Color(0xFF2563EB),
+        );
+      case 'declined':
+      case 'cancelled':
+      case 'declined/cancelled':
+      case 'pre inspection declined':
+        return _StatusConfig(
+          'DECLINED',
+          const Color(0xFFDC2626),
+        );
+      case 'confirmed':
+      case 'pre inspection approved':
+      case 'post repair submitted':
+      case 'in progress (post-repair)':
+      case 'under maintenance':
+        return _StatusConfig(
+          'CONFIRMED',
+          const Color(0xFF0F766E),
+        );
+      case 'rework':
+      case 'for rework':
+      case 'under evaluation':
+        return _StatusConfig(
+          'REWORK',
+          const Color(0xFFD97706),
+        );
+      case 'completed':
+        return _StatusConfig(
+          'COMPLETED',
+          const Color(0xFF059669),
+        );
+      default:
+        return _StatusConfig(
+          status.toUpperCase(),
+          const Color(0xFF64748B),
+        );
+    }
+  }
+}
+
+class _StatusConfig {
+  final String label;
+  final Color textColor;
+  _StatusConfig(this.label, this.textColor);
 }
 
 class _AgingTicketItem extends StatefulWidget {

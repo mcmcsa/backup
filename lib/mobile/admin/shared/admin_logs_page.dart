@@ -49,8 +49,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
         _requests = data
             .where(
               (request) =>
-                  request.status == 'completed' ||
-                  request.status == 'cancelled',
+                  ['completed', 'declined', 'cancelled'].contains(request.status.toLowerCase()),
             )
             .toList()
           ..sort((left, right) => right.dateSubmitted.compareTo(left.dateSubmitted));
@@ -69,9 +68,9 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
     var filtered = _requests;
 
     if (_selectedFilter == 'Completed') {
-      filtered = filtered.where((request) => request.status == 'completed').toList();
+      filtered = filtered.where((request) => request.status.toLowerCase() == 'completed').toList();
     } else if (_selectedFilter == 'Declined') {
-      filtered = filtered.where((request) => request.status == 'cancelled').toList();
+      filtered = filtered.where((request) => request.status.toLowerCase() == 'cancelled' || request.status.toLowerCase() == 'declined').toList();
     }
 
     if (_startDate != null && _endDate != null) {
@@ -292,11 +291,11 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
   Widget _buildSummaryCard(List<_HistoryDayGroup> groups) {
     final completedCount = groups.fold<int>(
       0,
-      (sum, group) => sum + group.entries.where((request) => request.status == 'completed').length,
+      (sum, group) => sum + group.entries.where((request) => request.status.toLowerCase() == 'completed').length,
     );
     final declinedCount = groups.fold<int>(
       0,
-      (sum, group) => sum + group.entries.where((request) => request.status == 'cancelled').length,
+      (sum, group) => sum + group.entries.where((request) => request.status.toLowerCase() == 'cancelled' || request.status.toLowerCase() == 'declined').length,
     );
 
     return Container(
@@ -356,7 +355,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
   }
 
   Widget _buildRequestCard(WorkRequest request) {
-    final isCompleted = request.status == 'completed';
+    final isCompleted = request.status.toLowerCase() == 'completed';
     final statusColor = isCompleted ? const Color(0xFF059669) : const Color(0xFFDC2626);
     final time = DateFormat('hh:mm a').format(request.dateSubmitted);
 
@@ -478,8 +477,8 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
 
   Widget _buildDayCard(_HistoryDayGroup group) {
     final dateLabel = DateFormat('MMMM dd, yyyy').format(group.day);
-    final completedCount = group.entries.where((request) => request.status == 'completed').length;
-    final declinedCount = group.entries.where((request) => request.status == 'cancelled').length;
+    final completedCount = group.entries.where((request) => request.status.toLowerCase() == 'completed').length;
+    final declinedCount = group.entries.where((request) => request.status.toLowerCase() == 'cancelled' || request.status.toLowerCase() == 'declined').length;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),

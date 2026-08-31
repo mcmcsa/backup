@@ -31,10 +31,12 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
         setState(() {
           _historyItems = data
               .where(
-                (item) =>
-                    item.status == 'completed' ||
-                    item.status == 'completed' ||
-                    item.status == 'cancelled',
+                (item) {
+                  final status = item.status.toLowerCase();
+                  return status == 'completed' ||
+                      status == 'declined' ||
+                      status == 'cancelled';
+                },
               )
               .toList();
         });
@@ -59,11 +61,11 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
       if (statusFilter == 'completed') {
         filtered = filtered
             .where(
-              (item) => item.status == 'completed' || item.status == 'completed',
+              (item) => item.status.toLowerCase() == 'completed',
             )
             .toList();
       } else if (statusFilter == 'declined') {
-        filtered = filtered.where((item) => item.status == 'cancelled').toList();
+        filtered = filtered.where((item) => item.status.toLowerCase() == 'cancelled' || item.status.toLowerCase() == 'declined').toList();
       }
     }
 
@@ -129,9 +131,10 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
   }
 
   Color _getStatusColor(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'completed':
         return const Color(0xFF10B981); // Green
+      case 'declined':
       case 'cancelled':
         return const Color(0xFFEF4444); // Red
       default:
@@ -140,9 +143,10 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
   }
 
   String _getStatusLabel(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'completed':
         return 'COMPLETED';
+      case 'declined':
       case 'cancelled':
         return 'DECLINED';
       default:

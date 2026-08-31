@@ -56,14 +56,7 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
     try {
       final data = await WorkRequestService.fetchAll();
       final maintenanceQueue = data
-          .where(
-            (r) =>
-                r.status == 'pending' ||
-                r.status == 'in_progress' ||
-                r.status == 'under_maintenance' ||
-                r.status == 'completed' ||
-                r.status == 'completed',
-          )
+          .where((r) => r.status != 'Declined/Cancelled')
           .toList();
 
       if (mounted) {
@@ -80,20 +73,27 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
   List<WorkRequest> get _filteredRequests {
     if (_selectedCategory == 'All') return _requests;
     if (_selectedCategory == 'Pending') {
-      return _requests.where((r) => r.status == 'pending').toList();
+      return _requests.where((r) => r.status == 'Assigned').toList();
     }
     if (_selectedCategory == 'In Progress') {
       return _requests
-          .where((r) => r.status == 'in_progress' || r.status == 'in_progress')
+          .where((r) =>
+            r.status == 'Accepted by Maintenance' ||
+            r.status == 'Pre-Inspection Submitted' ||
+            r.status == 'Pre-Inspection Approved' ||
+            r.status == 'Pre-Inspection Declined' ||
+            r.status == 'In Progress (Post-Repair)' ||
+            r.status == 'Post-Repair Submitted' ||
+            r.status == 'Under Evaluation' ||
+            r.status == 'For Rework'
+          )
           .toList();
     }
     if (_selectedCategory == 'Under Maintenance') {
-      return _requests.where((r) => r.status == 'under_maintenance').toList();
+      return _requests.where((r) => r.status == 'In Progress (Post-Repair)').toList();
     }
     if (_selectedCategory == 'Completed') {
-      return _requests
-          .where((r) => r.status == 'completed' || r.status == 'completed')
-          .toList();
+      return _requests.where((r) => r.status == 'Completed').toList();
     }
     if (_selectedCategory == 'High Priority') {
       return _requests.where((r) => r.priority == 'high').toList();
@@ -233,29 +233,20 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
                   )
                 else
                   ..._filteredRequests.map((r) {
-                    String statusLabel;
-                    Color statusColor;
-                    switch (r.status.toLowerCase()) {
-                      case 'pending':
-                        statusLabel = 'PENDING';
-                        statusColor = Colors.orange;
-                        break;
-                      case 'in_progress':
-                        statusLabel = 'IN PROGRESS';
-                        statusColor = const Color(0xFF00BFA5);
-                        break;
-                      case 'under_maintenance':
-                        statusLabel = 'UNDER MAINTENANCE';
-                        statusColor = const Color(0xFF9C27B0);
-                        break;
-                      case 'completed':
-                        statusLabel = 'COMPLETED';
-                        statusColor = Colors.green;
-                        break;
-                      default:
-                        statusLabel = r.status.toUpperCase();
-                        statusColor = const Color(0xFF1A1A2E);
-                    }
+                    final statusLabel = r.statusLabel;
+                    final statusColor = r.status == 'Completed'
+                        ? Colors.green
+                        : (r.status == 'Declined/Cancelled' || r.status == 'Pre-Inspection Declined')
+                        ? Colors.red
+                        : r.status == 'Assigned'
+                        ? Colors.orange
+                        : r.status == 'Pre-Inspection Submitted'
+                        ? const Color(0xFF9C27B0)
+                        : r.status == 'Pre-Inspection Approved'
+                        ? const Color(0xFF00BFA5)
+                        : r.status == 'Post-Repair Submitted'
+                        ? const Color(0xFF0284C7)
+                        : const Color(0xFF2196F3);
 
                     IconData catIcon;
                     Color catColor;

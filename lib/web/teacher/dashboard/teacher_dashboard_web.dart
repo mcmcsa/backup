@@ -159,7 +159,15 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('My Work Requests', style: AdminStyles.headingStyle(fontSize: 20)),
+            Expanded(
+              child: Text(
+                'My Work Requests',
+                style: AdminStyles.headingStyle(fontSize: isCompact ? 18 : 20),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+            const SizedBox(width: 8),
             TextButton.icon(
               onPressed: () => TeacherNavController.of(context)?.navigateTo(3),
               icon: const Icon(Icons.list_alt_rounded),
@@ -212,61 +220,73 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
         onTap: () => TeacherNavController.of(context)?.navigateTo(3, request: request),
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: EdgeInsets.all(isCompact ? 16 : 24),
+          padding: EdgeInsets.all(isCompact ? 16 : 20),
           decoration: AdminStyles.cardDecoration(hasShadow: true),
           child: Row(
             children: [
               Container(
-                width: isCompact ? 44 : 56,
-                height: isCompact ? 44 : 56,
-                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                child: Icon(Icons.assignment_rounded, color: statusColor, size: isCompact ? 20 : 28),
+                width: isCompact ? 44 : 52,
+                height: isCompact ? 44 : 52,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.assignment_outlined,
+                  color: statusColor,
+                  size: isCompact ? 20 : 26,
+                ),
               ),
-              SizedBox(width: isCompact ? 12 : 20),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(request.title, style: AdminStyles.headingStyle(fontSize: isCompact ? 14 : 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(
+                      request.title,
+                      style: AdminStyles.headingStyle(fontSize: isCompact ? 14 : 15),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     const SizedBox(height: 6),
-                    if (isCompact)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.location_on_outlined, size: 12, color: AdminStyles.textSecondary),
-                              const SizedBox(width: 4),
-                              Expanded(child: Text(request.roomName ?? 'Unknown Room', style: AdminStyles.bodyStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Icon(Icons.calendar_today_outlined, size: 12, color: AdminStyles.textSecondary),
-                              const SizedBox(width: 4),
-                              Text(DateFormat('MMM dd').format(request.dateSubmitted), style: AdminStyles.bodyStyle(fontSize: 12)),
-                            ],
-                          ),
-                        ],
-                      )
-                    else
-                      Row(
-                        children: [
-                          Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textSecondary),
-                          const SizedBox(width: 4),
-                          Text(request.roomName ?? 'Unknown Room', style: AdminStyles.bodyStyle(fontSize: 13)),
-                          const SizedBox(width: 16),
-                          Icon(Icons.calendar_today_outlined, size: 14, color: AdminStyles.textSecondary),
-                          const SizedBox(width: 4),
-                          Text(DateFormat('MMM dd').format(request.dateSubmitted), style: AdminStyles.bodyStyle(fontSize: 13)),
-                        ],
-                      ),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.location_on_outlined, size: 13, color: AdminStyles.textSecondary),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                request.roomName ?? 'Unknown Room',
+                                style: AdminStyles.bodyStyle(fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.calendar_today_outlined, size: 12, color: AdminStyles.textSecondary),
+                            const SizedBox(width: 4),
+                            Text(
+                              DateFormat('MMM dd').format(request.dateSubmitted),
+                              style: AdminStyles.bodyStyle(fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               _buildStatusPill(request.status),
             ],
           ),
@@ -278,19 +298,38 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
   Widget _buildStatusPill(String status) {
     final color = _getStatusColor(status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: AdminStyles.pillDecoration(color: color, isSecondary: true),
-      child: Text(status.toUpperCase().replaceAll('_', ' '), style: AdminStyles.headingStyle(fontSize: 10, color: color)),
+      child: Text(
+        status.toUpperCase().replaceAll('_', ' '),
+        style: AdminStyles.headingStyle(fontSize: 9, color: color),
+      ),
     );
   }
 
   Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'completed': return AdminStyles.success;
-      case 'in_progress':
-      case 'under_maintenance': return AdminStyles.info;
-      case 'pending': return AdminStyles.warning;
-      default: return AdminStyles.textMuted;
+    final s = status.toLowerCase().replaceAll('_', ' ').trim();
+    switch (s) {
+      case 'completed':
+        return AdminStyles.success;
+      case 'pending':
+        return AdminStyles.warning;
+      case 'approved':
+        return const Color(0xFF6366F1); // Indigo
+      case 'confirmed':
+        return AdminStyles.primary; // Teal
+      case 'in progress':
+        return AdminStyles.info; // Blue
+      case 'under maintenance':
+        return const Color(0xFF0EA5E9); // Light Blue
+      case 'post repair submitted':
+      case 'post-repair submitted':
+        return const Color(0xFFF59E0B); // Amber
+      case 'rework':
+      case 'declined':
+        return AdminStyles.error; // Red
+      default:
+        return AdminStyles.textMuted;
     }
   }
 }

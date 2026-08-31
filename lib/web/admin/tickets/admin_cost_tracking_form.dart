@@ -122,75 +122,102 @@ class _AdminCostTrackingFormState extends State<AdminCostTrackingForm> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final height = MediaQuery.of(context).size.height;
+    final isMobile = width < 600;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
-        width: 600,
-        padding: const EdgeInsets.all(32),
+        constraints: BoxConstraints(
+          maxWidth: isMobile ? width * 0.95 : 600,
+          maxHeight: height * 0.85,
+        ),
+        padding: EdgeInsets.all(isMobile ? 16 : 32),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Form(
           key: _formKey,
-          child: ListView(
-            shrinkWrap: true,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text('Manage Financials', style: AdminStyles.headingStyle(fontSize: 22, color: AdminStyles.textPrimary)),
               const SizedBox(height: 8),
               Text('Record estimated and actual costs for this request.', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
               const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(child: _buildTextField('Estimated Labor', _estLaborCtrl, isNumber: true)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _buildTextField('Estimated Material', _estMaterialCtrl, isNumber: true)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(child: _buildTextField('Actual Labor', _actLaborCtrl, isNumber: true)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _buildTextField('Actual Material', _actMaterialCtrl, isNumber: true)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _buildTextField('Additional Expenses', _additionalCtrl, isNumber: true),
-              const SizedBox(height: 24),
-              const Divider(color: Color(0xFFF1F5F9)),
-              const SizedBox(height: 16),
-              _buildTextField('Budget Source', _budgetSourceCtrl),
-              const SizedBox(height: 16),
-              _buildTextField('Purchase Reference Number', _purchaseRefCtrl),
-              const SizedBox(height: 24),
-              Text('Receipt Attachment', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600, color: AdminStyles.textPrimary)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: _pickReceipt,
-                    icon: const Icon(Icons.upload_file_rounded, size: 18),
-                    label: const Text('Upload Receipt'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AdminStyles.bg,
-                      foregroundColor: AdminStyles.textPrimary,
-                      elevation: 0,
-                      side: const BorderSide(color: AdminStyles.border),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        _selectedReceiptName ?? (_existingReceiptUrl != null ? 'Receipt currently uploaded' : 'No file selected'),
-                        style: AdminStyles.bodyStyle(color: AdminStyles.textMuted, fontSize: 13),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (isMobile) ...[
+                        _buildTextField('Estimated Labor', _estLaborCtrl, isNumber: true),
+                        const SizedBox(height: 16),
+                        _buildTextField('Estimated Material', _estMaterialCtrl, isNumber: true),
+                      ] else
+                        Row(
+                          children: [
+                            Expanded(child: _buildTextField('Estimated Labor', _estLaborCtrl, isNumber: true)),
+                            const SizedBox(width: 16),
+                            Expanded(child: _buildTextField('Estimated Material', _estMaterialCtrl, isNumber: true)),
+                          ],
+                        ),
+                      const SizedBox(height: 16),
+                      if (isMobile) ...[
+                        _buildTextField('Actual Labor', _actLaborCtrl, isNumber: true),
+                        const SizedBox(height: 16),
+                        _buildTextField('Actual Material', _actMaterialCtrl, isNumber: true),
+                      ] else
+                        Row(
+                          children: [
+                            Expanded(child: _buildTextField('Actual Labor', _actLaborCtrl, isNumber: true)),
+                            const SizedBox(width: 16),
+                            Expanded(child: _buildTextField('Actual Material', _actMaterialCtrl, isNumber: true)),
+                          ],
+                        ),
+                      const SizedBox(height: 16),
+                      _buildTextField('Additional Expenses', _additionalCtrl, isNumber: true),
+                      const SizedBox(height: 24),
+                      const Divider(color: Color(0xFFF1F5F9)),
+                      const SizedBox(height: 16),
+                      _buildTextField('Budget Source', _budgetSourceCtrl),
+                      const SizedBox(height: 16),
+                      _buildTextField('Purchase Reference Number', _purchaseRefCtrl),
+                      const SizedBox(height: 24),
+                      Text('Receipt Attachment', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600, color: AdminStyles.textPrimary)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _pickReceipt,
+                            icon: const Icon(Icons.upload_file_rounded, size: 18),
+                            label: const Text('Upload Receipt'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AdminStyles.bg,
+                              foregroundColor: AdminStyles.textPrimary,
+                              elevation: 0,
+                              side: const BorderSide(color: AdminStyles.border),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              _selectedReceiptName ?? (_existingReceiptUrl != null ? 'Receipt currently uploaded' : 'No file selected'),
+                              style: AdminStyles.bodyStyle(color: AdminStyles.textMuted, fontSize: 13),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                ],
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [

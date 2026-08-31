@@ -169,7 +169,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
         id: '',
         title: 'Maintenance: $typeLabel',
         description: _issueDetailsController.text.trim(),
-        status: 'pending',
+        status: 'Pending',
         priority: _selectedPriority,
         buildingName: _selectedBuilding,
         buildingId: building?.id,

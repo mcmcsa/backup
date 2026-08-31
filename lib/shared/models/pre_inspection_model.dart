@@ -15,7 +15,7 @@ class PreInspectionReport {
   final bool adminApproved;
   final String? adminApprovedBy;
   final DateTime? adminApprovedDate;
-  final String status; // 'submitted', 'approved', 'rejected'
+  final String status; // 'Pending', 'Approved', 'Declined'
   final String? notes;
   final String? reviewNotes;
   final DateTime createdAt;
@@ -38,7 +38,7 @@ class PreInspectionReport {
     this.adminApproved = false,
     this.adminApprovedBy,
     this.adminApprovedDate,
-    this.status = 'submitted',
+    this.status = 'Pending',
     this.notes,
     this.reviewNotes,
     DateTime? createdAt,
@@ -66,7 +66,7 @@ class PreInspectionReport {
       adminApprovedDate: map['admin_approved_date'] != null
           ? DateTime.parse(map['admin_approved_date'])
           : null,
-      status: map['status'] ?? 'submitted',
+      status: map['status'] ?? 'Pending',
       notes: map['notes'],
       reviewNotes: map['review_notes'],
       createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
@@ -143,12 +143,12 @@ class PreInspectionReport {
 
   String get statusLabel {
     switch (status) {
-      case 'submitted':
-        return 'SUBMITTED';
-      case 'approved':
+      case 'Pending':
+        return 'PENDING';
+      case 'Approved':
         return 'APPROVED';
-      case 'rejected':
-        return 'REJECTED';
+      case 'Declined':
+        return 'DECLINED';
       default:
         return status.toUpperCase();
     }

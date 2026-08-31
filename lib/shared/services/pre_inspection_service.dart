@@ -44,7 +44,7 @@ class PreInspectionService {
     final data = await _db
         .from(_table)
         .select()
-        .eq('status', 'submitted')
+        .eq('status', 'Pending')
         .order('created_at', ascending: false);
     return (data as List).map((e) => PreInspectionReport.fromMap(e)).toList();
   }
@@ -65,7 +65,7 @@ class PreInspectionService {
       'admin_approved': true,
       'admin_approved_by': adminId,
       'admin_approved_date': DateTime.now().toIso8601String(),
-      'status': 'approved',
+      'status': 'Approved',
       'updated_at': DateTime.now().toIso8601String(),
       if (reviewNotes != null) 'review_notes': reviewNotes.trim().isEmpty ? null : reviewNotes.trim(),
     }).eq('id', id);
@@ -75,7 +75,7 @@ class PreInspectionService {
   static Future<void> reject(String id, String notes, {String? reviewNotes}) async {
     await _db.from(_table).update({
       'admin_approved': false,
-      'status': 'rejected',
+      'status': 'Declined',
       'notes': notes,
       'updated_at': DateTime.now().toIso8601String(),
       if (reviewNotes != null) 'review_notes': reviewNotes.trim().isEmpty ? null : reviewNotes.trim(),

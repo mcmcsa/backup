@@ -466,7 +466,7 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
                           ),
                           const SizedBox(height: 14),
                           const Text(
-                            'The room information has been updated in the PSU Maintenance Management System.',
+                            'The room information has been updated in the PSU MMS.',
                             style: TextStyle(
                               fontSize: 13,
                               height: 1.5,

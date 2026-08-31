@@ -25,7 +25,7 @@ class RoomVerificationPage extends StatelessWidget {
     switch (status) {
       case 'available': return 'AVAILABLE';
       case 'reserved': return 'RESERVED';
-      case 'maintenance': return 'UNDER MAINTENANCE';
+      case 'maintenance': return 'UNAVAILABLE';
       default: return status.toUpperCase();
     }
   }

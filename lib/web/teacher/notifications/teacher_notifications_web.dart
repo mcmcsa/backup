@@ -3,6 +3,10 @@ import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/chat_service.dart';
+import '../../../shared/services/work_request_service.dart';
+import '../teacher_nav_controller.dart';
+import '../../../shared/widgets/room_comparison_dialog.dart';
 
 class TeacherNotificationsWeb extends StatefulWidget {
   const TeacherNotificationsWeb({super.key});
@@ -14,6 +18,7 @@ class TeacherNotificationsWeb extends StatefulWidget {
 class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
   List<AppNotification> _notifications = [];
   bool _isLoading = true;
+  bool _showAll = false;
 
   static const Color _primaryTeal = Color(0xFF00BFA5);
   static const Color _warningOrange = Color(0xFFF59E0B);
@@ -266,72 +271,179 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
   }
 
   Widget _buildNotificationsList() {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _notifications.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final notification = _notifications[index];
-        final color = _colorForType(notification.type);
+    final hasMoreThan20 = _notifications.length > 20;
+    final displayCount = _showAll ? _notifications.length : (hasMoreThan20 ? 20 : _notifications.length);
 
-        return Container(
-          decoration: BoxDecoration(
-            color: notification.isRead ? _cardBg : const Color(0xFFF0FDF4),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: notification.isRead ? _borderColor : color.withValues(alpha: 0.2),
-            ),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(_iconForType(notification.type), color: color, size: 22),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      notification.title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _darkText,
+    return Column(
+      children: [
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: displayCount,
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final notification = _notifications[index];
+            final color = _colorForType(notification.type);
+
+            return GestureDetector(
+              onTap: () async {
+                if (!notification.isRead) {
+                  await _markOneAsRead(notification);
+                }
+                if (notification.type == 'room_edit') {
+                  final targetPage = notification.targetPage ?? '';
+                  final roomId = targetPage.startsWith('room_id:') 
+                      ? targetPage.replaceFirst('room_id:', '') 
+                      : targetPage;
+                  if (roomId.isNotEmpty && mounted) {
+                    showDialog(
+                      context: context,
+                      builder: (context) => RoomComparisonDialog(roomId: roomId),
+                    );
+                  }
+                  return;
+                }
+                 if ((notification.type == 'chat' || notification.type == 'chat_message') && notification.chatRoomId != null && notification.chatRoomId!.isNotEmpty) {
+                  if (mounted) {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (BuildContext context) {
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                    );
+                  }
+                  try {
+                    final room = await ChatService.fetchRoom(notification.chatRoomId!);
+                    if (mounted) Navigator.of(context).pop();
+                    if (room != null && mounted) {
+                      TeacherNavController.of(context)?.navigateTo(4, chatRoom: room);
+                    }
+                  } catch (_) {
+                    if (mounted) Navigator.of(context).pop();
+                  }
+                  return;
+                }
+
+                if (notification.workRequestId != null && notification.workRequestId!.isNotEmpty) {
+                  if (mounted) {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (BuildContext context) {
+                        return const Center(child: CircularProgressIndicator());
+                      },
+                    );
+                  }
+                  try {
+                    final workRequest = await WorkRequestService.fetchById(notification.workRequestId!);
+                    if (mounted) Navigator.of(context).pop();
+                    if (workRequest != null && mounted) {
+                      TeacherNavController.of(context)?.navigateTo(3, request: workRequest);
+                    }
+                  } catch (_) {
+                    if (mounted) Navigator.of(context).pop();
+                  }
+                }
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: notification.isRead ? _cardBg : const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: notification.isRead ? _borderColor : color.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(_iconForType(notification.type), color: color, size: 22),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      notification.message,
-                      style: const TextStyle(fontSize: 13, color: _subtleText),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _relativeTimestamp(notification.createdAt),
-                      style: TextStyle(fontSize: 12, color: _subtleText.withValues(alpha: 0.7)),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              notification.title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: _darkText,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              notification.message,
+                              style: const TextStyle(fontSize: 13, color: _subtleText),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _relativeTimestamp(notification.createdAt),
+                              style: TextStyle(fontSize: 12, color: _subtleText.withValues(alpha: 0.7)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!notification.isRead)
+                        TextButton(
+                          onPressed: () => _markOneAsRead(notification),
+                          child: const Text('Mark read'),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        if (hasMoreThan20 && !_showAll) ...[
+          const SizedBox(height: 16),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => setState(() => _showAll = true),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _borderColor),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-              ),
-              if (!notification.isRead)
-                TextButton(
-                  onPressed: () => _markOneAsRead(notification),
-                  child: const Text('Mark read'),
+                child: const Center(
+                  child: Text(
+                    'View All Notifications',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF16A34A),
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
-            ],
+              ),
+            ),
           ),
-        );
-      },
+        ],
+      ],
     );
   }
 }

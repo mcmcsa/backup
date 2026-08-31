@@ -41,7 +41,7 @@ class _ApprovalQueuePageWebState extends State<ApprovalQueuePageWeb> {
 
   Future<void> _loadRequests() async {
     try {
-      final data = await WorkRequestService.fetchByStatus('pending');
+      final data = await WorkRequestService.fetchByStatus('Pending');
       if (!mounted) return;
       setState(() {
         _pendingRequests = data;
@@ -88,7 +88,7 @@ class _ApprovalQueuePageWebState extends State<ApprovalQueuePageWeb> {
   }
 
   Future<void> _approveRequest(WorkRequest request) async {
-    await WorkRequestService.updateStatus(request.id, 'approved');
+    await WorkRequestService.updateStatus(request.id, 'In Progress');
     await AppNotificationService.notifyApprovedToMaintenance(
       workRequestId: request.id,
       adminName: request.approvedByName ?? 'Admin',
@@ -106,7 +106,7 @@ class _ApprovalQueuePageWebState extends State<ApprovalQueuePageWeb> {
   }
 
   Future<void> _rejectRequest(WorkRequest request) async {
-    await WorkRequestService.updateStatus(request.id, 'cancelled');
+    await WorkRequestService.updateStatus(request.id, 'Declined');
 
     final reporterId = request.requestorId;
     if (reporterId != null && reporterId.trim().isNotEmpty) {

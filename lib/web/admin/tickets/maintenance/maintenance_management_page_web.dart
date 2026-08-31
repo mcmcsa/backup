@@ -8,6 +8,11 @@ import '../../shared/admin_styles.dart';
 import '../../../../shared/widgets/availability_status_badge.dart';
 import '../admin_work_process_web.dart';
 import '../../admin_nav_controller.dart';
+import 'package:provider/provider.dart';
+import '../../../../authentication/services/auth_service.dart';
+import '../../../../shared/services/chat_service.dart';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MaintenanceManagementPageWeb extends StatefulWidget {
   const MaintenanceManagementPageWeb({super.key});
@@ -28,16 +33,99 @@ class _MaintenanceManagementPageWebState
   List<MaintenanceAccount> _activeAccounts = [];
   List<MaintenanceAccount> _archivedAccounts = [];
   List<WorkRequest> _historyItems = [];
+  String? _startingChatUserId;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel = Supabase.instance.client
+        .channel('public:maintenance_users_management')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'maintenance_users',
+          callback: (payload) {
+            final updatedRecord = payload.newRecord;
+            final userId = updatedRecord['user_id'] as String?;
+            final newStatus = updatedRecord['availability_status'] as String?;
+            if (userId != null && newStatus != null) {
+              if (mounted) {
+                setState(() {
+                  final index = _activeAccounts.indexWhere((m) => m.userId == userId);
+                  if (index != -1) {
+                    final old = _activeAccounts[index];
+                    _activeAccounts[index] = MaintenanceAccount(
+                      userId: old.userId,
+                      email: old.email,
+                      fullName: old.fullName,
+                      employeeId: old.employeeId,
+                      specialization: old.specialization,
+                      contactNo: old.contactNo,
+                      isActive: old.isActive,
+                      archivedAt: old.archivedAt,
+                      createdAt: old.createdAt,
+                      availabilityStatus: newStatus,
+                      currentLocation: old.currentLocation,
+                      currentAssignmentId: old.currentAssignmentId,
+                      estimatedCompletionTime: old.estimatedCompletionTime,
+                      lastActiveAt: old.lastActiveAt,
+                      workingHoursStart: old.workingHoursStart,
+                      workingHoursEnd: old.workingHoursEnd,
+                      statusUpdatedAt: old.statusUpdatedAt,
+                    );
+                  }
+                });
+              }
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  Future<void> _startChat(MaintenanceAccount account) async {
+    setState(() => _startingChatUserId = account.userId);
+    try {
+      final authService = context.read<AuthService>();
+      final currentUser = authService.currentUser;
+      if (currentUser == null) return;
+
+      final room = await ChatService.findOrCreateDirectRoom(
+        currentUserId: currentUser.id,
+        currentUserName: currentUser.name,
+        currentUserRole: currentUser.role.name,
+        otherUserId: account.userId,
+        otherUserName: account.fullName,
+        otherUserRole: 'maintenance',
+      );
+
+      if (mounted) {
+        AdminNavController.of(context)?.navigateTo(20, chatRoom: room);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start chat: $e'), backgroundColor: AdminStyles.error),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _startingChatUserId = null);
+      }
+    }
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    if (_realtimeChannel != null) {
+      Supabase.instance.client.removeChannel(_realtimeChannel!);
+    }
     super.dispose();
   }
 
@@ -55,7 +143,7 @@ class _MaintenanceManagementPageWebState
       final archivedAccounts = results[1] as List<MaintenanceAccount>;
       final history = (results[2] as List<WorkRequest>).where((item) {
         final status = item.status.toLowerCase();
-        return status == 'completed' || status == 'cancelled';
+        return status == 'completed' || status == 'declined';
       }).toList()..sort((a, b) => b.dateSubmitted.compareTo(a.dateSubmitted));
 
       if (!mounted) return;
@@ -77,7 +165,7 @@ class _MaintenanceManagementPageWebState
   }
 
   List<MaintenanceAccount> get _filteredAccounts {
-    final source = _showArchivedAccounts ? _archivedAccounts : _activeAccounts;
+    final source = _activeAccounts;
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) return source;
 
@@ -98,7 +186,7 @@ class _MaintenanceManagementPageWebState
           .toList();
     } else if (_historyFilter == 'Declined') {
       items = items
-          .where((item) => item.status.toLowerCase() == 'cancelled')
+          .where((item) => item.status.toLowerCase() == 'declined')
           .toList();
     }
 
@@ -612,29 +700,34 @@ class _MaintenanceManagementPageWebState
   Widget build(BuildContext context) {
     final accounts = _filteredAccounts;
     final history = _filteredHistory;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 600;
+    final paddingVal = isCompact ? 16.0 : 28.0;
 
     return Container(
       color: AdminStyles.bg,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(28),
+        padding: EdgeInsets.all(paddingVal),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Maintenance User Management',
-                      style: AdminStyles.pageTitleStyle(),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Create maintenance accounts and review completed maintenance records.',
-                      style: AdminStyles.pageSubtitleStyle(),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Maintenance User Management',
+                        style: AdminStyles.pageTitleStyle(),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Create maintenance accounts and review completed maintenance records.',
+                        style: AdminStyles.pageSubtitleStyle(),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -656,6 +749,7 @@ class _MaintenanceManagementPageWebState
                   icon: Icons.refresh_rounded,
                   label: 'Refresh',
                   onTap: _loadData,
+                  hideLabel: isCompact,
                 ),
               ],
             ),
@@ -681,35 +775,22 @@ class _MaintenanceManagementPageWebState
   }
 
   Widget _buildAccountsSection(List<MaintenanceAccount> accounts) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 600;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Text(
-              _showArchivedAccounts ? 'Archived Accounts' : 'Active Accounts',
-              style: AdminStyles.headingStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
+            Expanded(
+              child: Text(
+                'Active Accounts',
+                style: AdminStyles.headingStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-            const Spacer(),
-            SegmentedButton<bool>(
-              showSelectedIcon: false,
-              segments: [
-                ButtonSegment<bool>(
-                  value: false,
-                  label: Text('Active (${_activeAccounts.length})'),
-                ),
-                ButtonSegment<bool>(
-                  value: true,
-                  label: Text('Archived (${_archivedAccounts.length})'),
-                ),
-              ],
-              selected: {_showArchivedAccounts},
-              onSelectionChanged: (value) {
-                setState(() => _showArchivedAccounts = value.first);
-              },
             ),
           ],
         ),
@@ -721,9 +802,7 @@ class _MaintenanceManagementPageWebState
                   padding: const EdgeInsets.all(32),
                   child: Center(
                     child: Text(
-                      _showArchivedAccounts
-                          ? 'No archived maintenance accounts.'
-                          : 'No maintenance accounts created yet.',
+                      'No maintenance accounts created yet.',
                       style: AdminStyles.bodyStyle(
                         color: AdminStyles.textSecondary,
                       ),
@@ -757,12 +836,16 @@ class _MaintenanceManagementPageWebState
                       ),
                       title: Row(
                         children: [
-                          Text(
-                            account.fullName,
-                            style: AdminStyles.bodyStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: AdminStyles.textPrimary,
+                          Expanded(
+                            child: Text(
+                              account.fullName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AdminStyles.bodyStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AdminStyles.textPrimary,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -774,17 +857,60 @@ class _MaintenanceManagementPageWebState
                       ),
                       subtitle: Padding(
                         padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          'ID: ${account.employeeId ?? '-'}  |  Specialization: ${account.specialization ?? '-'}  |  ${account.email}',
-                          style: AdminStyles.bodyStyle(
-                            fontSize: 13,
-                            color: AdminStyles.textSecondary,
-                          ),
-                        ),
+                        child: isCompact
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'ID: ${account.employeeId ?? '-'}',
+                                    style: AdminStyles.bodyStyle(
+                                      fontSize: 13,
+                                      color: AdminStyles.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Specialization: ${account.specialization ?? '-'}',
+                                    style: AdminStyles.bodyStyle(
+                                      fontSize: 13,
+                                      color: AdminStyles.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    account.email,
+                                    style: AdminStyles.bodyStyle(
+                                      fontSize: 13,
+                                      color: AdminStyles.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Text(
+                                'ID: ${account.employeeId ?? '-'}  |  Specialization: ${account.specialization ?? '-'}  |  ${account.email}',
+                                style: AdminStyles.bodyStyle(
+                                  fontSize: 13,
+                                  color: AdminStyles.textSecondary,
+                                ),
+                              ),
                       ),
                       trailing: Wrap(
                         spacing: 8,
                         children: [
+                          _startingChatUserId == account.userId
+                              ? const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: AdminStyles.primary),
+                                  ),
+                                )
+                              : IconButton(
+                                  tooltip: 'Send message',
+                                  onPressed: () => _startChat(account),
+                                  icon: const Icon(Icons.chat_bubble_outline_rounded, color: AdminStyles.primary),
+                                ),
                           IconButton(
                             tooltip: 'View details',
                             onPressed: () => _showMaintenanceDetails(account),
@@ -805,30 +931,62 @@ class _MaintenanceManagementPageWebState
         .where((item) => item.status.toLowerCase() == 'completed')
         .length;
     final declined = history
-        .where((item) => item.status.toLowerCase() == 'cancelled')
+        .where((item) => item.status.toLowerCase() == 'declined')
         .length;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 600;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              'Maintenance Records',
-              style: AdminStyles.headingStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
+        isCompact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Maintenance Records',
+                    style: AdminStyles.headingStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _MiniPill(
+                        label: 'Completed: $completed',
+                        color: AdminStyles.success,
+                      ),
+                      const SizedBox(width: 8),
+                      _MiniPill(
+                        label: 'Declined: $declined',
+                        color: AdminStyles.error,
+                      ),
+                    ],
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Text(
+                    'Maintenance Records',
+                    style: AdminStyles.headingStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const Spacer(),
+                  _MiniPill(
+                    label: 'Completed: $completed',
+                    color: AdminStyles.success,
+                  ),
+                  const SizedBox(width: 8),
+                  _MiniPill(
+                    label: 'Declined: $declined',
+                    color: AdminStyles.error,
+                  ),
+                ],
               ),
-            ),
-            const Spacer(),
-            _MiniPill(
-              label: 'Completed: $completed',
-              color: AdminStyles.success,
-            ),
-            const SizedBox(width: 8),
-            _MiniPill(label: 'Declined: $declined', color: AdminStyles.error),
-          ],
-        ),
         const SizedBox(height: 14),
         Row(
           children: [
@@ -881,26 +1039,47 @@ class _MaintenanceManagementPageWebState
                           horizontal: 18,
                           vertical: 14,
                         ),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 130,
-                              child: Text(
-                                item.formattedId,
-                                style: AdminStyles.dataStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              flex: 2,
-                              child: Column(
+                        child: isCompact
+                            ? Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        item.formattedId,
+                                        style: AdminStyles.dataStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: AdminStyles.pillDecoration(
+                                          color: statusColor,
+                                          isSecondary: true,
+                                        ),
+                                        child: Text(
+                                          isCompleted
+                                              ? 'COMPLETED'
+                                              : 'DECLINED',
+                                          style: AdminStyles.headingStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w900,
+                                            color: statusColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
                                   Text(
                                     item.title,
-                                    maxLines: 1,
+                                    maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                     style: AdminStyles.bodyStyle(
                                       fontSize: 14,
@@ -908,58 +1087,110 @@ class _MaintenanceManagementPageWebState
                                       color: AdminStyles.textPrimary,
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
+                                  const SizedBox(height: 4),
                                   Text(
-                                    item.requestorName,
+                                    'Requestor: ${item.requestorName}',
+                                    style: AdminStyles.bodyStyle(
+                                      fontSize: 12,
+                                      color: AdminStyles.textSecondary,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Location: ${item.officeRoom ?? '-'}, ${item.buildingName ?? '-'}',
+                                    style: AdminStyles.bodyStyle(
+                                      fontSize: 12,
+                                      color: AdminStyles.textSecondary,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Submitted: ${DateFormat('MMM dd, yyyy').format(item.dateSubmitted)}',
                                     style: AdminStyles.bodyStyle(
                                       fontSize: 12,
                                       color: AdminStyles.textSecondary,
                                     ),
                                   ),
                                 ],
+                              )
+                            : Row(
+                                children: [
+                                  SizedBox(
+                                    width: 130,
+                                    child: Text(
+                                      item.formattedId,
+                                      style: AdminStyles.dataStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AdminStyles.bodyStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: AdminStyles.textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          item.requestorName,
+                                          style: AdminStyles.bodyStyle(
+                                            fontSize: 12,
+                                            color: AdminStyles.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      '${item.officeRoom ?? '-'}, ${item.buildingName ?? '-'}',
+                                      style: AdminStyles.bodyStyle(
+                                        fontSize: 13,
+                                        color: AdminStyles.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: 120,
+                                    child: Text(
+                                      DateFormat(
+                                        'MMM dd, yyyy',
+                                      ).format(item.dateSubmitted),
+                                      style: AdminStyles.bodyStyle(
+                                        fontSize: 12,
+                                        color: AdminStyles.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: AdminStyles.pillDecoration(
+                                      color: statusColor,
+                                      isSecondary: true,
+                                    ),
+                                    child: Text(
+                                      isCompleted ? 'COMPLETED' : 'DECLINED',
+                                      style: AdminStyles.headingStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                        color: statusColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                '${item.officeRoom ?? '-'}, ${item.buildingName ?? '-'}',
-                                style: AdminStyles.bodyStyle(
-                                  fontSize: 13,
-                                  color: AdminStyles.textSecondary,
-                                ),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 120,
-                              child: Text(
-                                DateFormat(
-                                  'MMM dd, yyyy',
-                                ).format(item.dateSubmitted),
-                                style: AdminStyles.bodyStyle(
-                                  fontSize: 12,
-                                  color: AdminStyles.textSecondary,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              decoration: AdminStyles.pillDecoration(
-                                color: statusColor,
-                                isSecondary: true,
-                              ),
-                              child: Text(
-                                isCompleted ? 'COMPLETED' : 'DECLINED',
-                                style: AdminStyles.headingStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                     );
                   },
@@ -1096,15 +1327,29 @@ class _HeaderActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final bool hideLabel;
 
   const _HeaderActionButton({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.hideLabel = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (hideLabel) {
+      return OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AdminStyles.textPrimary,
+          side: const BorderSide(color: AdminStyles.border),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Icon(icon, size: 18),
+      );
+    }
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 18),

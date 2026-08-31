@@ -53,7 +53,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
-  final String _selectedPriority = '';
+  final String _selectedPriority = ''; // Priority is set by admin, not on submission
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
 
@@ -176,7 +176,8 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
 
         if (result.choice == DuplicateDialogChoice.viewExisting) {
           final req = result.selectedRequest!;
-          context.push('/work-request/${req.id}');
+          // Navigate to the Reports detail page (index 3) with the existing request
+          TeacherNavController.of(context)?.navigateTo(3, request: req);
           return;
         }
 
@@ -228,7 +229,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         id: '',
         title: 'Maintenance: $typeLabel',
         description: _issueDetailsController.text.trim(),
-        status: 'pending',
+        status: 'Pending',
         priority: _selectedPriority,
         buildingName: _selectedBuilding,
         buildingId: building?.id,
@@ -313,7 +314,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
           signerId: user.id,
           signerName: _fullNameController.text.trim(),
           signerRole: 'teacher',
-          signatureType: 'approval',
+          signatureType: 'requestor',
           signatureData: _requesterSignatureBase64!,
           signedAt: DateTime.now(),
         ));
@@ -354,6 +355,10 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       return _buildSuccessView();
     }
 
+    final width = MediaQuery.of(context).size.width;
+    final useVerticalLayout = width < 900;
+    final isNarrow = width < 650;
+
     return Scaffold(
       backgroundColor: AdminStyles.bg,
       body: Column(
@@ -361,7 +366,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
           _buildHeader(),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(isNarrow ? 12 : 32),
               child: Center(
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 1000),
@@ -370,14 +375,24 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(flex: 6, child: _buildMainForm()),
-                            const SizedBox(width: 32),
-                            Expanded(flex: 4, child: _buildSidePanel()),
-                          ],
-                        ),
+                        if (useVerticalLayout)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildMainForm(),
+                              const SizedBox(height: 32),
+                              _buildSidePanel(),
+                            ],
+                          )
+                        else
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(flex: 6, child: _buildMainForm()),
+                              const SizedBox(width: 32),
+                              Expanded(flex: 4, child: _buildSidePanel()),
+                            ],
+                          ),
                       ],
                     ),
                   ),
@@ -391,6 +406,9 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   }
 
   Widget _buildSuccessView() {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 650;
+
     return Scaffold(
       backgroundColor: AdminStyles.bg,
       body: Column(
@@ -399,13 +417,13 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
           Expanded(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(32),
+                padding: EdgeInsets.all(isNarrow ? 16 : 32),
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 600),
-                  padding: const EdgeInsets.all(48),
+                  padding: EdgeInsets.all(isNarrow ? 20 : 48),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(isNarrow ? 20 : 24),
                     boxShadow: [
                       BoxShadow(
                         color: AdminStyles.primary.withValues(alpha: 0.08),
@@ -418,31 +436,42 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 96,
-                        height: 96,
+                        width: isNarrow ? 72 : 96,
+                        height: isNarrow ? 72 : 96,
                         decoration: BoxDecoration(
                           color: const Color(0xFF10B981).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Center(
-                          child: Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 48),
+                        child: Center(
+                          child: Icon(
+                            Icons.check_circle_rounded,
+                            color: const Color(0xFF10B981),
+                            size: isNarrow ? 36 : 48,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 32),
+                      SizedBox(height: isNarrow ? 20 : 32),
                       Text(
                         'Report Submitted Successfully!',
                         textAlign: TextAlign.center,
-                        style: AdminStyles.headingStyle(fontSize: 28, color: const Color(0xFF1E293B)),
+                        style: AdminStyles.headingStyle(
+                          fontSize: isNarrow ? 22 : 28,
+                          color: const Color(0xFF1E293B),
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Text(
                         'Your maintenance request has been recorded and is being processed by the maintenance team.',
                         textAlign: TextAlign.center,
-                        style: AdminStyles.bodyStyle(fontSize: 16, color: const Color(0xFF64748B), height: 1.5),
+                        style: AdminStyles.bodyStyle(
+                          fontSize: isNarrow ? 14 : 16,
+                          color: const Color(0xFF64748B),
+                          height: 1.5,
+                        ),
                       ),
-                      const SizedBox(height: 48),
+                      SizedBox(height: isNarrow ? 24 : 48),
                       Container(
-                        padding: const EdgeInsets.all(24),
+                        padding: EdgeInsets.all(isNarrow ? 16 : 24),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.circular(16),
@@ -451,54 +480,102 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('REQUEST DETAILS', style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFF94A3B8), letterSpacing: 1)),
+                            Text(
+                              'REQUEST DETAILS',
+                              style: AdminStyles.bodyStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 1,
+                              ),
+                            ),
                             const SizedBox(height: 16),
-                            _buildSuccessDetailRow('Tracking Number', _submittedRequest!.id, isCopyable: true),
+                            _buildSuccessDetailRow(
+                              'Tracking Number',
+                              _submittedRequest!.id,
+                              isCopyable: true,
+                            ),
                             const Divider(height: 24, color: Color(0xFFE2E8F0)),
-                            _buildSuccessDetailRow('Location', '${_submittedRequest!.roomName} - ${_submittedRequest!.buildingName}'),
+                            _buildSuccessDetailRow(
+                              'Location',
+                              '${_submittedRequest!.roomName} - ${_submittedRequest!.buildingName}',
+                            ),
                             const Divider(height: 24, color: Color(0xFFE2E8F0)),
-                            _buildSuccessDetailRow('Reported on', '${_submittedRequest!.dateSubmitted.month}/${_submittedRequest!.dateSubmitted.day}/${_submittedRequest!.dateSubmitted.year}'),
+                            _buildSuccessDetailRow(
+                              'Reported on',
+                              '${_submittedRequest!.dateSubmitted.month}/${_submittedRequest!.dateSubmitted.day}/${_submittedRequest!.dateSubmitted.year}',
+                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 48),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () {
-                                setState(() {
-                                  _submittedRequest = null;
-                                  _roomNumberController.clear();
-                                  _officeRoomNameController.clear();
-                                  _issueDetailsController.clear();
-                                  _requesterSignatureBase64 = null;
-                                  _selectedImages.clear();
-                                });
-                              },
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                side: const BorderSide(color: Color(0xFFE2E8F0), width: 2),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              child: Text('Submit Another', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: const Color(0xFF475569))),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton(
+                      SizedBox(height: isNarrow ? 24 : 48),
+                      if (isNarrow)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ElevatedButton(
                               onPressed: () => TeacherNavController.of(context)?.navigateTo(0),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AdminStyles.primary,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
-                              child: Text('Go to Dashboard', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+                              child: Text(
+                                'Go to Dashboard',
+                                style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: Colors.white),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(height: 12),
+                            OutlinedButton(
+                              onPressed: () {
+                                // Navigate back to Scanner so user can scan/input a new room code
+                                TeacherNavController.of(context)?.navigateTo(2);
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: Text(
+                                'Submit Another',
+                                style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: const Color(0xFF475569)),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  // Navigate back to Scanner so user can scan/input a new room code
+                                  TeacherNavController.of(context)?.navigateTo(2);
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  side: const BorderSide(color: Color(0xFFE2E8F0), width: 2),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text('Submit Another', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: const Color(0xFF475569))),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () => TeacherNavController.of(context)?.navigateTo(0),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AdminStyles.primary,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text('Go to Dashboard', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -539,9 +616,16 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
     );
   }
 
+
   Widget _buildHeader({bool isSuccess = false}) {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 650;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      padding: EdgeInsets.symmetric(
+        horizontal: isNarrow ? 12 : 32,
+        vertical: isNarrow ? 16 : 24,
+      ),
       decoration: BoxDecoration(
         color: AdminStyles.surface,
         border: Border(bottom: BorderSide(color: AdminStyles.border)),
@@ -552,32 +636,70 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
             icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
             onPressed: () => TeacherNavController.of(context)?.navigateTo(0),
           ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(isSuccess ? 'Success' : 'Submit Work Request', style: AdminStyles.headingStyle(fontSize: 24)),
-              if (!isSuccess)
-                Text('Report maintenance issues within your assigned rooms', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
-            ],
-          ),
-          const Spacer(),
-          if (!isSuccess)
-            ElevatedButton.icon(
-            onPressed: _isSubmitting ? null : _submitRequest,
-            icon: _isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded),
-            label: const Text('Submit Request'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminStyles.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          SizedBox(width: isNarrow ? 8 : 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  isSuccess ? 'Success' : 'Submit Work Request',
+                  style: AdminStyles.headingStyle(fontSize: isNarrow ? 18 : 24),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                if (!isSuccess) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Report maintenance issues within your assigned rooms',
+                    style: AdminStyles.bodyStyle(
+                      color: AdminStyles.textSecondary,
+                      fontSize: isNarrow ? 11 : 13,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ],
+              ],
             ),
           ),
+          if (!isSuccess) ...[
+            const SizedBox(width: 12),
+            ElevatedButton(
+              onPressed: _isSubmitting ? null : _submitRequest,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminStyles.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isNarrow ? 14 : 24,
+                  vertical: isNarrow ? 12 : 16,
+                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : isNarrow
+                      ? const Icon(Icons.send_rounded, size: 18)
+                      : const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.send_rounded, size: 16),
+                            SizedBox(width: 8),
+                            Text('Submit Request', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+            ),
+          ],
         ],
       ),
     );
   }
+
+  bool get _isLocationLocked => widget.roomId != null && widget.roomId!.isNotEmpty;
 
   Widget _buildMainForm() {
     return Column(
@@ -586,6 +708,35 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
           title: 'Location Details',
           icon: Icons.location_on_rounded,
           children: [
+            if (_isLocationLocked)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF0F766E).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock_rounded, size: 16, color: Color(0xFF0F766E)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Location details are locked because the room has already been verified.',
+                        style: AdminStyles.bodyStyle(
+                          fontSize: 12,
+                          color: const Color(0xFF0F766E),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Row(
               children: [
                 Expanded(
@@ -594,14 +745,17 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                     controller: _roomNumberController,
                     hint: 'e.g. 101, 205',
                     validator: (v) => v!.isEmpty ? 'Required' : null,
+                    readOnly: _isLocationLocked,
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: _buildInputField(
-                    label: 'Room Name (Optional)',
+                    label: 'Room Name',
                     controller: _officeRoomNameController,
                     hint: 'e.g. CS Lab 1',
+                    validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                    readOnly: _isLocationLocked,
                   ),
                 ),
               ],
@@ -614,6 +768,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                     label: 'Department/College',
                     value: _selectedCollege,
                     items: _colleges,
+                    enabled: !_isLocationLocked,
                     onChanged: (v) => setState(() {
                       _selectedCollege = v!;
                       _selectedBuilding = _buildingsByDepartment[v]?.first ?? '';
@@ -626,6 +781,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                     label: 'Building',
                     value: _selectedBuilding,
                     items: _buildingsByDepartment[_selectedCollege] ?? [],
+                    enabled: !_isLocationLocked,
                     onChanged: (v) => setState(() => _selectedBuilding = v!),
                   ),
                 ),
@@ -639,6 +795,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                     label: 'Floor',
                     value: _selectedFloor,
                     items: _floors,
+                    enabled: !_isLocationLocked,
                     onChanged: (v) => setState(() => _selectedFloor = v!),
                   ),
                 ),
@@ -836,8 +993,11 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   }
 
   Widget _buildCard({required String title, required IconData icon, required List<Widget> children}) {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 650;
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isNarrow ? 16 : 24),
       decoration: AdminStyles.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -883,7 +1043,13 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
     );
   }
 
-  Widget _buildDropdownField({required String label, required String value, required List<String> items, required void Function(String?) onChanged}) {
+  Widget _buildDropdownField({
+    required String label,
+    required String value,
+    required List<String> items,
+    required void Function(String?)? onChanged,
+    bool enabled = true,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -892,16 +1058,26 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: AdminStyles.bg,
+            color: enabled ? AdminStyles.bg : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AdminStyles.border),
+            border: Border.all(color: enabled ? AdminStyles.border : Colors.grey.shade300),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: (value.isEmpty || !items.contains(value)) ? null : value,
               isExpanded: true,
-              items: items.map((i) => DropdownMenuItem(value: i, child: Text(i, style: AdminStyles.bodyStyle()))).toList(),
-              onChanged: onChanged,
+              items: items
+                  .map((i) => DropdownMenuItem(
+                        value: i,
+                        child: Text(
+                          i,
+                          style: AdminStyles.bodyStyle(
+                            color: enabled ? AdminStyles.textPrimary : AdminStyles.textMuted,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+              onChanged: enabled ? onChanged : null,
             ),
           ),
         ),

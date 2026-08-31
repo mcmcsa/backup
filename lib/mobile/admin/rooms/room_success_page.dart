@@ -127,7 +127,7 @@ class RoomSuccessPage extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   isEdit
-                      ? 'The changes for $roomName have been saved to the\nPSU Maintenance Management System.'
+                      ? 'The changes for $roomName have been saved to the\nPSU MMS.'
                       : 'The new room has been registered in the PSU\nMaintenance Management System.',
                   textAlign: TextAlign.center,
                   style: TextStyle(

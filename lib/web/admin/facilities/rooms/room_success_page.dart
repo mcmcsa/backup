@@ -21,29 +21,17 @@ class RoomSuccessPage extends StatelessWidget {
   });
 
   String get _statusLabel {
-    switch (status) {
-      case 'available':
-        return 'AVAILABLE';
-      case 'reserved':
-        return 'RESERVED';
-      case 'maintenance':
-        return 'UNAVAILABLE';
-      default:
-        return status.toUpperCase();
+    if (status.trim().toLowerCase() == 'available') {
+      return 'AVAILABLE';
     }
+    return 'UNAVAILABLE';
   }
 
   Color get _statusColor {
-    switch (status) {
-      case 'available':
-        return const Color(0xFF22C55E);
-      case 'reserved':
-        return const Color(0xFFF59E0B);
-      case 'maintenance':
-        return const Color(0xFFEF4444);
-      default:
-        return Colors.grey;
+    if (status.trim().toLowerCase() == 'available') {
+      return const Color(0xFF22C55E);
     }
+    return const Color(0xFFEF4444);
   }
 
   void _finish(BuildContext context) {
@@ -110,7 +98,7 @@ class RoomSuccessPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 18),
                     const Text(
-                      'The new room has been registered in the PSU Maintenance Management System.',
+                      'The new room has been registered in the PSU MMS.',
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.5,

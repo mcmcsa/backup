@@ -66,10 +66,6 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
         user.name,
       );
 
-      await WorkRequestService.updateStatus(
-        widget.request.id,
-        'under_maintenance',
-      );
 
       await AppNotificationService.notifyAcceptedToAdminAndRequestor(
         workRequestId: widget.request.id,
@@ -230,7 +226,7 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
                 ],
 
                 // Accept with signature
-                if (!_isAccepted && widget.request.status == 'approved') ...[
+                if (!_isAccepted && widget.request.status == 'Assigned') ...[
                   const Text('ACCEPT THIS TASK',
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF6B7280), letterSpacing: 0.5)),
                   const SizedBox(height: 8),
@@ -260,7 +256,7 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
                       ],
                     ),
                   ),
-                ] else if (widget.request.status == 'pending') ...[
+                ] else if (widget.request.status == 'Pending Assignment') ...[
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(

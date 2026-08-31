@@ -63,6 +63,8 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
             roomName: room.name,
             buildingName: room.building,
           );
+          // Clear the input so it's empty when user returns to the scanner
+          _codeController.clear();
         }
       } else {
         setState(() {

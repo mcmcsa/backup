@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -16,9 +17,38 @@ class IsoPdfService {
 
     // Fetch signatures
     final signatures = await ESignatureService.fetchByWorkRequest(request.id);
-    final requesterSig = signatures.where((s) => s.signerRole == 'requester' && s.signatureType == 'submission').firstOrNull;
-    final adminSig = signatures.where((s) => s.signerRole == 'admin' && s.signatureType == 'approval').firstOrNull;
-    final completionSig = signatures.where((s) => s.signerRole == 'maintenance' && s.signatureType == 'completion').firstOrNull;
+    
+    final requesterSig = signatures.where((s) =>
+        (s.signerRole.toLowerCase() == 'teacher' || s.signerRole.toLowerCase() == 'requester') &&
+        (s.signatureType.toLowerCase() == 'approval' || s.signatureType.toLowerCase() == 'submission')
+    ).firstOrNull;
+
+    final adminSig = signatures.where((s) =>
+        s.signerRole.toLowerCase() == 'admin' &&
+        s.signatureType.toLowerCase() == 'approval'
+    ).firstOrNull;
+
+    final completionSig = signatures.where((s) =>
+        s.signerRole.toLowerCase() == 'maintenance' &&
+        s.signatureType.toLowerCase() == 'completion'
+    ).firstOrNull;
+
+    pw.MemoryImage? decodeSignature(String? base64Str) {
+      if (base64Str == null || base64Str.isEmpty) return null;
+      try {
+        final cleanBase64 = base64Str.contains(',')
+            ? base64Str.split(',').last
+            : base64Str;
+        final bytes = base64Decode(cleanBase64.trim());
+        return pw.MemoryImage(bytes);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final requesterSigImage = decodeSignature(requesterSig?.signatureData);
+    final adminSigImage = decodeSignature(adminSig?.signatureData);
+    final completionSigImage = decodeSignature(completionSig?.signatureData);
 
     pw.Widget buildCheckbox(String label, bool isChecked) {
       return pw.Row(
@@ -90,9 +120,30 @@ class IsoPdfService {
                                   ),
                                 ],
                               ),
-                              pw.SizedBox(height: 12),
+                              pw.SizedBox(height: 4),
                               pw.Center(
-                                child: pw.Text('Signature over Printed Name', style: const pw.TextStyle(fontSize: 8)),
+                                child: pw.Stack(
+                                  alignment: pw.Alignment.bottomCenter,
+                                  children: [
+                                    if (requesterSigImage != null)
+                                      pw.Container(
+                                        height: 35,
+                                        margin: const pw.EdgeInsets.only(bottom: 5),
+                                        child: pw.Image(requesterSigImage, fit: pw.BoxFit.contain),
+                                      ),
+                                    pw.Column(
+                                      children: [
+                                        pw.Container(
+                                          width: 150,
+                                          height: 1,
+                                          color: PdfColors.black,
+                                        ),
+                                        pw.SizedBox(height: 2),
+                                        pw.Text('Signature over Printed Name', style: const pw.TextStyle(fontSize: 8)),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
@@ -201,9 +252,30 @@ class IsoPdfService {
                                   ),
                                 ],
                               ),
-                              pw.SizedBox(height: 12),
+                              pw.SizedBox(height: 4),
                               pw.Center(
-                                child: pw.Text('Signature over Printed Name', style: const pw.TextStyle(fontSize: 8)),
+                                child: pw.Stack(
+                                  alignment: pw.Alignment.bottomCenter,
+                                  children: [
+                                    if (adminSigImage != null)
+                                      pw.Container(
+                                        height: 35,
+                                        margin: const pw.EdgeInsets.only(bottom: 5),
+                                        child: pw.Image(adminSigImage, fit: pw.BoxFit.contain),
+                                      ),
+                                    pw.Column(
+                                      children: [
+                                        pw.Container(
+                                          width: 150,
+                                          height: 1,
+                                          color: PdfColors.black,
+                                        ),
+                                        pw.SizedBox(height: 2),
+                                        pw.Text('Signature over Printed Name', style: const pw.TextStyle(fontSize: 8)),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                               pw.SizedBox(height: 8),
                               pw.Row(
@@ -270,9 +342,30 @@ class IsoPdfService {
                                     ),
                                 ],
                               ),
-                              pw.SizedBox(height: 12),
+                              pw.SizedBox(height: 4),
                               pw.Center(
-                                child: pw.Text('Signature over Printed Name', style: const pw.TextStyle(fontSize: 8)),
+                                child: pw.Stack(
+                                  alignment: pw.Alignment.bottomCenter,
+                                  children: [
+                                    if (completionSigImage != null)
+                                      pw.Container(
+                                        height: 35,
+                                        margin: const pw.EdgeInsets.only(bottom: 5),
+                                        child: pw.Image(completionSigImage, fit: pw.BoxFit.contain),
+                                      ),
+                                    pw.Column(
+                                      children: [
+                                        pw.Container(
+                                          width: 150,
+                                          height: 1,
+                                          color: PdfColors.black,
+                                        ),
+                                        pw.SizedBox(height: 2),
+                                        pw.Text('Signature over Printed Name', style: const pw.TextStyle(fontSize: 8)),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                               pw.SizedBox(height: 8),
                               pw.Row(

@@ -83,6 +83,11 @@ class ESignature {
   }
 
   String get signatureTypeLabel {
+    if ((signerRole == 'teacher' || signerRole == 'requestor') && 
+        (signatureType == 'approval' || signatureType == 'request' || signatureType == 'requestor' || signatureType.isEmpty)) {
+      return 'Requestor Signature';
+    }
+
     switch (signatureType) {
       case 'approval':
         return 'Admin Approval';
@@ -96,16 +101,16 @@ class ESignature {
         return 'Completion';
       case 'request':
       case 'requestor':
-        return 'Requestor';
+        return 'Requestor Signature';
       default:
         switch (signerRole) {
           case 'admin':
             return 'Admin Approval';
           case 'teacher':
           case 'requestor':
-            return 'Requestor';
+            return 'Requestor Signature';
           case 'maintenance':
-            return 'Maintenance';
+            return 'Maintenance Signature';
           default:
             return signatureType.isNotEmpty ? signatureType : 'Signature';
         }

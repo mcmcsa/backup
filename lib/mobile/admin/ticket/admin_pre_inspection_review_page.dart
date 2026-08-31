@@ -9,6 +9,11 @@ import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/services/pre_inspection_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/widgets/workflow_status_badge.dart';
+import '../../../shared/models/e_signature_model.dart';
+import '../../../shared/services/e_signature_service.dart';
+import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/widgets/signature_pad_widget.dart';
+import 'dart:convert';
 
 /// Admin screen to review pre-inspection report and approve/reject it
 class AdminPreInspectionReviewPage extends StatefulWidget {
@@ -44,6 +49,8 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
   final _reviewNotesController = TextEditingController();
   final _rejectionNotesController = TextEditingController();
 
+  List<ESignature> _signatures = [];
+
   @override
   void initState() {
     super.initState();
@@ -53,10 +60,12 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
   Future<void> _loadReport() async {
     try {
       final report = await PreInspectionService.fetchLatestByWorkRequest(widget.request.id);
+      final signatures = await ESignatureService.fetchByWorkRequest(widget.request.id);
       if (!mounted) return;
       _reviewNotesController.text = report?.reviewNotes ?? '';
       setState(() {
         _report = report;
+        _signatures = signatures;
         _isLoading = false;
       });
     } catch (_) {
@@ -242,7 +251,40 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
     return 'image/jpeg';
   }
 
-  Future<void> _approvePreInspection() async {
+  void _openApprovalSignatureDialog() {
+    showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SignaturePadWidget(
+                title: 'E-Signature Required',
+                subtitle: 'Sign to confirm pre-inspection approval',
+                onSignatureComplete: (base64) {
+                  Navigator.pop(ctx, base64);
+                },
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('Cancel', style: TextStyle(color: Color(0xFF6B7280))),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).then((signature) {
+      if (signature != null && signature.isNotEmpty) {
+        _approvePreInspectionWithSignature(signature);
+      }
+    });
+  }
+
+  Future<void> _approvePreInspectionWithSignature(String signatureData) async {
     if (_report == null) return;
     final authService = Provider.of<AuthService>(context, listen: false);
     final user = authService.currentUser;
@@ -251,24 +293,54 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
     setState(() => _isProcessing = true);
 
     try {
+      // 1. Save signature
+      await ESignatureService.insert(
+        ESignature(
+          id: '',
+          workRequestId: widget.request.id,
+          signerId: user.id,
+          signerName: user.name,
+          signerRole: 'campadmin',
+          signatureType: 'pre_inspection_admin',
+          signatureData: signatureData,
+          signedAt: DateTime.now(),
+        ),
+      );
+
+      // 2. Approve Pre-Inspection Report
       await PreInspectionService.approve(
         _report!.id,
         user.id,
         reviewNotes: _reviewNotesController.text,
       );
-      await WorkRequestService.setUnderMaintenance(widget.request.id);
+
+      // 3. Update Work Request Status
+      await WorkRequestService.updateStatus(
+        widget.request.id,
+        'Pre-Inspection Approved',
+      );
 
       await LoginActivityService.recordAdminAction(
         user: user,
         title: 'Pre-Inspection Approved',
-        details: 'Approved pre-inspection for ${widget.request.officeRoom}',
+        details: 'Approved pre-inspection with signature for ${widget.request.officeRoom}',
         workRequestId: widget.request.id,
       );
+
+      // 4. Notify Maintenance User & Requestor
+      final maintId = widget.request.assignedToId;
+      if (maintId != null && maintId.trim().isNotEmpty && maintId.trim() != 'null') {
+        await AppNotificationService.notifyPreInspectionApproved(
+          workRequestId: widget.request.id,
+          maintenanceId: maintId,
+          adminName: user.name,
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Pre-inspection approved. Maintenance can proceed.'),
+            content: Text('Pre-inspection approved successfully!'),
             backgroundColor: Color(0xFF059669),
           ),
         );
@@ -306,17 +378,34 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
         reviewNotes: _reviewNotesController.text,
       );
 
+      // Update Work Request Status
+      await WorkRequestService.updateStatus(
+        widget.request.id,
+        'Pre-Inspection Declined',
+      );
+
       await LoginActivityService.recordAdminAction(
         user: user,
-        title: 'Pre-Inspection Rejected',
-        details: 'Rejected pre-inspection for ${widget.request.officeRoom}',
+        title: 'Pre-Inspection Declined',
+        details: 'Declined pre-inspection for ${widget.request.officeRoom}. Reason: $notes',
         workRequestId: widget.request.id,
       );
+
+      // Notify Maintenance User & Requestor
+      final maintId = widget.request.assignedToId;
+      if (maintId != null && maintId.trim().isNotEmpty && maintId.trim() != 'null') {
+        await AppNotificationService.notifyPreInspectionDeclined(
+          workRequestId: widget.request.id,
+          maintenanceId: maintId,
+          adminName: user.name,
+          notes: notes,
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Pre-inspection rejected.'),
+            content: Text('Pre-inspection declined.'),
             backgroundColor: Color(0xFFDC2626),
           ),
         );
@@ -534,7 +623,10 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
     }
 
     final report = _report!;
-    final isAlreadyActioned = report.status != 'submitted';
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+    final isAdmin = user?.role.name == 'campadmin' || user?.role.name == 'admin';
+    final showActions = isAdmin && widget.request.status == 'Pre-Inspection Submitted';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -604,7 +696,7 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
                 _buildSection('INSPECTION REVIEW NOTES', [
                   TextFormField(
                     controller: _reviewNotesController,
-                    enabled: !isAlreadyActioned,
+                    enabled: showActions,
                     maxLines: 4,
                     decoration: InputDecoration(
                       hintText: 'Add notes for this inspection...',
@@ -615,7 +707,7 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
                       ),
                       contentPadding: const EdgeInsets.all(12),
                       filled: true,
-                      fillColor: isAlreadyActioned ? const Color(0xFFF9FAFB) : Colors.white,
+                      fillColor: !showActions ? const Color(0xFFF9FAFB) : Colors.white,
                     ),
                   ),
                 ]),
@@ -634,12 +726,12 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
                 _buildSeverityCard(report.severityLevel),
                 const SizedBox(height: 24),
 
-                if (!isAlreadyActioned) ...[
+                if (showActions) ...[
                   // Approve button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _approvePreInspection,
+                      onPressed: _openApprovalSignatureDialog,
                       icon: const Icon(Icons.check_circle_outline, size: 18),
                       label: const Text('Approve & Let Maintenance Proceed',
                           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
@@ -700,29 +792,24 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
                       ],
                     ),
                   ),
+                ] else if (report.status.toLowerCase() != 'pending' || widget.request.status != 'Pre-Inspection Submitted') ...[
+                  _buildResultSummaryCard(report),
                 ] else ...[
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: report.status == 'approved'
-                          ? const Color(0xFF059669).withValues(alpha: 0.1)
-                          : const Color(0xFFDC2626).withValues(alpha: 0.1),
+                      color: Colors.blue.shade50,
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.shade100),
                     ),
-                    child: Row(
+                    child: const Row(
                       children: [
-                        Icon(
-                          report.status == 'approved' ? Icons.check_circle : Icons.cancel,
-                          color: report.status == 'approved' ? const Color(0xFF059669) : const Color(0xFFDC2626),
-                          size: 24,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          report.status == 'approved' ? 'This pre-inspection has been approved' : 'This pre-inspection has been rejected',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: report.status == 'approved' ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                        Icon(Icons.info_outline, color: Colors.blue, size: 24),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Pre-Inspection report has been submitted and is pending review by Campus Administrator.',
+                            style: TextStyle(fontSize: 13, color: Colors.blue, fontWeight: FontWeight.w500),
                           ),
                         ),
                       ],
@@ -733,6 +820,103 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
               ],
             ),
     );
+  }
+
+  Widget _buildResultSummaryCard(PreInspectionReport report) {
+    final adminSig = _signatures.firstWhere(
+      (sig) => sig.signatureType == 'pre_inspection_admin',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+
+    final isApproved = report.status.toLowerCase() == 'approved';
+    final statusColor = isApproved ? const Color(0xFF059669) : const Color(0xFFDC2626);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'REVIEW DECISION RESULT',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(isApproved ? Icons.check_circle : Icons.cancel, color: statusColor, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                isApproved ? 'APPROVED' : 'DECLINED',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: statusColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildInfoRow('Decided By', adminSig.signerName.isNotEmpty ? adminSig.signerName : (report.adminApprovedBy ?? 'Campus Administrator')),
+          _buildInfoRow('Decided Date', _formatDate(report.adminApprovedDate ?? report.updatedAt)),
+          if (!isApproved && report.notes != null)
+            _buildInfoRow('Rejection Remarks', report.notes!),
+          if (isApproved && adminSig.signatureData.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'Admin E-Signature:',
+              style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: _buildSignatureImage(adminSig.signatureData),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignatureImage(String base64Str) {
+    try {
+      final cleaned = base64Str.trim().replaceAll(RegExp(r'\s+'), '');
+      final base64Data = cleaned.contains(',') ? cleaned.split(',')[1] : cleaned;
+      return Image.memory(
+        base64Decode(base64Data),
+        height: 60,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => const Icon(Icons.gesture, size: 40, color: Colors.grey),
+      );
+    } catch (_) {
+      return const Icon(Icons.gesture, size: 40, color: Colors.grey);
+    }
   }
 
   Widget _buildSection(String title, List<Widget> children) {

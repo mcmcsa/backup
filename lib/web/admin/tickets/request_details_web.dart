@@ -41,21 +41,36 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
+
     Color statusColor;
     Color statusBgColor;
 
     switch (request.status) {
-      case 'pending':
-        statusColor = Colors.orange;
-        statusBgColor = const Color(0xFFFFF7ED);
+      case 'Pending':
+        statusColor = const Color(0xFF6B7280);
+        statusBgColor = const Color(0xFFF3F4F6);
         break;
-      case 'in_progress':
-        statusColor = Colors.orange;
-        statusBgColor = const Color(0xFFFFF7ED);
+      case 'In Progress':
+        statusColor = const Color(0xFF2563EB);
+        statusBgColor = const Color(0xFFDBEAFE);
         break;
-      case 'completed':
-        statusColor = const Color(0xFF22C55E);
-        statusBgColor = const Color(0xFFDCFCE7);
+      case 'Declined':
+        statusColor = const Color(0xFFDC2626);
+        statusBgColor = const Color(0xFFFEE2E2);
+        break;
+      case 'Confirmed':
+        statusColor = const Color(0xFF0F766E);
+        statusBgColor = const Color(0xFFF0FDFA);
+        break;
+      case 'Rework':
+        statusColor = const Color(0xFFD97706);
+        statusBgColor = const Color(0xFFFEF3C7);
+        break;
+      case 'Completed':
+        statusColor = const Color(0xFF059669);
+        statusBgColor = const Color(0xFFD1FAE5);
         break;
       default:
         statusColor = Colors.grey;
@@ -87,7 +102,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Warning Alert
-              if (request.status == 'in_progress')
+              if (request.status == 'In Progress' || request.status == 'Confirmed' || request.status == 'Rework')
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -130,7 +145,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
                     ],
                   ),
                 ),
-              if (request.status == 'in_progress') const SizedBox(height: 16),
+              if (request.status == 'In Progress' || request.status == 'Confirmed' || request.status == 'Rework') const SizedBox(height: 16),
               
               // REQUEST ID Header
               const Text(
@@ -220,7 +235,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    '${request.officeRoom} - ${request.typeOfRequest.toUpperCase()}',
+                    '${request.officeRoom} - ${request.typeDisplay.toUpperCase()}',
                     style: const TextStyle(
                       fontSize: 14,
                       color: Color(0xFF6B7280),
@@ -305,17 +320,22 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildEvidencePlaceholder('BEFORE REPAIR'),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildEvidencePlaceholder('AFTER REPAIR'),
-                        ),
-                      ],
-                    ),
+                    if (isMobile) ...[
+                      _buildEvidencePlaceholder('BEFORE REPAIR'),
+                      const SizedBox(height: 12),
+                      _buildEvidencePlaceholder('AFTER REPAIR'),
+                    ] else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildEvidencePlaceholder('BEFORE REPAIR'),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildEvidencePlaceholder('AFTER REPAIR'),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -383,7 +403,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  request.typeOfRequest,
+                                  request.typeDisplay,
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
@@ -529,86 +549,155 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
               const SizedBox(height: 16),
               
               // Timestamps
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              if (isMobile) ...[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.schedule,
-                              size: 14,
-                              color: const Color(0xFF6B7280),
-                            ),
-                            const SizedBox(width: 4),
-                            const Text(
-                              'SUBMITTED',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF6B7280),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
+                        const Icon(
+                          Icons.schedule,
+                          size: 14,
+                          color: Color(0xFF6B7280),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Oct ${request.dateSubmitted.day}, ${_formatTime(request.dateSubmitted)}',
-                          style: const TextStyle(
-                            fontSize: 13,
+                        const SizedBox(width: 4),
+                        const Text(
+                          'SUBMITTED',
+                          style: TextStyle(
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF111827),
+                            color: Color(0xFF6B7280),
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 4),
+                    Text(
+                      'Oct ${request.dateSubmitted.day}, ${_formatTime(request.dateSubmitted)}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.update,
-                              size: 14,
-                              color: const Color(0xFF6B7280),
-                            ),
-                            const SizedBox(width: 4),
-                            const Text(
-                              'LAST UPDATED',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF6B7280),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
+                        const Icon(
+                          Icons.update,
+                          size: 14,
+                          color: Color(0xFF6B7280),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Oct ${request.dateSubmitted.day}, 11:50 AM',
-                          style: const TextStyle(
-                            fontSize: 13,
+                        const SizedBox(width: 4),
+                        const Text(
+                          'LAST UPDATED',
+                          style: TextStyle(
+                            fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF111827),
+                            color: Color(0xFF6B7280),
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Oct ${request.dateSubmitted.day}, 11:50 AM',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.schedule,
+                                size: 14,
+                                color: Color(0xFF6B7280),
+                              ),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'SUBMITTED',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF6B7280),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Oct ${request.dateSubmitted.day}, ${_formatTime(request.dateSubmitted)}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.update,
+                                size: 14,
+                                color: Color(0xFF6B7280),
+                              ),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'LAST UPDATED',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF6B7280),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Oct ${request.dateSubmitted.day}, 11:50 AM',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               
               const SizedBox(height: 24),
               
               // Update Work Request Form Button
               ElevatedButton.icon(
-                onPressed: request.status == 'completed' ? () {
+                onPressed: request.status == 'Completed' ? () {
                   _showUpdateConfirmationDialog(context);
                 } : null,
                 icon: const Icon(Icons.edit_document, size: 20),
@@ -620,8 +709,8 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: request.status == 'completed' ? const Color(0xFF4169E1) : Colors.grey.shade300,
-                  foregroundColor: request.status == 'completed' ? Colors.white : Colors.grey.shade600,
+                  backgroundColor: request.status == 'Completed' ? const Color(0xFF4169E1) : Colors.grey.shade300,
+                  foregroundColor: request.status == 'Completed' ? Colors.white : Colors.grey.shade600,
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
@@ -639,7 +728,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => AdminPreInspectionReviewWeb(request: request),
+                        builder: (context) => AdminPreInspectionReviewWeb(request: request, isAdminView: true),
                       ),
                     );
                   },

@@ -154,29 +154,47 @@ class _AdminCostTrackingDashboardWebState extends State<AdminCostTrackingDashboa
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
+    final isTablet = width < 900;
+
     return Scaffold(
       backgroundColor: AdminStyles.bg,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        title: Text('Cost Tracking Analytics', style: AdminStyles.headingStyle()),
-        actions: [
-          TextButton.icon(
-            onPressed: _exportCSV,
-            icon: const Icon(Icons.download_rounded),
-            label: const Text('Export CSV'),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: _exportPDF,
-            icon: const Icon(Icons.picture_as_pdf_rounded),
-            label: const Text('Export PDF'),
-            style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.primary, foregroundColor: Colors.white),
-          ),
-          const SizedBox(width: 16),
-        ],
+        title: Text('Cost Tracking Analytics', style: AdminStyles.headingStyle(fontSize: isMobile ? 18 : 22)),
+        actions: isMobile
+            ? [
+                IconButton(
+                  onPressed: _exportCSV,
+                  icon: const Icon(Icons.download_rounded),
+                  tooltip: 'Export CSV',
+                ),
+                IconButton(
+                  onPressed: _exportPDF,
+                  icon: const Icon(Icons.picture_as_pdf_rounded, color: AdminStyles.primary),
+                  tooltip: 'Export PDF',
+                ),
+                const SizedBox(width: 8),
+              ]
+            : [
+                TextButton.icon(
+                  onPressed: _exportCSV,
+                  icon: const Icon(Icons.download_rounded),
+                  label: const Text('Export CSV'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _exportPDF,
+                  icon: const Icon(Icons.picture_as_pdf_rounded),
+                  label: const Text('Export PDF'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.primary, foregroundColor: Colors.white),
+                ),
+                const SizedBox(width: 16),
+              ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(isMobile ? 16 : 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -196,25 +214,37 @@ class _AdminCostTrackingDashboardWebState extends State<AdminCostTrackingDashboa
               ),
             ),
             const SizedBox(height: 24),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _buildBreakdownCard('Monthly Expenses', _monthlyExpenses)),
-                const SizedBox(width: 24),
-                Expanded(child: _buildBreakdownCard('Yearly Expenses', _yearlyExpenses)),
-                const SizedBox(width: 24),
-                Expanded(child: _buildBreakdownCard('By Department', _costByDepartment)),
-              ],
-            ),
+            if (isTablet) ...[
+              _buildBreakdownCard('Monthly Expenses', _monthlyExpenses),
+              const SizedBox(height: 16),
+              _buildBreakdownCard('Yearly Expenses', _yearlyExpenses),
+              const SizedBox(height: 16),
+              _buildBreakdownCard('By Department', _costByDepartment),
+            ] else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildBreakdownCard('Monthly Expenses', _monthlyExpenses)),
+                  const SizedBox(width: 24),
+                  Expanded(child: _buildBreakdownCard('Yearly Expenses', _yearlyExpenses)),
+                  const SizedBox(width: 24),
+                  Expanded(child: _buildBreakdownCard('By Department', _costByDepartment)),
+                ],
+              ),
             const SizedBox(height: 24),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: _buildBreakdownCard('By Building', _costByBuilding)),
-                const SizedBox(width: 24),
-                Expanded(child: _buildBreakdownCard('By Personnel', _costByPersonnel)),
-              ],
-            ),
+            if (isTablet) ...[
+              _buildBreakdownCard('By Building', _costByBuilding),
+              const SizedBox(height: 16),
+              _buildBreakdownCard('By Personnel', _costByPersonnel),
+            ] else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _buildBreakdownCard('By Building', _costByBuilding)),
+                  const SizedBox(width: 24),
+                  Expanded(child: _buildBreakdownCard('By Personnel', _costByPersonnel)),
+                ],
+              ),
             const SizedBox(height: 24),
             Text('Most Expensive Repairs', style: AdminStyles.headingStyle(fontSize: 20)),
             const SizedBox(height: 12),

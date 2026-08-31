@@ -28,7 +28,11 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
   String _selectedFilter = 'All';
   final TextEditingController _searchController = TextEditingController();
 
-  final _filters = ['All', 'Pending', 'In Progress', 'Completed', 'High Priority'];
+  final _statusFilters = ['All', 'Pending', 'In Progress', 'Confirmed', 'Rework', 'Completed', 'Declined'];
+  final _priorityFilters = ['All', 'Low', 'Medium', 'High'];
+
+  String _selectedStatusFilter = 'All';
+  String _selectedPriorityFilter = 'All';
 
   @override
   void initState() {
@@ -53,14 +57,22 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
 
   List<WorkRequest> get _filtered {
     List<WorkRequest> list = _requests;
-    if (_selectedFilter == 'Pending') {
-      list = list.where((r) => r.status == 'pending').toList();
-    } else if (_selectedFilter == 'In Progress') {
-      list = list.where((r) => r.status == 'in_progress' || r.status == 'under_maintenance').toList();
-    } else if (_selectedFilter == 'Completed') {
-      list = list.where((r) => r.status == 'completed').toList();
-    } else if (_selectedFilter == 'High Priority') {
-      list = list.where((r) => r.priority == 'high').toList();
+    if (_selectedStatusFilter == 'Pending') {
+      list = list.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').toList();
+    } else if (_selectedStatusFilter == 'In Progress') {
+      list = list.where((r) => r.status.toLowerCase() == 'in progress' || r.status.toLowerCase() == 'in_progress' || r.status.toLowerCase() == 'assigned' || r.status.toLowerCase() == 'accepted by maintenance').toList();
+    } else if (_selectedStatusFilter == 'Confirmed') {
+      list = list.where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'under_maintenance').toList();
+    } else if (_selectedStatusFilter == 'Rework') {
+      list = list.where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'rework needed' || r.status.toLowerCase() == 'for rework').toList();
+    } else if (_selectedStatusFilter == 'Completed') {
+      list = list.where((r) => r.status.toLowerCase() == 'completed').toList();
+    } else if (_selectedStatusFilter == 'Declined') {
+      list = list.where((r) => r.status.toLowerCase() == 'declined').toList();
+    }
+
+    if (_selectedPriorityFilter != 'All') {
+      list = list.where((r) => r.priority?.toLowerCase() == _selectedPriorityFilter.toLowerCase()).toList();
     }
     final q = _searchController.text.toLowerCase();
     if (q.isNotEmpty) {
@@ -75,9 +87,21 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
   Color _statusColor(String s) {
     switch (s.toLowerCase()) {
       case 'completed': return _green;
+      case 'in progress':
       case 'in_progress':
-      case 'under_maintenance': return _indigo;
-      case 'pending': return _orange;
+      case 'assigned':
+      case 'accepted by maintenance':
+        return _indigo;
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'under_maintenance':
+        return _green;
+      case 'rework':
+      case 'for rework':
+        return _orange;
+      case 'pending':
+      case 'pending assignment':
+        return _muted;
       default: return _muted;
     }
   }
@@ -99,7 +123,7 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Header ──────────────────────────────────────────────────
-            _buildHeader(filtered.length),
+            _buildHeader(filtered.length, isMobile),
             const SizedBox(height: 24),
 
             // ── Search + Filters ─────────────────────────────────────────
@@ -116,34 +140,49 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
     );
   }
 
-  Widget _buildHeader(int count) {
+  Widget _buildHeader(int count, bool isMobile) {
+    final titleCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Work Reports', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+        const SizedBox(height: 6),
+        const Text('All maintenance work requests across the campus.', style: TextStyle(fontSize: 14, color: _muted)),
+      ],
+    );
+
+    final recordsIndicator = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: _blue.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _blue.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.assignment_rounded, size: 14, color: _blue),
+          const SizedBox(width: 6),
+          Text('$count records', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _blue)),
+        ],
+      ),
+    );
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          titleCol,
+          const SizedBox(height: 12),
+          recordsIndicator,
+        ],
+      );
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Work Reports', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
-              const SizedBox(height: 6),
-              const Text('All maintenance work requests across the campus.', style: TextStyle(fontSize: 14, color: _muted)),
-            ],
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: _blue.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _blue.withValues(alpha: 0.2)),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.assignment_rounded, size: 14, color: _blue),
-              const SizedBox(width: 6),
-              Text('$count records', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _blue)),
-            ],
-          ),
-        ),
+        Expanded(child: titleCol),
+        const SizedBox(width: 16),
+        recordsIndicator,
       ],
     );
   }
@@ -171,21 +210,86 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
   }
 
   Widget _buildFilterBar(bool isMobile) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: _filters.map((f) {
-          final isSelected = _selectedFilter == f;
-          return Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: _FilterChip(
-              label: f,
-              isSelected: isSelected,
-              onTap: () => setState(() => _selectedFilter = f),
+    final statusGroup = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 8),
+          child: Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _muted)),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: _statusFilters.map((f) {
+              final isSelected = _selectedStatusFilter == f;
+              return Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: _FilterChip(
+                  label: f,
+                  isSelected: isSelected,
+                  onTap: () => setState(() => _selectedStatusFilter = f),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+
+    final priorityGroup = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 8),
+          child: Text('Priority Level', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _muted)),
+        ),
+        Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedPriorityFilter,
+              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: _muted),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
+              items: _priorityFilters.map((f) {
+                return DropdownMenuItem<String>(
+                  value: f,
+                  child: Text(f),
+                );
+              }).toList(),
+              onChanged: (val) {
+                if (val != null) setState(() => _selectedPriorityFilter = val);
+              },
             ),
-          );
-        }).toList(),
-      ),
+          ),
+        ),
+      ],
+    );
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          statusGroup,
+          const SizedBox(height: 16),
+          priorityGroup,
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(child: statusGroup),
+        const SizedBox(width: 24),
+        priorityGroup,
+      ],
     );
   }
 
@@ -357,22 +461,25 @@ class _TableRowState extends State<_TableRow> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: _hovered ? const Color(0xFFF0F9FF) : _card,
-          border: Border(
-            left: BorderSide(color: sc, width: 3),
-            bottom: widget.isLast ? BorderSide.none : BorderSide(color: _border),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: _hovered ? const Color(0xFFF0F9FF) : _card,
+            border: Border(
+              left: BorderSide(color: sc, width: 3),
+              bottom: widget.isLast ? BorderSide.none : BorderSide(color: _border),
+            ),
+            borderRadius: widget.isLast
+                ? const BorderRadius.vertical(bottom: Radius.circular(16))
+                : BorderRadius.zero,
           ),
-          borderRadius: widget.isLast
-              ? const BorderRadius.vertical(bottom: Radius.circular(16))
-              : BorderRadius.zero,
+          padding: EdgeInsets.symmetric(horizontal: widget.isMobile ? 16 : 24, vertical: 14),
+          child: widget.isMobile
+              ? _buildMobile(pc, sc)
+              : _buildDesktop(pc, sc),
         ),
-        padding: EdgeInsets.symmetric(horizontal: widget.isMobile ? 16 : 24, vertical: 14),
-        child: widget.isMobile
-            ? _buildMobile(pc, sc)
-            : _buildDesktop(pc, sc),
       ),
     );
   }
@@ -450,7 +557,14 @@ class _TableRowState extends State<_TableRow> {
           children: [
             const Icon(Icons.room_rounded, size: 12, color: _muted),
             const SizedBox(width: 4),
-            Text(widget.request.roomName ?? 'N/A', style: const TextStyle(fontSize: 11, color: _muted)),
+            Expanded(
+              child: Text(
+                widget.request.roomName ?? 'N/A',
+                style: const TextStyle(fontSize: 11, color: _muted),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             const SizedBox(width: 12),
             _Chip(widget.request.priority, pc),
           ],

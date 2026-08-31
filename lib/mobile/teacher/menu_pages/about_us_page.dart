@@ -62,7 +62,7 @@ class AboutUsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'PSU Maintenance System',
+                  'PSU MMS',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -104,7 +104,7 @@ class AboutUsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'The PSU Maintenance System is a comprehensive platform designed to streamline maintenance requests and operations at Pangasinan State University. Our system enables teachers and staff to efficiently report issues, track maintenance progress, and ensure a well-maintained campus environment.',
+                  'The PSU MMS is a comprehensive platform designed to streamline maintenance requests and operations at Pangasinan State University. Our system enables teachers and staff to efficiently report issues, track maintenance progress, and ensure a well-maintained campus environment.',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade700,
@@ -205,7 +205,7 @@ class AboutUsPage extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                '© 2026 PSU Maintenance System\nAll rights reserved',
+                '© 2026 PSU MMS\nAll rights reserved',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,

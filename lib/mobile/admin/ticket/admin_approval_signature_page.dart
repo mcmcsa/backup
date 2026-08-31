@@ -33,7 +33,7 @@ class _AdminApprovalSignaturePageState
   void initState() {
     super.initState();
     _loadSignatures();
-    _isApproved = widget.request.status != 'pending';
+    _isApproved = widget.request.status != 'Pending';
     if (widget.request.priority.isNotEmpty) {
       _selectedPriority = widget.request.priority;
     }
@@ -244,7 +244,7 @@ class _AdminApprovalSignaturePageState
                         ),
                         const SizedBox(height: 8),
                         Row(
-                          children: ['low', 'medium', 'high', 'emergency'].map((p) {
+                          children: ['low', 'medium', 'high'].map((p) {
                             final isSel = _selectedPriority == p;
                             return Expanded(
                               child: Padding(

@@ -57,7 +57,12 @@ class ChatRoom {
     if (name != null && name!.isNotEmpty) return name!;
     final other = participants.where((p) => p.userId != currentUserId).toList();
     if (other.isEmpty) return 'Unknown';
-    return other.map((p) => p.userName ?? 'User').join(', ');
+    return other.map((p) {
+      if (p.role == 'admin' || p.role == 'campadmin') {
+        return 'Campus Admin';
+      }
+      return p.userName ?? 'User';
+    }).join(', ');
   }
 
   /// Unread count relative to current user
@@ -100,6 +105,13 @@ class ChatParticipant {
   });
 
   factory ChatParticipant.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic>? userMap;
+    if (json['users'] is Map) {
+      userMap = json['users'] as Map<String, dynamic>;
+    } else if (json['users'] is List && (json['users'] as List).isNotEmpty) {
+      userMap = (json['users'] as List).first as Map<String, dynamic>;
+    }
+
     return ChatParticipant(
       id: json['id'] as String,
       roomId: json['room_id'] as String,
@@ -110,9 +122,9 @@ class ChatParticipant {
           ? DateTime.parse(json['last_read_at'] as String)
           : null,
       unreadCount: json['unread_count'] as int? ?? 0,
-      userName: json['users']?['name'] as String?,
-      userEmail: json['users']?['email'] as String?,
-      profileImage: json['users']?['profile_image'] as String?,
+      userName: userMap?['name'] as String?,
+      userEmail: userMap?['email'] as String?,
+      profileImage: userMap?['profile_image'] as String?,
     );
   }
 }

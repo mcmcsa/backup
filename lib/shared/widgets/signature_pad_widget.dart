@@ -873,7 +873,9 @@ class SignatureDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Column(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             SignaturePadWidget(
@@ -891,6 +893,7 @@ class SignatureDialog extends StatelessWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

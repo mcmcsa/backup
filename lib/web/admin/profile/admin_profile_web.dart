@@ -123,7 +123,7 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
         child: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeader(),
               const SizedBox(height: 32),
@@ -131,6 +131,7 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
               const SizedBox(height: 32),
               isMobile
                   ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _buildDetailsCard(),
                         const SizedBox(height: 24),

@@ -1,0 +1,28 @@
+Make this page/system fully responsive for all devices (mobile, tablet, desktop) — 
+layout, buttons, and text should automatically resize, reposition, 
+and scale to fit any screen size, with no overflow or cut-off content. 
+Use fluid layouts (Flexbox/Grid, relative units) and breakpoints so it 
+looks and works consistently for every user regardless of device.
+
+
+Make this page/system fully responsive so it works well on any device and screen size (mobile, tablet, laptop, and desktop).
+
+Requirements:
+
+The layout should automatically adjust to fit the screen width — no horizontal scrolling, 
+no cut-off or overlapping content.
+All buttons, inputs, and interactive elements should resize and 
+reposition naturally, staying easy to tap/click on smaller screens.
+Text should scale appropriately for readability on any screen, 
+without needing the user to zoom in or out.
+Use flexible/fluid layout techniques (like Flexbox, Grid, or relative units) 
+instead of fixed pixel widths, so the design isn't locked to one screen size.
+Add breakpoints for common device sizes (small mobile, large mobile, tablet, desktop) 
+so the layout adapts smoothly between them.
+Keep spacing, alignment, and proportions consistent and visually balanced 
+at every screen size.
+This should apply across the entire site/app consistently, so every user gets 
+the same adaptive experience regardless of their device.
+
+
+

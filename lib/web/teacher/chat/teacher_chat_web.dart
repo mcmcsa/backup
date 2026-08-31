@@ -8,7 +8,8 @@ import '../../admin/shared/admin_styles.dart';
 import 'package:intl/intl.dart';
 
 class TeacherChatWeb extends StatefulWidget {
-  const TeacherChatWeb({super.key});
+  final ChatRoom? initialRoom;
+  const TeacherChatWeb({super.key, this.initialRoom});
 
   @override
   State<TeacherChatWeb> createState() => _TeacherChatWebState();
@@ -31,6 +32,16 @@ class _TeacherChatWebState extends State<TeacherChatWeb> {
   }
 
   @override
+  void didUpdateWidget(covariant TeacherChatWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialRoom != null && widget.initialRoom != oldWidget.initialRoom) {
+      setState(() {
+        _selectedRoom = widget.initialRoom;
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _roomsChannel?.unsubscribe();
     super.dispose();
@@ -45,6 +56,11 @@ class _TeacherChatWebState extends State<TeacherChatWeb> {
     await _loadRooms();
     await _loadEligibleUsers();
     _subscribeToRooms();
+    if (widget.initialRoom != null) {
+      setState(() {
+        _selectedRoom = widget.initialRoom;
+      });
+    }
   }
 
   Future<void> _loadRooms() async {
@@ -95,12 +111,31 @@ class _TeacherChatWebState extends State<TeacherChatWeb> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 750;
+
+    if (isMobile) {
+      return Container(
+        color: const Color(0xFFF8FAFC),
+        child: _selectedRoom != null
+            ? _ChatConversationPanel(
+                key: ValueKey(_selectedRoom!.id),
+                room: _selectedRoom!,
+                currentUserId: _currentUserId!,
+                currentUserName: _currentUserName!,
+                currentUserRole: _currentUserRole!,
+                onBack: () => setState(() => _selectedRoom = null),
+              )
+            : _buildSidePanel(isMobile: true),
+      );
+    }
+
     return Container(
       color: const Color(0xFFF8FAFC),
       child: Row(
         children: [
           // Left panel: conversations list
-          _buildSidePanel(),
+          _buildSidePanel(isMobile: false),
           // Right panel: active chat or placeholder
           Expanded(
             child: _selectedRoom != null
@@ -119,12 +154,12 @@ class _TeacherChatWebState extends State<TeacherChatWeb> {
     );
   }
 
-  Widget _buildSidePanel() {
+  Widget _buildSidePanel({bool isMobile = false}) {
     return Container(
-      width: 320,
-      decoration: const BoxDecoration(
+      width: isMobile ? double.infinity : 320,
+      decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(right: BorderSide(color: Color(0xFFE2E8F0))),
+        border: isMobile ? null : const Border(right: BorderSide(color: Color(0xFFE2E8F0))),
       ),
       child: Column(
         children: [

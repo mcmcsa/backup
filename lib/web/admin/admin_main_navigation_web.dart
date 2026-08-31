@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../shared/services/app_notification_service.dart';
 import '../../shared/widgets/announcements/global_announcement_listener.dart';
 import '../../authentication/services/auth_service.dart';
+import '../../../shared/utils/workflow_guide_dialog.dart';
 import '../../shared/models/room_model.dart';
 import '../../shared/models/chat_model.dart';
 import 'shared/admin_styles.dart';
@@ -95,6 +98,45 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ScrollController _sidebarScrollController = ScrollController();
 
+  int _unreadNotificationCount = 0;
+  RealtimeChannel? _notificationsChannel;
+
+  Future<void> _loadUnreadNotificationCount() async {
+    try {
+      final authService = context.read<AuthService>();
+      final currentUser = authService.currentUser;
+      if (currentUser == null) return;
+
+      final count = await AppNotificationService.getUnreadCount(
+        role: currentUser.role.name,
+        userId: currentUser.id,
+      );
+      if (mounted) {
+        setState(() {
+          _unreadNotificationCount = count;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _subscribeNotifications() {
+    final authService = context.read<AuthService>();
+    final currentUser = authService.currentUser;
+    if (currentUser == null) return;
+
+    _notificationsChannel = Supabase.instance.client
+        .channel('admin_notifications_realtime')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'app_notifications',
+          callback: (payload) {
+            _loadUnreadNotificationCount();
+          },
+        )
+        .subscribe();
+  }
+
   // Design Tokens (Mapping AdminStyles for internal use)
   static const _sidebarBg = Color(0xFF0B1F33);
   static const _sidebarBorder = Color(0xFF17324A);
@@ -110,6 +152,8 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _loadUserInfo();
+    _loadUnreadNotificationCount();
+    _subscribeNotifications();
   }
 
   Future<void> _loadUserInfo() async {
@@ -320,6 +364,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
           return AdminRoomDetailsPageWeb(
             room: _selectedRoom!,
             onEditRoom: _openEditRoomInShell,
+            onBack: _backToRoomsList,
           );
         }
 
@@ -388,6 +433,9 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
 
   @override
   void dispose() {
+    if (_notificationsChannel != null) {
+      Supabase.instance.client.removeChannel(_notificationsChannel!);
+    }
     _sidebarScrollController.dispose();
     super.dispose();
   }
@@ -512,7 +560,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'PSU QR-MMS',
+                        'PSU MMS',
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
@@ -586,12 +634,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                       title: 'QR Management',
                       closeDrawerOnTap: closeDrawerOnTap,
                     ),
-                    _buildNavItem(
-                      index: _costTrackingIndex,
-                      icon: Icons.monetization_on_rounded,
-                      title: 'Cost Tracking',
-                      closeDrawerOnTap: closeDrawerOnTap,
-                    ),
+
                     _buildNavItem(
                       index: _usersIndex,
                       icon: Icons.people_rounded,
@@ -833,16 +876,6 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
           ],
           Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.asset(
-                  'assets/images/psu_logo_v3.png',
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              const SizedBox(width: 10),
               SizedBox(
                 width: isCompact ? 160 : null,
                 child: Text(
@@ -862,10 +895,22 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
 
           const Spacer(),
 
+          // Guide Button
+          IconButton(
+            onPressed: () {
+              final user = context.read<AuthService>().currentUser;
+              showWorkflowGuideDialog(context, role: user?.role.name);
+            },
+            icon: const Icon(Icons.help_outline_rounded, color: AdminStyles.textSecondary),
+            tooltip: 'Workflow Guide',
+          ),
+
+          SizedBox(width: isCompact ? 8 : 16),
+
           // Notification Bell with badge
-          _HeaderIconButton(
-            icon: Icons.notifications_outlined,
-            badge: 3,
+          _NotificationButton(
+            showLabel: !isCompact,
+            badge: _unreadNotificationCount,
             onTap: () => setState(() => _selectedIndex = _notificationsIndex),
           ),
 
@@ -1056,6 +1101,71 @@ class _HeaderIconButtonState extends State<_HeaderIconButton> {
                     ),
                   ),
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationButton extends StatefulWidget {
+  final bool showLabel;
+  final VoidCallback onTap;
+  final int badge;
+  const _NotificationButton({required this.showLabel, required this.onTap, required this.badge});
+
+  @override
+  State<_NotificationButton> createState() => _NotificationButtonState();
+}
+
+class _NotificationButtonState extends State<_NotificationButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.showLabel ? 14 : 10,
+            vertical: 8,
+          ),
+          decoration: BoxDecoration(
+            color: _isHovered ? AdminStyles.primary.withValues(alpha: 0.08) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _isHovered ? AdminStyles.primary.withValues(alpha: 0.15) : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Badge(
+                isLabelVisible: widget.badge > 0,
+                label: Text('${widget.badge}'),
+                child: Icon(
+                  Icons.notifications_outlined,
+                  color: _isHovered ? AdminStyles.primary : const Color(0xFF94A3B8),
+                  size: 22,
+                ),
+              ),
+              if (widget.showLabel) ...[
+                const SizedBox(width: 8),
+                Text(
+                  'Notifications',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _isHovered ? AdminStyles.primary : const Color(0xFF64748B),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

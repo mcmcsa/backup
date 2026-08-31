@@ -178,7 +178,7 @@ class _MaintenanceProfileWebState extends State<MaintenanceProfileWeb> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildProfileHero(user, authService.isLoading),
+                  _buildProfileHero(user, authService.isLoading, isMobile),
                   const SizedBox(height: 32),
                   _buildRegistrationDetails(isMobile),
                 ],
@@ -190,9 +190,38 @@ class _MaintenanceProfileWebState extends State<MaintenanceProfileWeb> {
     );
   }
 
-  Widget _buildProfileHero(AppUser? user, bool isLoading) {
+  Widget _buildProfileHero(AppUser? user, bool isLoading, bool isMobile) {
+    final avatar = _buildAvatar(user);
+    final details = Column(
+      crossAxisAlignment: isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'MAINTENANCE PROFILE',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: _primaryBlue,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          user?.name ?? 'Maintenance Account',
+          style: TextStyle(fontSize: isMobile ? 22 : 28, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5),
+          textAlign: isMobile ? TextAlign.center : TextAlign.left,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          user?.email ?? '',
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _subtleText),
+          textAlign: isMobile ? TextAlign.center : TextAlign.left,
+        ),
+      ],
+    );
+    final actionBtn = _buildActionButton(isLoading);
+
     return Container(
-      padding: const EdgeInsets.all(40),
+      padding: EdgeInsets.all(isMobile ? 20 : 40),
       decoration: BoxDecoration(
         color: _cardBg,
         borderRadius: BorderRadius.circular(16),
@@ -205,39 +234,24 @@ class _MaintenanceProfileWebState extends State<MaintenanceProfileWeb> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          _buildAvatar(user),
-          const SizedBox(width: 40),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: isMobile
+          ? Column(
               children: [
-                const Text(
-                  'MAINTENANCE PROFILE',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: _primaryBlue,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  user?.name ?? 'Maintenance Account',
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  user?.email ?? '',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _subtleText),
-                ),
+                Center(child: avatar),
+                const SizedBox(height: 24),
+                details,
+                const SizedBox(height: 24),
+                actionBtn,
+              ],
+            )
+          : Row(
+              children: [
+                avatar,
+                const SizedBox(width: 40),
+                Expanded(child: details),
+                actionBtn,
               ],
             ),
-          ),
-          _buildActionButton(isLoading),
-        ],
-      ),
     );
   }
 

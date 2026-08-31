@@ -81,7 +81,7 @@ class _ModernSidebarWebState extends State<ModernSidebarWeb> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'PSU MaintSystem',
+                  'PSU MMS',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,

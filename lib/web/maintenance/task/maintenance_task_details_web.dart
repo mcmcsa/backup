@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +14,10 @@ import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
 import 'maintenance_accept_task_web.dart';
 import '../../teacher/reports/teacher_official_form_web.dart';
+import '../../../shared/models/pre_inspection_model.dart';
+import '../../../shared/models/post_repair_model.dart';
+import '../../../shared/services/pre_inspection_service.dart';
+import '../../../shared/services/post_repair_service.dart';
 
 class MaintenanceTaskDetailsWeb extends StatefulWidget {
   final WorkRequest task;
@@ -28,6 +33,9 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     with SingleTickerProviderStateMixin {
   WorkRequest? _currentTask;
   List<ESignature> _signatures = [];
+  PreInspectionReport? _preInspectionReport;
+  List<PostRepairReport> _postRepairReports = [];
+  final Map<String, String> _userNames = {};
   bool _isLoading = true;
   bool _isProcessing = false;
   
@@ -53,10 +61,21 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     try {
       final task = await WorkRequestService.fetchById(widget.task.id);
       final sigs = await ESignatureService.fetchByWorkRequest(widget.task.id);
+      final preInsp = await PreInspectionService.fetchLatestByWorkRequest(widget.task.id);
+      final postRepairs = await PostRepairService.fetchByWorkRequest(widget.task.id);
       if (mounted) {
         setState(() {
+          // Populate cache of user names from signatures to bypass RLS issues
+          for (final sig in sigs) {
+            if (sig.signerId.isNotEmpty && sig.signerName.isNotEmpty) {
+              final isAdm = sig.signerRole.toLowerCase() == 'campadmin';
+              _userNames[sig.signerId] = isAdm ? 'Campus Admin - ${sig.signerName}' : sig.signerName;
+            }
+          }
           _currentTask = task ?? widget.task;
           _signatures = sigs;
+          _preInspectionReport = preInsp;
+          _postRepairReports = postRepairs;
           _isLoading = false;
         });
         _animController.forward();
@@ -196,7 +215,8 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
       case 'in_progress':
       case 'under_maintenance': return AdminStyles.info;
       case 'rework': return AdminStyles.error;
-      case 'approved': return AdminStyles.primary;
+      case 'approved':
+      case 'confirmed': return AdminStyles.primary;
       case 'pending': return AdminStyles.warning;
       case 'cancelled': return AdminStyles.error;
       default: return AdminStyles.textMuted;
@@ -216,56 +236,155 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
   List<_TimelineStep> get _steps {
     if (_currentTask == null) return [];
     final task = _currentTask!;
-    final submitted = task.dateSubmitted;
-    final approved = task.approvedDate;
-    final started = task.maintenanceStartTime;
-    final ended = task.maintenanceEndTime ?? task.dateCompleted;
+    final steps = <_TimelineStep>[];
 
-    final isApproved = task.status.toLowerCase() != 'pending';
-    final isInProgress = ['in_progress', 'under_maintenance', 'completed', 'rework'].contains(task.status.toLowerCase());
-    final isDone = task.status.toLowerCase() == 'completed';
+    // 1. Request Submitted
+    steps.add(_TimelineStep(
+      icon: Icons.assignment_turned_in_rounded,
+      title: 'Request Submitted',
+      desc: 'Initial request submitted by ${task.displayRequestorName}.',
+      date: task.dateSubmitted,
+      isCompleted: true,
+      color: AdminStyles.primary,
+    ));
 
-    return [
-      _TimelineStep(
-        icon: Icons.assignment_turned_in_rounded,
-        title: 'Request Submitted',
-        desc: 'Request submitted for ${task.roomName ?? 'a room'}.',
-        date: submitted,
+    // 2. Admin Review & Approval
+    final isApproved = ['assigned', 'confirmed', 'rework', 'completed', 'in progress', 'in_progress', 'declined'].contains(task.status.toLowerCase());
+    final isDeclinedInitially = task.status.toLowerCase() == 'declined' && _preInspectionReport == null;
+    steps.add(_TimelineStep(
+      icon: Icons.admin_panel_settings_rounded,
+      title: isDeclinedInitially ? 'Request Declined' : 'Admin Review & Approval',
+      desc: isDeclinedInitially
+          ? 'Request was declined and closed.'
+          : (isApproved
+              ? 'Request approved by ${task.approvedByName ?? "Admin"}.'
+              : 'Waiting for admin approval.'),
+      date: task.approvedDate,
+      isCompleted: isApproved,
+      color: isDeclinedInitially ? AdminStyles.error : AdminStyles.secondary,
+    ));
+
+    if (isDeclinedInitially) return steps;
+
+    // 3. Maintenance Assignment & Acceptance
+    final isAccepted = task.acceptedDate != null;
+    steps.add(_TimelineStep(
+      icon: Icons.engineering_rounded,
+      title: 'Maintenance Assignment',
+      desc: isAccepted
+          ? 'Accepted by ${task.acceptedByName ?? "Technician"}.'
+          : (task.assignedToId != null
+              ? 'Assigned to ${task.acceptedByName ?? "Technician"}. Awaiting acceptance.'
+              : 'Pending technician assignment.'),
+      date: task.acceptedDate,
+      isCompleted: isAccepted,
+      color: AdminStyles.info,
+    ));
+
+    // 4. Pre-Inspection Report Submitted
+    final hasPreInsp = _preInspectionReport != null;
+    steps.add(_TimelineStep(
+      icon: Icons.search_rounded,
+      title: 'Pre-Inspection',
+      desc: hasPreInsp
+          ? 'Submitted by ${_preInspectionReport!.inspectorName}'
+          : 'Awaiting pre-inspection.',
+      date: _preInspectionReport?.inspectionDate,
+      isCompleted: hasPreInsp,
+      color: AdminStyles.warning,
+    ));
+
+    // 5. Pre-Inspection Review Decision
+    if (hasPreInsp) {
+      final isReviewed = _preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined';
+      final isPreInspDeclined = _preInspectionReport!.status == 'Declined';
+      final approvedByName = _preInspectionReport!.adminApprovedBy != null
+          ? (_userNames[_preInspectionReport!.adminApprovedBy] ?? _preInspectionReport!.adminApprovedBy)
+          : "Admin";
+      
+      steps.add(_TimelineStep(
+        icon: isPreInspDeclined ? Icons.cancel_rounded : Icons.fact_check_rounded,
+        title: isPreInspDeclined ? 'Pre-Inspection Declined' : 'Pre-Inspection Approved',
+        desc: isReviewed
+            ? '${_preInspectionReport!.status} by $approvedByName'
+            : 'Awaiting pre-inspection review.',
+        date: _preInspectionReport?.adminApprovedDate,
+        isCompleted: isReviewed && !isPreInspDeclined,
+        color: isPreInspDeclined ? AdminStyles.error : AdminStyles.success,
+      ));
+
+      if (isPreInspDeclined) return steps;
+    }
+
+    // 6. Post-Repair Attempts
+    final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
+      ..sort((a, b) {
+        int cmp = a.repairDate.compareTo(b.repairDate);
+        if (cmp != 0) return cmp;
+        return a.attemptNumber.compareTo(b.attemptNumber);
+      });
+
+    for (int i = 0; i < sortedAttempts.length; i++) {
+      final report = sortedAttempts[i];
+      steps.add(_TimelineStep(
+        icon: Icons.build_circle_rounded,
+        title: 'Post-Repair Report Submitted',
+        desc: 'Submitted by ${report.technicianName}',
+        date: report.repairDate,
         isCompleted: true,
         color: AdminStyles.primary,
-      ),
-      _TimelineStep(
-        icon: Icons.admin_panel_settings_rounded,
-        title: 'Admin Review & Approval',
-        desc: isApproved
-            ? (task.approvedByName != null ? 'Approved by ${task.approvedByName}.' : 'Request approved and assigned.')
-            : 'Waiting for admin approval.',
-        date: approved,
-        isCompleted: isApproved,
-        color: AdminStyles.secondary,
-      ),
-      _TimelineStep(
-        icon: Icons.engineering_rounded,
-        title: 'Maintenance In Progress',
-        desc: isInProgress
-            ? (task.acceptedByName != null ? 'Assigned to ${task.acceptedByName}. Work is under way.' : 'Maintenance staff is working on the issue.')
-            : 'Pending assignment to maintenance staff.',
-        date: started,
-        isCompleted: isInProgress,
-        color: AdminStyles.info,
-      ),
-      _TimelineStep(
-        icon: Icons.verified_rounded,
-        title: 'Completed & Verified',
-        desc: isDone
-            ? 'The issue has been resolved and verified.'
-            : 'Awaiting completion verification and sign-off.',
-        date: ended,
-        isCompleted: isDone,
-        color: AdminStyles.success,
-        isLast: true,
-      ),
-    ];
+      ));
+
+      final isEvaluated = report.adminEvaluation != null;
+      final isRework = report.adminEvaluation == 'rework';
+      final evaluatedByName = report.adminEvaluatedBy != null
+          ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
+          : "Admin";
+      
+      final isLatestReport = i == sortedAttempts.length - 1;
+      if (isEvaluated || isLatestReport) {
+        steps.add(_TimelineStep(
+          icon: isRework ? Icons.refresh_rounded : Icons.check_circle_rounded,
+          title: isRework ? 'Post-Repair Evaluation Completed - Rework' : 'Post-Repair Evaluation',
+          desc: isEvaluated
+              ? (isRework
+                  ? 'Rework required by $evaluatedByName'
+                  : 'Approved by $evaluatedByName')
+              : 'Awaiting evaluation.',
+          date: report.adminEvaluatedDate,
+          isCompleted: isEvaluated,
+          color: isRework ? AdminStyles.warning : AdminStyles.success,
+          customBadge: isRework ? 'Rework' : null,
+        ));
+      }
+    }
+
+    // If the latest evaluation was rework, append a pending Post-Repair Report step
+    if (sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'rework') {
+      steps.add(const _TimelineStep(
+        icon: Icons.build_circle_rounded,
+        title: 'Post-Repair Report',
+        desc: 'Awaiting post-repair report (Rework).',
+        isCompleted: false,
+        color: Colors.grey,
+      ));
+    }
+
+    // 7. Final Completion
+    final isCompleted = task.status.toLowerCase() == 'completed';
+    steps.add(_TimelineStep(
+      icon: Icons.verified_rounded,
+      title: 'Completed & Verified',
+      desc: isCompleted
+          ? 'Work request fully verified and completed.'
+          : 'Awaiting final verification and close out.',
+      date: task.dateCompleted,
+      isCompleted: isCompleted,
+      color: AdminStyles.success,
+      isLast: true,
+    ));
+
+    return steps;
   }
 
   @override
@@ -415,6 +534,11 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
         title = 'Maintenance In Progress';
         desc = 'Work has been accepted and is currently in progress.';
         icon = Icons.construction_rounded;
+        break;
+      case 'confirmed':
+        title = 'Pre-Inspection Approved';
+        desc = 'The site pre-inspection has been approved. Please perform the repair work and submit the completion report.';
+        icon = Icons.verified_rounded;
         break;
       case 'under_maintenance':
         title = 'Work Completed, Under Review';
@@ -891,14 +1015,32 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
             const SizedBox(height: 24),
             Text('Accomplished Work Evidence', style: AdminStyles.headingStyle(fontSize: 15)),
             const SizedBox(height: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                task.workEvidence!,
-                width: double.infinity,
-                height: 200,
-                fit: BoxFit.cover,
-              ),
+            Builder(
+              builder: (context) {
+                final urls = _parseEvidenceUrls(task.workEvidence);
+                if (urls.isEmpty) return const SizedBox.shrink();
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 16 / 9,
+                  ),
+                  itemCount: urls.length,
+                  itemBuilder: (context, idx) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        urls[idx],
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image)),
+                      ),
+                    );
+                  },
+                );
+              }
             ),
           ],
         ],
@@ -923,6 +1065,21 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
         ],
       ),
     );
+  }
+
+  List<String> _parseEvidenceUrls(String? evidence) {
+    if (evidence == null || evidence.trim().isEmpty) return [];
+    final clean = evidence.trim();
+    if (clean.startsWith('[') && clean.endsWith(']')) {
+      try {
+        final List<dynamic> decoded = jsonDecode(clean);
+        return decoded.map((e) => e.toString()).toList();
+      } catch (_) {}
+    }
+    if (clean.contains(',')) {
+      return clean.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
+    return [clean];
   }
 
   Widget _buildReferenceDataCard() {
@@ -1032,6 +1189,7 @@ class _TimelineStep {
   final bool isCompleted;
   final Color color;
   final bool isLast;
+  final String? customBadge;
 
   const _TimelineStep({
     required this.icon,
@@ -1041,5 +1199,6 @@ class _TimelineStep {
     required this.isCompleted,
     required this.color,
     this.isLast = false,
+    this.customBadge,
   });
 }

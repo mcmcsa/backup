@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +9,14 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/work_request_service.dart';
-import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/models/pre_inspection_model.dart';
+import '../../../shared/models/post_repair_model.dart';
+import '../../../shared/services/pre_inspection_service.dart';
+import '../../../shared/services/post_repair_service.dart';
+import '../../../shared/services/user_service.dart';
+
+import 'package:printing/printing.dart';
+import '../../../shared/services/iso_pdf_service.dart';
 
 class RequestDetailsPage extends StatefulWidget {
   final String trackingNumber;
@@ -29,7 +37,10 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
   WorkRequest? _request;
   List<ESignature> _signatures = [];
   Timer? _autoRefreshTimer;
-  bool _isSubmittingCompletionSignature = false;
+
+  PreInspectionReport? _preInspectionReport;
+  List<PostRepairReport> _postRepairReports = [];
+  final Map<String, String> _userNames = {};
 
   @override
   void initState() {
@@ -66,10 +77,41 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
       final signatures = request != null
           ? await ESignatureService.fetchByWorkRequest(request.id)
           : <ESignature>[];
+          
+      // Populate cache of user names from signatures to bypass RLS issues
+      for (final sig in signatures) {
+        if (sig.signerId.isNotEmpty && sig.signerName.isNotEmpty) {
+          final isAdm = sig.signerRole.toLowerCase() == 'campadmin';
+          _userNames[sig.signerId] = isAdm ? 'Campus Admin - ${sig.signerName}' : sig.signerName;
+        }
+      }
+
+      final preInspection = request != null
+          ? await PreInspectionService.fetchLatestByWorkRequest(request.id)
+          : null;
+      final postRepairs = request != null
+          ? await PostRepairService.fetchByWorkRequest(request.id)
+          : <PostRepairReport>[];
+
+      final userIds = <String>{};
+      if (preInspection?.adminApprovedBy != null) userIds.add(preInspection!.adminApprovedBy!);
+      for (final report in postRepairs) {
+        if (report.adminEvaluatedBy != null) userIds.add(report.adminEvaluatedBy!);
+      }
+      final missingIds = userIds.where((id) => !_userNames.containsKey(id)).toList();
+      if (missingIds.isNotEmpty) {
+        final names = await UserService.fetchNamesByIds(missingIds);
+        if (names.isNotEmpty) {
+          _userNames.addAll(names);
+        }
+      }
+
       if (mounted) {
         setState(() {
           _request = request;
           _signatures = signatures;
+          _preInspectionReport = preInspection;
+          _postRepairReports = postRepairs;
         });
       }
       await _markRelatedNotificationsRead();
@@ -92,273 +134,6 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     } catch (_) {}
   }
 
-  bool get _hasAdminCompletionSignature {
-    return _signatures.any(
-      (sig) => sig.signatureType == 'completion' && sig.signerRole == 'admin',
-    );
-  }
-
-  bool get _hasCurrentUserCompletionSignature {
-    final user = context.read<AuthService>().currentUser;
-    if (user == null) return false;
-    return _signatures.any(
-      (sig) =>
-          sig.signatureType == 'completion' && sig.signerId.trim() == user.id,
-    );
-  }
-
-  Future<void> _submitRequestorCompletionSignature(String signatureData) async {
-    final request = _request;
-    final user = context.read<AuthService>().currentUser;
-    if (request == null || user == null) return;
-
-    if (_hasCurrentUserCompletionSignature) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You already signed the confirm work request form.'),
-          backgroundColor: Color(0xFF1D4ED8),
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isSubmittingCompletionSignature = true);
-
-    try {
-      await ESignatureService.insert(
-        ESignature(
-          id: '',
-          workRequestId: request.id,
-          signerId: user.id,
-          signerName: user.name,
-          signerRole: user.role.name,
-          signatureType: 'completion',
-          signatureData: signatureData,
-          signedAt: DateTime.now(),
-          notes: 'Requestor completion confirmation signature',
-        ),
-      );
-
-      await WorkRequestService.completeRequest(request.id);
-
-      await _loadRequest();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Confirm work request form signed successfully.'),
-          backgroundColor: Color(0xFF059669),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to submit signature: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmittingCompletionSignature = false);
-      }
-    }
-  }
-
-  Future<void> _openRequestorConfirmSignatureSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFFF8F9FA),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        final completionSignatures = _signatures
-            .where((sig) => sig.signatureType == 'completion')
-            .toList();
-
-        return SafeArea(
-          child: DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.85,
-            minChildSize: 0.6,
-            maxChildSize: 0.95,
-            builder: (context, scrollController) {
-              return SingleChildScrollView(
-                controller: scrollController,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD1D5DB),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Confirm Work Request Form',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Request ID: ${_request?.id ?? widget.trackingNumber}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                    Text(
-                      'Title: ${_request?.title ?? 'N/A'}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Work Evidence',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (((_request?.workEvidence ?? '')).trim().isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3F4F6),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: Image.network(
-                              _request!.workEvidence!,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 12),
-                                  child: Text(
-                                    'Unable to load work evidence image.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF6B7280),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF9FAFB),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'No work evidence uploaded yet.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Maintenance Note',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF9FAFB),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: Text(
-                        ((_request?.maintenanceNotes ?? '')).trim().isNotEmpty
-                            ? _request!.maintenanceNotes!.trim()
-                            : 'No maintenance note provided.',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF374151),
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    if (completionSignatures.isNotEmpty) ...[
-                      const Text(
-                        'Current Completion Signers',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF6B7280),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ...completionSignatures.map(
-                        (sig) => Padding(
-                          padding: const EdgeInsets.only(bottom: 6),
-                          child: Text(
-                            '${sig.signatureTypeLabel}: ${sig.signerName} (${_formatDate(sig.signedAt)})',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF374151),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-                    SignaturePadWidget(
-                      title: 'E-Signature for Requestor Confirmation',
-                      subtitle: 'Sign to confirm completion of your request',
-                      onSignatureComplete: (signatureData) async {
-                        Navigator.of(sheetContext).pop();
-                        await _submitRequestorCompletionSignature(
-                          signatureData,
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
 
   int _getWorkflowStep() {
     if (_request == null) return 0;
@@ -401,6 +176,26 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.print_rounded, color: Colors.black87),
+            onPressed: () async {
+              if (_request != null) {
+                try {
+                  final pdfBytes = await IsoPdfService.generateWorkRequestPdf(_request!);
+                  await Printing.layoutPdf(onLayout: (_) => pdfBytes);
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to generate PDF: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.share, color: Colors.black87),
             onPressed: () {},
@@ -582,61 +377,10 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                 ),
               ),
             ),
-            if (_hasAdminCompletionSignature) ...[
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
-                ),
-                child: Text(
-                  _hasCurrentUserCompletionSignature
-                      ? 'You already signed the confirm work request form.'
-                      : 'Admin already signed the confirm work request form. You can now add your signature.',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF1D4ED8),
-                    height: 1.4,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (_isSubmittingCompletionSignature)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 10),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              ElevatedButton.icon(
-                onPressed:
-                    (_isSubmittingCompletionSignature ||
-                        _hasCurrentUserCompletionSignature)
-                    ? null
-                    : _openRequestorConfirmSignatureSheet,
-                icon: const Icon(Icons.verified, size: 18),
-                label: Text(
-                  _hasCurrentUserCompletionSignature
-                      ? 'Confirm Form Already Signed'
-                      : 'Sign Confirm Work Request Form',
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  disabledForegroundColor: Colors.grey.shade600,
-                  minimumSize: const Size(double.infinity, 48),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ],
             const SizedBox(height: 20),
-            // Progress Timeline
+            // Workflow Timeline
             const Text(
-              'Progress Timeline',
+              'Workflow Timeline',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -644,130 +388,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
               ),
             ),
             const SizedBox(height: 20),
-            _buildTimelineItem(
-              icon: _getWorkflowStep() >= 1
-                  ? Icons.check_circle
-                  : Icons.circle_outlined,
-              iconColor: _getWorkflowStep() >= 1
-                  ? const Color(0xFF4CAF50)
-                  : Colors.grey.shade400,
-              title: 'Request Submitted',
-              date: _request != null
-                  ? _formatDate(_request!.dateSubmitted)
-                  : 'Pending...',
-              description: 'Logged via Mobile App',
-              isCompleted: _getWorkflowStep() >= 1,
-            ),
-            _buildTimelineItem(
-              icon: _getWorkflowStep() >= 2
-                  ? Icons.check_circle
-                  : Icons.circle_outlined,
-              iconColor: _getWorkflowStep() >= 2
-                  ? const Color(0xFF4CAF50)
-                  : Colors.grey.shade400,
-              title: 'Request Approved',
-              date: _getWorkflowStep() >= 2
-                  ? 'Admin approved'
-                  : 'Waiting for approval',
-              description: '',
-              isCompleted: _getWorkflowStep() >= 2,
-            ),
-            _buildTimelineItem(
-              icon: _getWorkflowStep() >= 3
-                  ? Icons.check_circle
-                  : (_getWorkflowStep() == 2
-                        ? Icons.circle
-                        : Icons.circle_outlined),
-              iconColor: _getWorkflowStep() >= 3
-                  ? const Color(0xFF4CAF50)
-                  : (_getWorkflowStep() == 2
-                        ? const Color(0xFF2196F3)
-                        : Colors.grey.shade400),
-              title: 'Maintenance Accepted',
-              date: _request?.acceptedDate != null
-                  ? _formatDate(_request!.acceptedDate!)
-                  : 'Waiting...',
-              description: _request?.acceptedByName ?? '',
-              isCompleted: _getWorkflowStep() >= 3,
-            ),
-            _buildTimelineItem(
-              icon: _getWorkflowStep() >= 4
-                  ? Icons.check_circle
-                  : (_getWorkflowStep() == 3
-                        ? Icons.circle
-                        : Icons.circle_outlined),
-              iconColor: _getWorkflowStep() >= 4
-                  ? const Color(0xFF4CAF50)
-                  : (_getWorkflowStep() == 3
-                        ? const Color(0xFF2196F3)
-                        : Colors.grey.shade400),
-              title: 'Pre-Inspection & Repair',
-              date: _request?.maintenanceStartTime != null
-                  ? 'Started ${_formatDate(_request!.maintenanceStartTime!)}'
-                  : 'Not started',
-              description: _getWorkflowStep() == 3
-                  ? 'Pre-inspection in progress'
-                  : '',
-              isCompleted: _getWorkflowStep() >= 4,
-            ),
-            _buildTimelineItem(
-              icon: _getWorkflowStep() >= 5
-                  ? Icons.check_circle
-                  : (_getWorkflowStep() == 4
-                        ? Icons.circle
-                        : Icons.circle_outlined),
-              iconColor: _getWorkflowStep() >= 5
-                  ? const Color(0xFF4CAF50)
-                  : (_getWorkflowStep() == 4
-                        ? Colors.orange
-                        : Colors.grey.shade400),
-              title: 'Under Maintenance',
-              date: _getWorkflowStep() >= 4 ? 'Work in progress' : 'Pending...',
-              description: '',
-              isCompleted: _getWorkflowStep() >= 5,
-            ),
-            _buildTimelineItem(
-              icon: _getWorkflowStep() >= 6
-                  ? Icons.check_circle
-                  : Icons.circle_outlined,
-              iconColor: _getWorkflowStep() >= 6
-                  ? const Color(0xFF4CAF50)
-                  : Colors.grey.shade400,
-              title: 'Resolution & Sign-off',
-              date: _request?.maintenanceEndTime != null
-                  ? _formatDate(_request!.maintenanceEndTime!)
-                  : 'Pending...',
-              description: _getWorkflowStep() >= 6 ? 'Completed' : '',
-              isCompleted: _getWorkflowStep() >= 6,
-              isLast: true,
-            ),
-            if (_request?.status == 'rework') ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEE2E2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.refresh, color: Colors.red.shade600, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Rework requested (${_request!.reworkCount} time${_request!.reworkCount > 1 ? 's' : ''})',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.red.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            _buildWorkflowTimeline(),
             const SizedBox(height: 24),
             // Maintenance Office Contact Card
             Container(
@@ -1069,5 +690,370 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     final minute = date.minute.toString().padLeft(2, '0');
     final period = date.hour >= 12 ? 'PM' : 'AM';
     return '${months[date.month - 1]} ${date.day}, ${date.year} - $hour:$minute $period';
+  }
+
+  bool _isUnassigned(String? staffId) {
+    final normalized = staffId?.trim().toLowerCase();
+    return normalized == null || normalized.isEmpty || normalized == 'null';
+  }
+
+  String _assignedMaintenanceName(String? staffId) {
+    if (_isUnassigned(staffId)) return 'Unassigned';
+    return _request?.acceptedByName ?? 'Assigned Staff';
+  }
+
+  Widget _buildWorkflowTimelineItem({
+    required String title,
+    required bool isDone,
+    bool isRework = false,
+    String? subtitle,
+    Widget? details,
+    ESignature? signature,
+    bool isLast = false,
+  }) {
+    final circleColor = isRework
+        ? const Color(0xFFD97706)
+        : (isDone ? const Color(0xFF059669) : Colors.grey.shade300);
+    final iconData = isRework
+        ? Icons.refresh_rounded
+        : (isDone ? Icons.check : Icons.circle);
+    final iconSize = (isRework || isDone) ? 14.0 : 8.0;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: circleColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                iconData,
+                size: iconSize,
+                color: Colors.white,
+              ),
+            ),
+            if (!isLast)
+              Container(
+                width: 2,
+                height: 48,
+                color: circleColor,
+              ),
+          ],
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: isRework
+                      ? const Color(0xFFD97706)
+                      : (isDone ? const Color(0xFF111827) : Colors.grey.shade600),
+                ),
+              ),
+              if (subtitle != null && subtitle.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+              if (details != null) ...[
+                const SizedBox(height: 6),
+                details,
+              ],
+              if (signature != null && signature.signatureData.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                _buildWorkflowTimelineSignatureImage(signature.signatureData),
+              ],
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWorkflowTimelineSignatureImage(String base64Str) {
+    try {
+      final cleaned = base64Str.trim().replaceAll(RegExp(r'\s+'), '');
+      final base64Data = cleaned.contains(',') ? cleaned.split(',')[1] : cleaned;
+      return Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Image.memory(
+          base64Decode(base64Data),
+          height: 35,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => const Icon(Icons.gesture, size: 25, color: Colors.grey),
+        ),
+      );
+    } catch (_) {
+      return const Icon(Icons.gesture, size: 25, color: Colors.grey);
+    }
+  }
+
+  String _formatDateTime(DateTime? dt) {
+    if (dt == null) return '';
+    return '${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildWorkflowTimeline() {
+    final request = _request;
+    if (request == null) return const SizedBox.shrink();
+
+    final List<Widget> items = [];
+
+    // 1. Submission
+    final reqSig = _signatures.firstWhere(
+      (s) => s.signatureType == 'requestor',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+    items.add(
+      _buildWorkflowTimelineItem(
+        title: 'Work Request Submitted',
+        isDone: true,
+        subtitle: 'By ${request.requestorName} on ${_formatDateTime(request.dateSubmitted)}',
+        signature: reqSig.signatureData.isNotEmpty ? reqSig : null,
+      ),
+    );
+
+    // 2. Assignment
+    final isAssigned = !_isUnassigned(request.assignedToId);
+    final assignSig = _signatures.firstWhere(
+      (s) => s.signatureType == 'approval',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+    items.add(
+      _buildWorkflowTimelineItem(
+        title: 'Admin Approved & Assigned',
+        isDone: isAssigned,
+        subtitle: isAssigned
+            ? 'Approved and assigned to ${_assignedMaintenanceName(request.assignedToId)}'
+            : 'Awaiting admin review & assignment',
+        signature: assignSig.signatureData.isNotEmpty ? assignSig : null,
+      ),
+    );
+
+    // 3. Acceptance
+    final acceptSig = _signatures.firstWhere(
+      (s) => s.signatureType == 'acceptance',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+    final isAccepted = acceptSig.signatureData.isNotEmpty ||
+        (request.status != 'Pending Assignment' && request.status != 'Assigned');
+    items.add(
+      _buildWorkflowTimelineItem(
+        title: 'Technician Accepted Task',
+        isDone: isAccepted,
+        subtitle: isAccepted
+            ? 'Accepted by ${request.acceptedByName ?? _assignedMaintenanceName(request.assignedToId)} on ${_formatDateTime(request.acceptedDate ?? acceptSig.signedAt)}'
+            : 'Awaiting technician acceptance',
+        signature: acceptSig.signatureData.isNotEmpty ? acceptSig : null,
+      ),
+    );
+
+    // 4. Pre-Inspection
+    final preInspection = _preInspectionReport;
+    final preInspSig = _signatures.firstWhere(
+      (s) => s.signatureType == 'pre_inspection',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+    final isPreInspectionSubmitted = preInspection != null;
+    items.add(
+      _buildWorkflowTimelineItem(
+        title: 'Pre-Inspection Report Filed',
+        isDone: isPreInspectionSubmitted,
+        subtitle: isPreInspectionSubmitted
+            ? 'Submitted by ${preInspection.inspectorName}'
+            : 'Awaiting pre-inspection submission',
+        signature: preInspSig.signatureData.isNotEmpty ? preInspSig : null,
+        details: null,
+      ),
+    );
+
+    // 5. Pre-Inspection Approval/Decline
+    final preInspApprovalSig = _signatures.firstWhere(
+      (s) => s.signatureType == 'pre_inspection_approval',
+      orElse: () => ESignature(
+        id: '',
+        workRequestId: '',
+        signerId: '',
+        signerName: '',
+        signerRole: '',
+        signatureType: '',
+        signatureData: '',
+        signedAt: DateTime.now(),
+      ),
+    );
+    final isPreInspectionReviewed = preInspection != null &&
+        (preInspection.status == 'Approved' || preInspection.status == 'Declined');
+    final approvedByName = preInspection?.adminApprovedBy != null
+        ? (_userNames[preInspection!.adminApprovedBy] ?? preInspection.adminApprovedBy)
+        : "Admin";
+    items.add(
+      _buildWorkflowTimelineItem(
+        title: 'Pre-Inspection Review Decision',
+        isDone: isPreInspectionReviewed,
+        subtitle: isPreInspectionReviewed
+            ? '${preInspection.status} by $approvedByName'
+            : 'Awaiting admin pre-inspection decision',
+        signature: preInspApprovalSig.signatureData.isNotEmpty ? preInspApprovalSig : null,
+        details: null,
+      ),
+    );
+
+    // 6. Post-Repair Attempts
+    final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
+      ..sort((a, b) {
+        int cmp = a.repairDate.compareTo(b.repairDate);
+        if (cmp != 0) return cmp;
+        return a.attemptNumber.compareTo(b.attemptNumber);
+      });
+
+    for (int i = 0; i < sortedAttempts.length; i++) {
+      final report = sortedAttempts[i];
+      final attemptTechSig = _signatures.firstWhere(
+        (s) => s.signatureType == 'post_repair' && s.signerId == report.technicianId,
+        orElse: () => ESignature(
+          id: '',
+          workRequestId: '',
+          signerId: '',
+          signerName: '',
+          signerRole: '',
+          signatureType: '',
+          signatureData: '',
+          signedAt: DateTime.now(),
+        ),
+      );
+      items.add(
+        _buildWorkflowTimelineItem(
+          title: 'Post-Repair Report Submitted',
+          isDone: true,
+          subtitle: 'Submitted by ${report.technicianName}',
+          signature: attemptTechSig.signatureData.isNotEmpty ? attemptTechSig : null,
+          details: null,
+        ),
+      );
+
+      final isEvaluated = report.adminEvaluation != null;
+      final attemptAdminSig = _signatures.firstWhere(
+        (s) => s.signatureType == 'completion' && s.signerId == report.adminEvaluatedBy,
+        orElse: () => ESignature(
+          id: '',
+          workRequestId: '',
+          signerId: '',
+          signerName: '',
+          signerRole: '',
+          signatureType: '',
+          signatureData: '',
+          signedAt: DateTime.now(),
+        ),
+      );
+      final isRework = report.adminEvaluation == 'rework';
+      final evaluatedByName = report.adminEvaluatedBy != null
+          ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
+          : "Admin";
+      
+      final isLatestReport = i == sortedAttempts.length - 1;
+      if (isEvaluated || isLatestReport) {
+        items.add(
+          _buildWorkflowTimelineItem(
+            title: isRework
+                ? 'Post-Repair Evaluation Completed - Rework'
+                : 'Post-Repair Evaluation',
+            isDone: isEvaluated && !isRework,
+            isRework: isRework,
+            subtitle: isEvaluated
+                ? '${isRework ? "REWORK REQUIRED" : "SATISFIED (Approved)"} by $evaluatedByName'
+                : 'Awaiting admin post-repair evaluation',
+            signature: attemptAdminSig.signatureData.isNotEmpty ? attemptAdminSig : null,
+            details: null,
+          ),
+        );
+      }
+    }
+
+    // If the latest evaluation was rework, append a pending Post-Repair Report step
+    if (sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'rework') {
+      items.add(
+        _buildWorkflowTimelineItem(
+          title: 'Post-Repair Report',
+          isDone: false,
+          subtitle: 'Awaiting post-repair report (Rework).',
+          signature: null,
+          details: null,
+        ),
+      );
+    }
+
+    // 7. Final Completion
+    final isCompleted = request.status == 'Completed';
+    items.add(
+      _buildWorkflowTimelineItem(
+        title: 'Work Completed & Closed',
+        isDone: isCompleted,
+        subtitle: isCompleted
+            ? 'Completed on ${_formatDateTime(request.updatedAt)}'
+            : 'Awaiting final completion approval',
+        isLast: true,
+      ),
+    );
+
+    return Column(
+      children: items,
+    );
   }
 }

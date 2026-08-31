@@ -3,7 +3,7 @@ class WorkRequest {
   final String title;
   final String description;
   final String
-  status; // 'pending', 'approved', 'in_progress', 'under_maintenance', 'completed', 'rework', 'cancelled'
+  status; // 'Pending', 'In Progress', 'Declined', 'Confirmed', 'Rework', 'Completed'
   final String priority; // 'low', 'medium', 'high'
   final String? buildingId;
   final String? buildingName;
@@ -39,8 +39,38 @@ class WorkRequest {
   final String? postRepairId;
   final int reworkCount;
   final String? reworkNotes;
+  final String? duplicateOfId;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  /// Returns the type of request as submitted by the requestor.
+  String get typeDisplay {
+    if (typeOfRequest.isNotEmpty) return typeOfRequest;
+    // Fallback: try to extract from title (e.g. "Maintenance: Replacement of: Door Knob")
+    final colonIdx = title.indexOf(':');
+    if (colonIdx != -1 && colonIdx < title.length - 1) {
+      return title.substring(colonIdx + 1).trim();
+    }
+    return title.isNotEmpty ? title : 'N/A';
+  }
+
+  /// Extracts the specific item the requestor typed (e.g. "Door Knob" from
+  /// "Maintenance: Replacement of: Door Knob").
+  String get specifyText {
+    // Title format: "Maintenance: {type} of: {specify}"
+    final ofPattern = RegExp(r'of:\s*(.+)$', caseSensitive: false);
+    final match = ofPattern.firstMatch(title);
+    if (match != null) return match.group(1)!.trim();
+    return '';
+  }
+
+  /// Returns "Type — SpecifyText" for display in info panels, e.g. "Replacement — Door Knob".
+  String get typeWithSpecify {
+    final type = typeDisplay;
+    final specify = specifyText;
+    if (specify.isNotEmpty) return '$type — $specify';
+    return type;
+  }
 
   WorkRequest({
     required this.id,
@@ -81,6 +111,7 @@ class WorkRequest {
     this.postRepairId,
     this.reworkCount = 0,
     this.reworkNotes,
+    this.duplicateOfId,
     this.createdAt,
     this.updatedAt,
   });
@@ -90,7 +121,7 @@ class WorkRequest {
       id: map['id']?.toString() ?? '',
       title: map['title'] ?? '',
       description: map['description'] ?? '',
-      status: map['status'] ?? 'pending',
+      status: map['status'] ?? 'Pending',
       priority: map['priority']?.toString() ?? '',
       buildingId: map['building_id'],
       buildingName:
@@ -113,7 +144,9 @@ class WorkRequest {
           : null,
       dateDue: map['date_due'] != null ? DateTime.parse(map['date_due']) : null,
       requestorName:
-          map['requestor_name'] ??
+          (map['requestor_name']?.toString().trim().isNotEmpty == true
+              ? map['requestor_name'] as String
+              : null) ??
           _nestedText(map['requestor'], 'name') ??
           '',
       requestorPosition: map['requestor_position'] ?? '',
@@ -125,7 +158,14 @@ class WorkRequest {
       approvedByName: map['approved_by_name'] ?? _nestedText(map['approver'], 'name'),
       reportedById: map['reported_by_id'] ?? map['requestor_id'],
       reportedByName:
-          map['reported_by_name'] ?? _nestedText(map['requestor'], 'name') ?? map['requestor_name'] ?? '',
+          (map['reported_by_name']?.toString().trim().isNotEmpty == true
+              ? map['reported_by_name'] as String
+              : null) ??
+          _nestedText(map['requestor'], 'name') ??
+          (map['requestor_name']?.toString().trim().isNotEmpty == true
+              ? map['requestor_name'] as String
+              : null) ??
+          '',
       assignedToId: map['assigned_to_id'],
       workEvidence: map['work_evidence'],
       maintenanceNotes: map['maintenance_notes'],
@@ -154,6 +194,7 @@ class WorkRequest {
       postRepairId: map['post_repair_id'] ?? _firstNestedId(map['post_reports']),
       reworkCount: map['rework_count'] ?? 0,
       reworkNotes: map['rework_notes'],
+      duplicateOfId: map['duplicate_of_id'],
       createdAt: map['created_at'] != null
           ? DateTime.tryParse(map['created_at'].toString())
           : null,
@@ -186,6 +227,8 @@ class WorkRequest {
       'requestor_name': requestorName,
       'requestor_position': requestorPosition,
       'requestor_id': requestorId,
+      'reported_by_name': requestorName,
+      'reported_by_id': requestorId,
       'approved_by_id': approvedById,
       'approved_date': approvedDate?.toIso8601String(),
       'assigned_to_id': assignedToId,
@@ -195,6 +238,7 @@ class WorkRequest {
       'attachment_urls': attachmentUrls,
       'rework_count': reworkCount,
       'rework_notes': reworkNotes,
+      'duplicate_of_id': duplicateOfId,
       // Don't include created_at on INSERT - database provides default
     };
   }
@@ -238,6 +282,7 @@ class WorkRequest {
     String? postRepairId,
     int? reworkCount,
     String? reworkNotes,
+    String? duplicateOfId,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -280,6 +325,7 @@ class WorkRequest {
       postRepairId: postRepairId ?? this.postRepairId,
       reworkCount: reworkCount ?? this.reworkCount,
       reworkNotes: reworkNotes ?? this.reworkNotes,
+      duplicateOfId: duplicateOfId ?? this.duplicateOfId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -291,6 +337,14 @@ class WorkRequest {
   String? get officeRoom => roomName;
   String? get reportedBy => reportedByName;
   String? get approvedBy => approvedByName;
+
+  String get displayRequestorName {
+    if (requestorName.trim().isNotEmpty) return requestorName;
+    if (reportedByName != null && reportedByName!.trim().isNotEmpty) {
+      return reportedByName!;
+    }
+    return 'Unknown Requestor';
+  }
 
   static bool _isLikelyUuid(String value) {
     final normalized = value.trim();
@@ -323,20 +377,18 @@ class WorkRequest {
 
   String get statusLabel {
     switch (status) {
-      case 'pending':
+      case 'Pending':
         return 'PENDING';
-      case 'approved':
-        return 'APPROVED';
-      case 'in_progress':
+      case 'In Progress':
         return 'IN PROGRESS';
-      case 'under_maintenance':
-        return 'UNDER MAINTENANCE';
-      case 'completed':
-        return 'COMPLETED';
-      case 'rework':
+      case 'Declined':
+        return 'DECLINED';
+      case 'Confirmed':
+        return 'CONFIRMED';
+      case 'Rework':
         return 'REWORK';
-      case 'cancelled':
-        return 'CANCELLED';
+      case 'Completed':
+        return 'COMPLETED';
       default:
         return status.toUpperCase();
     }

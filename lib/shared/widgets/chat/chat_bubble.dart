@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:universal_html/html.dart' as html;
 import '../../models/chat_model.dart';
 import '../voice_player_widget.dart';
 
@@ -12,6 +13,7 @@ class ChatBubble extends StatelessWidget {
   final void Function(ChatMessage)? onForward;
   final void Function(ChatMessage)? onPin;
   final void Function(ChatMessage)? onDelete;
+  final void Function(ChatMessage)? onEdit;
 
   const ChatBubble({
     super.key,
@@ -22,6 +24,7 @@ class ChatBubble extends StatelessWidget {
     this.onForward,
     this.onPin,
     this.onDelete,
+    this.onEdit,
   });
 
   @override
@@ -29,6 +32,16 @@ class ChatBubble extends StatelessWidget {
     if (message.isDeleted) {
       return _buildDeletedBubble(context);
     }
+
+    final mainBubbleWithMenu = Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (isMine) _buildPopupMenu(context),
+        Flexible(child: _buildMainBubble(context)),
+        if (!isMine) _buildPopupMenu(context),
+      ],
+    );
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -45,7 +58,7 @@ class ChatBubble extends StatelessWidget {
               if (showSenderName && !isMine) _buildSenderName(),
               if (message.isForwarded) _buildForwardedLabel(),
               if (message.replyToId != null) _buildReplyPreview(),
-              _buildMainBubble(context),
+              mainBubbleWithMenu,
               const SizedBox(height: 2),
               _buildTimestamp(),
             ],
@@ -258,51 +271,61 @@ class ChatBubble extends StatelessWidget {
   }
 
   Widget _buildFileContent(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: isMine
-                ? Colors.white.withValues(alpha: 0.2)
-                : const Color(0xFF0F766E).withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            Icons.insert_drive_file_rounded,
-            size: 24,
-            color: isMine ? Colors.white : const Color(0xFF0F766E),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                message.attachmentName ?? 'File',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isMine ? Colors.white : const Color(0xFF134E4A),
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+    return GestureDetector(
+      onTap: () {
+        if (message.attachmentUrl != null && message.attachmentUrl!.isNotEmpty) {
+          html.window.open(message.attachmentUrl!, '_blank');
+        }
+      },
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isMine
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : const Color(0xFF0F766E).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              Text(
-                'Tap to download',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isMine
-                      ? Colors.white70
-                      : Colors.grey.shade600,
-                ),
+              child: Icon(
+                Icons.insert_drive_file_rounded,
+                size: 24,
+                color: isMine ? Colors.white : const Color(0xFF0F766E),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message.attachmentName ?? 'File',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isMine ? Colors.white : const Color(0xFF134E4A),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'Tap to download',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isMine
+                          ? Colors.white70
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -320,7 +343,12 @@ class ChatBubble extends StatelessWidget {
             const SizedBox(width: 3),
           ],
           Text(
-            DateFormat('HH:mm').format(message.createdAt.toLocal()),
+            DateFormat('HH:mm').format(message.createdAt.toLocal()) +
+                (message.messageType == MessageType.text &&
+                        !message.isDeleted &&
+                        message.updatedAt.difference(message.createdAt).inSeconds > 2
+                    ? ' (edited)'
+                    : ''),
             style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
           ),
         ],
@@ -398,6 +426,13 @@ class ChatBubble extends StatelessWidget {
                   message.isPinned ? 'Unpin' : 'Pin',
                   () => onPin!(message),
                 ),
+              if (isMine && message.messageType == MessageType.text && onEdit != null)
+                _contextItem(
+                  context,
+                  Icons.edit_rounded,
+                  'Edit',
+                  () => onEdit!(message),
+                ),
               if (isMine && onDelete != null)
                 _contextItem(
                   context,
@@ -435,6 +470,62 @@ class ChatBubble extends StatelessWidget {
         Navigator.pop(context);
         action();
       },
+    );
+  }
+
+  Widget _buildPopupMenu(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert_rounded, size: 18, color: Colors.grey),
+      tooltip: 'Options',
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      onSelected: (value) {
+        switch (value) {
+          case 'reply':
+            onReply?.call(message);
+            break;
+          case 'edit':
+            onEdit?.call(message);
+            break;
+          case 'delete':
+            onDelete?.call(message);
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          value: 'reply',
+          child: Row(
+            children: [
+              Icon(Icons.reply_rounded, size: 18, color: Colors.grey.shade600),
+              const SizedBox(width: 8),
+              const Text('Reply'),
+            ],
+          ),
+        ),
+        if (isMine && message.messageType == MessageType.text)
+          PopupMenuItem<String>(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit_rounded, size: 18, color: Colors.grey.shade600),
+                const SizedBox(width: 8),
+                const Text('Edit'),
+              ],
+            ),
+          ),
+        if (isMine)
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red.shade600),
+                const SizedBox(width: 8),
+                const Text('Delete', style: TextStyle(color: Colors.red)),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }

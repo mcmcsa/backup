@@ -112,7 +112,7 @@ class _LoadingScreenState extends State<LoadingScreen>
                             ),
                           ),
                           TextSpan(
-                            text: 'MaintSystem',
+                            text: 'MMS',
                             style: TextStyle(
                               color: Color(0xFF4169E1),
                               fontSize: 35,

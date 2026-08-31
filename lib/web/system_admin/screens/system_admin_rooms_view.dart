@@ -8,6 +8,7 @@ import '../../../shared/services/building_service.dart';
 import '../../../shared/services/department_service.dart';
 import '../../../shared/services/room_service.dart';
 import '../../../shared/services/room_type_service.dart';
+import '../../../shared/services/work_request_service.dart';
 import '../../admin/shared/admin_styles.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -164,7 +165,44 @@ class _SystemAdminRoomsViewState extends State<SystemAdminRoomsView> {
     );
   }
 
-  void _showEditDialog(Room room) {
+  void _showEditDialog(Room room) async {
+    // Show a loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    bool hasActive = false;
+    try {
+      hasActive = await WorkRequestService.hasActiveRequestForRoom(room.id);
+    } catch (_) {}
+
+    if (mounted) {
+      Navigator.pop(context); // Dismiss loading
+    }
+
+    if (hasActive) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Edit Blocked', style: TextStyle(fontWeight: FontWeight.bold)),
+            content: const Text('This room cannot be edited while it has an ongoing work request.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (_) => _RoomFormDialog(

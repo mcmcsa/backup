@@ -213,7 +213,7 @@ class _SystemAdminBackupRestoreViewState extends State<SystemAdminBackupRestoreV
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32),
-                    child: _backups.isEmpty ? _buildEmpty() : _buildHistoryTable(),
+                    child: _backups.isEmpty ? _buildEmpty() : (isMobile ? _buildMobileHistoryList() : _buildHistoryTable()),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -509,6 +509,100 @@ class _SystemAdminBackupRestoreViewState extends State<SystemAdminBackupRestoreV
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileHistoryList() {
+    return ListView.separated(
+      itemCount: _backups.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (_, i) => _buildMobileRow(_backups[i]),
+    );
+  }
+
+  Widget _buildMobileRow(SystemBackup b) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AdminStyles.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.description_rounded, size: 18, color: AdminStyles.textSecondary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  b.filename,
+                  style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AdminStyles.textPrimary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(DateFormat('MMM d, yyyy').format(b.createdAt), style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(DateFormat('h:mm a').format(b.createdAt), style: AdminStyles.bodyStyle(fontSize: 10, color: AdminStyles.textMuted)),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(b.formattedSize, style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: AdminStyles.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                    child: Text(b.status.toUpperCase(), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: AdminStyles.success)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              IconButton(
+                tooltip: 'Download',
+                icon: const Icon(Icons.download_rounded, size: 18, color: AdminStyles.primary),
+                onPressed: () => _downloadBackup(b),
+              ),
+              IconButton(
+                tooltip: 'Restore',
+                icon: const Icon(Icons.restore_rounded, size: 18, color: AdminStyles.warning),
+                onPressed: () => _restoreBackup(b),
+              ),
+              IconButton(
+                tooltip: 'Delete',
+                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AdminStyles.error),
+                onPressed: () => _deleteBackup(b),
+              ),
+            ],
           ),
         ],
       ),

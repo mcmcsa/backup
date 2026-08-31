@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../shared/admin_styles.dart';
 import 'admin_work_process_web.dart';
 import '../admin_nav_controller.dart';
+import '../../../shared/widgets/room_comparison_dialog.dart';
 
 class MaintenanceHistoryPageWeb extends StatefulWidget {
   const MaintenanceHistoryPageWeb({super.key});
@@ -431,17 +433,40 @@ class _HistoryTableRowState extends State<_HistoryTableRow> {
                 child: Tooltip(
                   message: 'View Details',
                   child: InkWell(
-                    onTap: () {
-                      final controller = AdminNavController.of(context);
-                      if (controller != null) {
-                        controller.openWorkProcess(widget.request);
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AdminWorkProcessWeb(request: widget.request),
-                          ),
+                    onTap: () async {
+                      final roomId = widget.request.roomId;
+                      bool showComparison = false;
+                      if (roomId != null && roomId.isNotEmpty) {
+                        try {
+                          final response = await Supabase.instance.client
+                              .from('room_versions')
+                              .select('id')
+                              .eq('room_id', roomId);
+                          if ((response as List).length >= 2) {
+                            showComparison = true;
+                          }
+                        } catch (_) {}
+                      }
+
+                      if (!mounted) return;
+
+                      if (showComparison) {
+                        showDialog(
+                          context: context,
+                          builder: (context) => RoomComparisonDialog(roomId: roomId!),
                         );
+                      } else {
+                        final controller = AdminNavController.of(context);
+                        if (controller != null) {
+                          controller.openWorkProcess(widget.request);
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AdminWorkProcessWeb(request: widget.request),
+                            ),
+                          );
+                        }
                       }
                     },
                     borderRadius: BorderRadius.circular(10),

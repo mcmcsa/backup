@@ -1,12 +1,12 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import '../../../shared/widgets/common_app_bar.dart';
-import '../../../shared/providers/theme_provider.dart';
-import '../../admin/shared/notifications_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../authentication/models/user_model.dart';
 import '../../../authentication/services/auth_service.dart';
-import '../../../shared/services/supabase_service.dart';
+import '../../../shared/widgets/common_app_bar.dart';
+import '../../admin/shared/notifications_page.dart';
+import '../../../web/admin/shared/admin_styles.dart';
 
 class StudentProfilePage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -18,941 +18,481 @@ class StudentProfilePage extends StatefulWidget {
 }
 
 class _StudentProfilePageState extends State<StudentProfilePage> {
-  File? _profileImage;
-  final ImagePicker _picker = ImagePicker();
-  bool _isUploadingProfileImage = false;
-
-  // Profile fields
-  late TextEditingController _usernameController;
-  late TextEditingController _emailController;
-  late TextEditingController _studentIdController;
-  late TextEditingController _departmentController;
-  late TextEditingController _birthdayController;
-  late TextEditingController _locationController;
-  late TextEditingController _phoneController;
-  late TextEditingController _bioController;
-  
-  bool _isEditing = false;
   final _formKey = GlobalKey<FormState>();
+
+  // Controllers — matches the Web fields
+  late final TextEditingController _nameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _departmentController;
+  late final TextEditingController _positionController;
+  late final TextEditingController _employeeIdController;
+  late final TextEditingController _phoneController;
+
+  bool _isEditing = false;
+  String? _lastUserId;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
     super.initState();
     final user = context.read<AuthService>().currentUser;
-    _usernameController = TextEditingController(text: user?.name ?? '');
+    _initControllers(user);
+    _lastUserId = user?.id;
+  }
+
+  void _initControllers(AppUser? user) {
+    _nameController = TextEditingController(text: user?.name ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
-    _studentIdController = TextEditingController(text: user?.id ?? '');
     _departmentController = TextEditingController(text: user?.department ?? '');
-    _birthdayController = TextEditingController(text: '');
-    _locationController = TextEditingController(text: '');
-    _phoneController = TextEditingController(text: '');
-    _bioController = TextEditingController(text: '');
+    _positionController = TextEditingController(text: user?.position ?? '');
+    _employeeIdController = TextEditingController(text: user?.employeeId ?? '');
+    _phoneController = TextEditingController(text: user?.phone ?? '');
   }
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _nameController.dispose();
     _emailController.dispose();
-    _studentIdController.dispose();
     _departmentController.dispose();
-    _birthdayController.dispose();
-    _locationController.dispose();
+    _positionController.dispose();
+    _employeeIdController.dispose();
     _phoneController.dispose();
-    _bioController.dispose();
     super.dispose();
   }
 
-  Future<void> _uploadAndSaveProfileImage(File file) async {
-    final auth = context.read<AuthService>();
-    final user = auth.currentUser;
-    if (user == null) return;
-
-    setState(() {
-      _isUploadingProfileImage = true;
+  void _syncControllers(AppUser? user) {
+    if (user == null || _isEditing || user.id == _lastUserId) return;
+    _lastUserId = user.id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isEditing) return;
+      _nameController.text = user.name;
+      _emailController.text = user.email;
+      _departmentController.text = user.department ?? '';
+      _positionController.text = user.position ?? '';
+      _employeeIdController.text = user.employeeId ?? '';
+      _phoneController.text = user.phone ?? '';
     });
+  }
 
-    final ext = file.path.split('.').last;
-    final path = 'profiles/${user.id}.$ext';
-
+  Future<void> _pickAndUploadProfileImage(AppUser user) async {
+    final auth = context.read<AuthService>();
+    final picker = ImagePicker();
     try {
-      await SupabaseService.uploadFile(
-        bucket: 'profile-images',
-        path: path,
-        file: file,
-        upsert: true,
+      final XFile? file = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
       );
-      final publicUrl = SupabaseService.getPublicUrl(
-        bucket: 'profile-images',
-        path: path,
-      );
-      final ok = await auth.updateProfileImage(
+      if (file == null) return;
+
+      setState(() => _isUploadingImage = true);
+
+      final bytes = await file.readAsBytes();
+      final ext = file.name.split('.').last;
+      final path = 'profiles/${user.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      // Upload binary to Supabase storage
+      await Supabase.instance.client.storage
+          .from('profile-images')
+          .uploadBinary(path, bytes, fileOptions: const FileOptions(upsert: true));
+
+      // Get public URL
+      final publicUrl = Supabase.instance.client.storage
+          .from('profile-images')
+          .getPublicUrl(path);
+
+      // Save to database
+      final success = await auth.updateProfileImage(
         role: user.role,
         userId: user.id,
         profileImage: publicUrl,
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            ok ? 'Profile picture updated' : 'Failed to update profile picture',
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profile picture updated successfully!'),
+            backgroundColor: AdminStyles.success,
+            behavior: SnackBarBehavior.floating,
           ),
-        ),
-      );
+        );
+      } else {
+        throw Exception('Failed to update profile picture in database');
+      }
     } catch (e) {
-      debugPrint('Teacher profile image upload error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error uploading profile picture')),
+        SnackBar(
+          content: Text('Failed to upload profile picture: $e'),
+          backgroundColor: AdminStyles.error,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     } finally {
       if (mounted) {
-        setState(() {
-          _isUploadingProfileImage = false;
-        });
+        setState(() => _isUploadingImage = false);
       }
     }
   }
 
-  Future<void> _removeProfileImage() async {
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
     final auth = context.read<AuthService>();
     final user = auth.currentUser;
     if (user == null) return;
 
-    setState(() {
-      _isUploadingProfileImage = true;
-    });
-
     try {
-      final ok = await auth.updateProfileImage(
-        role: user.role,
-        userId: user.id,
-        clear: true,
+      final updated = user.copyWith(
+        name: _nameController.text.trim(),
+        department: _departmentController.text.trim(),
+        position: _positionController.text.trim(),
+        employeeId: _employeeIdController.text.trim(),
+        phone: _phoneController.text.trim(),
       );
+
+      final success = await auth.updateProfile(updated);
       if (!mounted) return;
 
-      if (ok) {
-        setState(() {
-          _profileImage = null;
-        });
+      if (success) {
+        setState(() => _isEditing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profile updated successfully!'),
+            backgroundColor: AdminStyles.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        throw Exception('Update returned false');
       }
-
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            ok ? 'Profile picture removed' : 'Failed to remove profile picture',
-          ),
+          content: Text('Error updating profile: ${e.toString()}'),
+          backgroundColor: AdminStyles.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUploadingProfileImage = false;
-        });
-      }
     }
-  }
-
-  Future<void> _pickImage() async {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Change Profile Picture',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.camera_alt, color: Color(0xFF00BFA5)),
-                ),
-                title: const Text('Take Photo'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final XFile? image = await _picker.pickImage(
-                    source: ImageSource.camera,
-                    maxWidth: 512,
-                    maxHeight: 512,
-                    imageQuality: 75,
-                  );
-                  if (image != null && mounted) {
-                    setState(() {
-                      _profileImage = File(image.path);
-                    });
-                    _uploadAndSaveProfileImage(File(image.path));
-                  }
-                },
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.photo_library, color: Color(0xFF00BFA5)),
-                ),
-                title: const Text('Choose from Gallery'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final XFile? image = await _picker.pickImage(
-                    source: ImageSource.gallery,
-                    maxWidth: 512,
-                    maxHeight: 512,
-                    imageQuality: 75,
-                  );
-                  if (image != null && mounted) {
-                    setState(() {
-                      _profileImage = File(image.path);
-                    });
-                    _uploadAndSaveProfileImage(File(image.path));
-                  }
-                },
-              ),
-              if (_profileImage != null ||
-                  ((context.read<AuthService>().currentUser?.profileImage ?? '')
-                      .isNotEmpty))
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.delete, color: Colors.red),
-                  ),
-                  title: const Text('Remove Photo'),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await _removeProfileImage();
-                  },
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, _) {
-        return Scaffold(
-          backgroundColor: themeProvider.backgroundColor,
-          appBar: CommonAppBar(
-            roleText: 'Teacher',
-            primaryColor: themeProvider.primaryColor,
-            onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
-            onNotificationPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const NotificationsPage(),
-                ),
-              );
-            },
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                // Profile Header Card
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [themeProvider.primaryColor, themeProvider.primaryColor.withValues(alpha: 0.8)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: themeProvider.primaryColor.withValues(alpha: 0.3),
-                        blurRadius: 15,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: _buildProfileHeader(themeProvider),
-                  ),
-                ),
-                const SizedBox(height: 20),
+    final authService = context.watch<AuthService>();
+    final user = authService.currentUser;
+    _syncControllers(user);
 
-                // Form Section
-                Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Bio Section
-                      _buildSectionCard(
-                        title: 'About',
-                        icon: Icons.person_outline,
-                        themeProvider: themeProvider,
-                        child: Column(
-                          children: [
-                            if (_isEditing)
-                              TextFormField(
-                                controller: _bioController,
-                                maxLines: 3,
-                                style: TextStyle(color: themeProvider.textColor),
-                                decoration: InputDecoration(
-                                  labelText: 'Bio',
-                                  labelStyle: TextStyle(color: themeProvider.subtitleColor),
-                                  hintText: 'Tell us about yourself...',
-                                  hintStyle: TextStyle(color: themeProvider.subtitleColor.withValues(alpha: 0.6)),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  filled: true,
-                                  fillColor: themeProvider.inputFillColor,
-                                ),
-                              )
-                            else
-                              Text(
-                                _bioController.text.isEmpty 
-                                    ? 'No bio added yet.' 
-                                    : _bioController.text,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: _bioController.text.isEmpty 
-                                      ? themeProvider.subtitleColor.withValues(alpha: 0.6)
-                                      : themeProvider.subtitleColor,
-                                  height: 1.5,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Academic Information
-                      _buildSectionCard(
-                        title: 'Academic Information',
-                        icon: Icons.school_outlined,
-                        themeProvider: themeProvider,
-                        child: _buildAcademicInformation(themeProvider),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Contact Information
-                      _buildSectionCard(
-                        title: 'Contact Information',
-                        icon: Icons.contact_page_outlined,
-                        themeProvider: themeProvider,
-                        child: _buildContactInformation(themeProvider),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Personal Information
-                      _buildSectionCard(
-                        title: 'Personal Information',
-                        icon: Icons.info_outline,
-                        themeProvider: themeProvider,
-                        child: Column(
-                          children: [
-                            if (_isEditing)
-                              TextFormField(
-                                controller: _birthdayController,
-                                style: TextStyle(color: themeProvider.textColor),
-                                decoration: InputDecoration(
-                                  labelText: 'Birthday',
-                                  labelStyle: TextStyle(color: themeProvider.subtitleColor),
-                                  hintText: 'MM/DD/YYYY',
-                                  hintStyle: TextStyle(color: themeProvider.subtitleColor.withValues(alpha: 0.6)),
-                                  prefixIcon: Icon(Icons.cake, color: themeProvider.subtitleColor),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  filled: true,
-                                  fillColor: themeProvider.inputFillColor,
-                                ),
-                              )
-                            else
-                              _buildInfoRow(
-                                icon: Icons.cake_outlined,
-                                label: 'Birthday',
-                                value: _birthdayController.text.isEmpty 
-                                    ? 'Not set' 
-                                    : _birthdayController.text,
-                                themeProvider: themeProvider,
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
+    return Scaffold(
+      backgroundColor: AdminStyles.bg,
+      appBar: CommonAppBar(
+        roleText: 'Teacher',
+        primaryColor: AdminStyles.primary,
+        onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
+        onNotificationPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const NotificationsPage(),
+            ),
+          );
+        },
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildProfileHero(user, authService.isLoading),
+                  const SizedBox(height: 24),
+                  _buildRegistrationDetails(),
+                ],
+              ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _buildProfileHeader(ThemeProvider themeProvider) {
-    final user = context.watch<AuthService>().currentUser;
-    final hasSavedProfileImage = (user?.profileImage ?? '').isNotEmpty;
-
-    return Column(
-      children: [
-        // Profile Picture
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white,
-                  width: 4,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: ClipOval(
-                child:
-                    _profileImage != null
-                        ? Image.file(
-                          _profileImage!,
-                          fit: BoxFit.cover,
-                          width: 112,
-                          height: 112,
-                        )
-                        : hasSavedProfileImage
-                        ? Image.network(
-                          user!.profileImage!,
-                          fit: BoxFit.cover,
-                          width: 112,
-                          height: 112,
-                          errorBuilder:
-                              (_, __, ___) => Container(
-                                color: themeProvider.primaryColor.withValues(alpha: 
-                                  0.2,
-                                ),
-                                child: Icon(
-                                  Icons.person,
-                                  size: 60,
-                                  color: themeProvider.primaryColor,
-                                ),
-                              ),
-                        )
-                        : Container(
-                          color: themeProvider.primaryColor.withValues(alpha: 0.2),
-                          child: Icon(
-                            Icons.person,
-                            size: 60,
-                            color: themeProvider.primaryColor,
-                          ),
-                        ),
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child:
-                      _isUploadingProfileImage
-                          ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                themeProvider.primaryColor,
-                              ),
-                            ),
-                          )
-                          : Icon(
-                            Icons.camera_alt,
-                            size: 20,
-                            color: themeProvider.primaryColor,
-                          ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        // Name
-        Text(
-          _usernameController.text,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        // Teacher Badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.3),
-              width: 1,
+  Widget _buildProfileHero(AppUser? user, bool isLoading) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+      decoration: AdminStyles.cardDecoration(hasShadow: true),
+      child: Column(
+        children: [
+          _buildAvatar(user),
+          const SizedBox(height: 24),
+          Text(
+            'PROFILE',
+            style: AdminStyles.headingStyle(
+              fontSize: 11,
+              color: AdminStyles.primary,
+              letterSpacing: 1.5,
             ),
           ),
-          child: const Text(
-            'TEACHER',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              letterSpacing: 1.2,
-            ),
+          const SizedBox(height: 8),
+          Text(
+            user?.name ?? 'Teacher Account',
+            style: AdminStyles.headingStyle(fontSize: 22),
+            textAlign: TextAlign.center,
           ),
-        ),
-        const SizedBox(height: 12),
-        // Teacher ID
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.badge_outlined,
-              size: 16,
-              color: Colors.white70,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              _studentIdController.text,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.white70,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        // Edit Button
-        if (!_isEditing)
+          const SizedBox(height: 6),
+          Text(
+            user?.email ?? '',
+            style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
-            height: 46,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _isEditing = true;
-                });
-              },
-              icon: const Icon(Icons.edit, size: 20),
-              label: const Text(
-                'Edit Profile',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: themeProvider.primaryColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
-            ),
-          )
-        else
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 46,
-                  child: OutlinedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isEditing = false;
-                      });
-                    },
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white, width: 2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Cancel',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 46,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        setState(() {
-                          _isEditing = false;
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Row(
-                              children: [
-                                Icon(Icons.check_circle, color: Colors.white),
-                                SizedBox(width: 12),
-                                Text('Profile updated successfully!'),
-                              ],
-                            ),
-                            backgroundColor: themeProvider.primaryColor,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: themeProvider.primaryColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Save',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
+            child: Center(child: _buildActionButton(isLoading)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar(AppUser? user) {
+    if (user == null) return const SizedBox.shrink();
+    final initials = (user.name.isNotEmpty == true) ? user.name[0].toUpperCase() : 'T';
+
+    return Stack(
+      children: [
+        Container(
+          width: 110,
+          height: 110,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: AdminStyles.primary.withValues(alpha: 0.15),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
               ),
             ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: AdminStyles.primaryGradient,
+              shape: BoxShape.circle,
+            ),
+            child: _isUploadingImage
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : (user.profileImage?.isNotEmpty == true)
+                    ? ClipOval(
+                        child: Image.network(
+                          user.profileImage!,
+                          width: 104,
+                          height: 104,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) => Center(
+                            child: Text(
+                              initials,
+                              style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: Text(
+                          initials,
+                          style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ),
+          ),
+        ),
+        if (!_isUploadingImage)
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: GestureDetector(
+              onTap: () => _pickAndUploadProfileImage(user),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AdminStyles.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.camera_alt_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+            ),
           ),
       ],
     );
   }
 
-  Widget _buildAcademicInformation(ThemeProvider themeProvider) {
+  Widget _buildActionButton(bool isLoading) {
     if (_isEditing) {
-      return Column(
+      return Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          TextFormField(
-            controller: _usernameController,
-            style: TextStyle(color: themeProvider.textColor),
-            decoration: InputDecoration(
-              labelText: 'Full Name',
-              labelStyle: TextStyle(color: themeProvider.subtitleColor),
-              prefixIcon: Icon(Icons.person, color: themeProvider.subtitleColor),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              filled: true,
-              fillColor: themeProvider.inputFillColor,
+          TextButton(
+            onPressed: () => setState(() => _isEditing = false),
+            child: Text('Cancel',
+                style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+          ),
+          const SizedBox(width: 16),
+          ElevatedButton.icon(
+            onPressed: isLoading ? null : _saveProfile,
+            icon: isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.check_circle_rounded, size: 18),
+            label: const Text('Save Changes'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminStyles.primary,
+              foregroundColor: Colors.white,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            validator: (value) {
-              if (value?.isEmpty ?? true) {
-                return 'Name required';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _studentIdController,
-            style: TextStyle(color: themeProvider.textColor),
-            decoration: InputDecoration(
-              labelText: 'Teacher ID',
-              labelStyle: TextStyle(color: themeProvider.subtitleColor),
-              prefixIcon: Icon(Icons.badge, color: themeProvider.subtitleColor),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              filled: true,
-              fillColor: themeProvider.inputFillColor,
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _departmentController,
-            style: TextStyle(color: themeProvider.textColor),
-            decoration: InputDecoration(
-              labelText: 'Department/Course',
-              labelStyle: TextStyle(color: themeProvider.subtitleColor),
-              prefixIcon: Icon(Icons.people_alt, color: themeProvider.subtitleColor),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              filled: true,
-              fillColor: themeProvider.inputFillColor,
-            ),
-          ),
-        ],
-      );
-    } else {
-      return Column(
-        children: [
-          _buildInfoRow(
-            icon: Icons.badge_outlined,
-            label: 'Teacher ID',
-            value: _studentIdController.text,
-            themeProvider: themeProvider,
-          ),
-          const SizedBox(height: 12),
-          _buildInfoRow(
-            icon: Icons.school_outlined,
-            label: 'Department',
-            value: _departmentController.text,
-            themeProvider: themeProvider,
           ),
         ],
       );
     }
-  }
-
-  Widget _buildContactInformation(ThemeProvider themeProvider) {
-    if (_isEditing) {
-      return Column(
-        children: [
-          TextFormField(
-            controller: _emailController,
-            enabled: false,
-            style: TextStyle(color: themeProvider.subtitleColor),
-            decoration: InputDecoration(
-              labelText: 'Email (PSU Account)',
-              labelStyle: TextStyle(color: themeProvider.subtitleColor),
-              prefixIcon: Icon(Icons.email, color: themeProvider.subtitleColor),
-              suffixIcon: Icon(Icons.lock, size: 20, color: themeProvider.subtitleColor),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              filled: true,
-              fillColor: themeProvider.isDarkMode ? themeProvider.cardColor.withValues(alpha: 0.5) : Colors.grey.shade100,
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _phoneController,
-            style: TextStyle(color: themeProvider.textColor),
-            decoration: InputDecoration(
-              labelText: 'Phone Number',
-              labelStyle: TextStyle(color: themeProvider.subtitleColor),
-              prefixIcon: Icon(Icons.phone, color: themeProvider.subtitleColor),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              filled: true,
-              fillColor: themeProvider.inputFillColor,
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _locationController,
-            style: TextStyle(color: themeProvider.textColor),
-            decoration: InputDecoration(
-              labelText: 'Address',
-              labelStyle: TextStyle(color: themeProvider.subtitleColor),
-              prefixIcon: Icon(Icons.location_on, color: themeProvider.subtitleColor),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              filled: true,
-              fillColor: themeProvider.inputFillColor,
-            ),
-          ),
-        ],
-      );
-    } else {
-      return Column(
-        children: [
-          _buildInfoRow(
-            icon: Icons.email_outlined,
-            label: 'Email',
-            value: _emailController.text,
-            themeProvider: themeProvider,
-          ),
-          const SizedBox(height: 12),
-          _buildInfoRow(
-            icon: Icons.phone_outlined,
-            label: 'Phone',
-            value: _phoneController.text.isEmpty 
-                ? 'Not set' 
-                : _phoneController.text,
-            themeProvider: themeProvider,
-          ),
-          const SizedBox(height: 12),
-          _buildInfoRow(
-            icon: Icons.location_on_outlined,
-            label: 'Address',
-            value: _locationController.text.isEmpty 
-                ? 'Not set' 
-                : _locationController.text,
-            themeProvider: themeProvider,
-          ),
-        ],
-      );
-    }
-  }
-
-  Widget _buildSectionCard({
-    required String title,
-    required IconData icon,
-    required Widget child,
-    required ThemeProvider themeProvider,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: themeProvider.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: themeProvider.isDarkMode ? 0.3 : 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: themeProvider.primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    icon,
-                    color: themeProvider.primaryColor,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: themeProvider.textColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            child,
-          ],
-        ),
+    return ElevatedButton.icon(
+      onPressed: () => setState(() => _isEditing = true),
+      icon: const Icon(Icons.edit_rounded, size: 18),
+      label: const Text('Edit Profile'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AdminStyles.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  Widget _buildInfoRow({
-    required IconData icon,
-    required String label,
-    required String value,
-    required ThemeProvider themeProvider,
+  Widget _buildRegistrationDetails() {
+    final fields = [
+      _buildField(Icons.person_outline_rounded, 'Full Name', _nameController, _isEditing),
+      _buildField(Icons.email_outlined, 'Institutional Email', _emailController, false, helperText: 'Email address cannot be changed here.'),
+      _buildField(Icons.badge_outlined, 'Employee ID', _employeeIdController, _isEditing),
+      _buildField(Icons.phone_outlined, 'Contact Number', _phoneController, _isEditing),
+      _buildField(Icons.school_outlined, 'Department', _departmentController, _isEditing),
+      _buildField(Icons.work_outline_rounded, 'Designation / Position', _positionController, _isEditing),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: AdminStyles.cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Personal Information', style: AdminStyles.headingStyle(fontSize: 18)),
+          const SizedBox(height: 8),
+          Text(
+            'These details were set by the System Admin when your account was created. You may update them here.',
+            style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+          ),
+          const SizedBox(height: 28),
+          Column(
+            children: fields.map((f) => Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: f,
+            )).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildField(
+    IconData icon,
+    String label,
+    TextEditingController controller,
+    bool enabled, {
+    String? helperText,
   }) {
-    final bool isEmpty = value == 'Not set';
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: themeProvider.primaryColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: themeProvider.primaryColor,
-            size: 18,
-          ),
+        Row(
+          children: [
+            Icon(icon, size: 16, color: AdminStyles.textSecondary),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: AdminStyles.bodyStyle(
+                  fontSize: 13,
+                  color: AdminStyles.textSecondary,
+                  fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: themeProvider.subtitleColor,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isEmpty ? themeProvider.subtitleColor.withValues(alpha: 0.6) : themeProvider.textColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: controller,
+          enabled: enabled,
+          style: AdminStyles.bodyStyle(
+              color: enabled
+                  ? AdminStyles.textPrimary
+                  : AdminStyles.textMuted),
+          decoration: InputDecoration(
+            helperText: helperText,
+            helperStyle: AdminStyles.bodyStyle(
+                fontSize: 11, color: AdminStyles.textMuted),
+            filled: true,
+            fillColor: enabled ? Colors.white : AdminStyles.bg,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AdminStyles.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AdminStyles.border),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                  color: AdminStyles.border.withValues(alpha: 0.5)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide:
+                  const BorderSide(color: AdminStyles.primary, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
         ),
       ],

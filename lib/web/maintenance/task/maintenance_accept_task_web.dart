@@ -35,7 +35,7 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
-      final isOnline = Provider.of<ConnectivityService>(context, listen: false).isConnected.value;
+      final isOnline = ConnectivityService().isConnected.value;
       
       if (!isOnline) {
         // Queue for later
@@ -95,6 +95,7 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 960;
     return Scaffold(
       backgroundColor: AdminStyles.bg,
       body: Column(
@@ -104,20 +105,28 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
             child: _isAccepting
                 ? const Center(child: CircularProgressIndicator(color: AdminStyles.primary))
                 : SingleChildScrollView(
-                    padding: const EdgeInsets.all(32),
+                    padding: EdgeInsets.all(isCompact ? 16 : 32),
                     child: Center(
                       child: Container(
                         constraints: const BoxConstraints(maxWidth: 800),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Left: Task Details
-                            Expanded(flex: 4, child: _buildTaskSummary()),
-                            const SizedBox(width: 32),
-                            // Right: Signature Area
-                            Expanded(flex: 6, child: _buildSignatureSection()),
-                          ],
-                        ),
+                        child: isCompact
+                            ? Column(
+                                children: [
+                                  _buildTaskSummary(),
+                                  const SizedBox(height: 24),
+                                  _buildSignatureSection(),
+                                ],
+                              )
+                            : Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Left: Task Details
+                                  Expanded(flex: 4, child: _buildTaskSummary()),
+                                  const SizedBox(width: 32),
+                                  // Right: Signature Area
+                                  Expanded(flex: 6, child: _buildSignatureSection()),
+                                ],
+                              ),
                       ),
                     ),
                   ),

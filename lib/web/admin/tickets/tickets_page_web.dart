@@ -45,9 +45,11 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
     'All Requests',
     'Pending',
     'In Progress',
-    'Unavailable',
-    'Duplicates',
+    'Declined',
+    'Confirmed',
+    'Rework',
     'Completed',
+    'Duplicates',
   ];
 
   StreamSubscription? _realtimeSubscription;
@@ -141,26 +143,37 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
     // Apply status filter
     if (_selectedFilter == 1) {
       requests = requests
-          .where((r) => r.status.toLowerCase() == 'pending')
+          .where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment')
           .toList();
     } else if (_selectedFilter == 2) {
       requests = requests
           .where(
-            (r) => r.status.toLowerCase() == 'in_progress' ||
-                r.status.toLowerCase() == 'approved',
+            (r) => r.status.toLowerCase() == 'in progress' ||
+                r.status.toLowerCase() == 'in_progress' ||
+                r.status.toLowerCase() == 'assigned' ||
+                r.status.toLowerCase() == 'accepted by maintenance' ||
+                r.status.toLowerCase() == 'pre-inspection submitted',
           )
           .toList();
     } else if (_selectedFilter == 3) {
       requests = requests
-          .where((r) => r.status.toLowerCase() == 'under_maintenance' || r.status.toLowerCase() == 'maintenance')
+          .where((r) => r.status.toLowerCase() == 'declined' || r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined/cancelled' || r.status.toLowerCase() == 'pre-inspection declined')
           .toList();
     } else if (_selectedFilter == 4) {
       requests = requests
-          .where((r) => _duplicateRequestIds.contains(r.id))
+          .where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'post-repair submitted' || r.status.toLowerCase() == 'in progress (post-repair)' || r.status.toLowerCase() == 'under_maintenance')
           .toList();
     } else if (_selectedFilter == 5) {
       requests = requests
+          .where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'for rework' || r.status.toLowerCase() == 'under evaluation')
+          .toList();
+    } else if (_selectedFilter == 6) {
+      requests = requests
           .where((r) => r.status.toLowerCase() == 'completed')
+          .toList();
+    } else if (_selectedFilter == 7) {
+      requests = requests
+          .where((r) => r.duplicateOfId != null)
           .toList();
     }
 
@@ -185,26 +198,37 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
         return _requests.length;
       case 1:
         return _requests
-            .where((r) => r.status.toLowerCase() == 'pending')
+            .where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment')
             .length;
       case 2:
         return _requests
             .where(
-              (r) => r.status.toLowerCase() == 'in_progress' ||
-                  r.status.toLowerCase() == 'approved',
+              (r) => r.status.toLowerCase() == 'in progress' ||
+                  r.status.toLowerCase() == 'in_progress' ||
+                  r.status.toLowerCase() == 'assigned' ||
+                  r.status.toLowerCase() == 'accepted by maintenance' ||
+                  r.status.toLowerCase() == 'pre-inspection submitted',
             )
             .length;
       case 3:
         return _requests
-            .where((r) => r.status.toLowerCase() == 'under_maintenance' || r.status.toLowerCase() == 'maintenance')
+            .where((r) => r.status.toLowerCase() == 'declined' || r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined/cancelled' || r.status.toLowerCase() == 'pre-inspection declined')
             .length;
       case 4:
         return _requests
-            .where((r) => _duplicateRequestIds.contains(r.id))
+            .where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'post-repair submitted' || r.status.toLowerCase() == 'in progress (post-repair)' || r.status.toLowerCase() == 'under_maintenance')
             .length;
       case 5:
         return _requests
+            .where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'for rework' || r.status.toLowerCase() == 'under evaluation')
+            .length;
+      case 6:
+        return _requests
             .where((r) => r.status.toLowerCase() == 'completed')
+            .length;
+      case 7:
+        return _requests
+            .where((r) => r.duplicateOfId != null)
             .length;
       default:
         return 0;
@@ -401,11 +425,13 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
           const SizedBox(width: 8),
           _buildStatusFilterButton('In Progress', 2),
           const SizedBox(width: 8),
-          _buildStatusFilterButton('Unavailable', 3),
+          _buildStatusFilterButton('Confirmed', 4),
           const SizedBox(width: 8),
-          _buildStatusFilterButton('Duplicates', 4),
+          _buildStatusFilterButton('Rework', 5),
           const SizedBox(width: 8),
-          _buildStatusFilterButton('Completed', 5),
+          _buildStatusFilterButton('Completed', 6),
+          const SizedBox(width: 8),
+          _buildStatusFilterButton('Declined', 3),
         ],
       ),
     );
@@ -1085,13 +1111,34 @@ class _TicketCardState extends State<_TicketCard> {
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'pending': return AdminStyles.warning;
-      case 'approved':
+      case 'pending':
+      case 'pending assignment':
+        return AdminStyles.textMuted;
+      case 'in progress':
       case 'in_progress':
-      case 'under_maintenance': return AdminStyles.primary;
-      case 'completed': return AdminStyles.success;
-      case 'rework': return AdminStyles.error;
-      default: return AdminStyles.textMuted;
+      case 'assigned':
+      case 'accepted by maintenance':
+      case 'pre-inspection submitted':
+        return AdminStyles.info;
+      case 'declined':
+      case 'cancelled':
+      case 'declined/cancelled':
+      case 'pre-inspection declined':
+        return AdminStyles.error;
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'post-repair submitted':
+      case 'in progress (post-repair)':
+      case 'under_maintenance':
+        return AdminStyles.primary;
+      case 'rework':
+      case 'for rework':
+      case 'under evaluation':
+        return AdminStyles.warning;
+      case 'completed':
+        return AdminStyles.success;
+      default:
+        return AdminStyles.textMuted;
     }
   }
 }
@@ -1119,32 +1166,57 @@ class _StatusBadge extends StatelessWidget {
   }
 
   _Config _getConfig() {
-    switch (status.toLowerCase()) {
+    final s = status.toLowerCase();
+    switch (s) {
       case 'pending':
+      case 'pending assignment':
         return _Config(
           'PENDING',
-          const Color(0xFFFEF3C7),
-          const Color(0xFFD97706),
+          const Color(0xFFF3F4F6),
+          const Color(0xFF6B7280),
         );
-      case 'approved':
+      case 'in progress':
       case 'in_progress':
-      case 'under_maintenance':
+      case 'assigned':
+      case 'accepted by maintenance':
+      case 'pre-inspection submitted':
         return _Config(
-          'ACTIVE',
+          'IN PROGRESS',
           const Color(0xFFDBEAFE),
           const Color(0xFF2563EB),
         );
-      case 'completed':
+      case 'declined':
+      case 'cancelled':
+      case 'declined/cancelled':
+      case 'pre-inspection declined':
         return _Config(
-          'completed',
-          const Color(0xFFDCFCE7),
-          const Color(0xFF16A34A),
-        );
-      case 'rework':
-        return _Config(
-          'REWORK',
+          'DECLINED',
           const Color(0xFFFEE2E2),
           const Color(0xFFDC2626),
+        );
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'post-repair submitted':
+      case 'in progress (post-repair)':
+      case 'under_maintenance':
+        return _Config(
+          'CONFIRMED',
+          const Color(0xFFF0FDFA),
+          const Color(0xFF0F766E),
+        );
+      case 'rework':
+      case 'for rework':
+      case 'under evaluation':
+        return _Config(
+          'REWORK',
+          const Color(0xFFFEF3C7),
+          const Color(0xFFD97706),
+        );
+      case 'completed':
+        return _Config(
+          'COMPLETED',
+          const Color(0xFFD1FAE5),
+          const Color(0xFF059669),
         );
       default:
         return _Config(

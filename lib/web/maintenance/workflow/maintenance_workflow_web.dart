@@ -17,48 +17,78 @@ class MaintenanceWorkflowWeb extends StatelessWidget {
       icon: Icons.edit_note_rounded,
       color: Color(0xFF6366F1),
       description:
-          'The requestor files a ticket specifying the facility/room number, type of request (e.g. electrical, plumbing, structural), and details of the issue.',
+          'The requestor files a ticket specifying the facility/room number, type of request (e.g. electrical, plumbing, structural), and details of the issue. Submitted via QR scan or manual room entry.',
       statusLabel: 'PENDING',
     ),
     _WorkflowStep(
       step: '2',
-      title: 'Review & Prioritization',
+      title: 'Admin Review & Approval',
       actor: 'ADMINISTRATOR',
       icon: Icons.rate_review_rounded,
       color: Color(0xFFF59E0B),
       description:
-          'Admin evaluates the ticket, assigns priority (Standard/High), selects an assignee from available maintenance staff, and approves it.',
+          'Admin evaluates the ticket, assigns a priority level (Standard or High), selects an assignee from available maintenance staff, and approves it with an electronic signature.',
       statusLabel: 'APPROVED',
     ),
     _WorkflowStep(
       step: '3',
-      title: 'Acknowledgment & Start',
+      title: 'Technician Acceptance',
       actor: 'MAINTENANCE TECHNICIAN',
       icon: Icons.thumb_up_alt_rounded,
       color: Color(0xFF0EA5E9),
       description:
-          'The assigned technician opens the task, signs an electronic acknowledgment signature, and begins work.',
+          'The assigned technician opens the task, signs an electronic acknowledgment signature, and officially begins the job. The request moves to In Progress.',
       statusLabel: 'IN PROGRESS',
     ),
     _WorkflowStep(
       step: '4',
-      title: 'Execution & Documentation',
+      title: 'Pre-Inspection Submitted',
       actor: 'MAINTENANCE TECHNICIAN',
-      icon: Icons.add_a_photo_rounded,
+      icon: Icons.search_rounded,
       color: Color(0xFF8B5CF6),
       description:
-          'Technician resolves the issue, uploads a photo as evidence of the accomplished work, notes resolution details, and signs off.',
-      statusLabel: 'UNDER MAINTENANCE',
+          'Before executing the repair, the technician conducts an initial site inspection and submits a pre-inspection report documenting the current condition and scope of work.',
+      statusLabel: 'IN PROGRESS',
     ),
     _WorkflowStep(
       step: '5',
-      title: 'Verification & Closure',
-      actor: 'TEACHER & ADMINISTRATOR',
+      title: 'Pre-Inspection Review',
+      actor: 'ADMINISTRATOR',
+      icon: Icons.checklist_rounded,
+      color: Color(0xFFEF4444),
+      description:
+          'Admin reviews the pre-inspection report. If satisfactory, the request is Confirmed and work proceeds. If not acceptable, the ticket is Declined and closed. Rework may also be requested.',
+      statusLabel: 'CONFIRMED / DECLINED',
+    ),
+    _WorkflowStep(
+      step: '6',
+      title: 'Work Execution',
+      actor: 'MAINTENANCE TECHNICIAN',
+      icon: Icons.engineering,
+      color: Color(0xFF0EA5E9),
+      description:
+          'The technician performs the required repair or maintenance work on-site. The request is now marked as Under Maintenance. If a Rework was requested, the technician re-executes the work.',
+      statusLabel: 'UNDER MAINTENANCE',
+    ),
+    _WorkflowStep(
+      step: '7',
+      title: 'Post-Repair Report Submitted',
+      actor: 'MAINTENANCE TECHNICIAN',
+      icon: Icons.add_a_photo_rounded,
+      color: Color(0xFFF59E0B),
+      description:
+          'After completing the work, the technician uploads a photo as evidence of the accomplished work, notes resolution details, and submits the post-repair report with an e-signature.',
+      statusLabel: 'POST-REPAIR SUBMITTED',
+    ),
+    _WorkflowStep(
+      step: '8',
+      title: 'Final Evaluation & Closure',
+      actor: 'ADMINISTRATOR',
       icon: Icons.verified_user_rounded,
       color: Color(0xFF10B981),
       description:
-          'The original requestor inspects the completed work and signs off to close the ticket. If unsatisfactory, admin/teacher may request REWORK (returns to Step 4).',
-      statusLabel: 'COMPLETED',
+          'Admin evaluates the post-repair report. If satisfactory, the ticket is marked Completed and the requestor is notified. If unsatisfactory, a Rework is requested and the process returns to Step 6.',
+      statusLabel: 'COMPLETED / REWORK',
     ),
   ];
 
@@ -124,7 +154,7 @@ class MaintenanceWorkflowWeb extends StatelessWidget {
               Text('Work Request Workflow', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
               SizedBox(height: 6),
               Text(
-                'Step-by-step lifecycle of a PSU Maintenance Work Request — from submission to verified closure.',
+                'Step-by-step lifecycle of a PSU MMS Work Request — from submission to verified closure.',
                 style: TextStyle(fontSize: 14, color: _muted, height: 1.5),
               ),
             ],
@@ -263,38 +293,44 @@ class _StepCardState extends State<_StepCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Expanded(
-                    child: Text(s.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)),
-                  ),
-                  const SizedBox(width: 12),
-                  // Actor pill
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: s.color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: s.color.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(s.icon, size: 13, color: s.color),
-                        const SizedBox(width: 6),
-                        Text(s.actor, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: s.color, letterSpacing: 0.5)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Status label
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: s.color.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Text(s.statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: s.color, letterSpacing: 0.5)),
+                  Text(s.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _ink)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Actor pill
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: s.color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(color: s.color.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(s.icon, size: 13, color: s.color),
+                            const SizedBox(width: 6),
+                            Text(s.actor, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: s.color, letterSpacing: 0.5)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Status label
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: s.color.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Text(s.statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: s.color, letterSpacing: 0.5)),
+                      ),
+                    ],
                   ),
                 ],
               ),

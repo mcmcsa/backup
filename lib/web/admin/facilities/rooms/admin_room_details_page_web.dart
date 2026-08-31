@@ -3,16 +3,18 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../shared/models/room_model.dart';
 import '../../shared/admin_styles.dart';
-import 'admin_edit_room_page_web.dart';
+
 
 class AdminRoomDetailsPageWeb extends StatelessWidget {
   final Room room;
   final ValueChanged<Room>? onEditRoom;
+  final VoidCallback? onBack;
 
   const AdminRoomDetailsPageWeb({
     super.key,
     required this.room,
     this.onEditRoom,
+    this.onBack,
   });
 
   String _safe(String value, {String fallback = '-'}) {
@@ -23,16 +25,13 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
   String get _statusKey {
     final status = room.status.trim().toLowerCase();
     if (status == 'available') return 'available';
-    if (status == 'reserved') return 'reserved';
-    return 'maintenance';
+    return 'unavailable';
   }
 
   String get _statusLabel {
     switch (_statusKey) {
       case 'available':
         return 'AVAILABLE';
-      case 'reserved':
-        return 'RESERVED';
       default:
         return 'UNAVAILABLE';
     }
@@ -42,8 +41,6 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
     switch (_statusKey) {
       case 'available':
         return AdminStyles.success;
-      case 'reserved':
-        return AdminStyles.warning;
       default:
         return AdminStyles.error;
     }
@@ -53,24 +50,12 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
     switch (_statusKey) {
       case 'available':
         return Icons.check_circle_rounded;
-      case 'reserved':
-        return Icons.event_busy_rounded;
       default:
-        return Icons.build_circle_rounded;
+        return Icons.cancel_rounded;
     }
   }
 
-  void _openEdit(BuildContext context) {
-    if (onEditRoom != null) {
-      onEditRoom!(room);
-      return;
-    }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => AdminEditRoomPageWeb(room: room)),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,12 +77,8 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(24),
                     decoration: AdminStyles.cardDecoration(borderRadius: 16),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final compact = constraints.maxWidth < 760;
-
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,134 +133,45 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
                               ],
                             ),
                             const SizedBox(height: 20),
-                            if (compact)
-                              Column(
-                                children: [
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: Semantics(
-                                      button: true,
-                                      label: 'Go back',
-                                      child: OutlinedButton.icon(
-                                        onPressed: () {
-                                          if (Navigator.canPop(context)) {
-                                            Navigator.pop(context);
-                                          } else {
-                                            context.go('/admin/facilities');
-                                          }
-                                        },
-                                        icon: const Icon(
-                                          Icons.arrow_back_rounded,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Back'),
-                                        style: OutlinedButton.styleFrom(
-                                          minimumSize: const Size.fromHeight(46),
-                                          foregroundColor: AdminStyles.textSecondary,
-                                          side: BorderSide(
-                                            color: AdminStyles.border,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                        ),
+                            Row(
+                              children: [
+                                Semantics(
+                                  button: true,
+                                  label: 'Go back',
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      if (onBack != null) {
+                                        onBack!();
+                                      } else if (Navigator.canPop(context)) {
+                                        Navigator.pop(context);
+                                      } else {
+                                        context.go('/admin/facilities');
+                                      }
+                                    },
+                                    icon: const Icon(
+                                      Icons.arrow_back_rounded,
+                                      size: 18,
+                                    ),
+                                    label: const Text('Back'),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(100, 42),
+                                      foregroundColor: AdminStyles.textSecondary,
+                                      side: BorderSide(
+                                        color: AdminStyles.border,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: Semantics(
-                                      button: true,
-                                      label: 'Edit room details',
-                                      child: ElevatedButton.icon(
-                                        onPressed: () => _openEdit(context),
-                                        icon: const Icon(
-                                          Icons.edit_rounded,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Edit Room'),
-                                        style: ElevatedButton.styleFrom(
-                                          minimumSize: const Size.fromHeight(46),
-                                          backgroundColor: AdminStyles.primary,
-                                          foregroundColor: Colors.white,
-                                          elevation: 0,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: _buildStatusBadge(),
-                                  ),
-                                ],
-                              )
-                            else
-                              Row(
-                                children: [
-                                  Semantics(
-                                    button: true,
-                                    label: 'Go back',
-                                    child: OutlinedButton.icon(
-                                      onPressed: () {
-                                        if (Navigator.canPop(context)) {
-                                          Navigator.pop(context);
-                                        } else {
-                                          context.go('/admin/facilities');
-                                        }
-                                      },
-                                      icon: const Icon(
-                                        Icons.arrow_back_rounded,
-                                        size: 18,
-                                      ),
-                                      label: const Text('Back'),
-                                      style: OutlinedButton.styleFrom(
-                                        minimumSize: const Size(116, 46),
-                                        foregroundColor: AdminStyles.textSecondary,
-                                        side: BorderSide(
-                                          color: AdminStyles.border,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Semantics(
-                                    button: true,
-                                    label: 'Edit room details',
-                                    child: ElevatedButton.icon(
-                                      onPressed: () => _openEdit(context),
-                                      icon: const Icon(
-                                        Icons.edit_rounded,
-                                        size: 18,
-                                      ),
-                                      label: const Text('Edit Room'),
-                                      style: ElevatedButton.styleFrom(
-                                        minimumSize: const Size(134, 46),
-                                        backgroundColor: AdminStyles.primary,
-                                        foregroundColor: Colors.white,
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const Spacer(),
-                                  _buildStatusBadge(),
-                                ],
-                              ),
+                                ),
+                                const Spacer(),
+                                _buildStatusBadge(),
+                              ],
+                            ),
                           ],
-                        );
-                      },
-                    ),
-                  ),
+                        ),
+                      ),
                   const SizedBox(height: 24),
                   // Content grid without redundant metrics row
                   LayoutBuilder(
@@ -359,7 +251,7 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Room Intelligence',
+            'Room Information',
             style: AdminStyles.headingStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
@@ -374,35 +266,46 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 2.2,
-            children: [
-              _InfoCard(
-                label: 'Room Name',
-                value: _safe(room.name),
-                icon: Icons.meeting_room_rounded,
-              ),
-              _InfoCard(
-                label: 'Room Code',
-                value: roomCode,
-                icon: Icons.qr_code_rounded,
-              ),
-              _InfoCard(
-                label: 'Room Type',
-                value: _safe(room.roomType),
-                icon: Icons.category_rounded,
-              ),
-              _InfoCard(
-                label: 'Seats Capacity',
-                value: '${room.seats} Seats',
-                icon: Icons.chair_alt_rounded,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isVeryNarrow = constraints.maxWidth < 480;
+              final crossAxisCount = isVeryNarrow ? 1 : 2;
+              final cellWidth = isVeryNarrow
+                  ? constraints.maxWidth
+                  : (constraints.maxWidth - 16) / 2;
+              final ratio = cellWidth / 80;
+
+              return GridView.count(
+                crossAxisCount: crossAxisCount,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: ratio,
+                children: [
+                  _InfoCard(
+                    label: 'Room Name',
+                    value: _safe(room.name),
+                    icon: Icons.meeting_room_rounded,
+                  ),
+                  _InfoCard(
+                    label: 'Room Code',
+                    value: roomCode,
+                    icon: Icons.qr_code_rounded,
+                  ),
+                  _InfoCard(
+                    label: 'Room Type',
+                    value: _safe(room.roomType),
+                    icon: Icons.category_rounded,
+                  ),
+                  _InfoCard(
+                    label: 'Seats Capacity',
+                    value: '${room.seats} Seats',
+                    icon: Icons.chair_alt_rounded,
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),

@@ -246,6 +246,9 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
   }
 
   Widget _buildLogsList(List<LoginActivity> logs) {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 700;
+
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -260,6 +263,7 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
           decoration: AdminStyles.cardDecoration(hasShadow: false),
           padding: const EdgeInsets.all(16),
           child: Row(
+            crossAxisAlignment: isNarrow ? CrossAxisAlignment.start : CrossAxisAlignment.center,
             children: [
               Container(
                 width: 44,
@@ -286,7 +290,14 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Text(log.userName, style: const TextStyle(fontSize: 12, color: _subtleText)),
+                        Flexible(
+                          child: Text(
+                            log.userName,
+                            style: const TextStyle(fontSize: 12, color: _subtleText),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         Container(
                           width: 4,
@@ -314,13 +325,23 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
                         style: const TextStyle(fontSize: 12, color: Color(0xFF334155)),
                       ),
                     ],
+                    if (isNarrow) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        DateFormat('MMM dd, yyyy hh:mm a').format(log.loggedInAt),
+                        style: AdminStyles.dataStyle(fontSize: 11, color: _subtleText),
+                      ),
+                    ],
                   ],
                 ),
               ),
-              Text(
-                DateFormat('MMM dd, yyyy hh:mm a').format(log.loggedInAt),
-                style: AdminStyles.dataStyle(fontSize: 11, color: _subtleText),
-              ),
+              if (!isNarrow) ...[
+                const SizedBox(width: 8),
+                Text(
+                  DateFormat('MMM dd, yyyy hh:mm a').format(log.loggedInAt),
+                  style: AdminStyles.dataStyle(fontSize: 11, color: _subtleText),
+                ),
+              ],
             ],
           ),
         );

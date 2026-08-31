@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/work_request_service.dart';
+import '../admin_nav_controller.dart';
+import '../tickets/admin_work_process_web.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -17,6 +20,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   String _selectedTimeFilter = 'Today';
   List<NotificationItem> _notifications = [];
   bool _isLoading = true;
+  bool _showAll = false;
 
   @override
   void initState() {
@@ -158,6 +162,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
         type = NotificationType.success;
         category = 'WORK ORDERS';
         break;
+      case 'pre_inspection_submitted':
+        icon = Icons.search_rounded;
+        iconColor = const Color(0xFFF59E0B);
+        type = NotificationType.info;
+        category = 'WORK ORDERS';
+        break;
+      case 'post_repair_submitted':
+        icon = Icons.build_circle_rounded;
+        iconColor = const Color(0xFF3B82F6);
+        type = NotificationType.info;
+        category = 'WORK ORDERS';
+        break;
       case 'work_request_declined':
         icon = Icons.cancel_rounded;
         iconColor = const Color(0xFFDC2626);
@@ -183,6 +199,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       date: notification.createdAt,
       isRead: notification.isRead,
       category: category,
+      workRequestId: notification.workRequestId,
     );
   }
 
@@ -232,8 +249,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     final filteredNotifications = _filteredNotifications;
+    final hasMoreThan20 = filteredNotifications.length > 20;
+    final displayNotifications = _showAll ? filteredNotifications : (hasMoreThan20 ? filteredNotifications.take(20).toList() : filteredNotifications);
     final groupedNotifications = _groupNotificationsByDate(
-      filteredNotifications,
+      displayNotifications,
     );
 
     return Scaffold(
@@ -379,6 +398,34 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               _buildNotificationCard(notification),
                         ),
                       ],
+                      if (hasMoreThan20 && !_showAll) ...[
+                        const SizedBox(height: 16),
+                        MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _showAll = true),
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'View All Notifications',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF3B82F6),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
           ),
@@ -460,6 +507,42 @@ class _NotificationsPageState extends State<NotificationsPage> {
             notification.isRead = true;
           });
           await AppNotificationService.markAsRead(notification.id);
+          
+          if (notification.workRequestId != null && notification.workRequestId!.isNotEmpty) {
+            if (mounted) {
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (BuildContext context) {
+                  return const Center(child: CircularProgressIndicator());
+                },
+              );
+            }
+            try {
+              final workRequest = await WorkRequestService.fetchById(notification.workRequestId!);
+              if (mounted) {
+                Navigator.of(context).pop(); // dismiss loading dialog
+                Navigator.of(context).pop(); // dismiss the notifications page popup dialog
+              }
+              if (workRequest != null && mounted) {
+                final controller = AdminNavController.of(context);
+                if (controller != null) {
+                  controller.openWorkProcess(workRequest);
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AdminWorkProcessWeb(request: workRequest),
+                    ),
+                  );
+                }
+              }
+            } catch (_) {
+              if (mounted) {
+                Navigator.of(context).pop(); // dismiss loading dialog
+              }
+            }
+          }
         },
         borderRadius: BorderRadius.circular(12),
         child: Container(
@@ -556,6 +639,7 @@ class NotificationItem {
   final DateTime date;
   bool isRead;
   final String category;
+  final String? workRequestId;
 
   NotificationItem({
     required this.id,
@@ -568,5 +652,6 @@ class NotificationItem {
     required this.date,
     this.isRead = false,
     required this.category,
+    this.workRequestId,
   });
 }

@@ -14,6 +14,8 @@ const Color _green = Color(0xFF10B981);
 const Color _orange = Color(0xFFF59E0B);
 const Color _red = Color(0xFFEF4444);
 const Color _indigo = Color(0xFF6366F1);
+const Color _purple = Color(0xFF8B5CF6);
+const Color _pink = Color(0xFFEC4899);
 const Color _ink = Color(0xFF0F172A);
 const Color _muted = Color(0xFF64748B);
 const Color _pageBg = Color(0xFFF1F5F9);
@@ -70,7 +72,42 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
     }
   }
 
-  int _countByStatus(String s) => _requests.where((r) => r.status.toLowerCase() == s.toLowerCase()).length;
+  int _countByWorkflowStatus(String targetStatus) {
+    return _requests.where((r) {
+      final status = r.status.toLowerCase();
+      final hasPreInsp = r.preInspectionId != null;
+      final hasPostRepair = r.postRepairId != null;
+      final isRework = status == 'rework';
+      final isCompleted = status == 'completed';
+      final isDeclined = status == 'declined' || status == 'cancelled';
+
+      String computed = 'AWAITING REVIEW';
+      if (isCompleted) {
+        computed = 'COMPLETED';
+      } else if (isDeclined) {
+        computed = 'DECLINED';
+      } else if (isRework) {
+        computed = 'REWORK NEEDED';
+      } else if (hasPostRepair) {
+        computed = 'UNDER EVALUATION';
+      } else if (status == 'confirmed') {
+        computed = 'CONFIRMED';
+      } else if (hasPreInsp) {
+        computed = 'PRE-INSPECTION SUBMITTED';
+      } else if (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance') {
+        if (r.acceptedDate == null) {
+          computed = 'APPROVED';
+        } else {
+          computed = 'ACCEPTED';
+        }
+      } else {
+        computed = 'AWAITING REVIEW';
+      }
+
+      return computed.toLowerCase() == targetStatus.toLowerCase();
+    }).length;
+  }
+
   int _countByPriority(String p) => _requests.where((r) => r.priority.toLowerCase() == p.toLowerCase()).length;
   List<WorkRequest> _latest({int limit = 6}) => _requests.take(limit).toList();
 
@@ -87,9 +124,9 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
     final isCompact = width < 1024;
     final isMobile = width < 768;
 
-    final pending = _countByStatus('pending');
-    final inProgress = _countByStatus('in_progress');
-    final completed = _countByStatus('completed');
+    final pending = _countByWorkflowStatus('APPROVED');
+    final inProgress = _countByWorkflowStatus('ACCEPTED') + _countByWorkflowStatus('CONFIRMED');
+    final completed = _countByWorkflowStatus('COMPLETED');
     final highPriority = _countByPriority('high');
 
     return Container(
@@ -109,17 +146,15 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
 
             // ── Main Content ──────────────────────────────────────────────
             if (isCompact) ...[
-              _buildStatusBreakdownCard(),
-              const SizedBox(height: 24),
               _buildRecentRequestsCard(),
+              const SizedBox(height: 24),
+              _buildStatusBreakdownCard(),
             ] else ...[
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(flex: 3, child: Column(
                     children: [
-                      _buildQuickActionsCard(),
-                      const SizedBox(height: 24),
                       _buildStatusBreakdownCard(),
                     ],
                   )),
@@ -189,7 +224,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
             border: Border.all(color: _blue.withValues(alpha: 0.4)),
           ),
           child: Text(
-            'PSU MAINTENANCE PORTAL',
+            'PSU MMS PORTAL',
             style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _blue, letterSpacing: 1.2),
           ),
         ),
@@ -209,9 +244,9 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
 
   Widget _buildStatRow(int pending, int inProgress, int highPriority, int completed, bool isMobile) {
     final cards = [
-      _StatCard(title: 'Pending', value: pending, icon: Icons.schedule_rounded, color: _orange, subtitle: 'Awaiting action'),
+      _StatCard(title: 'Pending', value: pending, icon: Icons.schedule_rounded, color: _orange, subtitle: 'Awaiting Review'),
       _StatCard(title: 'In Progress', value: inProgress, icon: Icons.engineering_rounded, color: _blue, subtitle: 'Active tasks'),
-      _StatCard(title: 'High Priority', value: highPriority, icon: Icons.warning_amber_rounded, color: _red, subtitle: 'Urgent items'),
+      _StatCard(title: 'High Priority', value: highPriority, icon: Icons.warning_amber_rounded, color: _red, subtitle: 'Urgent Request'),
       _StatCard(title: 'Completed', value: completed, icon: Icons.check_circle_rounded, color: _green, subtitle: 'Resolved'),
     ];
 
@@ -222,7 +257,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
         physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.3,
+        childAspectRatio: 1.6,
         children: cards,
       );
     }
@@ -232,20 +267,6 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
     );
   }
 
-  Widget _buildQuickActionsCard() {
-    return _DashCard(
-      title: 'Quick Actions',
-      child: Column(
-        children: [
-          _ActionTile(icon: Icons.map_rounded, title: 'Maintenance Map', subtitle: 'View facility layout & active tasks', color: _blue),
-          const SizedBox(height: 10),
-          _ActionTile(icon: Icons.assessment_rounded, title: 'Daily Report', subtitle: 'Generate end-of-day summary', color: _indigo),
-          const SizedBox(height: 10),
-          _ActionTile(icon: Icons.qr_code_scanner_rounded, title: 'Scan QR Code', subtitle: 'Identify room or equipment', color: _green),
-        ],
-      ),
-    );
-  }
 
   Widget _buildStatusBreakdownCard() {
     final total = _requests.length;
@@ -253,13 +274,19 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
       title: 'Status Overview',
       child: Column(
         children: [
-          _buildProgressRow('Pending', _countByStatus('pending'), total, _orange),
-          const SizedBox(height: 18),
-          _buildProgressRow('In Progress', _countByStatus('in_progress'), total, _blue),
-          const SizedBox(height: 18),
-          _buildProgressRow('Under Review', _countByStatus('under_maintenance'), total, _indigo),
-          const SizedBox(height: 18),
-          _buildProgressRow('Completed', _countByStatus('completed'), total, _green),
+          _buildProgressRow('Approved (Assigned)', _countByWorkflowStatus('APPROVED'), total, _orange),
+          const SizedBox(height: 14),
+          _buildProgressRow('Accepted', _countByWorkflowStatus('ACCEPTED'), total, _blue),
+          const SizedBox(height: 14),
+          _buildProgressRow('Pre-Inspection Submitted', _countByWorkflowStatus('PRE-INSPECTION SUBMITTED'), total, _indigo),
+          const SizedBox(height: 14),
+          _buildProgressRow('Confirmed', _countByWorkflowStatus('CONFIRMED'), total, _purple),
+          const SizedBox(height: 14),
+          _buildProgressRow('Under Evaluation', _countByWorkflowStatus('UNDER EVALUATION'), total, _pink),
+          const SizedBox(height: 14),
+          _buildProgressRow('Rework Needed', _countByWorkflowStatus('REWORK NEEDED'), total, _red),
+          const SizedBox(height: 14),
+          _buildProgressRow('Completed', _countByWorkflowStatus('COMPLETED'), total, _green),
         ],
       ),
     );
@@ -312,7 +339,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
               children: latest.map((r) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: GestureDetector(
-                  onTap: () => MaintenanceNavController.of(context)?.navigateTo(0, request: r),
+                  onTap: () => MaintenanceNavController.of(context)?.navigateTo(1, request: r),
                   child: _RequestRow(request: r),
                 ),
               )).toList(),
@@ -346,8 +373,18 @@ class _DashCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink)),
-                ?trailing,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _ink),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (trailing != null) ...[
+                  const SizedBox(width: 8),
+                  trailing!,
+                ],
               ],
             ),
             const SizedBox(height: 20),
@@ -371,8 +408,14 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isSmall = width < 768;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      padding: EdgeInsets.symmetric(
+        horizontal: isSmall ? 12 : 24, 
+        vertical: isSmall ? 10 : 20,
+      ),
       decoration: BoxDecoration(
         color: _card,
         borderRadius: BorderRadius.circular(16),
@@ -386,21 +429,36 @@ class _StatCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _muted)),
-                const SizedBox(height: 8),
-                Text('$value', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: color, letterSpacing: -1)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(fontSize: 11, color: _muted)),
+                Text(
+                  title, 
+                  style: TextStyle(fontSize: isSmall ? 11 : 13, fontWeight: FontWeight.w600, color: _muted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: isSmall ? 4 : 8),
+                Text(
+                  '$value', 
+                  style: TextStyle(fontSize: isSmall ? 24 : 32, fontWeight: FontWeight.w800, color: color, letterSpacing: -1),
+                ),
+                SizedBox(height: isSmall ? 2 : 4),
+                Text(
+                  subtitle, 
+                  style: TextStyle(fontSize: isSmall ? 10 : 11, color: _muted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
           ),
+          const SizedBox(width: 4),
           Container(
-            width: 56, height: 56,
+            width: isSmall ? 38 : 56, 
+            height: isSmall ? 38 : 56,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(isSmall ? 8 : 12),
             ),
-            child: Icon(icon, color: color, size: 28),
+            child: Icon(icon, color: color, size: isSmall ? 20 : 28),
           ),
         ],
       ),
@@ -408,61 +466,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-// ─── Action Tile ─────────────────────────────────────────────────────────────
-class _ActionTile extends StatefulWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-
-  const _ActionTile({required this.icon, required this.title, required this.subtitle, required this.color});
-
-  @override
-  State<_ActionTile> createState() => _ActionTileState();
-}
-
-class _ActionTileState extends State<_ActionTile> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      cursor: SystemMouseCursors.click,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _hovered ? widget.color.withValues(alpha: 0.06) : const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _hovered ? widget.color.withValues(alpha: 0.3) : Colors.transparent),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 38, height: 38,
-              decoration: BoxDecoration(color: widget.color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-              child: Icon(widget.icon, color: widget.color, size: 19),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(widget.title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink)),
-                Text(widget.subtitle, style: const TextStyle(fontSize: 11, color: _muted)),
-              ]),
-            ),
-            AnimatedOpacity(
-              duration: const Duration(milliseconds: 150),
-              opacity: _hovered ? 1.0 : 0.3,
-              child: Icon(Icons.arrow_forward_rounded, color: widget.color, size: 16),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ─── Request Row ─────────────────────────────────────────────────────────────
 class _RequestRow extends StatefulWidget {
@@ -478,10 +481,23 @@ class _RequestRowState extends State<_RequestRow> {
   bool _hovered = false;
 
   Color _statusColor(String s) {
-    switch (s.toLowerCase()) {
+    final status = s.toLowerCase().replaceAll('_', ' ').trim();
+    switch (status) {
       case 'completed': return _green;
-      case 'in_progress': return _blue;
-      case 'pending': return _orange;
+      case 'in progress':
+      case 'assigned':
+      case 'accepted by maintenance':
+        return _blue;
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'under_maintenance':
+        return _indigo;
+      case 'rework':
+      case 'for rework':
+        return _orange;
+      case 'pending':
+      case 'pending assignment':
+        return _muted;
       default: return _muted;
     }
   }
@@ -498,6 +514,8 @@ class _RequestRowState extends State<_RequestRow> {
   Widget build(BuildContext context) {
     final sc = _statusColor(widget.request.status);
     final pc = _priorityColor(widget.request.priority);
+    final isSmall = MediaQuery.of(context).size.width < 768;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -513,38 +531,81 @@ class _RequestRowState extends State<_RequestRow> {
               ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, 4))]
               : [],
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 40, height: 40,
-              decoration: BoxDecoration(color: sc.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-              child: Icon(Icons.build_circle_rounded, color: sc, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(widget.request.roomName ?? 'Unknown Room',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink), maxLines: 1, overflow: TextOverflow.ellipsis),
-                Text(widget.request.typeOfRequest,
-                    style: const TextStyle(fontSize: 12, color: _muted), maxLines: 1, overflow: TextOverflow.ellipsis),
-              ]),
-            ),
-            const SizedBox(width: 12),
-            _Pill(widget.request.priority, pc),
-            const SizedBox(width: 8),
-            _Pill(widget.request.status.replaceAll('_', ' '), sc),
-            const SizedBox(width: 8),
-            AnimatedOpacity(
-              duration: const Duration(milliseconds: 150),
-              opacity: _hovered ? 1.0 : 0.0,
-              child: Container(
-                width: 28, height: 28,
-                decoration: const BoxDecoration(color: _blue, shape: BoxShape.circle),
-                child: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 12),
+        child: isSmall
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(color: sc.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                    child: Icon(Icons.build_circle_rounded, color: sc, size: 20),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.request.roomName ?? 'Unknown Room',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.request.typeOfRequest,
+                          style: const TextStyle(fontSize: 12, color: _muted),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            _Pill(widget.request.priority, pc),
+                            const SizedBox(width: 6),
+                            _Pill(widget.request.status.replaceAll('_', ' '), sc),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios_rounded, color: _muted, size: 14),
+                ],
+              )
+            : Row(
+                children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(color: sc.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                    child: Icon(Icons.build_circle_rounded, color: sc, size: 20),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(widget.request.roomName ?? 'Unknown Room',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _ink), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(widget.request.typeOfRequest,
+                          style: const TextStyle(fontSize: 12, color: _muted), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ]),
+                  ),
+                  const SizedBox(width: 12),
+                  _Pill(widget.request.priority, pc),
+                  const SizedBox(width: 8),
+                  _Pill(widget.request.status.replaceAll('_', ' '), sc),
+                  const SizedBox(width: 8),
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 150),
+                    opacity: _hovered ? 1.0 : 0.0,
+                    child: Container(
+                      width: 28, height: 28,
+                      decoration: const BoxDecoration(color: _blue, shape: BoxShape.circle),
+                      child: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 12),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ),
     );
   }

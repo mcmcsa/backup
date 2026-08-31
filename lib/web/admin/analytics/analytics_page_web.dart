@@ -55,11 +55,10 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
   int get _totalRequests => _requests.length;
   int get _completedRequests => _requests.where((r) => r.status.toLowerCase() == 'completed').length;
   int get _pendingRequests => _requests.where((r) => r.status.toLowerCase() == 'pending').length;
-  int get _activeRequests => _requests.where((r) =>
-    r.status.toLowerCase() == 'in_progress' ||
-    r.status.toLowerCase() == 'approved' ||
-    r.status.toLowerCase() == 'under_maintenance'
-  ).length;
+  int get _activeRequests => _requests.where((r) {
+    final s = r.status.toLowerCase();
+    return s == 'in progress' || s == 'confirmed' || s == 'rework';
+  }).length;
   int get _highPriority => _requests.where((r) => r.priority.toLowerCase() == 'high').length;
   double get _completionRate => _totalRequests > 0 ? (_completedRequests / _totalRequests * 100) : 0;
 
@@ -288,34 +287,32 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
 
   Widget _buildPeriodSelector() {
     return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AdminStyles.border),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AdminStyles.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _selectedPeriod,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _subtleText),
-              items: ['Today', 'This Week', 'This Month', 'This Year']
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) setState(() => _selectedPeriod = value);
-              },
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _darkText),
-            ),
-          ),
+        ],
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedPeriod,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _subtleText),
+          items: ['Today', 'This Week', 'This Month', 'This Year']
+              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+              .toList(),
+          onChanged: (value) {
+            if (value != null) setState(() => _selectedPeriod = value);
+          },
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _darkText),
         ),
-      ],
+      ),
     );
   }
 

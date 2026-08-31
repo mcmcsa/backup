@@ -39,7 +39,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
         data = [];
       }
       // Archives = done + cancelled
-      data = data.where((r) => r.status == 'completed' || r.status == 'cancelled').toList();
+      data = data.where((r) => ['completed', 'declined', 'cancelled'].contains(r.status.toLowerCase())).toList();
       if (mounted) setState(() { _archivedRequests = data; _isLoading = false; });
     } catch (_) {
       if (mounted) setState(() { _isLoading = false; });
@@ -49,9 +49,9 @@ class _ArchivesPageState extends State<ArchivesPage> {
   List<WorkRequest> get _filteredArchives {
     List<WorkRequest> filtered = _archivedRequests;
     if (_selectedFilter == 'Completed') {
-      filtered = filtered.where((r) => r.status == 'completed').toList();
+      filtered = filtered.where((r) => r.status.toLowerCase() == 'completed').toList();
     } else if (_selectedFilter == 'Declined' || _selectedFilter == 'Cancelled') {
-      filtered = filtered.where((r) => r.status == 'cancelled').toList();
+      filtered = filtered.where((r) => r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined').toList();
     }
     final query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
@@ -180,8 +180,8 @@ class _ArchivesPageState extends State<ArchivesPage> {
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final r = _filteredArchives[index];
-                      final statusLabel = r.status == 'completed' ? 'COMPLETED' : 'CANCELLED';
-                      final statusColor = r.status == 'completed' ? const Color(0xFF4CAF50) : Colors.red;
+                       final statusLabel = r.status.toLowerCase() == 'completed' ? 'COMPLETED' : 'DECLINED';
+                       final statusColor = r.status.toLowerCase() == 'completed' ? const Color(0xFF4CAF50) : Colors.red;
                       return _buildArchiveCard(
                         trackingNumber: r.id,
                         title: r.title,

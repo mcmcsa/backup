@@ -226,7 +226,7 @@ class MenuDrawer extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '© PSU Maintenance',
+                    '© PSU MMS',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.1),
                       fontSize: 12,

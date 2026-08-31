@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/collaboration_models.dart';
 import 'app_notification_service.dart';
@@ -119,6 +120,32 @@ class CollaborationService {
     final fileName = '${workRequestId}_voice_${DateTime.now().millisecondsSinceEpoch}$ext';
     
     await _supabase.storage.from('voice_recordings').upload(fileName, file);
+    final publicUrl = _supabase.storage.from('voice_recordings').getPublicUrl(fileName);
+
+    await _supabase.from('work_request_notes').insert({
+      'work_request_id': workRequestId,
+      'author_id': authorId,
+      'content': 'Recorded a voice note.',
+      'voice_notes': [publicUrl],
+    });
+
+    await logActivity(workRequestId, authorId, 'added_voice_note', 'Added a new voice note.');
+  }
+
+  /// Upload voice note from raw bytes — works on both Web and mobile.
+  static Future<void> addVoiceNoteBytes(
+    String workRequestId,
+    String authorId,
+    Uint8List bytes, {
+    String ext = 'm4a',
+  }) async {
+    final fileName = '${workRequestId}_voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final mimeType = ext == 'webm' ? 'audio/webm' : 'audio/mp4';
+    await _supabase.storage.from('voice_recordings').uploadBinary(
+      fileName,
+      bytes,
+      fileOptions: FileOptions(contentType: mimeType),
+    );
     final publicUrl = _supabase.storage.from('voice_recordings').getPublicUrl(fileName);
 
     await _supabase.from('work_request_notes').insert({

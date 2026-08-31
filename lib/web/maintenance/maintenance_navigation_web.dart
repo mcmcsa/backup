@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../shared/models/work_request_model.dart';
+import '../../shared/models/chat_model.dart';
 import '../../shared/widgets/lazy_indexed_stack.dart';
 import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
+import '../admin/shared/admin_styles.dart';
+import '../../shared/services/app_notification_service.dart';
+import '../../shared/utils/workflow_guide_dialog.dart';
 import 'dashboard/maintenance_dashboard_web.dart';
 import 'profile/maintenance_profile_web.dart';
 import 'reports/maintenance_reports_web.dart';
@@ -10,6 +14,7 @@ import 'history/maintenance_history_web.dart';
 import 'chat/maintenance_chat_page_web.dart';
 import 'settings/maintenance_settings_web.dart';
 import 'workflow/maintenance_workflow_web.dart';
+import 'notifications/maintenance_notifications_web.dart';
 import 'maintenance_nav_controller.dart';
 import 'task/maintenance_task_details_web.dart';
 
@@ -26,12 +31,16 @@ class MaintenanceNavigationWeb extends StatefulWidget {
 class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   late int _selectedIndex;
   WorkRequest? _selectedRequestForDetails;
+  ChatRoom? _selectedChatRoom;
   String _userName = 'Maintenance';
   String _userSpecialization = 'Staff';
   String? _userAvatarUrl;
   int _hoveredIndex = -1;
   bool _isUserMenuHovered = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  static const int _notificationsIndex = 7;
+  int _unreadNotificationCount = 0;
 
   // ─── Design Tokens ────────────────────────────────────────────────────────
   static const _sidebarBg = Color(0xFF0F172A);       // Slate-900 (deeper)
@@ -49,6 +58,23 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
     super.initState();
     _selectedIndex = widget.initialIndex;
     _loadUserInfo();
+    _loadUnreadNotificationCount();
+  }
+
+  Future<void> _loadUnreadNotificationCount() async {
+    try {
+      final user = context.read<AuthService>().currentUser;
+      if (user == null) return;
+      final count = await AppNotificationService.getUnreadCount(
+        userId: user.id,
+        role: user.role.name,
+      );
+      if (mounted) {
+        setState(() {
+          _unreadNotificationCount = count;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadUserInfo() async {
@@ -168,14 +194,17 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
 
     return LazyIndexedStack(
       index: _selectedIndex,
-      children: const [
-        MaintenanceDashboardWeb(),
-        MaintenanceReportsWeb(),
-        MaintenanceChatPageWeb(),
-        MaintenanceHistoryWeb(),
-        MaintenanceProfileWeb(),
-        MaintenanceSettingsWeb(),
-        MaintenanceWorkflowWeb(),
+      children: [
+        const MaintenanceDashboardWeb(),
+        const MaintenanceReportsWeb(),
+        MaintenanceChatPageWeb(
+          key: ValueKey('chat-page-${_selectedChatRoom?.id}'),
+          initialRoom: _selectedChatRoom,
+        ),
+        const MaintenanceHistoryWeb(),
+        const MaintenanceProfileWeb(),
+        const MaintenanceSettingsWeb(),
+        const MaintenanceWorkflowWeb(),
       ],
     );
   }
@@ -183,10 +212,13 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   @override
   Widget build(BuildContext context) {
     return MaintenanceNavController(
-      navigateTo: (index, {request}) {
+      navigateTo: (index, {request, chatRoom}) {
         setState(() {
           _selectedIndex = index;
           _selectedRequestForDetails = request;
+          if (chatRoom != null) {
+            _selectedChatRoom = chatRoom;
+          }
         });
       },
       child: LayoutBuilder(
@@ -528,102 +560,100 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   }
 
   Widget _buildHeader({bool isCompact = false, VoidCallback? onMenuTap}) {
-    final pageTitles = ['Dashboard', 'Work Tasks', 'Messages', 'History', 'Profile', 'Settings', 'Work Flow'];
-    final pageTitle = _selectedIndex < pageTitles.length ? pageTitles[_selectedIndex] : 'Maintenance';
     final user = context.watch<AuthService>().currentUser;
     final userName = user?.name ?? 'Maintenance';
     final userAvatarUrl = user?.profileImage;
 
     return Container(
-      height: 66,
+      height: 70,
+      padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 24),
       decoration: BoxDecoration(
-        color: _headerBg,
-        border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+        color: const Color(0xFFF8FAFC),
+        border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.2))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 24),
       child: Row(
         children: [
           if (isCompact) ...[
             IconButton(
               onPressed: onMenuTap,
-              icon: const Icon(Icons.menu_rounded, color: Color(0xFF1E293B), size: 22),
+              icon: Icon(Icons.menu_rounded, color: AdminStyles.textPrimary),
               tooltip: 'Open menu',
             ),
             const SizedBox(width: 4),
           ],
           
-          // Breadcrumb / page title
-          if (!isCompact) ...[
-            const Text(
-              'PSU Maintenance',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF94A3B8)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Pangasinan State University',
+              style: AdminStyles.headingStyle(
+                fontSize: isCompact ? 15 : 18,
+                fontWeight: FontWeight.bold,
+                color: AdminStyles.primary,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFFCBD5E1)),
-            ),
-            Text(
-              pageTitle,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
-            ),
-          ],
+          ),
           
-          const Spacer(),
-          
-          // Notification Bell
-          _HeaderIconButton(icon: Icons.notifications_outlined, badge: 0, onTap: () {}),
+          // Guide Button
+          IconButton(
+            onPressed: () {
+              final user = context.read<AuthService>().currentUser;
+              showWorkflowGuideDialog(context, role: user?.role.name);
+            },
+            icon: const Icon(Icons.help_outline_rounded, color: AdminStyles.textSecondary),
+            tooltip: 'Workflow Guide',
+          ),
           const SizedBox(width: 8),
+          
+          // Notification button — shows label on wide, icon-only on compact
+          _NotificationButton(
+            showLabel: !isCompact,
+            onTap: () => setState(() => _selectedIndex = _notificationsIndex),
+            badge: _unreadNotificationCount,
+          ),
+          const SizedBox(width: 12),
           
           // User Avatar
           MouseRegion(
+            cursor: SystemMouseCursors.click,
             onEnter: (_) => setState(() => _isUserMenuHovered = true),
             onExit: (_) => setState(() => _isUserMenuHovered = false),
-            cursor: SystemMouseCursors.click,
             child: GestureDetector(
-              onTap: () => setState(() => _selectedIndex = 4),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.all(2),
+              onTap: () => setState(() => _selectedIndex = 4), // 4 is MaintenanceProfileWeb
+              child: Container(
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _isUserMenuHovered ? _accent : Colors.transparent,
-                    width: 2,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ),
-                child: Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    image: userAvatarUrl != null && userAvatarUrl.isNotEmpty
-                        ? DecorationImage(
-                            image: NetworkImage(userAvatarUrl),
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: (userAvatarUrl == null || userAvatarUrl.isEmpty)
-                      ? Center(
-                          child: Text(
-                            userName.isNotEmpty ? userName[0].toUpperCase() : 'M',
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
-                          ),
+                  borderRadius: BorderRadius.circular(10),
+                  image: userAvatarUrl != null && userAvatarUrl.isNotEmpty
+                      ? DecorationImage(
+                          image: NetworkImage(userAvatarUrl),
+                          fit: BoxFit.cover,
                         )
                       : null,
                 ),
+                child: (userAvatarUrl == null || userAvatarUrl.isEmpty)
+                    ? Center(
+                        child: Text(
+                          userName.isNotEmpty ? userName[0].toUpperCase() : 'M',
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+                        ),
+                      )
+                    : null,
               ),
             ),
           ),
@@ -633,18 +663,17 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   }
 }
 
-class _HeaderIconButton extends StatefulWidget {
-  final IconData icon;
-  final int badge;
+class _NotificationButton extends StatefulWidget {
+  final bool showLabel;
   final VoidCallback onTap;
-
-  const _HeaderIconButton({required this.icon, this.badge = 0, required this.onTap});
+  final int badge;
+  const _NotificationButton({required this.showLabel, required this.onTap, required this.badge});
 
   @override
-  State<_HeaderIconButton> createState() => _HeaderIconButtonState();
+  State<_NotificationButton> createState() => _NotificationButtonState();
 }
 
-class _HeaderIconButtonState extends State<_HeaderIconButton> {
+class _NotificationButtonState extends State<_NotificationButton> {
   bool _isHovered = false;
 
   @override
@@ -657,27 +686,40 @@ class _HeaderIconButtonState extends State<_HeaderIconButton> {
         onTap: widget.onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: _isHovered ? const Color(0xFFF1F5F9) : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.showLabel ? 14 : 10,
+            vertical: 8,
           ),
-          child: Stack(
-            alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _isHovered ? const Color(0xFF0EA5E9).withValues(alpha: 0.08) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _isHovered ? const Color(0xFF0EA5E9).withValues(alpha: 0.15) : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(widget.icon, color: const Color(0xFF64748B), size: 21),
-              if (widget.badge > 0)
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: const BoxDecoration(color: Color(0xFFEF4444), shape: BoxShape.circle),
-                    child: Center(child: Text('${widget.badge}', style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.white))),
+              Badge(
+                isLabelVisible: widget.badge > 0,
+                label: Text('${widget.badge}'),
+                child: Icon(
+                  Icons.notifications_outlined,
+                  color: _isHovered ? const Color(0xFF0EA5E9) : const Color(0xFF94A3B8),
+                  size: 22,
+                ),
+              ),
+              if (widget.showLabel) ...[
+                const SizedBox(width: 8),
+                Text(
+                  'Notifications',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _isHovered ? const Color(0xFF0EA5E9) : const Color(0xFF64748B),
                   ),
                 ),
+              ],
             ],
           ),
         ),

@@ -157,7 +157,7 @@ class StudentDrawer extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(
-                  '© PSU Maintenance',
+                  '© PSU MMS',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.white.withValues(alpha: 0.7),

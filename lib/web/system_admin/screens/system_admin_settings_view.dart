@@ -184,31 +184,43 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
   }
 
   Widget _buildHeader(bool isMobile) {
+    final titleCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Global Settings', style: AdminStyles.headingStyle(fontSize: isMobile ? 22 : 28)),
+        const SizedBox(height: 4),
+        Text('Manage core system configurations and environment variables.', style: AdminStyles.bodyStyle(fontSize: 13)),
+      ],
+    );
+
+    final saveBtn = ElevatedButton.icon(
+      onPressed: _saving ? null : _save,
+      icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save_rounded, size: 18),
+      label: Text(_saving ? 'Saving...' : 'Save Configuration'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AdminStyles.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          titleCol,
+          const SizedBox(height: 16),
+          saveBtn,
+        ],
+      );
+    }
+
     return Row(
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Global Settings', style: AdminStyles.headingStyle(fontSize: isMobile ? 22 : 28)),
-              const SizedBox(height: 4),
-              Text('Manage core system configurations and environment variables.', style: AdminStyles.bodyStyle(fontSize: 13)),
-            ],
-          ),
-        ),
-        if (!isMobile) ...[
-          ElevatedButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save_rounded, size: 18),
-            label: Text(_saving ? 'Saving...' : 'Save Configuration'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminStyles.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ],
+        Expanded(child: titleCol),
+        const SizedBox(width: 16),
+        saveBtn,
       ],
     );
   }
@@ -222,14 +234,12 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
         const SizedBox(height: 16),
         _buildTextField('Campus Name', _campusNameCtrl, Icons.location_city_rounded, required: true),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(child: _buildTextField('Primary Color (Hex)', _primaryColorCtrl, Icons.color_lens_rounded, required: true)),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
+        MediaQuery.of(context).size.width < 600
+            ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildTextField('Primary Color (Hex)', _primaryColorCtrl, Icons.color_lens_rounded, required: true),
+                  const SizedBox(height: 16),
                   _label('Theme Default'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
@@ -243,10 +253,32 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                     onChanged: (v) => setState(() => _theme = v ?? 'light'),
                   ),
                 ],
+              )
+            : Row(
+                children: [
+                  Expanded(child: _buildTextField('Primary Color (Hex)', _primaryColorCtrl, Icons.color_lens_rounded, required: true)),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('Theme Default'),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _theme,
+                          decoration: _inputDecor(Icons.dark_mode_rounded),
+                          items: const [
+                            DropdownMenuItem(value: 'light', child: Text('Light Theme')),
+                            DropdownMenuItem(value: 'dark', child: Text('Dark Theme')),
+                            DropdownMenuItem(value: 'system', child: Text('System Default')),
+                          ],
+                          onChanged: (v) => setState(() => _theme = v ?? 'light'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
         const SizedBox(height: 16),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,14 +305,12 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
       title: 'Academic Configuration',
       icon: Icons.school_rounded,
       children: [
-        Row(
-          children: [
-            Expanded(child: _buildTextField('Academic Year', _academicYearCtrl, Icons.calendar_today_rounded, required: true)),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
+        MediaQuery.of(context).size.width < 600
+            ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildTextField('Academic Year', _academicYearCtrl, Icons.calendar_today_rounded, required: true),
+                  const SizedBox(height: 16),
                   _label('Current Semester'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
@@ -294,10 +324,32 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                     onChanged: (v) => setState(() => _semester = v ?? '1st Semester'),
                   ),
                 ],
+              )
+            : Row(
+                children: [
+                  Expanded(child: _buildTextField('Academic Year', _academicYearCtrl, Icons.calendar_today_rounded, required: true)),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label('Current Semester'),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _semester,
+                          decoration: _inputDecor(Icons.layers_rounded),
+                          items: const [
+                            DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
+                            DropdownMenuItem(value: '2nd Semester', child: Text('2nd Semester')),
+                            DropdownMenuItem(value: 'Midyear', child: Text('Midyear / Summer')),
+                          ],
+                          onChanged: (v) => setState(() => _semester = v ?? '1st Semester'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
       ],
     );
   }

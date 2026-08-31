@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../shared/admin_styles.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
+import '../../../shared/services/chat_service.dart';
+import '../admin_nav_controller.dart';
 
 // ─────────────────────────────────────────────────────────────
 // Unified user model — teacher, maintenance, campadmin
@@ -55,7 +59,6 @@ class UsersPageWeb extends StatefulWidget {
 class _UsersPageWebState extends State<UsersPageWeb> {
   final TextEditingController _searchController = TextEditingController();
   List<_AppUser> _users = [];
-  bool _isLoading = true;
   bool _isLoading = true;
 
   RealtimeChannel? _syncChannel;
@@ -178,188 +181,314 @@ class _UsersPageWebState extends State<UsersPageWeb> {
 
 
 
-  @override
-  Widget build(BuildContext context) {
-    final filtered = _filteredUsers;
+  InputDecoration _searchDecoration() {
+    return InputDecoration(
+      hintText: 'Search users...',
+      hintStyle: AdminStyles.bodyStyle(
+        fontSize: 13,
+        color: AdminStyles.textMuted,
+      ),
+      prefixIcon: const Padding(
+        padding: EdgeInsets.only(left: 12, right: 8),
+        child: Icon(Icons.search_rounded, color: AdminStyles.textMuted, size: 20),
+      ),
+      prefixIconConstraints:
+          const BoxConstraints(minWidth: 44, minHeight: 44),
+      filled: true,
+      fillColor: Colors.white,
+      suffixIcon: _searchController.text.isNotEmpty
+          ? IconButton(
+              icon: const Icon(Icons.close_rounded,
+                  color: AdminStyles.textMuted, size: 20),
+              onPressed: () {
+                _searchController.clear();
+                setState(() {});
+              },
+            )
+          : null,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AdminStyles.border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AdminStyles.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide:
+            const BorderSide(color: AdminStyles.primary, width: 1.4),
+      ),
+      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+    );
+  }
 
+  Widget _buildMobileList(List<_AppUser> filtered) {
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: filtered.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final user = filtered[index];
+        return _buildMobileCard(user);
+      },
+    );
+  }
+
+  Widget _buildMobileCard(_AppUser u) {
     return Container(
-      color: AdminStyles.bg,
-      padding: const EdgeInsets.all(28),
+      decoration: AdminStyles.cardDecoration(borderRadius: 16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header ──────────────────────────────────────────
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Users', style: AdminStyles.pageTitleStyle()),
-              const Spacer(),
-              SizedBox(
-                width: 320,
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (_) => setState(() {}),
-                  style: AdminStyles.bodyStyle(
-                    fontSize: 13,
+              Expanded(
+                child: Text(
+                  u.name,
+                  style: AdminStyles.headingStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                     color: AdminStyles.textPrimary,
-                    fontWeight: FontWeight.w600,
                   ),
-                  decoration: InputDecoration(
-                    hintText: 'Search users...',
-                    hintStyle: AdminStyles.bodyStyle(
-                      fontSize: 13,
-                      color: AdminStyles.textMuted,
-                    ),
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.only(left: 12, right: 8),
-                      child: Icon(Icons.search_rounded, color: AdminStyles.textMuted, size: 20),
-                    ),
-                    prefixIconConstraints:
-                        const BoxConstraints(minWidth: 44, minHeight: 44),
-                    filled: true,
-                    fillColor: Colors.white,
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.close_rounded,
-                                color: AdminStyles.textMuted, size: 20),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {});
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AdminStyles.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AdminStyles.border),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide:
-                          const BorderSide(color: AdminStyles.primary, width: 1.4),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: AdminStyles.pillDecoration(
+                  color: u.isActive ? AdminStyles.success : AdminStyles.warning,
+                  isSecondary: true,
+                ),
+                child: Text(
+                  u.isActive ? 'ACTIVE' : 'INACTIVE',
+                  style: AdminStyles.headingStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    color: u.isActive ? AdminStyles.success : AdminStyles.warning,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-
-          // ── User Count ───────────────────────────────
+          const SizedBox(height: 6),
+          Text(
+            u.email,
+            style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+          ),
+          const SizedBox(height: 12),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Spacer(),
-              Text(
-                '${filtered.length} faculty member${filtered.length == 1 ? '' : 's'}',
-                style: AdminStyles.pageSubtitleStyle(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: u.roleColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  u.roleLabel.toUpperCase(),
+                  style: AdminStyles.headingStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    color: u.roleColor,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      u.department ?? u.position ?? '—',
+                      style: AdminStyles.bodyStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AdminStyles.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (u.employeeId != null)
+                      Text(
+                        'ID: ${u.employeeId}',
+                        style: AdminStyles.bodyStyle(
+                            fontSize: 10, color: AdminStyles.textSecondary),
+                      ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
 
-          // ── Table ───────────────────────────────────────────
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AdminStyles.border),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 900;
+        final filtered = _filteredUsers;
+
+        return Container(
+          color: AdminStyles.bg,
+          padding: EdgeInsets.all(isMobile ? 16 : 28),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Header ──────────────────────────────────────────
+              isMobile
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Users', style: AdminStyles.pageTitleStyle()),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _searchController,
+                          onChanged: (_) => setState(() {}),
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 13,
+                            color: AdminStyles.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          decoration: _searchDecoration(),
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Text('Users', style: AdminStyles.pageTitleStyle()),
+                        const Spacer(),
+                        SizedBox(
+                          width: 320,
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (_) => setState(() {}),
+                            style: AdminStyles.bodyStyle(
+                              fontSize: 13,
+                              color: AdminStyles.textPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            decoration: _searchDecoration(),
+                          ),
+                        ),
+                      ],
+                    ),
+              const SizedBox(height: 14),
+
+              // ── User Count ───────────────────────────────
+              Row(
+                children: [
+                  const Spacer(),
+                  Text(
+                    '${filtered.length} faculty member${filtered.length == 1 ? '' : 's'}',
+                    style: AdminStyles.pageSubtitleStyle(),
                   ),
                 ],
               ),
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _errorMessage != null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.error_outline_rounded, color: AdminStyles.error, size: 48),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Error Loading Users',
-                                  style: AdminStyles.headingStyle(fontSize: 16, color: AdminStyles.error),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _errorMessage!,
-                                  textAlign: TextAlign.center,
-                                  style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : filtered.isEmpty
+              const SizedBox(height: 12),
+
+              // ── Table / Mobile List ───────────────────────────────────────────
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AdminStyles.border),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _errorMessage != null
                           ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.group_off_rounded,
-                                  size: 48, color: AdminStyles.textMuted.withValues(alpha: 0.4)),
-                              const SizedBox(height: 12),
-                              Text(
-                                'No users found',
-                                style: AdminStyles.bodyStyle(
-                                  fontSize: 14,
-                                  color: AdminStyles.textSecondary,
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.error_outline_rounded, color: AdminStyles.error, size: 48),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'Error Loading Users',
+                                      style: AdminStyles.headingStyle(fontSize: 16, color: AdminStyles.error),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      _errorMessage!,
+                                      textAlign: TextAlign.center,
+                                      style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                        )
-                      : SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: SizedBox(
-                            width: 800,
-                            child: Column(
-                              children: [
-                                // Table Header
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 24, vertical: 14),
-                                  decoration: const BoxDecoration(
-                                    border: Border(
-                                        bottom: BorderSide(color: AdminStyles.border)),
-                                  ),
-                                  child: Row(
+                            )
+                          : filtered.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Expanded(flex: 3, child: _buildTableHeader('User')),
-                                      Expanded(flex: 2, child: _buildTableHeader('Role')),
-                                      Expanded(flex: 2, child: _buildTableHeader('Details')),
-                                      Expanded(flex: 1, child: _buildTableHeader('Status')),
+                                      Icon(Icons.group_off_rounded,
+                                          size: 48, color: AdminStyles.textMuted.withValues(alpha: 0.4)),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'No users found',
+                                        style: AdminStyles.bodyStyle(
+                                          fontSize: 14,
+                                          color: AdminStyles.textSecondary,
+                                        ),
+                                      ),
                                     ],
                                   ),
-                                ),
-                                // Rows
-                                Expanded(
-                                  child: ListView.separated(
-                                    itemCount: filtered.length,
-                                    separatorBuilder: (_, __) =>
-                                        const Divider(height: 1, color: AdminStyles.border),
-                                    itemBuilder: (context, index) {
-                                      return _UserRow(user: filtered[index]);
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-            ),
+                                )
+                              : isMobile
+                                  ? _buildMobileList(filtered)
+                                  : Column(
+                                      children: [
+                                        // Table Header
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 24, vertical: 14),
+                                          decoration: const BoxDecoration(
+                                            border: Border(
+                                                bottom: BorderSide(color: AdminStyles.border)),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Expanded(flex: 3, child: _buildTableHeader('User')),
+                                              Expanded(flex: 2, child: _buildTableHeader('Role')),
+                                              Expanded(flex: 2, child: _buildTableHeader('Details')),
+                                              Expanded(flex: 1, child: _buildTableHeader('Status')),
+                                              Expanded(flex: 1, child: _buildTableHeader('Action')),
+                                            ],
+                                          ),
+                                        ),
+                                        // Rows
+                                        Expanded(
+                                          child: ListView.separated(
+                                            itemCount: filtered.length,
+                                            separatorBuilder: (_, __) =>
+                                                const Divider(height: 1, color: AdminStyles.border),
+                                            itemBuilder: (context, index) {
+                                              return _UserRow(user: filtered[index]);
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -377,6 +506,39 @@ class _UserRow extends StatefulWidget {
 
 class _UserRowState extends State<_UserRow> {
   bool _isHovered = false;
+  bool _isStartingChat = false;
+
+  Future<void> _startChat() async {
+    setState(() => _isStartingChat = true);
+    try {
+      final authService = context.read<AuthService>();
+      final currentUser = authService.currentUser;
+      if (currentUser == null) return;
+
+      final room = await ChatService.findOrCreateDirectRoom(
+        currentUserId: currentUser.id,
+        currentUserName: currentUser.name,
+        currentUserRole: currentUser.role.name,
+        otherUserId: widget.user.id,
+        otherUserName: widget.user.name,
+        otherUserRole: widget.user.role,
+      );
+
+      if (mounted) {
+        AdminNavController.of(context)?.navigateTo(20, chatRoom: room);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start chat: $e'), backgroundColor: AdminStyles.error),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isStartingChat = false);
+      }
+    }
+  }
 
   String _t(String? v, {String fallback = '—'}) {
     final s = (v ?? '').trim();
@@ -517,6 +679,24 @@ class _UserRowState extends State<_UserRow> {
                     ),
                   ),
                 ),
+              ),
+            ),
+
+            // ── Action ────────────────────────────────────────
+            Expanded(
+              flex: 1,
+              child: Center(
+                child: _isStartingChat
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AdminStyles.primary),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.chat_bubble_outline_rounded, color: AdminStyles.primary),
+                        onPressed: _startChat,
+                        tooltip: 'Send message',
+                      ),
               ),
             ),
           ],

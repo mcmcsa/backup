@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/models/room_model.dart';
 import '../../../../shared/services/room_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/admin_styles.dart';
 import 'add_room_page.dart';
 import 'admin_room_details_page_web.dart';
@@ -36,6 +37,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
   List<Map<String, dynamic>> _rooms = [];
   bool _isLoading = true;
   bool _isGridView = false;
+  RealtimeChannel? _roomsSubscription;
 
   static const Color _primaryBlue = AdminStyles.primary;
   static const Color _successGreen = AdminStyles.success;
@@ -57,6 +59,9 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
   void initState() {
     super.initState();
     _loadRooms();
+    _roomsSubscription = RoomService.listenToAllRooms((_) {
+      _loadRooms();
+    });
   }
 
   Future<void> _openAddRoomPage() async {
@@ -191,6 +196,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
 
   @override
   void dispose() {
+    _roomsSubscription?.unsubscribe();
     _searchController.dispose();
     super.dispose();
   }
@@ -250,6 +256,16 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
+                        children: [
+                          Expanded(
+                            child: _buildSearchBar(width: double.infinity),
+                          ),
+                          const SizedBox(width: 10),
+                          _buildRefreshButton(),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Row(
@@ -302,30 +318,6 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      SizedBox(width: double.infinity, child: _buildSearchBar(width: double.infinity)),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: 42,
-                              child: ElevatedButton.icon(
-                                onPressed: _openAddRoomPage,
-                                icon: const Icon(Icons.add_rounded, size: 18),
-                                label: const Text('Add Room'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _primaryBlue,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          _buildRefreshButton(),
-                        ],
-                      ),
                     ],
                   )
                 else
@@ -374,21 +366,6 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                         child: _buildSearchBar(width: 240),
                       ),
                       const SizedBox(width: 12),
-                      SizedBox(
-                        height: 42,
-                        child: ElevatedButton.icon(
-                          onPressed: _openAddRoomPage,
-                          icon: const Icon(Icons.add_rounded, size: 18),
-                          label: const Text('Add Room'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _primaryBlue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
                       _buildViewToggle(),
                       const SizedBox(width: 10),
                       _buildRefreshButton(),
@@ -428,7 +405,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                               ? 3
                               : constraints.maxWidth > 600
                                   ? 2
-                                  : 2;
+                                  : 1;
 
                           return GridView.builder(
                             shrinkWrap: true,
@@ -437,7 +414,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                               crossAxisCount: crossAxisCount,
                               crossAxisSpacing: 20,
                               mainAxisSpacing: 20,
-                              mainAxisExtent: 174,
+                              mainAxisExtent: constraints.maxWidth < 600 ? 174 : (isMobile ? 196 : 174),
                             ),
                             itemCount: filteredRooms.length,
                             itemBuilder: (context, index) {
@@ -623,7 +600,10 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: _loadRooms,
+        onTap: () {
+          setState(() => _isLoading = true);
+          _loadRooms();
+        },
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.all(10),
@@ -1193,25 +1173,6 @@ class _RoomCardState extends State<_RoomCard> {
                               );
                             },
                           ),
-                          const SizedBox(width: 8),
-                          _ActionIconButton(
-                            tooltip: 'Edit room',
-                            icon: Icons.edit_outlined,
-                            onTap: () {
-                              final selectedRoom = widget.room['room'] as Room;
-                              if (widget.onEditRoom != null) {
-                                widget.onEditRoom!(selectedRoom);
-                                return;
-                              }
-
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => AdminEditRoomPageWeb(room: selectedRoom),
-                                ),
-                              );
-                            },
-                          ),
                         ],
                       ),
                     ],
@@ -1286,25 +1247,6 @@ class _RoomCardState extends State<_RoomCard> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => AdminRoomDetailsPageWeb(room: selectedRoom),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(width: 8),
-                        _ActionIconButton(
-                          tooltip: 'Edit room',
-                          icon: Icons.edit_outlined,
-                          onTap: () {
-                            final selectedRoom = widget.room['room'] as Room;
-                            if (widget.onEditRoom != null) {
-                              widget.onEditRoom!(selectedRoom);
-                              return;
-                            }
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AdminEditRoomPageWeb(room: selectedRoom),
                               ),
                             );
                           },
@@ -1519,24 +1461,6 @@ class _RoomTableRowState extends State<_RoomTableRow> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => AdminRoomDetailsPageWeb(room: selectedRoom),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 8),
-                  _ActionIconButton(
-                    tooltip: 'Edit room',
-                    icon: Icons.edit_outlined,
-                    onTap: () {
-                      if (widget.onEditRoom != null) {
-                        widget.onEditRoom!(selectedRoom);
-                        return;
-                      }
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AdminEditRoomPageWeb(room: selectedRoom),
                         ),
                       );
                     },

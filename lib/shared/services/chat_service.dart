@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/chat_model.dart';
+import 'app_notification_service.dart';
 
 class ChatService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -61,12 +62,13 @@ class ChatService {
     String? workRequestId,
   }) async {
     // Look for an existing direct room shared only between these two users
-    final existing = await _db.rpc('find_direct_chat_room', params: {
+    final response = await _db.rpc('find_direct_chat_room', params: {
       'user_a': currentUserId,
       'user_b': otherUserId,
-    }).maybeSingle();
+    });
 
-    if (existing != null) {
+    if (response != null && (response as List).isNotEmpty) {
+      final existing = response.first as Map<String, dynamic>;
       final room = await fetchRoom(existing['id'] as String);
       if (room != null) return room;
     }
@@ -148,6 +150,7 @@ class ChatService {
 
     final response = await _db.from('chat_messages').insert(payload).select().single();
     await _updateRoomLastMessage(roomId, content, response['created_at'] as String);
+    _sendNewMessageNotification(roomId, senderId, senderName, content);
     return ChatMessage.fromJson(response);
   }
 
@@ -179,11 +182,53 @@ class ChatService {
     };
 
     final response = await _db.from('chat_messages').insert(payload).select().single();
+    final preview = _attachmentPreview(messageType, fileName);
     await _updateRoomLastMessage(
       roomId,
-      _attachmentPreview(messageType, fileName),
+      preview,
       response['created_at'] as String,
     );
+    _sendNewMessageNotification(roomId, senderId, senderName, preview);
+    return ChatMessage.fromJson(response);
+  }
+
+  /// Send an attachment message using in-memory bytes (web and mobile compatible).
+  static Future<ChatMessage> sendAttachmentMessageBytes({
+    required String roomId,
+    required String senderId,
+    required String senderName,
+    required String senderRole,
+    required Uint8List bytes,
+    required String fileName,
+    required MessageType messageType,
+    String? content,
+    String? replyToId,
+  }) async {
+    final parts = fileName.split('.');
+    final ext = parts.length > 1 ? parts.last : '';
+    final url = await uploadAttachmentBytes(bytes, roomId, ext);
+    final typeStr = _messageTypeToString(messageType);
+
+    final payload = {
+      'room_id': roomId,
+      'sender_id': senderId,
+      'sender_name': senderName,
+      'sender_role': senderRole,
+      'content': content,
+      'message_type': typeStr,
+      'attachment_url': url,
+      'attachment_name': fileName,
+      'reply_to_id': replyToId,
+    };
+
+    final response = await _db.from('chat_messages').insert(payload).select().single();
+    final preview = _attachmentPreview(messageType, fileName);
+    await _updateRoomLastMessage(
+      roomId,
+      preview,
+      response['created_at'] as String,
+    );
+    _sendNewMessageNotification(roomId, senderId, senderName, preview);
     return ChatMessage.fromJson(response);
   }
 
@@ -226,6 +271,14 @@ class ChatService {
       'is_deleted': true,
       'content': null,
       'attachment_url': null,
+    }).eq('id', messageId);
+  }
+
+  /// Edit a text message.
+  static Future<void> editMessage(String messageId, String newContent) async {
+    await _db.from('chat_messages').update({
+      'content': newContent,
+      'updated_at': DateTime.now().toIso8601String(),
     }).eq('id', messageId);
   }
 
@@ -307,14 +360,14 @@ class ChatService {
     List<String> allowedRoles = [];
     switch (currentUserRole) {
       case 'teacher':
-        allowedRoles = ['admin', 'campadmin', 'maintenance'];
+        allowedRoles = ['admin', 'campadmin'];
         break;
       case 'admin':
       case 'campadmin':
         allowedRoles = ['teacher', 'maintenance', 'admin', 'campadmin'];
         break;
       case 'maintenance':
-        allowedRoles = ['admin', 'campadmin', 'maintenance'];
+        allowedRoles = ['admin', 'campadmin'];
         break;
     }
 
@@ -476,8 +529,78 @@ class ChatService {
     String extension,
   ) async {
     final fileName = '$roomId/${DateTime.now().millisecondsSinceEpoch}.$extension';
-    await _db.storage.from('chat-attachments').uploadBinary(fileName, bytes);
+    final mimeType = _getMimeType(extension);
+    await _db.storage.from('chat-attachments').uploadBinary(
+      fileName,
+      bytes,
+      fileOptions: FileOptions(contentType: mimeType),
+    );
     return _db.storage.from('chat-attachments').getPublicUrl(fileName);
+  }
+
+  static String _getMimeType(String extension) {
+    switch (extension.toLowerCase()) {
+      // Images
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'heic':
+      case 'heif':
+        return 'image/heic';
+      // Documents
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'ppt':
+      case 'pptx':
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      case 'txt':
+        return 'text/plain';
+      case 'csv':
+        return 'text/csv';
+      // Archives
+      case 'zip':
+        return 'application/zip';
+      case 'rar':
+        return 'application/vnd.rar';
+      case '7z':
+        return 'application/x-7z-compressed';
+      // Audio
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'wav':
+        return 'audio/wav';
+      case 'm4a':
+        return 'audio/mp4';
+      case 'ogg':
+        return 'audio/ogg';
+      case 'webm':
+        return 'audio/webm';
+      case 'opus':
+        return 'audio/ogg';
+      // Video
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      case 'avi':
+        return 'video/x-msvideo';
+      // Safe fallback — Supabase accepts application/pdf for unknown types
+      // (application/octet-stream is rejected with HTTP 415)
+      default:
+        return 'application/pdf';
+    }
   }
 
   // ──────────────────────────────────────────────────
@@ -512,6 +635,32 @@ class ChatService {
       case MessageType.voice: return '🎤 Voice message';
       case MessageType.file:  return '📎 $name';
       default:                return name;
+    }
+  }
+
+  static Future<void> _sendNewMessageNotification(
+    String roomId,
+    String senderId,
+    String senderName,
+    String messageContent,
+  ) async {
+    try {
+      final participants = await _db
+          .from('chat_participants')
+          .select('user_id')
+          .eq('room_id', roomId)
+          .neq('user_id', senderId);
+      if ((participants as List).isNotEmpty) {
+        final recipientId = participants.first['user_id'] as String;
+        await AppNotificationService.notifyNewChatMessage(
+          targetUserId: recipientId,
+          senderName: senderName,
+          messageContent: messageContent,
+          chatRoomId: roomId,
+        );
+      }
+    } catch (_) {
+      // Do not block primary operations if notification fails
     }
   }
 }

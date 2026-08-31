@@ -18,6 +18,8 @@ import '../mobile/teacher/reports/work_request_form_page.dart';
 import '../mobile/teacher/reports/work_request_success_page.dart';
 import '../mobile/teacher/scanner/manual_room_entry_page.dart';
 import '../mobile/teacher/scanner/room_verification_page.dart';
+import '../mobile/maintenance/task/pre_inspection_page.dart';
+import '../mobile/maintenance/task/post_repair_page.dart';
 import '../mobile/teacher/student_teacher_navigation.dart';
 import '../shared/utils/app_route_observer.dart';
 import '../shared/widgets/loading_screen.dart';
@@ -294,6 +296,24 @@ GoRouter buildAppRouter(AuthService authService) {
             roomName: args?['roomName'],
             verifiedRoom: args?['verifiedRoom'],
             lockLocationDetails: args?['lockLocationDetails'] ?? false,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/maintenance/pre-inspection',
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>?;
+          return PreInspectionPage(
+            request: args!['request'],
+          );
+        },
+      ),
+      GoRoute(
+        path: '/maintenance/post-repair',
+        builder: (context, state) {
+          final args = state.extra as Map<String, dynamic>?;
+          return PostRepairPage(
+            request: args!['request'],
           );
         },
       ),

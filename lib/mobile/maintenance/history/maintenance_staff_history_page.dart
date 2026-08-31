@@ -60,17 +60,38 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
         statusColor = Colors.green;
         statusLabel = 'COMPLETED';
         break;
+      case 'in progress':
       case 'in_progress':
-        statusColor = Colors.orange;
+      case 'assigned':
+      case 'accepted by maintenance':
+        statusColor = Colors.blue;
         statusLabel = 'IN PROGRESS';
         break;
+      case 'declined':
       case 'cancelled':
+      case 'declined/cancelled':
         statusColor = Colors.red;
-        statusLabel = 'CANCELLED';
+        statusLabel = 'DECLINED';
+        break;
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'under_maintenance':
+        statusColor = const Color(0xFF00BFA5);
+        statusLabel = 'CONFIRMED';
+        break;
+      case 'rework':
+      case 'for rework':
+        statusColor = Colors.orange;
+        statusLabel = 'REWORK';
+        break;
+      case 'pending':
+      case 'pending assignment':
+        statusColor = Colors.grey;
+        statusLabel = 'PENDING';
         break;
       default:
-        statusColor = Colors.blue;
-        statusLabel = 'PENDING';
+        statusColor = Colors.grey;
+        statusLabel = r.status.toUpperCase();
     }
 
     IconData catIcon;
@@ -103,7 +124,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
       'status': statusLabel,
       'statusColor': statusColor,
       'date': r.dateSubmitted,
-      'completedDate': r.status == 'completed' ? r.dateSubmitted : null,
+       'completedDate': r.status.toLowerCase() == 'completed' ? r.dateSubmitted : null,
       'priority': r.priority.isNotEmpty
           ? '${r.priority[0].toUpperCase()}${r.priority.substring(1)}'
           : 'Medium',

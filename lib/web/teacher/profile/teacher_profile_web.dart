@@ -198,7 +198,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildProfileHero(user, authService.isLoading),
+                  _buildProfileHero(user, authService.isLoading, isMobile),
                   const SizedBox(height: 32),
                   _buildRegistrationDetails(isMobile),
                 ],
@@ -210,7 +210,45 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
     );
   }
 
-  Widget _buildProfileHero(AppUser? user, bool isLoading) {
+  Widget _buildProfileHero(AppUser? user, bool isLoading, bool isMobile) {
+    if (isMobile) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+        decoration: AdminStyles.cardDecoration(hasShadow: true),
+        child: Column(
+          children: [
+            _buildAvatar(user),
+            const SizedBox(height: 24),
+            Text(
+              'PROFILE',
+              style: AdminStyles.headingStyle(
+                fontSize: 11,
+                color: AdminStyles.primary,
+                letterSpacing: 1.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              user?.name ?? 'Teacher Account',
+              style: AdminStyles.headingStyle(fontSize: 22),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              user?.email ?? '',
+              style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: Center(child: _buildActionButton(isLoading)),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(40),
       decoration: AdminStyles.cardDecoration(hasShadow: true),

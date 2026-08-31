@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/room_service.dart';
 import '../../../shared/widgets/common_app_bar.dart';
+import '../../admin/shared/notifications_page.dart';
 
 class ScannerPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -246,6 +247,14 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
             roleText: 'Teacher',
             primaryColor: themeProvider.primaryColor,
             onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
+            onNotificationPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificationsPage(),
+                ),
+              );
+            },
           ),
           body: Column(
             children: [

@@ -100,7 +100,7 @@ class _MyAppState extends State<MyApp> {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return MaterialApp.router(
-            title: 'PSU QR-MMS',
+            title: 'PSU MMS',
             debugShowCheckedModeBanner: false,
             theme: themeProvider.themeData,
             routerConfig: _router,

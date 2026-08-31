@@ -25,11 +25,14 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
   int _selectedFilter = 0;
   final TextEditingController _searchController = TextEditingController();
   final List<String> _filters = [
-    'All Requests',
+    'All',
     'Pending',
     'In Progress',
-    'Under Maintenance',
+    'Declined',
+    'Confirmed',
+    'Rework',
     'Completed',
+    'Duplicates',
   ];
   List<WorkRequest> _requests = [];
   Map<String, String> _maintenanceNamesById = {};
@@ -135,13 +138,19 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
 
     // Apply status filter
     if (_selectedFilter == 1) {
-      requests = requests.where((r) => r.status == 'pending').toList();
+      requests = requests.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').toList();
     } else if (_selectedFilter == 2) {
-      requests = requests.where((r) => r.status == 'in_progress').toList();
+      requests = requests.where((r) => r.status.toLowerCase() == 'in progress' || r.status.toLowerCase() == 'in_progress' || r.status.toLowerCase() == 'assigned' || r.status.toLowerCase() == 'accepted by maintenance').toList();
     } else if (_selectedFilter == 3) {
-      requests = requests.where((r) => r.status == 'under_maintenance').toList();
+      requests = requests.where((r) => r.status.toLowerCase() == 'declined' || r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined/cancelled').toList();
     } else if (_selectedFilter == 4) {
-      requests = requests.where((r) => r.status == 'completed').toList();
+      requests = requests.where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'under_maintenance').toList();
+    } else if (_selectedFilter == 5) {
+      requests = requests.where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'for rework').toList();
+    } else if (_selectedFilter == 6) {
+      requests = requests.where((r) => r.status.toLowerCase() == 'completed').toList();
+    } else if (_selectedFilter == 7) {
+      requests = requests.where((r) => r.duplicateOfId != null).toList();
     }
 
     // Apply search
@@ -176,11 +185,16 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
       );
     }
     final totalCompleted = _requests
-        .where((r) => r.status == 'completed')
+        .where((r) => r.status == 'Completed')
         .length;
-    final readyCount = _requests.where((r) => r.status == 'pending').length;
+    final readyCount = _requests.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').length;
     final ongoingRequests = _requests
-        .where((r) => r.status == 'in_progress')
+        .where((r) =>
+          r.status.toLowerCase() != 'completed' &&
+          r.status.toLowerCase() != 'declined' &&
+          r.status.toLowerCase() != 'cancelled' &&
+          r.status.toLowerCase() != 'declined/cancelled'
+        )
         .toList();
     final ongoingRequest = ongoingRequests.isNotEmpty
         ? ongoingRequests.firstWhere(
@@ -736,32 +750,46 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
     }
 
     Color statusColor;
-    String statusLabel;
+    String statusLabel = request.status.toUpperCase();
 
     switch (request.status.toLowerCase()) {
       case 'pending':
-        statusColor = const Color(0xFFFF9800);
+      case 'pending assignment':
+        statusColor = Colors.grey;
         statusLabel = 'PENDING';
         break;
-      case 'approved':
-        statusColor = const Color(0xFF2196F3);
-        statusLabel = 'APPROVED';
-        break;
+      case 'in progress':
       case 'in_progress':
-        statusColor = const Color(0xFF4169E1);
+      case 'assigned':
+      case 'accepted by maintenance':
+        statusColor = const Color(0xFF2196F3);
         statusLabel = 'IN PROGRESS';
         break;
+      case 'declined':
+      case 'cancelled':
+      case 'declined/cancelled':
+      case 'pre-inspection declined':
+        statusColor = Colors.red;
+        statusLabel = 'DECLINED';
+        break;
+      case 'confirmed':
+      case 'pre-inspection approved':
       case 'under_maintenance':
-        statusColor = const Color(0xFF9C27B0);
-        statusLabel = 'UNDER MAINTENANCE';
+        statusColor = const Color(0xFF00BFA5);
+        statusLabel = 'CONFIRMED';
+        break;
+      case 'rework':
+      case 'for rework':
+        statusColor = const Color(0xFFFF9800);
+        statusLabel = 'REWORK';
         break;
       case 'completed':
         statusColor = Colors.green;
         statusLabel = 'COMPLETED';
         break;
       default:
-        statusColor = urgencyColor;
-        statusLabel = urgencyLabel;
+        statusColor = Colors.grey;
+        statusLabel = request.status.toUpperCase();
     }
 
     return Container(

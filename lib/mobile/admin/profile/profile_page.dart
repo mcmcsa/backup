@@ -1,11 +1,14 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../authentication/models/user_model.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../shared/admin_app_bar.dart';
+import '../../../web/admin/shared/admin_styles.dart';
 
 class ProfilePage extends StatefulWidget {
   final VoidCallback openDrawer;
@@ -17,432 +20,472 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  File? _profileImage;
-  final ImagePicker _picker = ImagePicker();
+  final _formKey = GlobalKey<FormState>();
+
+  // Controllers — matches Web fields
+  late final TextEditingController _nameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _positionController;
+  late final TextEditingController _employeeIdController;
+  late final TextEditingController _phoneController;
+
+  bool _isEditing = false;
+  String? _lastUserId;
+  bool _isUploadingImage = false;
   List<WorkRequest> _requests = [];
   bool _isLoadingStats = true;
-
-  // Profile fields
-  late TextEditingController _usernameController;
-  late TextEditingController _emailController;
-  late TextEditingController _birthdayController;
-  late TextEditingController _locationController;
-  late TextEditingController _phoneController;
 
   @override
   void initState() {
     super.initState();
-    final authService = context.read<AuthService>();
-    final user = authService.currentUser;
-    _usernameController = TextEditingController(text: user?.name ?? '');
-    _emailController = TextEditingController(text: user?.email ?? '');
-    _birthdayController = TextEditingController(text: '');
-    _locationController = TextEditingController(text: '');
-    _phoneController = TextEditingController(text: '');
+    final user = context.read<AuthService>().currentUser;
+    _initControllers(user);
+    _lastUserId = user?.id;
     _loadStats();
+  }
+
+  void _initControllers(AppUser? user) {
+    _nameController = TextEditingController(text: user?.name ?? '');
+    _emailController = TextEditingController(text: user?.email ?? '');
+    _positionController = TextEditingController(text: user?.position ?? '');
+    _employeeIdController = TextEditingController(text: user?.employeeId ?? '');
+    _phoneController = TextEditingController(text: user?.phone ?? '');
   }
 
   Future<void> _loadStats() async {
     try {
       final data = await WorkRequestService.fetchAll();
-      if (mounted) setState(() { _requests = data; _isLoadingStats = false; });
+      if (mounted) {
+        setState(() {
+          _requests = data;
+          _isLoadingStats = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() { _isLoadingStats = false; });
+      if (mounted) {
+        setState(() {
+          _isLoadingStats = false;
+        });
+      }
     }
   }
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _nameController.dispose();
     _emailController.dispose();
-    _birthdayController.dispose();
-    _locationController.dispose();
+    _positionController.dispose();
+    _employeeIdController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
 
-  void _showEditProfileDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-          left: 16,
-          right: 16,
-          top: 24,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Edit Profile',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF111827),
-                ),
-              ),
-              const SizedBox(height: 20),
-              // Name Field
-              _buildFormField(label: 'Name', controller: _usernameController),
-              const SizedBox(height: 16),
-              // Birthday Field
-              _buildFormField(
-                label: 'Birthday (Optional)',
-                controller: _birthdayController,
-                hintText: 'MM/DD/YYYY',
-              ),
-              const SizedBox(height: 16),
-              // Contact Field
-              _buildFormField(
-                label: 'Contact (Optional)',
-                controller: _phoneController,
-              ),
-              const SizedBox(height: 24),
-              // Save Button
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Profile updated successfully'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4169E1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Save Changes',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
+  void _syncControllers(AppUser? user) {
+    if (user == null || _isEditing || user.id == _lastUserId) return;
+    _lastUserId = user.id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isEditing) return;
+      _nameController.text = user.name;
+      _emailController.text = user.email;
+      _positionController.text = user.position ?? '';
+      _employeeIdController.text = user.employeeId ?? '';
+      _phoneController.text = user.phone ?? '';
+    });
   }
 
-  Widget _buildFormField({
-    required String label,
-    required TextEditingController controller,
-    String? hintText,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF374151),
+  Future<void> _pickAndUploadProfileImage(AppUser user) async {
+    final auth = context.read<AuthService>();
+    final picker = ImagePicker();
+    try {
+      final XFile? file = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+      if (file == null) return;
+
+      setState(() => _isUploadingImage = true);
+
+      final bytes = await file.readAsBytes();
+      final ext = file.name.split('.').last;
+      final path = 'profiles/${user.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      // Upload binary to Supabase storage
+      await Supabase.instance.client.storage
+          .from('profile-images')
+          .uploadBinary(path, bytes, fileOptions: const FileOptions(upsert: true));
+
+      // Get public URL
+      final publicUrl = Supabase.instance.client.storage
+          .from('profile-images')
+          .getPublicUrl(path);
+
+      // Save to database
+      final success = await auth.updateProfileImage(
+        role: user.role,
+        userId: user.id,
+        profileImage: publicUrl,
+      );
+
+      if (!mounted) return;
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profile picture updated successfully!'),
+            backgroundColor: AdminStyles.success,
+            behavior: SnackBarBehavior.floating,
           ),
+        );
+      } else {
+        throw Exception('Failed to update profile picture in database');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to upload profile picture: $e'),
+          backgroundColor: AdminStyles.error,
+          behavior: SnackBarBehavior.floating,
         ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: hintText,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            filled: true,
-            fillColor: Colors.grey.shade50,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 10,
-            ),
-          ),
-        ),
-      ],
-    );
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingImage = false);
+      }
+    }
   }
 
-  Future<void> _pickImage() async {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Change Profile Picture',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4169E1).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.camera_alt, color: Color(0xFF4169E1)),
-                ),
-                title: const Text('Take Photo'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final XFile? image = await _picker.pickImage(
-                    source: ImageSource.camera,
-                    maxWidth: 512,
-                    maxHeight: 512,
-                    imageQuality: 75,
-                  );
-                  if (image != null && mounted) {
-                    setState(() {
-                      _profileImage = File(image.path);
-                    });
-                  }
-                },
-              ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF4169E1).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.photo_library,
-                    color: Color(0xFF4169E1),
-                  ),
-                ),
-                title: const Text('Choose from Gallery'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final XFile? image = await _picker.pickImage(
-                    source: ImageSource.gallery,
-                    maxWidth: 512,
-                    maxHeight: 512,
-                    imageQuality: 75,
-                  );
-                  if (image != null && mounted) {
-                    setState(() {
-                      _profileImage = File(image.path);
-                    });
-                  }
-                },
-              ),
-              if (_profileImage != null)
-                ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.delete, color: Colors.red),
-                  ),
-                  title: const Text('Remove Photo'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    setState(() {
-                      _profileImage = null;
-                    });
-                  },
-                ),
-            ],
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final auth = context.read<AuthService>();
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final updated = user.copyWith(
+        name: _nameController.text.trim(),
+        position: _positionController.text.trim(),
+        employeeId: _employeeIdController.text.trim(),
+        phone: _phoneController.text.trim(),
+      );
+
+      final success = await auth.updateProfile(updated);
+      if (!mounted) return;
+
+      if (success) {
+        setState(() => _isEditing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profile updated successfully!'),
+            backgroundColor: AdminStyles.success,
+            behavior: SnackBarBehavior.floating,
           ),
+        );
+      } else {
+        throw Exception('Update returned false');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating profile: ${e.toString()}'),
+          backgroundColor: AdminStyles.error,
+          behavior: SnackBarBehavior.floating,
         ),
-      ),
-    );
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = context.watch<AuthService>().currentUser;
+    final authService = context.watch<AuthService>();
+    final user = authService.currentUser;
+    _syncControllers(user);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
+      backgroundColor: AdminStyles.bg,
       appBar: AdminAppBar(
         openDrawer: widget.openDrawer,
         subtitle: 'Campus Administrator',
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Column(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 20),
+              _buildProfileHero(user, authService.isLoading),
+              const SizedBox(height: 20),
+              _buildDetailsCard(),
+              const SizedBox(height: 20),
+              _buildSummaryCard(user),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Profile Settings',
+          style: AdminStyles.headingStyle(fontSize: 24, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Your profile details as configured by the System Administrator.',
+          style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 13),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProfileHero(AppUser? user, bool isLoading) {
+    final avatar = _buildAvatar(user);
+
+    final userInfo = Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          user?.name ?? 'Administrator',
+          style: AdminStyles.headingStyle(fontSize: 20, fontWeight: FontWeight.w700),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          user?.email ?? '',
+          style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
           children: [
-            // Profile Header
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+            _buildBadge(user?.roleLabel ?? 'Campus Administrator', AdminStyles.primary),
+            if ((user?.position ?? '').isNotEmpty)
+              _buildBadge(user!.position!, AdminStyles.secondary),
+          ],
+        ),
+      ],
+    );
+
+    final actions = _buildActionButton(isLoading);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AdminStyles.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AdminStyles.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          avatar,
+          const SizedBox(height: 16),
+          userInfo,
+          const SizedBox(height: 20),
+          actions,
+          const SizedBox(height: 20),
+          const Divider(color: AdminStyles.border),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildStatItem(
+                _isLoadingStats ? '...' : '${_requests.length}',
+                'Total Requests',
               ),
-              child: Column(
-                children: [
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 100,
-                        height: 100,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFF4169E1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: ClipOval(
-                          child: _profileImage != null
-                              ? Image.file(_profileImage!, fit: BoxFit.cover)
-                              : const Icon(
-                                  Icons.person,
-                                  size: 50,
-                                  color: Colors.white,
-                                ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: _pickImage,
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF4169E1),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              size: 16,
-                              color: Colors.white,
+              Container(
+                width: 1,
+                height: 40,
+                color: AdminStyles.border,
+              ),
+              _buildStatItem(
+                _isLoadingStats
+                    ? '...'
+                    : _requests.isEmpty
+                        ? '0%'
+                        : '${(_requests.where((r) => r.status == 'completed').length * 100 / _requests.length).round()}%',
+                'Resolved',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatar(AppUser? user) {
+    if (user == null) return const SizedBox.shrink();
+    final initials = (user.name.isNotEmpty == true) ? user.name[0].toUpperCase() : 'A';
+
+    return Stack(
+      children: [
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: AdminStyles.primary.withValues(alpha: 0.15),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: AdminStyles.primaryGradient,
+              shape: BoxShape.circle,
+            ),
+            child: _isUploadingImage
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : (user.profileImage?.isNotEmpty == true)
+                    ? ClipOval(
+                        child: Image.network(
+                          user.profileImage!,
+                          width: 94,
+                          height: 94,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) => Center(
+                            child: Text(
+                              initials,
+                              style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Name Display
-                  Text(
-                    _usernameController.text,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  // Email Display
-                  Text(
-                    _emailController.text,
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: InkWell(
-                      onTap: _showEditProfileDialog,
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4169E1).withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.edit,
-                          size: 18,
-                          color: Color(0xFF4169E1),
+                      )
+                    : Center(
+                        child: Text(
+                          initials,
+                          style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                       ),
+          ),
+        ),
+        if (!_isUploadingImage)
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: GestureDetector(
+              onTap: () => _pickAndUploadProfileImage(user),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AdminStyles.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildStatItem(
-                        _isLoadingStats ? '...' : '${_requests.length}',
-                        'Total Requests',
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Colors.grey.shade300,
-                      ),
-                      _buildStatItem(
-                        _isLoadingStats
-                            ? '...'
-                            : _requests.isEmpty
-                                ? '0%'
-                                : '${(_requests.where((r) => r.status == 'completed').length * 100 / _requests.length).round()}%',
-                        'Resolved',
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
+                child: const Icon(
+                  Icons.camera_alt_rounded,
+                  color: Colors.white,
+                  size: 14,
+                ),
               ),
             ),
+          ),
+      ],
+    );
+  }
 
-            const SizedBox(height: 24),
-            _buildInfoTile(
-              title: 'Information Detials',
-              fields: [
-                _ProfileFieldData('Role', user?.roleLabel ?? 'Administrator'),
-                _ProfileFieldData('Campus', _displayValue(user?.campus)),
-                _ProfileFieldData('Department', _displayValue(user?.department)),
-                _ProfileFieldData('Position', _displayValue(user?.position)),
-                _ProfileFieldData('User ID', _displayValue(user?.id)),
-              ],
+  Widget _buildActionButton(bool isLoading) {
+    if (_isEditing) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextButton(
+            onPressed: () {
+              _syncControllers(context.read<AuthService>().currentUser);
+              setState(() => _isEditing = false);
+            },
+            child: Text('Cancel', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(width: 16),
+          ElevatedButton.icon(
+            onPressed: isLoading ? null : _saveProfile,
+            icon: isLoading
+                ? const SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.save_rounded, size: 18),
+            label: const Text('Save Changes'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminStyles.success,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            const SizedBox(height: 24),
-          ],
+          ),
+        ],
+      );
+    }
+    return ElevatedButton.icon(
+      onPressed: () => setState(() => _isEditing = true),
+      icon: const Icon(Icons.edit_rounded, size: 18),
+      label: const Text('Edit Profile'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AdminStyles.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Widget _buildBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color,
         ),
       ),
     );
@@ -454,78 +497,206 @@ class _ProfilePageState extends State<ProfilePage> {
         Text(
           value,
           style: const TextStyle(
-            fontSize: 24,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF4169E1),
+            color: AdminStyles.primary,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
         ),
       ],
     );
   }
 
-  String _displayValue(String? value) {
-    final trimmed = value?.trim() ?? '';
-    return trimmed.isEmpty ? 'Not set' : trimmed;
-  }
-
-  Widget _buildInfoTile({
-    required String title,
-    required List<_ProfileFieldData> fields,
-  }) {
+  Widget _buildDetailsCard() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        color: AdminStyles.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AdminStyles.border),
       ),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text('Personal Information',
+              style: AdminStyles.headingStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
           Text(
-            title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1F2937),
-            ),
+            'Set by System Admin at account creation. You may update your name, phone, and designation.',
+            style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
           ),
+          const SizedBox(height: 24),
+          _buildField(
+            label: 'Full Name',
+            icon: Icons.person_outline_rounded,
+            controller: _nameController,
+            enabled: _isEditing,
+            validator: (v) => (v?.trim().isEmpty ?? true) ? 'Required' : null,
+          ),
+          const SizedBox(height: 18),
+          _buildField(
+            label: 'Email Address',
+            icon: Icons.alternate_email_rounded,
+            controller: _emailController,
+            enabled: false,
+            helperText: 'Email is locked to the current login account.',
+          ),
+          const SizedBox(height: 18),
+          _buildField(
+            label: 'Employee ID',
+            icon: Icons.badge_outlined,
+            controller: _employeeIdController,
+            enabled: _isEditing,
+          ),
+          const SizedBox(height: 18),
+          _buildField(
+            label: 'Designation / Position',
+            icon: Icons.work_outline_rounded,
+            controller: _positionController,
+            enabled: _isEditing,
+          ),
+          const SizedBox(height: 18),
+          _buildField(
+            label: 'Contact Number',
+            icon: Icons.phone_outlined,
+            controller: _phoneController,
+            enabled: _isEditing,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildField({
+    required String label,
+    required IconData icon,
+    required TextEditingController controller,
+    required bool enabled,
+    String? helperText,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 15, color: AdminStyles.textSecondary),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: AdminStyles.bodyStyle(
+                  fontSize: 13,
+                  color: AdminStyles.textSecondary,
+                  fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        TextFormField(
+          controller: controller,
+          enabled: enabled,
+          validator: validator,
+          style: AdminStyles.bodyStyle(
+              color: enabled ? AdminStyles.textPrimary : AdminStyles.textMuted),
+          decoration: InputDecoration(
+            helperText: helperText,
+            helperStyle: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
+            filled: true,
+            fillColor: enabled ? Colors.white : AdminStyles.bg,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AdminStyles.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AdminStyles.border),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AdminStyles.border.withValues(alpha: 0.5)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AdminStyles.primary, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard(AppUser? user) {
+    final joined = user?.createdAt != null
+        ? DateFormat('MMMM dd, yyyy').format(user!.createdAt!)
+        : 'N/A';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AdminStyles.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AdminStyles.border),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Account Summary',
+              style: AdminStyles.headingStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 24),
+          _buildSummaryRow('Account Status', 'Active', AdminStyles.success),
+          _buildSummaryRow('Role', user?.roleLabel ?? 'Campus Administrator', AdminStyles.primary),
+          _buildSummaryRow(
+              'Employee ID',
+              (user?.employeeId?.isNotEmpty == true) ? user!.employeeId! : 'Not set',
+              AdminStyles.primary),
+          _buildSummaryRow(
+              'Contact',
+              (user?.phone?.isNotEmpty == true) ? user!.phone! : 'Not set',
+              AdminStyles.info),
+          _buildSummaryRow('Joined', joined, AdminStyles.textSecondary),
+          const Divider(height: 32),
+          // Quick links
+          Text('Quick Actions',
+              style: AdminStyles.bodyStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: AdminStyles.textMuted)),
+          const SizedBox(height: 16),
+          _buildSettingItem('Notifications', Icons.notifications_rounded, const Color(0xFF10B981)),
           const SizedBox(height: 10),
-          ...fields.map(
-            (field) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 92,
-                    child: Text(
-                      field.label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const Text(':  '),
-                  Expanded(
-                    child: Text(
-                      field.value,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF111827),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+          _buildSettingItem('Preferences', Icons.tune_rounded, const Color(0xFF818CF8)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(width: 16),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                value,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w700, color: color),
               ),
             ),
           ),
@@ -534,12 +705,34 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Widget _buildSettingItem(String title, IconData icon, Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AdminStyles.bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AdminStyles.border),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(title,
+                style: AdminStyles.bodyStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+          Icon(Icons.arrow_forward_rounded,
+              color: AdminStyles.textMuted.withValues(alpha: 0.5), size: 16),
+        ],
+      ),
+    );
+  }
 }
-
-class _ProfileFieldData {
-  final String label;
-  final String value;
-
-  const _ProfileFieldData(this.label, this.value);
-}
-

@@ -283,6 +283,8 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     final isReplace = typeLower.contains('replacement') || typeLower.contains('replace');
     final isOthers = !isOcular && !isInstall && !isRepair && !isReplace;
 
+    final width = MediaQuery.of(context).size.width;
+
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(24),
@@ -315,26 +317,38 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                 children: [
                   const Icon(Icons.description_rounded, color: Color(0xFF00BFA5), size: 20),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Official Work Request Form Preview (ISO Standard)',
-                      style: TextStyle(
+                      width < 700 ? 'Form Preview' : 'Official Work Request Form Preview (ISO Standard)',
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ),
-                  ElevatedButton.icon(
+                  const SizedBox(width: 12),
+                  ElevatedButton(
                     onPressed: _printForm,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00BFA5),
                       foregroundColor: Colors.white,
                       elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    icon: const Icon(Icons.print_rounded, size: 18),
-                    label: const Text('Print / Save PDF'),
+                    child: width < 600
+                        ? const Icon(Icons.print_rounded, size: 18)
+                        : const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.print_rounded, size: 18),
+                              SizedBox(width: 8),
+                              Text('Print / Save PDF', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
                   ),
                   const SizedBox(width: 12),
                   IconButton(

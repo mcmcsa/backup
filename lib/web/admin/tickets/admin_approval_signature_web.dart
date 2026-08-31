@@ -50,7 +50,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   void initState() {
     super.initState();
     _loadData();
-    _isApproved = widget.request.status != 'pending';
+    _isApproved = widget.request.status != 'Pending';
     _setupRealtime();
   }
 
@@ -370,7 +370,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
       children: [
         _buildInfoCard('Information', [
           _buildSummaryRow('Tracking #', widget.request.id.substring(0, 8).toUpperCase()),
-          _buildSummaryRow('Type', widget.request.typeOfRequest),
+          _buildSummaryRow('Type', widget.request.typeDisplay),
           _buildSummaryRow('Requestor', requestor),
           _buildSummaryRow('Priority Level', priorityDisplay),
           _buildSummaryRow('Submitted', DateFormat('MMM dd, yyyy · HH:mm').format(widget.request.dateSubmitted)),
@@ -577,54 +577,81 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                   style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary),
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: ['low', 'medium', 'high'].map((level) {
-                    final isSelected = _selectedPriority == level;
-                    final color = level == 'high'
-                        ? AdminStyles.error
-                        : level == 'medium'
-                            ? AdminStyles.warning
-                            : AdminStyles.success;
-                    final icon = level == 'high'
-                        ? Icons.priority_high_rounded
-                        : level == 'medium'
-                            ? Icons.remove_rounded
-                            : Icons.arrow_downward_rounded;
-                    return Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: GestureDetector(
-                          onTap: () => setState(() { _selectedPriority = level; _priorityError = null; }),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: isSelected ? color.withValues(alpha: 0.12) : AdminStyles.bg,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: isSelected ? color : AdminStyles.border,
-                                width: isSelected ? 2 : 1,
-                              ),
-                            ),
-                            child: Column(
-                              children: [
-                                Icon(icon, color: isSelected ? color : AdminStyles.textMuted, size: 24),
-                                const SizedBox(height: 8),
-                                Text(
-                                  level.toUpperCase(),
-                                  style: AdminStyles.headingStyle(
-                                    fontSize: 13,
-                                    color: isSelected ? color : AdminStyles.textMuted,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ],
+                LayoutBuilder(
+                  builder: (context, priorityConstraints) {
+                    final stackPriority = priorityConstraints.maxWidth < 500;
+                    
+                    final cardsList = ['low', 'medium', 'high'].map((level) {
+                      final isSelected = _selectedPriority == level;
+                      final color = level == 'high'
+                          ? AdminStyles.error
+                          : level == 'medium'
+                              ? AdminStyles.warning
+                              : AdminStyles.success;
+                      final icon = level == 'high'
+                          ? Icons.priority_high_rounded
+                          : level == 'medium'
+                              ? Icons.remove_rounded
+                              : Icons.arrow_downward_rounded;
+
+                      final card = GestureDetector(
+                        onTap: () => setState(() {
+                          _selectedPriority = level;
+                          _priorityError = null;
+                        }),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: isSelected ? color.withValues(alpha: 0.12) : AdminStyles.bg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected ? color : AdminStyles.border,
+                              width: isSelected ? 2 : 1,
                             ),
                           ),
+                          child: Column(
+                            children: [
+                              Icon(icon, color: isSelected ? color : AdminStyles.textMuted, size: 24),
+                              const SizedBox(height: 8),
+                              Text(
+                                level.toUpperCase(),
+                                style: AdminStyles.headingStyle(
+                                  fontSize: 13,
+                                  color: isSelected ? color : AdminStyles.textMuted,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      );
+
+                      if (stackPriority) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: card,
+                        );
+                      }
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 12),
+                          child: card,
+                        ),
+                      );
+                    }).toList();
+
+                    if (stackPriority) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: cardsList,
+                      );
+                    }
+
+                    return Row(
+                      children: cardsList,
                     );
-                  }).toList(),
+                  },
                 ),
                 if (_priorityError != null) ...[
                   const SizedBox(height: 8),
@@ -779,7 +806,10 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                 const SizedBox(height: 12),
                 Text('As an administrator, provide your signature before approving this request.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
                 const SizedBox(height: 16),
-                Row(
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     ElevatedButton.icon(
                       onPressed: _openSignatureDialog,
@@ -794,7 +824,6 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                       ),
                     ),
                     if (_pendingSignatureBase64 != null) ...[
-                      const SizedBox(width: 16),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
@@ -803,6 +832,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                           border: Border.all(color: AdminStyles.success.withValues(alpha: 0.3)),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(Icons.verified_rounded, color: AdminStyles.success, size: 18),
                             const SizedBox(width: 8),
@@ -875,8 +905,8 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   Widget _buildStatusBadge() {
     final status = widget.request.status;
     Color color = AdminStyles.warning;
-    if (status == 'pending') color = AdminStyles.warning;
-    if (status == 'approved' || status == 'under_maintenance') color = AdminStyles.success;
+    if (status == 'Pending') color = AdminStyles.warning;
+    if (status == 'In Progress' || status == 'Confirmed' || status == 'Rework') color = AdminStyles.success;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -904,28 +934,32 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: AdminStyles.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.draw_rounded, color: AdminStyles.primary, size: 20),
-                        ),
-                        const SizedBox(width: 14),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Administrative E-Signature', style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                            Text('Draw your official signature below and click Confirm Signature.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-                          ],
-                        ),
-                      ],
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AdminStyles.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.draw_rounded, color: AdminStyles.primary, size: 20),
                     ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Administrative E-Signature', style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Draw your official signature below and click Confirm Signature.',
+                            style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     IconButton(
                       icon: const Icon(Icons.close_rounded),
                       onPressed: () => Navigator.pop(ctx),

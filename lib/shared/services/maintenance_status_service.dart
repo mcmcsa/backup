@@ -22,10 +22,29 @@ class MaintenanceStatusService {
   /// Called upon successful login
   static Future<void> setOnlineOnLogin(String userId) async {
     try {
+      // Check if they have active assignments
+      final activeRequests = await _db
+          .from('work_requests')
+          .select('id')
+          .eq('assigned_to_id', userId)
+          .inFilter('status', [
+            'Accepted', 
+            'Confirmed', 
+            'Rework Needed', 
+            'Pre-Inspection Submitted', 
+            'Under Evaluation', 
+            'In Progress', 
+            'in_progress', 
+            'accepted by maintenance'
+          ]);
+
+      final String nextStatus = activeRequests.isNotEmpty ? 'busy' : 'online';
+
       await _db.from(_table).update({
-        'availability_status': 'online',
+        'availability_status': nextStatus,
         'last_active_at': DateTime.now().toIso8601String(),
         'status_updated_at': DateTime.now().toIso8601String(),
+        if (activeRequests.isNotEmpty) 'current_assignment_id': activeRequests.first['id'],
       }).eq('user_id', userId);
     } catch (e) {
       debugPrint('Failed to set online status: $e');
@@ -49,7 +68,7 @@ class MaintenanceStatusService {
   static Future<void> setBusyOnAssignment(String userId, String workRequestId) async {
     try {
       await _db.from(_table).update({
-        'availability_status': 'busy', // Or 'working'
+        'availability_status': 'busy',
         'current_assignment_id': workRequestId,
         'status_updated_at': DateTime.now().toIso8601String(),
       }).eq('user_id', userId);
@@ -61,13 +80,31 @@ class MaintenanceStatusService {
   /// Called when a maintenance user completes a work request
   static Future<void> setAvailableOnCompletion(String userId) async {
     try {
+      // Check if they still have other active/accepted work requests assigned to them
+      final activeRequests = await _db
+          .from('work_requests')
+          .select('id')
+          .eq('assigned_to_id', userId)
+          .inFilter('status', [
+            'Accepted', 
+            'Confirmed', 
+            'Rework Needed', 
+            'Pre-Inspection Submitted', 
+            'Under Evaluation', 
+            'In Progress', 
+            'in_progress', 
+            'accepted by maintenance'
+          ]);
+      
+      final String nextStatus = activeRequests.isNotEmpty ? 'busy' : 'online';
+
       await _db.from(_table).update({
-        'availability_status': 'available',
-        'current_assignment_id': null,
+        'availability_status': nextStatus,
+        'current_assignment_id': activeRequests.isNotEmpty ? activeRequests.first['id'] : null,
         'status_updated_at': DateTime.now().toIso8601String(),
       }).eq('user_id', userId);
     } catch (e) {
-      debugPrint('Failed to set available status: $e');
+      debugPrint('Failed to set online status on completion: $e');
     }
   }
 
@@ -76,20 +113,17 @@ class MaintenanceStatusService {
     switch (status.toLowerCase()) {
       case 'online':
       case 'available':
-        return {'color': 0xFF10B981, 'bg': 0xFFD1FAE5}; // Emerald
-      case 'working':
+        return {'color': 0xFF10B981, 'bg': 0xFFD1FAE5}; // Emerald (Green)
       case 'busy':
-        return {'color': 0xFFF59E0B, 'bg': 0xFFFEF3C7}; // Amber
+      case 'working':
+        return {'color': 0xFFF59E0B, 'bg': 0xFFFEF3C7}; // Amber (Orange/Yellow)
       case 'offline':
-        return {'color': 0xFF64748B, 'bg': 0xFFF1F5F9}; // Slate
       case 'break':
-        return {'color': 0xFF8B5CF6, 'bg': 0xFFEDE9FE}; // Violet
       case 'on_leave':
       case 'on leave':
       case 'onleave':
-        return {'color': 0xFF0F172A, 'bg': 0xFFE2E8F0}; // Dark Slate
       default:
-        return {'color': 0xFF64748B, 'bg': 0xFFF1F5F9};
+        return {'color': 0xFF64748B, 'bg': 0xFFF1F5F9}; // Slate (Grey)
     }
   }
 }

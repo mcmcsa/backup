@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
+import '../../shared/utils/workflow_guide_dialog.dart';
 
 class StudentTeacherDashboardMobile extends StatelessWidget {
   const StudentTeacherDashboardMobile({super.key});
@@ -15,23 +16,10 @@ class StudentTeacherDashboardMobile extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: Row(
+        title: const Row(
           children: [
-            SizedBox(
-              height: 35,
-              width: 35,
-              child: Image.asset(
-                'assets/images/PsuLogo.png',
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, _) => const Icon(
-                  Icons.school,
-                  color: Color(0xFF4169E1),
-                  size: 28,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Column(
+            SizedBox(width: 10),
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -56,6 +44,16 @@ class StudentTeacherDashboardMobile extends StatelessWidget {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.help_outline_rounded,
+              color: Colors.black87,
+            ),
+            tooltip: 'Workflow Guide',
+            onPressed: () {
+              showWorkflowGuideDialog(context, role: user?.role.name);
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
             onPressed: () {

@@ -213,7 +213,7 @@ class AboutSystemPage extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           const Text(
-            'PSU Maintenance\nManagement System',
+            'PSU MMS',
             style: TextStyle(
               color: Colors.white,
               fontSize: 36,

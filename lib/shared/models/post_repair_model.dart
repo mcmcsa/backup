@@ -1,6 +1,7 @@
 class PostRepairReport {
   final String id;
   final String workRequestId;
+  final int attemptNumber;
   final String technicianId;
   final String technicianName;
   final DateTime repairDate;
@@ -15,13 +16,14 @@ class PostRepairReport {
   final String? adminEvaluationNotes;
   final String? adminEvaluatedBy;
   final DateTime? adminEvaluatedDate;
-  final String status; // 'submitted', 'evaluated', 'rework'
+  final String status; // 'Pending', 'Completed', 'Rework'
   final DateTime createdAt;
   final DateTime updatedAt;
 
   PostRepairReport({
     required this.id,
     required this.workRequestId,
+    this.attemptNumber = 1,
     required this.technicianId,
     required this.technicianName,
     required this.repairDate,
@@ -36,7 +38,7 @@ class PostRepairReport {
     this.adminEvaluationNotes,
     this.adminEvaluatedBy,
     this.adminEvaluatedDate,
-    this.status = 'submitted',
+    this.status = 'Pending',
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -46,6 +48,7 @@ class PostRepairReport {
     return PostRepairReport(
       id: map['id']?.toString() ?? '',
       workRequestId: map['work_request_id']?.toString() ?? '',
+      attemptNumber: map['attempt_number'] is int ? map['attempt_number'] : int.tryParse(map['attempt_number']?.toString() ?? '') ?? 1,
       technicianId: map['technician_id']?.toString() ?? '',
       technicianName: map['technician_name'] ?? '',
       repairDate: DateTime.parse(map['repair_date'] ?? DateTime.now().toIso8601String()),
@@ -62,7 +65,7 @@ class PostRepairReport {
       adminEvaluatedDate: map['admin_evaluated_date'] != null
           ? DateTime.parse(map['admin_evaluated_date'])
           : null,
-      status: map['status'] ?? 'submitted',
+      status: map['status'] ?? 'Pending',
       createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
       updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
     );
@@ -71,6 +74,7 @@ class PostRepairReport {
   Map<String, dynamic> toMap() {
     return {
       'work_request_id': workRequestId,
+      'attempt_number': attemptNumber,
       'technician_id': technicianId,
       'technician_name': technicianName,
       'repair_date': repairDate.toIso8601String(),
@@ -92,6 +96,7 @@ class PostRepairReport {
   PostRepairReport copyWith({
     String? id,
     String? workRequestId,
+    int? attemptNumber,
     String? technicianId,
     String? technicianName,
     DateTime? repairDate,
@@ -111,6 +116,7 @@ class PostRepairReport {
     return PostRepairReport(
       id: id ?? this.id,
       workRequestId: workRequestId ?? this.workRequestId,
+      attemptNumber: attemptNumber ?? this.attemptNumber,
       technicianId: technicianId ?? this.technicianId,
       technicianName: technicianName ?? this.technicianName,
       repairDate: repairDate ?? this.repairDate,
@@ -131,11 +137,11 @@ class PostRepairReport {
 
   String get statusLabel {
     switch (status) {
-      case 'submitted':
-        return 'SUBMITTED';
-      case 'evaluated':
-        return 'EVALUATED';
-      case 'rework':
+      case 'Pending':
+        return 'PENDING';
+      case 'Completed':
+        return 'COMPLETED';
+      case 'Rework':
         return 'REWORK';
       default:
         return status.toUpperCase();

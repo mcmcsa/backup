@@ -238,43 +238,63 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   }
 
   Widget _buildHeader(bool isMobile) {
-    return Row(
+    final titleCol = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        Text('System Reports', style: AdminStyles.headingStyle(fontSize: isMobile ? 22 : 28)),
+        const SizedBox(height: 4),
+        Text('Generate analytics, insights, and data exports.', style: AdminStyles.bodyStyle(fontSize: 13)),
+      ],
+    );
+
+    final csvBtn = ElevatedButton.icon(
+      onPressed: _exportCSV,
+      icon: const Icon(Icons.table_chart_rounded, size: 18),
+      label: const Text('Excel / CSV'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AdminStyles.success,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+
+    final pdfBtn = ElevatedButton.icon(
+      onPressed: _exportPDF,
+      icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+      label: const Text('Export PDF'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AdminStyles.error,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+    );
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          titleCol,
+          const SizedBox(height: 16),
+          Row(
             children: [
-              Text('System Reports', style: AdminStyles.headingStyle(fontSize: isMobile ? 22 : 28)),
-              const SizedBox(height: 4),
-              Text('Generate analytics, insights, and data exports.', style: AdminStyles.bodyStyle(fontSize: 13)),
+              Expanded(child: csvBtn),
+              const SizedBox(width: 12),
+              Expanded(child: pdfBtn),
             ],
           ),
-        ),
-        if (!isMobile) ...[
-          ElevatedButton.icon(
-            onPressed: _exportCSV,
-            icon: const Icon(Icons.table_chart_rounded, size: 18),
-            label: const Text('Excel / CSV'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminStyles.success,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: _exportPDF,
-            icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
-            label: const Text('Export PDF'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminStyles.error,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            ),
-          ),
-        ]
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(child: titleCol),
+        const SizedBox(width: 16),
+        csvBtn,
+        const SizedBox(width: 12),
+        pdfBtn,
       ],
     );
   }
@@ -409,14 +429,28 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
     ];
 
     if (isMobile) {
-      return GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 1.5,
-        children: cards.map(_buildStatTile).toList(),
+      return LayoutBuilder(
+        builder: (context, cardConstraints) {
+          final cardWidth = cardConstraints.maxWidth;
+          int crossAxisCount = 3;
+          double aspect = 1.8;
+          if (cardWidth < 500) {
+            crossAxisCount = 1;
+            aspect = 3.2;
+          } else if (cardWidth < 800) {
+            crossAxisCount = 2;
+            aspect = 2.0;
+          }
+          return GridView.count(
+            crossAxisCount: crossAxisCount,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: aspect,
+            children: cards.map(_buildStatTile).toList(),
+          );
+        },
       );
     }
 

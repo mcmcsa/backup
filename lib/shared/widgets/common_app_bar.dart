@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../authentication/services/auth_service.dart';
 import '../services/app_notification_service.dart';
 import '../providers/theme_provider.dart';
+import '../utils/workflow_guide_dialog.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String roleText;
@@ -71,21 +72,6 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               : null),
       title: Row(
         children: [
-          SizedBox(
-            height: 32,
-            width: 32,
-            child: Image.asset(
-              'assets/images/PsuLogo.png',
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
-              isAntiAlias: true,
-              errorBuilder: (_, __, ___) => Icon(
-                Icons.school,
-                color: primaryColor,
-                size: 28,
-              ),
-            ),
-          ),
           const SizedBox(width: 6),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,6 +101,17 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
+        IconButton(
+          icon: Icon(
+            Icons.help_outline_rounded,
+            color: themeProvider.appBarIconColor,
+          ),
+          tooltip: 'Workflow Guide',
+          onPressed: () {
+            final user = Provider.of<AuthService>(context, listen: false).currentUser;
+            showWorkflowGuideDialog(context, role: user?.role.name);
+          },
+        ),
         Padding(
           padding: const EdgeInsets.only(right: 12.0),
           child: FutureBuilder<int>(

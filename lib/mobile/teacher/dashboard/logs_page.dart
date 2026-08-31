@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/common_app_bar.dart';
+import '../../admin/shared/notifications_page.dart';
 
 class LogsPage extends StatefulWidget {
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -32,6 +33,14 @@ class _LogsPageState extends State<LogsPage> {
         roleText: 'Teacher',
         primaryColor: themeProvider.primaryColor,
         onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
+        onNotificationPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const NotificationsPage(),
+            ),
+          );
+        },
       ),
       body: Column(
         children: [

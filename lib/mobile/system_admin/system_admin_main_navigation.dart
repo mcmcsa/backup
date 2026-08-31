@@ -5,6 +5,7 @@ import '../../authentication/services/auth_service.dart';
 import '../../shared/models/department_model.dart';
 import '../../shared/services/department_service.dart';
 import '../../shared/services/system_admin_service.dart';
+import '../../shared/utils/workflow_guide_dialog.dart';
 
 class SystemAdminMainNavigation extends StatefulWidget {
   const SystemAdminMainNavigation({super.key});
@@ -99,6 +100,14 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
           ),
         ),
         actions: [
+          IconButton(
+            onPressed: () {
+              final user = context.read<AuthService>().currentUser;
+              showWorkflowGuideDialog(context, role: user?.role.name);
+            },
+            icon: const Icon(Icons.help_outline_rounded),
+            tooltip: 'Workflow Guide',
+          ),
           IconButton(
             onPressed: _loadData,
             icon: const Icon(Icons.refresh_rounded),

@@ -30,8 +30,10 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
     'All',
     'Pending',
     'In Progress',
+    'Declined',
+    'Confirmed',
+    'Rework',
     'Completed',
-    'Cancelled',
   ];
 
   @override
@@ -96,11 +98,26 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
                         ?.toLowerCase()
                         .contains(_searchQuery.toLowerCase()) ??
                     false);
-        final normalizedStatus =
-            _selectedStatus.toLowerCase().replaceAll(' ', '_');
-        final matchesStatus =
-            _selectedStatus == 'All' ||
-            r.status.toLowerCase() == normalizedStatus;
+        bool matchesStatus = false;
+        if (_selectedStatus == 'All') {
+          matchesStatus = true;
+        } else {
+          final sel = _selectedStatus.toLowerCase();
+          final status = r.status.toLowerCase();
+          if (sel == 'pending') {
+            matchesStatus = (status == 'pending' || status == 'pending assignment');
+          } else if (sel == 'in progress') {
+            matchesStatus = (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance');
+          } else if (sel == 'declined') {
+            matchesStatus = (status == 'declined' || status == 'cancelled' || status == 'declined/cancelled');
+          } else if (sel == 'confirmed') {
+            matchesStatus = (status == 'confirmed' || status == 'pre-inspection approved' || status == 'under_maintenance');
+          } else if (sel == 'rework') {
+            matchesStatus = (status == 'rework' || status == 'for rework');
+          } else if (sel == 'completed') {
+            matchesStatus = (status == 'completed');
+          }
+        }
         return matchesSearch && matchesStatus;
       }).toList();
       _filteredRequests.sort(
@@ -113,7 +130,7 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final isCompact = width < 900;
+    final isCompact = width < 1100;
 
     return Container(
       color: AdminStyles.bg,
@@ -179,21 +196,25 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
               size: 32,
             ),
             const SizedBox(width: 14),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'My Reports',
-                  style: AdminStyles.headingStyle(fontSize: 26),
-                ),
-                Text(
-                  'Track all your maintenance requests',
-                  style: AdminStyles.bodyStyle(
-                    color: AdminStyles.textSecondary,
-                    fontSize: 13,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'My Reports',
+                    style: AdminStyles.headingStyle(fontSize: 26),
                   ),
-                ),
-              ],
+                  Text(
+                    'Track all your maintenance requests',
+                    style: AdminStyles.bodyStyle(
+                      color: AdminStyles.textSecondary,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -407,7 +428,7 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
   // ─── Table Layout (Desktop) ──────────────────────────────────────────────────
   Widget _buildTableLayout() {
     return Padding(
-      padding: const EdgeInsets.all(40),
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -422,29 +443,23 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: 900,
-            child: Column(
-              children: [
-                _buildTableHeader(),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: _filteredRequests.length,
-                    separatorBuilder:
-                        (context, index) => const Divider(
-                          height: 1,
-                          color: Color(0xFFF1F5F9),
-                        ),
-                    itemBuilder:
-                        (context, index) =>
-                            _buildTableRow(_filteredRequests[index], index),
-                  ),
-                ),
-              ],
+        child: Column(
+          children: [
+            _buildTableHeader(),
+            Expanded(
+              child: ListView.separated(
+                itemCount: _filteredRequests.length,
+                separatorBuilder:
+                    (context, index) => const Divider(
+                      height: 1,
+                      color: Color(0xFFF1F5F9),
+                    ),
+                itemBuilder:
+                    (context, index) =>
+                        _buildTableRow(_filteredRequests[index], index),
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -710,13 +725,25 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
     switch (status.toLowerCase()) {
       case 'completed':
         return AdminStyles.success;
+      case 'in progress':
       case 'in_progress':
-      case 'under_maintenance':
+      case 'assigned':
+      case 'accepted by maintenance':
         return AdminStyles.info;
-      case 'pending':
-        return AdminStyles.warning;
+      case 'declined':
       case 'cancelled':
+      case 'declined/cancelled':
         return AdminStyles.error;
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'under_maintenance':
+        return AdminStyles.primary;
+      case 'rework':
+      case 'for rework':
+        return AdminStyles.warning;
+      case 'pending':
+      case 'pending assignment':
+        return AdminStyles.textMuted;
       default:
         return AdminStyles.textMuted;
     }
@@ -727,26 +754,46 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
       case 'All':
         return AdminStyles.primary;
       case 'Pending':
-        return AdminStyles.warning;
+        return AdminStyles.textMuted;
       case 'In Progress':
         return AdminStyles.info;
+      case 'Declined':
+        return AdminStyles.error;
+      case 'Confirmed':
+        return AdminStyles.primary;
+      case 'Rework':
+        return AdminStyles.warning;
       case 'Completed':
         return AdminStyles.success;
-      case 'Cancelled':
-        return AdminStyles.error;
       default:
         return AdminStyles.textMuted;
     }
   }
 
   String _getStatusLabel(String status) {
-    switch (status.toLowerCase()) {
+    final s = status.toLowerCase();
+    switch (s) {
+      case 'pending':
+      case 'pending assignment':
+        return 'PENDING';
+      case 'in progress':
       case 'in_progress':
+      case 'assigned':
+      case 'accepted by maintenance':
         return 'IN PROGRESS';
-      case 'under_maintenance':
-        return 'UNDER MAINT.';
+      case 'declined':
       case 'cancelled':
-        return 'CANCELLED';
+      case 'declined/cancelled':
+        return 'DECLINED';
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'under_maintenance':
+        return 'CONFIRMED';
+      case 'rework':
+      case 'for rework':
+        return 'REWORK';
+      case 'completed':
+        return 'COMPLETED';
       default:
         return status.toUpperCase().replaceAll('_', ' ');
     }
@@ -778,26 +825,54 @@ class _PremiumRequestCardState extends State<_PremiumRequestCard> {
     switch (widget.request.status.toLowerCase()) {
       case 'completed':
         return AdminStyles.success;
+      case 'in progress':
       case 'in_progress':
-      case 'under_maintenance':
+      case 'assigned':
+      case 'accepted by maintenance':
         return AdminStyles.info;
-      case 'pending':
-        return AdminStyles.warning;
+      case 'declined':
       case 'cancelled':
+      case 'declined/cancelled':
         return AdminStyles.error;
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'under_maintenance':
+        return AdminStyles.primary;
+      case 'rework':
+      case 'for rework':
+        return AdminStyles.warning;
+      case 'pending':
+      case 'pending assignment':
+        return AdminStyles.textMuted;
       default:
         return AdminStyles.textMuted;
     }
   }
 
   String get _statusLabel {
-    switch (widget.request.status.toLowerCase()) {
+    final s = widget.request.status.toLowerCase();
+    switch (s) {
+      case 'pending':
+      case 'pending assignment':
+        return 'PENDING';
+      case 'in progress':
       case 'in_progress':
+      case 'assigned':
+      case 'accepted by maintenance':
         return 'IN PROGRESS';
-      case 'under_maintenance':
-        return 'MAINTENANCE';
+      case 'declined':
       case 'cancelled':
-        return 'CANCELLED';
+      case 'declined/cancelled':
+        return 'DECLINED';
+      case 'confirmed':
+      case 'pre-inspection approved':
+      case 'under_maintenance':
+        return 'CONFIRMED';
+      case 'rework':
+      case 'for rework':
+        return 'REWORK';
+      case 'completed':
+        return 'COMPLETED';
       default:
         return widget.request.status.toUpperCase().replaceAll('_', ' ');
     }
@@ -925,18 +1000,26 @@ class _PremiumRequestCardState extends State<_PremiumRequestCard> {
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              _buildMeta(
-                                Icons.location_on_rounded,
-                                widget.request.roomName ?? 'N/A',
+                              Expanded(
+                                child: Wrap(
+                                  spacing: 16,
+                                  runSpacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    _buildMeta(
+                                      Icons.location_on_rounded,
+                                      widget.request.roomName ?? 'N/A',
+                                    ),
+                                    _buildMeta(
+                                      Icons.calendar_today_rounded,
+                                      DateFormat(
+                                        'MMM dd, yyyy',
+                                      ).format(widget.request.dateSubmitted),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(width: 20),
-                              _buildMeta(
-                                Icons.calendar_today_rounded,
-                                DateFormat(
-                                  'MMM dd, yyyy',
-                                ).format(widget.request.dateSubmitted),
-                              ),
-                              const Spacer(),
+                              const SizedBox(width: 8),
                               Icon(
                                 Icons.arrow_forward_ios_rounded,
                                 size: 13,
@@ -966,11 +1049,16 @@ class _PremiumRequestCardState extends State<_PremiumRequestCard> {
       children: [
         Icon(icon, size: 13, color: AdminStyles.textMuted),
         const SizedBox(width: 5),
-        Text(
-          text,
-          style: AdminStyles.bodyStyle(
-            fontSize: 12,
-            color: AdminStyles.textSecondary,
+        Container(
+          constraints: const BoxConstraints(maxWidth: 150),
+          child: Text(
+            text,
+            style: AdminStyles.bodyStyle(
+              fontSize: 12,
+              color: AdminStyles.textSecondary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],

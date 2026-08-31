@@ -215,61 +215,74 @@ class _AdminWorkProcessPageState extends State<AdminWorkProcessPage> {
         subtitle: 'By ${_request!.requestorName}',
         time: DateFormat('MMM dd HH:mm').format(_request!.dateSubmitted),
         isCompleted: true,
-        isActive: _request!.status == 'pending',
+        isActive: _request!.status == 'Pending',
       ),
       _TimelineStep(
         title: 'Admin Approval',
         subtitle: _request!.approvedBy != null ? 'Signed by ${_request!.approvedBy}' : 'Awaiting admin e-signature',
         time: _request!.approvedDate != null ? DateFormat('MMM dd HH:mm').format(_request!.approvedDate!) : null,
         isCompleted: _request!.approvedDate != null,
-        isActive: _request!.status == 'pending',
+        isActive: _request!.status == 'Pending',
       ),
       _TimelineStep(
         title: 'Maintenance Acceptance',
         subtitle: _request!.acceptedByName != null ? 'Accepted by ${_request!.acceptedByName}' : 'Awaiting maintenance',
         time: _request!.acceptedDate != null ? DateFormat('MMM dd HH:mm').format(_request!.acceptedDate!) : null,
         isCompleted: _request!.acceptedDate != null,
-        isActive: _request!.status == 'approved',
+        isActive: _request!.status == 'In Progress' && _request!.acceptedDate == null,
       ),
       _TimelineStep(
         title: 'Pre-Inspection',
         subtitle: _preInspection != null ? 'Report: ${_preInspection!.statusLabel}' : 'Pending inspection',
         time: _preInspection != null ? DateFormat('MMM dd HH:mm').format(_preInspection!.inspectionDate) : null,
-        isCompleted: _preInspection?.status == 'approved',
-        isActive: _request!.status == 'in_progress',
+        isCompleted: _preInspection?.status == 'Approved',
+        isActive: _request!.status == 'In Progress',
       ),
       _TimelineStep(
-        title: 'Under Maintenance',
-        subtitle: _request!.status == 'under_maintenance' || _request!.status == 'completed'
-            ? 'Work in progress' : 'Waiting for pre-inspection approval',
-        time: _request!.maintenanceStartTime != null
-            ? DateFormat('MMM dd HH:mm').format(_request!.maintenanceStartTime!)
-            : null,
-        isCompleted: _request!.status == 'completed' || _postRepair != null,
-        isActive: _request!.status == 'under_maintenance',
+        title: 'Pre-Inspection Review',
+        subtitle: _request!.status == 'Confirmed' || _request!.status == 'Rework' || _request!.status == 'Completed'
+            ? 'Confirmed Work Request'
+            : _request!.status == 'Declined'
+                ? 'Declined Work Request'
+                : 'Awaiting review',
+        time: _request!.status == 'Confirmed' || _request!.status == 'Declined' ? DateFormat('MMM dd HH:mm').format(DateTime.now()) : null,
+        isCompleted: ['Confirmed', 'Rework', 'Completed', 'Declined'].contains(_request!.status),
+        isActive: _request!.status == 'In Progress' && _preInspection != null,
       ),
+      if (_request!.status != 'Declined') ...[
+        _TimelineStep(
+          title: 'Under Maintenance',
+          subtitle: _request!.status == 'Confirmed' || _request!.status == 'Rework' || _request!.status == 'Completed'
+              ? 'Work in progress' : 'Waiting for pre-inspection approval',
+          time: _request!.maintenanceStartTime != null
+              ? DateFormat('MMM dd HH:mm').format(_request!.maintenanceStartTime!)
+              : null,
+          isCompleted: _request!.status == 'Completed' || _postRepair != null,
+          isActive: _request!.status == 'Confirmed' || _request!.status == 'Rework',
+        ),
+        _TimelineStep(
+          title: 'Post-Repair Report',
+          subtitle: _postRepair != null ? 'Status: ${_postRepair!.statusLabel}' : 'Awaiting completion',
+          time: _postRepair != null ? DateFormat('MMM dd HH:mm').format(_postRepair!.repairDate) : null,
+          isCompleted: _postRepair?.status == 'Completed',
+          isActive: _postRepair?.status == 'Pending',
+        ),
+      ],
       _TimelineStep(
-        title: 'Post-Repair Report',
-        subtitle: _postRepair != null ? 'Status: ${_postRepair!.statusLabel}' : 'Awaiting completion',
-        time: _postRepair != null ? DateFormat('MMM dd HH:mm').format(_postRepair!.repairDate) : null,
-        isCompleted: _postRepair?.status == 'evaluated',
-        isActive: _postRepair?.status == 'submitted',
-      ),
-      _TimelineStep(
-        title: 'Completed',
-        subtitle: _request!.status == 'completed' ? 'Work finished' : 'Not yet completed',
+        title: _request!.status == 'Declined' ? 'Declined / Closed' : 'Completed',
+        subtitle: _request!.status == 'Declined' ? 'Request was declined' : (_request!.status == 'Completed' ? 'Work finished' : 'Not yet completed'),
         time: _request!.dateCompleted != null ? DateFormat('MMM dd HH:mm').format(_request!.dateCompleted!) : null,
-        isCompleted: _request!.status == 'completed',
+        isCompleted: _request!.status == 'Completed' || _request!.status == 'Declined',
         isActive: false,
       ),
     ];
 
-    if (_request!.reworkCount > 0) {
+    if (_request!.reworkCount > 0 && _request!.status != 'Declined') {
       steps.insert(6, _TimelineStep(
         title: 'Rework (${_request!.reworkCount}x)',
         subtitle: _request!.reworkNotes ?? 'Rework requested',
-        isCompleted: _request!.status != 'rework',
-        isActive: _request!.status == 'rework',
+        isCompleted: _request!.status != 'Rework',
+        isActive: _request!.status == 'Rework',
       ));
     }
 
@@ -375,7 +388,7 @@ class _AdminWorkProcessPageState extends State<AdminWorkProcessPage> {
     return Column(
       children: [
         // If pending → show "Approve" button
-        if (status == 'pending')
+        if (status == 'Pending')
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -400,7 +413,7 @@ class _AdminWorkProcessPageState extends State<AdminWorkProcessPage> {
           ),
 
         // If pre-inspection submitted → show "Review Pre-Inspection"
-        if (_preInspection != null && _preInspection!.status == 'submitted')
+        if (_preInspection != null && _preInspection!.status == 'Pending')
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -427,7 +440,7 @@ class _AdminWorkProcessPageState extends State<AdminWorkProcessPage> {
           ),
 
         // If post-repair submitted → show "Evaluate Post-Repair"
-        if (_postRepair != null && _postRepair!.status == 'submitted')
+        if (_postRepair != null && _postRepair!.status == 'Pending')
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/post_repair_model.dart';
 import '../../../shared/models/work_request_model.dart';
@@ -66,14 +67,21 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     setState(() => _isProcessing = true);
     try {
       await PostRepairService.markSatisfied(_report!.id, user.id);
-      // Logic from mobile: update status to under_maintenance (awaiting final signature)
-      await WorkRequestService.updateStatus(widget.request.id, 'under_maintenance');
+      await WorkRequestService.completeRequest(widget.request.id);
 
       await AppNotificationService.notifyAdminCompletionSubmittedToRequestor(
         workRequestId: widget.request.id,
         adminName: user.name,
         requestorId: widget.request.requestorId,
       );
+
+      if (widget.request.assignedToId != null) {
+        await AppNotificationService.notifyPostRepairCompleted(
+          workRequestId: widget.request.id,
+          maintenanceId: widget.request.assignedToId!,
+          adminName: user.name,
+        );
+      }
 
       await LoginActivityService.recordAdminAction(
         user: user,
@@ -83,8 +91,22 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
       );
 
       if (mounted) {
-        _showSuccess('Post-repair approved. Waiting for requestor final confirmation.');
-        Navigator.pop(context, 'under_maintenance');
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Success'),
+            content: const Text('Work Request Successfully Completed'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (widget.onBack != null) {
+          widget.onBack!();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -111,6 +133,14 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
       await PostRepairService.markRework(_report!.id, user.id, notes);
       await WorkRequestService.setRework(widget.request.id, notes);
 
+      if (widget.request.assignedToId != null) {
+        await AppNotificationService.notifyPostRepairRework(
+          workRequestId: widget.request.id,
+          maintenanceId: widget.request.assignedToId!,
+          adminName: user.name,
+        );
+      }
+
       await LoginActivityService.recordAdminAction(
         user: user,
         title: 'Post-Repair Rework',
@@ -119,8 +149,22 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
       );
 
       if (mounted) {
-        _showSuccess('Work request sent back for rework');
-        Navigator.pop(context, 'rework');
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Success'),
+            content: const Text('Work request sent back for rework'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        if (widget.onBack != null) {
+          widget.onBack!();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -275,7 +319,7 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
           _buildSummaryRow('ID', widget.request.id.substring(0, 8).toUpperCase()),
           _buildSummaryRow('Title', widget.request.title),
           _buildSummaryRow('Room', widget.request.officeRoom ?? 'N/A'),
-          _buildSummaryRow('Category', widget.request.typeOfRequest),
+          _buildSummaryRow('Category', widget.request.typeDisplay),
         ]),
         const SizedBox(height: 24),
         _buildInfoCard('Technician Info', [
@@ -343,7 +387,8 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
 
   Widget _buildEvaluationForm() {
     final report = _report!;
-    final isActioned = report.status != 'submitted';
+    final isActioned = report.status.toLowerCase() != 'pending' && report.status.toLowerCase() != 'submitted';
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Column(
       children: [
@@ -363,36 +408,61 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                 _buildReadOnlyBlock('Technician Notes', report.technicianNotes!),
                 const SizedBox(height: 32),
               ],
+              if (report.photoAfter?.isNotEmpty == true) ...[
+                _buildPhotoPreview(report.photoAfter!),
+                const SizedBox(height: 32),
+              ],
               const Divider(),
               const SizedBox(height: 32),
               Text('Evaluation Action', style: AdminStyles.headingStyle(fontSize: 18)),
               const SizedBox(height: 24),
               if (!isActioned) ...[
-                Text('If the work is satisfactory, click "Mark as Satisfied". If issues remain, provide notes below and send for rework.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+                Text('If the work is satisfactory, click "Work Completed". If issues remain, provide notes below and send for rework.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
                 const SizedBox(height: 24),
                 _buildWebTextField(_reworkNotesController, 'Rework Instructions (Required only for rework)', 'Describe what is still missing or incorrect...', maxLines: 3),
                 const SizedBox(height: 32),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _markRework,
-                        icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Send for Rework'),
-                        style: OutlinedButton.styleFrom(foregroundColor: AdminStyles.error, side: const BorderSide(color: AdminStyles.error), padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      ),
+                if (isMobile) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _markRework,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Send for Rework'),
+                      style: OutlinedButton.styleFrom(foregroundColor: AdminStyles.error, side: const BorderSide(color: AdminStyles.error), padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     ),
-                    const SizedBox(width: 20),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _markCompleted,
-                        icon: const Icon(Icons.check_circle_rounded),
-                        label: const Text('Mark as Satisfied'),
-                        style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.success, foregroundColor: Colors.white, padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                      ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _markCompleted,
+                      icon: const Icon(Icons.check_circle_rounded),
+                      label: const Text('Work Completed'),
+                      style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.success, foregroundColor: Colors.white, padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     ),
-                  ],
-                ),
+                  ),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _markRework,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Send for Rework'),
+                          style: OutlinedButton.styleFrom(foregroundColor: AdminStyles.error, side: const BorderSide(color: AdminStyles.error), padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _markCompleted,
+                          icon: const Icon(Icons.check_circle_rounded),
+                          label: const Text('Work Completed'),
+                          style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.success, foregroundColor: Colors.white, padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        ),
+                      ),
+                    ],
+                  ),
               ] else ...[
                 Container(
                   padding: const EdgeInsets.all(24),
@@ -409,7 +479,7 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(report.adminEvaluation == 'satisfied' ? 'Evaluation: Satisfied' : 'Evaluation: Rework Required', style: AdminStyles.headingStyle(fontSize: 16, color: report.adminEvaluation == 'satisfied' ? AdminStyles.success : AdminStyles.error)),
+                            Text(report.adminEvaluation == 'satisfied' ? 'Evaluation: Work Completed' : 'Evaluation: Rework Required', style: AdminStyles.headingStyle(fontSize: 16, color: report.adminEvaluation == 'satisfied' ? AdminStyles.success : AdminStyles.error)),
                             const SizedBox(height: 4),
                             Text(report.adminEvaluation == 'satisfied' ? 'Maintenance work was approved and marked as completed.' : 'Work was rejected and sent back for further repair.', style: AdminStyles.bodyStyle()),
                           ],
@@ -422,6 +492,81 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  void _showImageDialog(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              child: Image.network(url, fit: BoxFit.contain),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 32),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoPreview(String photoData) {
+    List<String> urls = [];
+    try {
+      if (photoData.startsWith('[')) {
+        final List<dynamic> decoded = jsonDecode(photoData);
+        urls = decoded.map((e) => e.toString()).toList();
+      } else {
+        urls = [photoData];
+      }
+    } catch (e) {
+      urls = [photoData];
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Work Evidence', style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        if (urls.length == 1)
+          InkWell(
+            onTap: () => _showImageDialog(context, urls.first),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Image.network(urls.first, height: 300, width: double.infinity, fit: BoxFit.cover),
+            ),
+          )
+        else
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: urls.map((url) {
+              return InkWell(
+                onTap: () => _showImageDialog(context, url),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    url,
+                    width: 150,
+                    height: 150,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
       ],
     );
   }

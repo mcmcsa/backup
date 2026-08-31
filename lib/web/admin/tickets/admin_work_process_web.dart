@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:async';
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -26,6 +29,9 @@ import 'admin_collaboration_workspace_widget.dart';
 import '../../../shared/widgets/voice_player_widget.dart';
 import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/services/e_signature_service.dart';
+import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/services/user_service.dart';
 
 class AdminWorkProcessWeb extends StatefulWidget {
   final WorkRequest request;
@@ -45,6 +51,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   WorkRequest? _request;
   PreInspectionReport? _preInspection;
   PostRepairReport? _postRepair;
+  List<PostRepairReport> _postRepairs = [];
   WorkRequestCost? _costTracking;
   List<WorkRequestCollaborator> _collaborators = [];
   List<WorkRequestTask> _tasks = [];
@@ -56,6 +63,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   String? _activeSubView;
   bool _showCollaboration = false;
   bool _showFinancials = false;
+  final Map<String, String> _userNames = {};
+  Timer? _autoRefreshTimer;
 
   final ScrollController _contentScrollController = ScrollController();
   final GlobalKey _overviewKey = GlobalKey();
@@ -65,32 +74,77 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   final GlobalKey _financialsKey = GlobalKey();
   final GlobalKey _collaborationKey = GlobalKey();
 
+  Timer? _countdownTimer;
+
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadData(showSpinner: true);
+    _startCountdownTimer();
+    _startAutoRefresh();
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
+    _autoRefreshTimer?.cancel();
     _contentScrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _loadData(showSpinner: false);
+    });
+  }
+
+  void _startCountdownTimer() {
+    _countdownTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (mounted && _request != null && (_request!.status == 'Confirmed' || _request!.status == 'Rework')) {
+        setState(() {});
+      }
+    });
+  }
+
+  Future<void> _loadData({bool showSpinner = false}) async {
+    if (showSpinner) {
+      setState(() => _isLoading = true);
+    }
     try {
       _request = await WorkRequestService.fetchById(widget.request.id) ?? widget.request;
       _preInspection = await PreInspectionService.fetchLatestByWorkRequest(_request!.id);
       _postRepair = await PostRepairService.fetchLatestByWorkRequest(_request!.id);
+      _postRepairs = await PostRepairService.fetchByWorkRequest(_request!.id);
       _costTracking = await CostTrackingService.fetchByWorkRequestId(_request!.id);
       _signatures = await ESignatureService.fetchByWorkRequest(_request!.id);
+      
+      // Populate cache of user names from signatures to bypass RLS issues
+      for (final sig in _signatures) {
+        if (sig.signerId.isNotEmpty && sig.signerName.isNotEmpty) {
+          final isAdm = sig.signerRole.toLowerCase() == 'campadmin';
+          _userNames[sig.signerId] = isAdm ? 'Campus Admin - ${sig.signerName}' : sig.signerName;
+        }
+      }
       
       // Load collaboration data
       _collaborators = await CollaborationService.fetchCollaborators(_request!.id);
       _tasks = await CollaborationService.fetchTasks(_request!.id);
       _notes = await CollaborationService.fetchNotes(_request!.id);
       _activities = await CollaborationService.fetchActivities(_request!.id);
+      
+      final userIds = <String>{};
+      if (_preInspection?.adminApprovedBy != null) userIds.add(_preInspection!.adminApprovedBy!);
+      for (final report in _postRepairs) {
+        if (report.adminEvaluatedBy != null) userIds.add(report.adminEvaluatedBy!);
+      }
+      final missingIds = userIds.where((id) => !_userNames.containsKey(id)).toList();
+      if (missingIds.isNotEmpty) {
+        final names = await UserService.fetchNamesByIds(missingIds);
+        if (names.isNotEmpty) {
+          _userNames.addAll(names);
+        }
+      }
     } catch (e) {
       debugPrint('Error loading data: $e');
     }
@@ -111,6 +165,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     if (_activeSubView == 'preInspection' && _request != null) {
       return AdminPreInspectionReviewWeb(
         request: _request!,
+        isAdminView: true,
         onBack: () {
           setState(() => _activeSubView = null);
           _loadData();
@@ -161,10 +216,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                                             Container(key: _timelineKey, child: _buildTimelineSection()),
                                             const SizedBox(height: 24),
                                             Container(key: _detailsKey, child: _buildDetailsColumn()),
-                                            const SizedBox(height: 24),
-                                            Container(key: _collaborationKey, child: _buildCollaborationCard()),
-                                            const SizedBox(height: 24),
-                                            Container(key: _financialsKey, child: _buildFinancialsCard()),
                                           ],
                                         );
                                       }
@@ -175,10 +226,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                                           Expanded(flex: 7, child: Column(
                                             children: [
                                               Container(key: _timelineKey, child: _buildTimelineSection()),
-                                              const SizedBox(height: 24),
-                                              Container(key: _collaborationKey, child: _buildCollaborationCard()),
-                                              const SizedBox(height: 24),
-                                              Container(key: _financialsKey, child: _buildFinancialsCard()),
                                             ],
                                           )),
                                           const SizedBox(width: 24),
@@ -230,17 +277,23 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                 const SizedBox(width: 16),
                 ElevatedButton.icon(
                   onPressed: () {
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final isCompactMobile = screenWidth < 600;
                     setState(() => _showCollaboration = !_showCollaboration);
                   },
                   icon: Icon(
                     _showCollaboration ? Icons.keyboard_arrow_up_rounded : Icons.people_alt_rounded,
                     size: 18,
                   ),
-                  label: Text(_showCollaboration ? 'Hide Workspace' : 'Open Collaboration Workspace'),
+                  label: Text(
+                    MediaQuery.of(context).size.width < 600
+                        ? (_showCollaboration ? 'Hide' : 'Open')
+                        : (_showCollaboration ? 'Hide Workspace' : 'Open Collaboration Workspace'),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _showCollaboration ? AdminStyles.textMuted.withValues(alpha: 0.1) : AdminStyles.primary,
                     foregroundColor: _showCollaboration ? AdminStyles.textPrimary : Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 600 ? 12 : 20, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
@@ -304,11 +357,15 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                     _showFinancials ? Icons.keyboard_arrow_up_rounded : Icons.account_balance_wallet_rounded,
                     size: 18,
                   ),
-                  label: Text(_showFinancials ? 'Hide Financials' : 'Open Financials'),
+                  label: Text(
+                    MediaQuery.of(context).size.width < 600
+                        ? (_showFinancials ? 'Hide' : 'Open')
+                        : (_showFinancials ? 'Hide Financials' : 'Open Financials'),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _showFinancials ? AdminStyles.textMuted.withValues(alpha: 0.1) : AdminStyles.success,
                     foregroundColor: _showFinancials ? AdminStyles.textPrimary : Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 600 ? 12 : 20, vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
@@ -329,6 +386,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   }
 
   Widget _buildFinancialsSection() {
+    final isCompact = MediaQuery.of(context).size.width < 700;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -342,7 +400,10 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Cost Tracking & Financials', style: AdminStyles.headingStyle(fontSize: 18)),
+              Expanded(
+                child: Text('Cost Tracking & Financials', style: AdminStyles.headingStyle(fontSize: 18)),
+              ),
+              const SizedBox(width: 12),
               ElevatedButton.icon(
                 onPressed: () async {
                   final result = await showDialog(
@@ -357,12 +418,12 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                   }
                 },
                 icon: const Icon(Icons.edit_rounded, size: 16),
-                label: const Text('Edit Financials'),
+                label: Text(isCompact ? 'Edit' : 'Edit Financials'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AdminStyles.primary,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 16, vertical: 12),
                 ),
               ),
             ],
@@ -379,20 +440,42 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(child: _buildFinancialItem('Estimated Labor', _costTracking!.estimatedLaborCost)),
-                    Expanded(child: _buildFinancialItem('Estimated Material', _costTracking!.estimatedMaterialCost)),
-                    Expanded(child: _buildFinancialItem('Actual Labor', _costTracking!.actualLaborCost, isActual: true)),
-                    Expanded(child: _buildFinancialItem('Actual Material', _costTracking!.actualMaterialCost, isActual: true)),
-                  ],
-                ),
+                if (isCompact)
+                  Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: _buildFinancialItem('Estimated Labor', _costTracking!.estimatedLaborCost)),
+                          Expanded(child: _buildFinancialItem('Estimated Material', _costTracking!.estimatedMaterialCost)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(child: _buildFinancialItem('Actual Labor', _costTracking!.actualLaborCost, isActual: true)),
+                          Expanded(child: _buildFinancialItem('Actual Material', _costTracking!.actualMaterialCost, isActual: true)),
+                        ],
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(child: _buildFinancialItem('Estimated Labor', _costTracking!.estimatedLaborCost)),
+                      Expanded(child: _buildFinancialItem('Estimated Material', _costTracking!.estimatedMaterialCost)),
+                      Expanded(child: _buildFinancialItem('Actual Labor', _costTracking!.actualLaborCost, isActual: true)),
+                      Expanded(child: _buildFinancialItem('Actual Material', _costTracking!.actualMaterialCost, isActual: true)),
+                    ],
+                  ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _buildFinancialItem('Additional Expenses', _costTracking!.additionalExpenses, isActual: true)),
-                    Expanded(
-                      child: Container(
+                if (isCompact)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildFinancialItem('Additional Expenses', _costTracking!.additionalExpenses, isActual: true),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: AdminStyles.primary.withValues(alpha: 0.1),
@@ -408,16 +491,40 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                           ],
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(child: _buildFinancialItem('Additional Expenses', _costTracking!.additionalExpenses, isActual: true)),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AdminStyles.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AdminStyles.primary.withValues(alpha: 0.2)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Total Cost', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.primary)),
+                              const SizedBox(height: 4),
+                              Text('₱ ${_costTracking!.totalCost.toStringAsFixed(2)}', style: AdminStyles.headingStyle(fontSize: 18, color: AdminStyles.primary)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: 16),
                 const Divider(color: AdminStyles.border),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
+                if (isCompact)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Budget Source', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
@@ -425,9 +532,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                           Text(_costTracking!.budgetSource?.isNotEmpty == true ? _costTracking!.budgetSource! : 'N/A', style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary)),
                         ],
                       ),
-                    ),
-                    Expanded(
-                      child: Column(
+                      const SizedBox(height: 16),
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Purchase Ref #', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
@@ -435,9 +541,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                           Text(_costTracking!.purchaseReferenceNumber?.isNotEmpty == true ? _costTracking!.purchaseReferenceNumber! : 'N/A', style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary)),
                         ],
                       ),
-                    ),
-                    Expanded(
-                      child: Column(
+                      const SizedBox(height: 16),
+                      Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('Receipt Attachment', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
@@ -460,9 +565,58 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                             Text('No receipt uploaded', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
                         ],
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Budget Source', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                            const SizedBox(height: 4),
+                            Text(_costTracking!.budgetSource?.isNotEmpty == true ? _costTracking!.budgetSource! : 'N/A', style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary)),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Purchase Ref #', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                            const SizedBox(height: 4),
+                            Text(_costTracking!.purchaseReferenceNumber?.isNotEmpty == true ? _costTracking!.purchaseReferenceNumber! : 'N/A', style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary)),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Receipt Attachment', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                            const SizedBox(height: 4),
+                            if (_costTracking!.receiptAttachmentUrl != null)
+                              InkWell(
+                                onTap: () {
+                                  html.window.open(_costTracking!.receiptAttachmentUrl!, '_blank');
+                                },
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.attachment_rounded, size: 16, color: AdminStyles.primary),
+                                    const SizedBox(width: 4),
+                                    Text('View Receipt', style: AdminStyles.bodyStyle(color: AdminStyles.primary, decoration: TextDecoration.underline)),
+                                  ],
+                                ),
+                              )
+                            else
+                              Text('No receipt uploaded', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
         ],
@@ -495,6 +649,144 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   }
 
   Widget _buildTopBar() {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 900;
+
+    if (isNarrow) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: AdminStyles.glassDecoration(
+          color: Colors.white,
+          opacity: 1.0,
+          borderRadius: 0,
+          hasBorder: false,
+        ).copyWith(
+          border: Border(bottom: BorderSide(color: AdminStyles.border.withValues(alpha: 0.5))),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      if (widget.onBack != null) {
+                        widget.onBack!();
+                      } else {
+                        Navigator.pop(context);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AdminStyles.border),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: AdminStyles.textPrimary),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'WORK PROCESS HUB',
+                        style: AdminStyles.headingStyle(fontSize: 9, color: AdminStyles.textMuted, letterSpacing: 0.5),
+                      ),
+                      Text(
+                        _request?.title ?? 'Request Details',
+                        style: AdminStyles.headingStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Action icons instead of buttons
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.print_rounded, size: 18, color: AdminStyles.primary),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => TeacherOfficialFormWeb(request: _request!),
+                    );
+                  },
+                ),
+                const SizedBox(width: 10),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: AdminStyles.primary),
+                  onPressed: () async {
+                    final currentUser = context.read<AuthService>().currentUser;
+                    if (currentUser == null || _request == null) return;
+                    
+                    final reqId = _request!.requestorId;
+                    if (reqId == null || reqId.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cannot message: Unknown requestor.')));
+                      return;
+                    }
+                    
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (c) => const Center(child: CircularProgressIndicator(color: AdminStyles.primary)),
+                    );
+
+                    try {
+                      final room = await ChatService.findOrCreateDirectRoom(
+                        currentUserId: currentUser.id,
+                        currentUserName: currentUser.name,
+                        currentUserRole: currentUser.role.name,
+                        otherUserId: reqId,
+                        otherUserName: _request!.requestorName,
+                        otherUserRole: 'teacher',
+                        workRequestId: _request!.id,
+                      );
+                      if (!context.mounted) return;
+                      Navigator.of(context).pop();
+                      AdminNavController.of(context)?.navigateTo(AdminMainNavigationWeb.chatIndex, chatRoom: room);
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error starting chat: $e')));
+                    }
+                  },
+                ),
+                const SizedBox(width: 10),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.refresh_rounded, size: 18, color: AdminStyles.textPrimary),
+                  onPressed: _loadData,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildHeaderTabItem('Overview', 0, _overviewKey),
+                  _buildHeaderTabItem('Timeline', 1, _timelineKey),
+                  _buildHeaderTabItem('Details', 2, _detailsKey),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
       decoration: AdminStyles.glassDecoration(
@@ -553,8 +845,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                   _buildHeaderTabItem('Overview', 0, _overviewKey),
                   _buildHeaderTabItem('Timeline', 1, _timelineKey),
                   _buildHeaderTabItem('Details', 2, _detailsKey),
-                  _buildHeaderTabItem('Collaboration', 4, _collaborationKey),
-                  _buildHeaderTabItem('Financials', 5, _financialsKey),
                 ],
               ),
             ),
@@ -567,13 +857,13 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                 builder: (context) => TeacherOfficialFormWeb(request: _request!),
               );
             },
-            icon: const Icon(Icons.print_rounded, size: 16),
-            label: const Text('View Official Form', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            icon: const Icon(Icons.print_rounded, size: 12),
+            label: const Text('View Official Form', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AdminStyles.primary,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
               elevation: 0,
             ),
           ),
@@ -614,14 +904,14 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error starting chat: $e')));
               }
             },
-            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-            label: const Text('Message Requestor', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 12),
+            label: const Text('Message Requestor', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: AdminStyles.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(6),
                 side: BorderSide(color: AdminStyles.primary),
               ),
               elevation: 0,
@@ -736,6 +1026,17 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   }
 
   Widget _buildDurationBadge() {
+    String durationText = 'Pending';
+    if (_request != null) {
+      if (_request!.status == 'Completed') {
+        durationText = _calculateDuration();
+      } else if (_request!.status == 'Confirmed' || _request!.status == 'Rework') {
+        durationText = _calculateCountdown();
+      } else {
+        durationText = _request!.maintenanceNotes ?? 'Pending acceptance';
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
@@ -762,7 +1063,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
               Text('SERVICE DURATION', style: AdminStyles.headingStyle(fontSize: 9, color: AdminStyles.textMuted, letterSpacing: 0.5)),
               const SizedBox(height: 3),
               Text(
-                _request?.maintenanceNotes ?? (_request?.dateDue != null ? DateFormat('MMM dd, HH:mm').format(_request!.dateDue!) : _calculateDuration()),
+                durationText,
                 style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textPrimary, fontWeight: FontWeight.w800),
               ),
             ],
@@ -840,12 +1141,14 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                 child: const Icon(Icons.route_rounded, color: AdminStyles.primary, size: 24),
               ),
               const SizedBox(width: 18),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Maintenance Lifecycle', style: AdminStyles.headingStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-                  Text('Real-time tracking of the work request workflow stages.', style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Work Request Progress Timeline', style: AdminStyles.headingStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                    Text('Real-time tracking of the work request workflow stages.', style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
+                  ],
+                ),
               ),
             ],
           ),
@@ -862,65 +1165,162 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   }
 
   List<Widget> _buildTimelineSteps() {
-    final steps = <_TimelineStep>[
-      _TimelineStep(
-        title: 'Report Submitted',
-        subtitle: 'Initial request by ${_request!.requestorName}',
-        time: DateFormat('MMM dd, HH:mm').format(_request!.dateSubmitted),
+    final steps = <_TimelineStep>[];
+    final task = _request;
+    if (task == null) return [];
+
+    String? formatTime(DateTime? date) {
+      if (date == null) return null;
+      return DateFormat('MMM dd, HH:mm').format(date.toLocal());
+    }
+
+    String formatDate(DateTime? date) {
+      if (date == null) return '';
+      return DateFormat('MMM dd, yyyy').format(date.toLocal());
+    }
+
+    // 1. Request Submitted
+    steps.add(_TimelineStep(
+      title: 'Request Submitted',
+      subtitle: 'Initial request submitted by ${task.displayRequestorName}.',
+      time: formatTime(task.dateSubmitted),
+      isCompleted: true,
+      isActive: false,
+    ));
+
+    // 2. Admin Review & Approval
+    final isApproved = ['assigned', 'confirmed', 'rework', 'completed', 'in progress', 'in_progress', 'declined'].contains(task.status.toLowerCase());
+    final isDeclinedInitially = task.status.toLowerCase() == 'declined' && task.preInspectionId == null;
+    steps.add(_TimelineStep(
+      title: isDeclinedInitially ? 'Request Declined' : 'Admin Review & Approval',
+      subtitle: isDeclinedInitially
+          ? 'Request was declined and closed.'
+          : (isApproved
+              ? 'Request approved by ${task.approvedByName ?? "Admin"}.'
+              : 'Waiting for admin approval.'),
+      time: formatTime(task.approvedDate),
+      isCompleted: isApproved,
+      isActive: !isApproved,
+      isWarning: isDeclinedInitially,
+    ));
+
+    if (isDeclinedInitially) {
+      return steps.asMap().entries.map((e) => _buildTimelineItem(e.value, isLast: e.key == steps.length - 1)).toList();
+    }
+
+    // 3. Maintenance Assignment & Acceptance
+    final isAccepted = task.acceptedDate != null;
+    steps.add(_TimelineStep(
+      title: 'Maintenance Assignment',
+      subtitle: isAccepted
+          ? 'Accepted by ${task.acceptedByName ?? "Technician"}.'
+          : (task.assignedToId != null
+              ? 'Assigned to ${task.acceptedByName ?? "Technician"}. Awaiting acceptance.'
+              : 'Pending technician assignment.'),
+      time: formatTime(task.acceptedDate),
+      isCompleted: isAccepted,
+      isActive: !isAccepted && task.assignedToId != null,
+    ));
+
+    // 4. Pre-Inspection Report Submitted
+    final hasPreInsp = _preInspection != null;
+    steps.add(_TimelineStep(
+      title: 'Pre-Inspection',
+      subtitle: hasPreInsp
+          ? 'Submitted by ${_preInspection!.inspectorName}'
+          : 'Awaiting pre-inspection.',
+      time: formatTime(_preInspection?.inspectionDate),
+      isCompleted: hasPreInsp,
+      isActive: !hasPreInsp && isAccepted,
+    ));
+
+    // 5. Pre-Inspection Review Decision
+    if (hasPreInsp) {
+      final isReviewed = _preInspection!.status == 'Approved' || _preInspection!.status == 'Declined';
+      final isPreInspDeclined = _preInspection!.status == 'Declined';
+      final approvedByName = _preInspection!.adminApprovedBy != null
+          ? (_userNames[_preInspection!.adminApprovedBy] ?? _preInspection!.adminApprovedBy)
+          : "Admin";
+      
+      steps.add(_TimelineStep(
+        title: isPreInspDeclined ? 'Pre-Inspection Declined' : 'Pre-Inspection Approved',
+        subtitle: isReviewed
+            ? '${_preInspection!.status} by $approvedByName'
+            : 'Awaiting pre-inspection review.',
+        time: formatTime(_preInspection?.adminApprovedDate),
+        isCompleted: isReviewed && !isPreInspDeclined,
+        isActive: !isReviewed,
+        isWarning: isPreInspDeclined,
+      ));
+
+      if (isPreInspDeclined) {
+        return steps.asMap().entries.map((e) => _buildTimelineItem(e.value, isLast: e.key == steps.length - 1)).toList();
+      }
+    }
+
+    // 6. Post-Repair Attempts
+    final sortedAttempts = List<PostRepairReport>.from(_postRepairs)
+      ..sort((a, b) {
+        int cmp = a.repairDate.compareTo(b.repairDate);
+        if (cmp != 0) return cmp;
+        return a.attemptNumber.compareTo(b.attemptNumber);
+      });
+
+    for (int i = 0; i < sortedAttempts.length; i++) {
+      final report = sortedAttempts[i];
+      steps.add(_TimelineStep(
+        title: 'Post-Repair Report Submitted',
+        subtitle: 'Submitted by ${report.technicianName}',
+        time: formatTime(report.repairDate),
         isCompleted: true,
-        isActive: _request!.status == 'pending',
-      ),
-      _TimelineStep(
-        title: 'Admin Approval',
-        subtitle: _request!.approvedBy != null ? 'Approved by ${_request!.approvedBy}' : 'Awaiting administrative e-signature',
-        time: _request!.approvedDate != null ? DateFormat('MMM dd, HH:mm').format(_request!.approvedDate!) : null,
-        isCompleted: _request!.approvedDate != null,
-        isActive: _request!.status == 'pending',
-      ),
-      _TimelineStep(
-        title: 'Maintenance Acceptance',
-        subtitle: _request!.acceptedByName != null ? 'Accepted by ${_request!.acceptedByName}' : 'Awaiting technician assignment',
-        time: _request!.acceptedDate != null ? DateFormat('MMM dd, HH:mm').format(_request!.acceptedDate!) : null,
-        isCompleted: _request!.acceptedDate != null,
-        isActive: _request!.status == 'approved',
-      ),
-      _TimelineStep(
-        title: 'Pre-Inspection',
-        subtitle: _preInspection != null ? 'Report Status: ${_preInspection!.status.toUpperCase()}' : 'Pending technical inspection',
-        time: _preInspection != null ? DateFormat('MMM dd, HH:mm').format(_preInspection!.inspectionDate) : null,
-        isCompleted: _preInspection?.status == 'approved',
-        isActive: _request!.status == 'in_progress',
-      ),
-      _TimelineStep(
-        title: 'Under Maintenance',
-        subtitle: _request!.status == 'under_maintenance' || _request!.status == 'completed'
-            ? 'Active repair work in progress' : _preInspection?.status == 'submitted' ? 'Awaiting inspection approval' : 'Not yet started',
-        time: _request!.maintenanceStartTime != null ? DateFormat('MMM dd, HH:mm').format(_request!.maintenanceStartTime!) : null,
-        isCompleted: _request!.status == 'completed' || _postRepair != null,
-        isActive: _request!.status == 'under_maintenance',
-      ),
-      _TimelineStep(
-        title: 'Post-Repair Report',
-        subtitle: _postRepair != null ? 'Evaluation: ${_postRepair!.adminEvaluation ?? 'In Review'}' : 'Awaiting technician completion report',
-        time: _postRepair != null ? DateFormat('MMM dd, HH:mm').format(_postRepair!.repairDate) : null,
-        isCompleted: _postRepair?.status == 'evaluated',
-        isActive: _postRepair?.status == 'submitted',
-      ),
-      if (_request!.reworkCount > 0) _TimelineStep(
-        title: 'Rework Required',
-        subtitle: '${_request!.reworkCount} rework request(s) issued',
-        isCompleted: _request!.status != 'rework',
-        isActive: _request!.status == 'rework',
-        isWarning: true,
-      ),
-      _TimelineStep(
-        title: 'Fully Completed',
-        subtitle: _request!.status == 'completed' ? 'Final signature obtained' : 'Final administrative closure pending',
-        time: _request!.dateCompleted != null ? DateFormat('MMM dd, HH:mm').format(_request!.dateCompleted!) : null,
-        isCompleted: _request!.status == 'completed',
         isActive: false,
-      ),
-    ];
+      ));
+
+      final isEvaluated = report.adminEvaluation != null;
+      final isRework = report.adminEvaluation == 'rework';
+      final evaluatedByName = report.adminEvaluatedBy != null
+          ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
+          : "Admin";
+      
+      final isLatestReport = i == sortedAttempts.length - 1;
+      if (isEvaluated || isLatestReport) {
+        steps.add(_TimelineStep(
+          title: isRework ? 'Post-Repair Evaluation Completed - Rework' : 'Post-Repair Evaluation',
+          subtitle: isEvaluated
+              ? (isRework
+                  ? 'Rework required by $evaluatedByName'
+                  : 'Approved by $evaluatedByName')
+              : 'Awaiting evaluation.',
+          time: formatTime(report.adminEvaluatedDate),
+          isCompleted: isEvaluated,
+          isActive: !isEvaluated,
+          isWarning: isRework,
+        ));
+      }
+    }
+
+    // If the latest evaluation was rework, append a pending Post-Repair Report step
+    if (sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'rework') {
+      steps.add(_TimelineStep(
+        title: 'Post-Repair Report',
+        subtitle: 'Awaiting post-repair report (Rework).',
+        time: null,
+        isCompleted: false,
+        isActive: true,
+      ));
+    }
+
+    // 7. Final Completion
+    final isCompleted = task.status.toLowerCase() == 'completed';
+    steps.add(_TimelineStep(
+      title: 'Completed & Verified',
+      subtitle: isCompleted
+          ? 'Work request fully verified and completed.'
+          : 'Awaiting final verification and close out.',
+      time: formatTime(task.dateCompleted),
+      isCompleted: isCompleted,
+      isActive: !isCompleted && sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'satisfied',
+    ));
 
     return steps.asMap().entries.map((e) => _buildTimelineItem(e.value, isLast: e.key == steps.length - 1)).toList();
   }
@@ -961,8 +1361,21 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(step.title, style: AdminStyles.headingStyle(fontSize: 15, color: step.isCompleted || step.isActive ? AdminStyles.textPrimary : AdminStyles.textMuted)),
-                      if (step.time != null) Text(step.time!, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                      Expanded(
+                        child: Text(
+                          step.title,
+                          style: AdminStyles.headingStyle(
+                            fontSize: 15,
+                            color: step.isCompleted || step.isActive
+                                ? AdminStyles.textPrimary
+                                : AdminStyles.textMuted,
+                          ),
+                        ),
+                      ),
+                      if (step.time != null) ...[
+                        const SizedBox(width: 8),
+                        Text(step.time!, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 4),
@@ -977,44 +1390,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   }
 
   Widget _buildSignaturesListCard() {
-    final list = <Widget>[];
-
-    final reqName = _request!.requestorName.isNotEmpty
-        ? _request!.requestorName
-        : (_request!.reportedByName ?? '');
-
-    final hasReqSig = _signatures.any((s) => s.signerRole == 'requestor' || s.signerRole == 'teacher' || s.signatureType == 'request');
-
-    if (!hasReqSig && reqName.isNotEmpty) {
-      list.add(
-        _buildSignatureItemRow(
-          signerName: reqName,
-          label: 'Requestor',
-          date: _request!.dateSubmitted,
-        ),
-      );
-    }
-
-    for (final sig in _signatures) {
-      String label = sig.signatureTypeLabel;
-      if (sig.signerRole == 'requestor' || sig.signerRole == 'teacher' || sig.signatureType == 'request') {
-        label = 'Requestor';
-      } else if (sig.signerRole == 'admin' || sig.signatureType == 'approval') {
-        label = 'Admin Approval';
-      } else if (sig.signerRole == 'maintenance' || sig.signatureType == 'post_repair' || sig.signatureType == 'acceptance') {
-        label = 'Maintenance';
-      }
-
-      list.add(
-        _buildSignatureItemRow(
-          signerName: sig.signerName,
-          label: label,
-          date: sig.signedAt,
-        ),
-      );
-    }
-
-    if (list.isEmpty) return const SizedBox.shrink();
+    if (_signatures.isEmpty) return const SizedBox.shrink();
 
     return Container(
       padding: const EdgeInsets.all(28),
@@ -1022,49 +1398,99 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'SIGNATURES CAPTURED',
-            style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AdminStyles.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.draw_rounded, color: AdminStyles.primary, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('VERIFIED SIGNATURES', style: AdminStyles.headingStyle(fontSize: 11, color: AdminStyles.textMuted, letterSpacing: 1)),
+                  Text('${_signatures.length} signature(s) collected', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary)),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(height: 18),
-          ...list,
+          const SizedBox(height: 20),
+          const Divider(height: 1),
+          const SizedBox(height: 20),
+          ..._signatures.map((sig) => _buildSignatureItemRow(
+            sig: sig,
+          )),
         ],
       ),
     );
   }
 
-  Widget _buildSignatureItemRow({
-    required String signerName,
-    required String label,
-    required DateTime date,
-  }) {
+  Widget _buildSignatureItemRow({required ESignature sig}) {
+    final currentUser = context.read<AuthService>().currentUser;
+    Uint8List? imageBytes;
+    if (sig.signatureData.isNotEmpty) {
+      try {
+        final clean = sig.signatureData.contains(',') ? sig.signatureData.split(',').last : sig.signatureData;
+        imageBytes = base64Decode(clean.trim());
+      } catch (_) {}
+    }
+
+    final roleColor = sig.signerRole == 'admin'
+        ? AdminStyles.primary
+        : sig.signerRole == 'maintenance'
+            ? AdminStyles.warning
+            : AdminStyles.textSecondary;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: AdminStyles.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
-            child: const Icon(Icons.verified_rounded, size: 16, color: AdminStyles.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: roleColor.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: roleColor.withValues(alpha: 0.15)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text(
-                  signerName,
-                  style: AdminStyles.headingStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+                Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(color: roleColor.withValues(alpha: 0.1), shape: BoxShape.circle),
+                  child: Icon(Icons.verified_rounded, size: 12, color: roleColor),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '$label • ${DateFormat('MMM dd, yyyy · HH:mm').format(date)}',
-                  style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(sig.signerName.isNotEmpty ? sig.signerName : 'Unknown', style: AdminStyles.headingStyle(fontSize: 12, color: AdminStyles.textPrimary)),
+                      Text(
+                        '${sig.signatureTypeLabel} · ${DateFormat('MMM dd, yyyy · HH:mm').format(sig.signedAt)}',
+                        style: AdminStyles.bodyStyle(fontSize: 10, color: AdminStyles.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: roleColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                  child: Text(
+                    sig.signerRole.toUpperCase(),
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: roleColor, letterSpacing: 0.5),
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
+            // Signature images and verified text removed to keep the list compact,
+            // displaying only the essential name, role, and timestamp.
+          ],
+        ),
       ),
     );
   }
@@ -1081,7 +1507,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       children: [
         _buildInfoCard('Information', [
           _buildSummaryRow('Tracking #', _request!.id.substring(0, 8).toUpperCase()),
-          _buildSummaryRow('Type', _request!.typeOfRequest),
+          _buildSummaryRow('Type', _request!.typeWithSpecify),
           _buildSummaryRow('Requestor', requestor),
           _buildSummaryRow('Priority Level', priorityDisplay),
           _buildSummaryRow('Submitted', DateFormat('MMM dd, yyyy · HH:mm').format(_request!.dateSubmitted)),
@@ -1142,9 +1568,17 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textMuted)),
-          Text(value, style: AdminStyles.dataStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              value,
+              style: AdminStyles.dataStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.right,
+            ),
+          ),
         ],
       ),
     );
@@ -1153,6 +1587,10 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
 
   Widget _buildActionCard() {
     final status = _request!.status;
+    final hasMaintenanceCompletionSignature = _signatures.any((sig) =>
+        sig.signatureType == 'completion' && sig.signerRole == 'maintenance');
+    final hasAdminCompletionSignature = _signatures.any((sig) =>
+        sig.signatureType == 'completion' && sig.signerRole == 'admin');
 
     return Container(
       key: _actionsKey,
@@ -1163,13 +1601,13 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
         children: [
           Text('Available Actions', style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textSecondary)),
           const SizedBox(height: 20),
-          if (status == 'pending') ...[
+          if (status == 'Pending') ...[
             _buildActionButton('Approve with Signature', Icons.draw_rounded, AdminStyles.primary, () {
               setState(() => _activeSubView = 'approval');
             }),
           ],
           if (_preInspection != null) ...[
-            if (_preInspection!.status == 'submitted')
+            if (_preInspection!.status == 'Pending')
               _buildActionButton('Review Pre-Inspection', Icons.fact_check_rounded, AdminStyles.warning, () {
                 setState(() => _activeSubView = 'preInspection');
               })
@@ -1179,8 +1617,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
               }),
           ],
           if (_postRepair != null) ...[
-            if (_postRepair!.status == 'submitted')
-              _buildActionButton('Evaluate Post-Repair', Icons.rate_review_rounded, AdminStyles.success, () {
+            if (_postRepair!.status == 'Pending')
+              _buildActionButton('Review Post-Repair Inspection', Icons.rate_review_rounded, AdminStyles.success, () {
                 setState(() => _activeSubView = 'postRepair');
               })
             else
@@ -1188,7 +1626,12 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                 setState(() => _activeSubView = 'postRepair');
               }),
           ],
-          if (status == 'completed') ...[
+          if (hasMaintenanceCompletionSignature && !hasAdminCompletionSignature && status != 'Completed') ...[
+            _buildActionButton('Confirm Work Request', Icons.verified_rounded, AdminStyles.success, () {
+              _openAdminCompletionSignatureDialog();
+            }),
+          ],
+          if (status == 'Completed') ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
@@ -1201,12 +1644,150 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                 ],
               ),
             ),
-          ] else if (status != 'pending' && !(_preInspection != null && _preInspection!.status == 'submitted') && !(_postRepair != null && _postRepair!.status == 'submitted')) ...[
+          ] else if (status != 'Pending' &&
+              !(_preInspection != null && _preInspection!.status == 'Pending') &&
+              !(_postRepair != null && _postRepair!.status == 'Pending') &&
+              !(hasMaintenanceCompletionSignature && !hasAdminCompletionSignature)) ...[
             const SizedBox(height: 12),
             Text('No administrative actions required at this stage.', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
           ],
         ],
       ),
+    );
+  }
+
+  void _openAdminCompletionSignatureDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        bool isSubmitting = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              child: Container(
+                width: 540,
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: isSubmitting
+                    ? const SizedBox(
+                        height: 320,
+                        child: Center(
+                          child: CircularProgressIndicator(color: AdminStyles.primary),
+                        ),
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AdminStyles.success.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(Icons.draw_rounded, color: AdminStyles.success, size: 20),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text('Confirm Work Request', style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Draw your official signature to confirm completion.',
+                                      style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded),
+                                onPressed: () => Navigator.pop(ctx),
+                                constraints: const BoxConstraints(),
+                                padding: EdgeInsets.zero,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          SignaturePadWidget(
+                            title: '',
+                            subtitle: '',
+                            height: 220,
+                            onSignatureComplete: (base64) async {
+                              if (base64.isNotEmpty) {
+                                final authService = Provider.of<AuthService>(context, listen: false);
+                                final user = authService.currentUser;
+                                if (user == null) return;
+
+                                final messenger = ScaffoldMessenger.of(context);
+                                final navigator = Navigator.of(ctx);
+
+                                setDialogState(() => isSubmitting = true);
+                                try {
+                                  await ESignatureService.insert(
+                                    ESignature(
+                                      id: '',
+                                      workRequestId: _request!.id,
+                                      signerId: user.id,
+                                      signerName: user.name,
+                                      signerRole: 'admin',
+                                      signatureType: 'completion',
+                                      signatureData: base64,
+                                      signedAt: DateTime.now(),
+                                      notes: 'Admin completion confirmation signature',
+                                    ),
+                                  );
+
+                                  await WorkRequestService.completeRequest(_request!.id);
+
+                                  await AppNotificationService.notifyAdminCompletionSubmittedToRequestor(
+                                    workRequestId: _request!.id,
+                                    adminName: user.name,
+                                    requestorId: _request!.requestorId,
+                                  );
+
+                                  if (mounted) {
+                                    messenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Admin completion signature submitted. Request successfully completed.'),
+                                        backgroundColor: AdminStyles.success,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error submitting completion signature: $e'),
+                                        backgroundColor: AdminStyles.error,
+                                      ),
+                                    );
+                                  }
+                                } finally {
+                                  navigator.pop();
+                                  _loadData();
+                                }
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1241,6 +1822,21 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     final diff = actualEnd.difference(start);
     if (diff.inHours > 0) return '${diff.inHours}h ${diff.inMinutes % 60}m';
     return '${diff.inMinutes}m';
+  }
+
+  String _calculateCountdown() {
+    if (_request?.dateDue == null) return 'N/A';
+    final now = DateTime.now();
+    final due = _request!.dateDue!;
+    if (now.isAfter(due)) {
+      final diff = now.difference(due);
+      if (diff.inHours > 0) return 'Overdue by ${diff.inHours}h ${diff.inMinutes % 60}m';
+      return 'Overdue by ${diff.inMinutes}m';
+    } else {
+      final diff = due.difference(now);
+      if (diff.inHours > 0) return '${diff.inHours}h ${diff.inMinutes % 60}m remaining';
+      return '${diff.inMinutes}m remaining';
+    }
   }
 }
 

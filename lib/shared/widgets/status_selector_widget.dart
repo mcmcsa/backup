@@ -24,11 +24,7 @@ class _StatusSelectorWidgetState extends State<StatusSelectorWidget> {
   
   final List<String> _availableStatuses = [
     'online',
-    'available',
     'busy',
-    'working',
-    'break',
-    'on_leave',
     'offline',
   ];
 
