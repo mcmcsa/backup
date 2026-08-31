@@ -72,7 +72,7 @@ class PostRepairReport {
   }
 
   Map<String, dynamic> toMap() {
-    return {
+    final map = <String, dynamic>{
       'work_request_id': workRequestId,
       'attempt_number': attemptNumber,
       'technician_id': technicianId,
@@ -91,6 +91,9 @@ class PostRepairReport {
       'admin_evaluated_date': adminEvaluatedDate?.toIso8601String(),
       'status': status,
     };
+    // Only include 'id' when it's a real UUID (not empty) to allow DB auto-generation on insert
+    if (id.isNotEmpty) map['id'] = id;
+    return map;
   }
 
   PostRepairReport copyWith({
