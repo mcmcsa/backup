@@ -10,9 +10,10 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/work_request_service.dart';
-import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
 import 'maintenance_accept_task_web.dart';
+import 'maintenance_pre_inspection_web.dart';
+import 'maintenance_post_repair_web.dart';
 import '../../teacher/reports/teacher_official_form_web.dart';
 import '../../../shared/models/pre_inspection_model.dart';
 import '../../../shared/models/post_repair_model.dart';
@@ -38,12 +39,12 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
   final Map<String, String> _userNames = {};
   bool _isLoading = true;
   bool _isProcessing = false;
+  String? _activeSubView; // null, 'acceptance', 'preInspection', 'postRepair'
+  int _selectedSection = 1;
+  final GlobalKey _timelineKey = GlobalKey();
+  final GlobalKey _detailsKey = GlobalKey();
+  final GlobalKey _signaturesKey = GlobalKey();
   
-  // Confirmation form state
-  final _noteController = TextEditingController();
-  XFile? _evidenceImage;
-  bool _isUploadingEvidence = false;
-
   late final AnimationController _animController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 700),
@@ -90,7 +91,6 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
 
   @override
   void dispose() {
-    _noteController.dispose();
     _animController.dispose();
     super.dispose();
   }
@@ -100,110 +100,6 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
   bool get _isAssignedToMe {
     final user = context.read<AuthService>().currentUser;
     return _currentTask?.assignedToId == user?.id;
-  }
-
-  bool get _canStart {
-    if (_currentTask == null) return false;
-    final status = _currentTask!.status.toLowerCase();
-    return _isAssignedToMe && 
-           _currentTask!.acceptedDate == null && 
-           (status == 'approved' || status == 'under_maintenance');
-  }
-
-  bool get _canComplete {
-    if (_currentTask == null) return false;
-    final status = _currentTask!.status.toLowerCase();
-    return _isAssignedToMe && 
-           _currentTask!.acceptedDate != null && 
-           status != 'completed';
-  }
-
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() => _evidenceImage = image);
-    }
-  }
-
-  Future<String> _uploadWorkEvidenceImage({
-    required String requestId,
-    required XFile imageFile,
-  }) async {
-    final client = Supabase.instance.client;
-    final bytes = await imageFile.readAsBytes();
-    final extension = imageFile.name.contains('.')
-        ? imageFile.name.split('.').last
-        : 'jpg';
-    final path =
-        'work-evidence/$requestId/${DateTime.now().millisecondsSinceEpoch}.$extension';
-
-    await client.storage.from('work-evidence').uploadBinary(
-          path,
-          bytes,
-          fileOptions: const FileOptions(contentType: 'image/jpeg'),
-        );
-    return client.storage.from('work-evidence').getPublicUrl(path);
-  }
-
-  Future<void> _handleCompletion(String signatureData) async {
-    if (_evidenceImage == null && _currentTask?.workEvidence == null) {
-      _showWarning('Please attach a work evidence image first.');
-      return;
-    }
-
-    final authService = Provider.of<AuthService>(context, listen: false);
-    final user = authService.currentUser;
-    if (user == null || _currentTask == null) return;
-
-    setState(() => _isProcessing = true);
-
-    try {
-      String? evidenceUrl = _currentTask!.workEvidence;
-      
-      if (_evidenceImage != null) {
-        setState(() => _isUploadingEvidence = true);
-        try {
-          evidenceUrl = await _uploadWorkEvidenceImage(
-            requestId: _currentTask!.id,
-            imageFile: _evidenceImage!,
-          );
-          await WorkRequestService.updateWorkEvidence(_currentTask!.id, evidenceUrl);
-        } finally {
-          if (mounted) setState(() => _isUploadingEvidence = false);
-        }
-      }
-
-      if (_noteController.text.isNotEmpty) {
-        await WorkRequestService.updateMaintenanceNote(_currentTask!.id, _noteController.text);
-      }
-
-      final signature = ESignature(
-        id: '',
-        workRequestId: _currentTask!.id,
-        signerId: user.id,
-        signerName: user.name,
-        signerRole: 'maintenance',
-        signatureType: 'completion',
-        signatureData: signatureData,
-        signedAt: DateTime.now(),
-      );
-      await ESignatureService.insert(signature);
-
-      await WorkRequestService.updateStatus(_currentTask!.id, 'under_maintenance');
-      await AppNotificationService.notifyCompletionSubmittedToAdmin(
-        workRequestId: _currentTask!.id,
-        maintenanceName: user.name,
-        adminId: _currentTask!.approvedById,
-      );
-
-      _showSuccess('Work completion report submitted.');
-      _loadData();
-    } catch (e) {
-      _showError('Error: $e');
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
   }
 
   // --- UI BUILDING ---
@@ -389,6 +285,34 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
 
   @override
   Widget build(BuildContext context) {
+    if (_activeSubView == 'acceptance') {
+      return MaintenanceAcceptTaskWeb(
+        task: _currentTask ?? widget.task,
+        onBack: () {
+          setState(() => _activeSubView = null);
+          _loadData();
+        },
+      );
+    }
+    if (_activeSubView == 'preInspection') {
+      return MaintenancePreInspectionWeb(
+        request: _currentTask ?? widget.task,
+        onBack: () {
+          setState(() => _activeSubView = null);
+          _loadData();
+        },
+      );
+    }
+    if (_activeSubView == 'postRepair') {
+      return MaintenancePostRepairWeb(
+        request: _currentTask ?? widget.task,
+        onBack: () {
+          setState(() => _activeSubView = null);
+          _loadData();
+        },
+      );
+    }
+
     final width = MediaQuery.of(context).size.width;
     final isCompact = width < 1100;
 
@@ -409,18 +333,16 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                           constraints: const BoxConstraints(maxWidth: 1400),
                           child: Column(
                             children: [
-                              _buildStatusHero(),
-                              const SizedBox(height: 32),
                               isCompact
                                   ? Column(children: [
-                                      _buildTimelineCard(),
+                                      Container(key: _timelineKey, child: _buildTimelineCard()),
                                       const SizedBox(height: 24),
                                       _buildInfoPanel(),
                                     ])
                                   : Row(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Expanded(flex: 5, child: _buildTimelineCard()),
+                                        Expanded(flex: 5, child: Container(key: _timelineKey, child: _buildTimelineCard())),
                                         const SizedBox(width: 28),
                                         Expanded(flex: 5, child: _buildInfoPanel()),
                                       ],
@@ -467,17 +389,29 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
             ),
           ),
           const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Request Progress', style: AdminStyles.headingStyle(fontSize: 20)),
+              Text(
+                'Tracking ID: #$trackId',
+                style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+              ),
+            ],
+          ),
+          const SizedBox(width: 32),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('Request Progress', style: AdminStyles.headingStyle(fontSize: 20)),
-                Text(
-                  'Tracking ID: #$trackId',
-                  style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
-                ),
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildHeaderTabItem('Timeline', 1, _timelineKey),
+                  _buildHeaderTabItem('Details', 2, _detailsKey),
+                  if (_signatures.isNotEmpty)
+                    _buildHeaderTabItem('Signatures', 3, _signaturesKey),
+                ],
+              ),
             ),
           ),
           ElevatedButton.icon(
@@ -567,7 +501,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     }
 
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -585,23 +519,23 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
       child: Row(
         children: [
           Container(
-            width: 80,
-            height: 80,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: _statusColor.withValues(alpha: 0.15),
               shape: BoxShape.circle,
-              border: Border.all(color: _statusColor.withValues(alpha: 0.3), width: 2),
+              border: Border.all(color: _statusColor.withValues(alpha: 0.3), width: 1.5),
             ),
-            child: Icon(icon, color: _statusColor, size: 38),
+            child: Icon(icon, color: _statusColor, size: 24),
           ),
-          const SizedBox(width: 28),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: AdminStyles.headingStyle(fontSize: 26, color: _statusColor)),
-                const SizedBox(height: 8),
-                Text(desc, style: AdminStyles.bodyStyle(fontSize: 15, color: AdminStyles.textSecondary, height: 1.5)),
+                Text(title, style: AdminStyles.headingStyle(fontSize: 18, color: _statusColor)),
+                const SizedBox(height: 4),
+                Text(desc, style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary, height: 1.4)),
                 if (_currentTask?.maintenanceNotes != null && _currentTask!.maintenanceNotes!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Container(
@@ -784,6 +718,8 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
   Widget _buildInfoPanel() {
     return Column(
       children: [
+        _buildStatusHero(),
+        const SizedBox(height: 24),
         if (!_isAssignedToMe && widget.task.status.toLowerCase() != 'pending') ...[
           Container(
             padding: const EdgeInsets.all(20),
@@ -828,30 +764,69 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
         ],
         
         // Dynamic maintenance actions
-        if (_canStart) ...[
-          _buildStartActionCard(),
-          const SizedBox(height: 24),
-        ],
-        if (_canComplete) ...[
-          _buildCompletionActionCard(),
+        if (_isAssignedToMe) ...[
+          _buildMaintenanceActionsCard(),
           const SizedBox(height: 24),
         ],
         
-        _buildRequestInfoCard(),
+        Container(key: _detailsKey, child: _buildRequestInfoCard()),
+        const SizedBox(height: 24),
+        
+        _buildLocationCard(),
         const SizedBox(height: 24),
         
         _buildReferenceDataCard(),
         if (_signatures.isNotEmpty) ...[
           const SizedBox(height: 24),
-          _buildSignaturesCard(),
+          Container(key: _signaturesKey, child: _buildSignaturesCard()),
         ],
       ],
     );
   }
 
-  Widget _buildStartActionCard() {
+  Future<void> _scrollToSection(GlobalKey key) async {
+    final context = key.currentContext;
+    if (context == null) return;
+    await Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeInOut,
+      alignment: 0.02,
+    );
+  }
+
+  Widget _buildHeaderTabItem(String title, int index, GlobalKey key) {
+    final isSelected = _selectedSection == index;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: TextButton(
+        onPressed: () {
+          setState(() {
+            _selectedSection = index;
+          });
+          _scrollToSection(key);
+        },
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          backgroundColor: isSelected ? AdminStyles.primary.withValues(alpha: 0.08) : Colors.transparent,
+        ),
+        child: Text(
+          title,
+          style: AdminStyles.headingStyle(
+            fontSize: 13,
+            color: isSelected ? AdminStyles.primary : AdminStyles.textSecondary,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocationCard() {
+    final task = _currentTask!;
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -861,32 +836,35 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.not_started_rounded, color: AdminStyles.primary, size: 48),
-          const SizedBox(height: 24),
-          Text('Ready to Start?', style: AdminStyles.headingStyle(fontSize: 18)),
-          const SizedBox(height: 12),
-          Text('You are assigned to this task. Please acknowledge and sign to officially begin the maintenance work.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: () async {
-                final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => MaintenanceAcceptTaskWeb(task: _currentTask!)));
-                if (result == true) _loadData();
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.primary, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-              child: const Text('Go to Acceptance Page', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ),
+          Text('Location Details', style: AdminStyles.headingStyle(fontSize: 15, color: AdminStyles.textSecondary)),
+          const SizedBox(height: 20),
+          _buildSummaryRow('Building', task.buildingName ?? 'N/A'),
+          _buildSummaryRow('Room', task.roomName ?? 'N/A'),
+          _buildSummaryRow('Department', task.departmentName ?? 'N/A'),
         ],
       ),
     );
   }
 
-  Widget _buildCompletionActionCard() {
+  Widget _buildMaintenanceActionsCard() {
+    final task = _currentTask!;
+    
+    // Step 1: Acceptance Status
+    final isAccepted = task.acceptedDate != null;
+    
+    // Step 2: Pre-Inspection Status
+    final hasPreInsp = _preInspectionReport != null;
+    final isPreInspApproved = hasPreInsp && _preInspectionReport!.status == 'Approved';
+    final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
+    
+    // Step 3: Post-Repair Status
+    final hasPostRepair = _postRepairReports.isNotEmpty;
+    final isLastRework = hasPostRepair && _postRepairReports.last.adminEvaluation == 'rework';
+    final isLastCompleted = hasPostRepair && _postRepairReports.last.adminEvaluation == 'completed';
+    final isPendingEvaluation = hasPostRepair && _postRepairReports.last.adminEvaluation == null;
+
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -896,66 +874,194 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Submit Completion Report', style: AdminStyles.headingStyle(fontSize: 18)),
-          const SizedBox(height: 24),
-          _buildEvidencePicker(),
-          if (_isUploadingEvidence) ...[
-            const SizedBox(height: 16),
-            const LinearProgressIndicator(color: AdminStyles.primary),
-          ],
-          const SizedBox(height: 24),
-          _buildWebTextField(_noteController, 'Maintenance Notes', 'Describe findings or work performed...', maxLines: 4),
-          const SizedBox(height: 32),
-          const Divider(),
-          const SizedBox(height: 32),
-          SignaturePadWidget(
-            title: 'Completion Signature',
-            subtitle: 'Sign to confirm work is finished',
-            onSignatureComplete: _handleCompletion,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEvidencePicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Work Evidence Photo (Mandatory)', style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        if (_evidenceImage != null)
-          Stack(
+          Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  _evidenceImage!.path,
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              Positioned(top: 8, right: 8, child: IconButton(onPressed: () => setState(() => _evidenceImage = null), icon: const Icon(Icons.cancel_rounded, color: Colors.white))),
+              const Icon(Icons.engineering_rounded, color: AdminStyles.primary, size: 22),
+              const SizedBox(width: 10),
+              Text('Maintenance Workflow Actions', style: AdminStyles.headingStyle(fontSize: 16)),
             ],
-          )
-        else
-          InkWell(
-            onTap: _pickImage,
-            child: Container(
-              height: 100,
-              width: double.infinity,
-              decoration: BoxDecoration(color: AdminStyles.bg, borderRadius: BorderRadius.circular(12), border: Border.all(color: AdminStyles.border, style: BorderStyle.solid)),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+          ),
+          const SizedBox(height: 24),
+          
+          // Acknowledge & Accept Task Row
+          _buildWorkflowStepRow(
+            title: '1. Acknowledge & Accept Task',
+            subtitle: isAccepted 
+                ? 'Accepted on ${DateFormat('MMM dd, yyyy • hh:mm a').format(task.acceptedDate!)}'
+                : 'Acknowledge assignment to unlock inspection.',
+            isCompleted: isAccepted,
+            action: !isAccepted
+                ? ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() => _activeSubView = 'acceptance');
+                    },
+                    icon: const Icon(Icons.check_rounded, size: 14),
+                    label: const Text('Accept Task'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminStyles.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  )
+                : const Icon(Icons.check_circle_rounded, color: AdminStyles.success, size: 24),
+          ),
+          
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Divider(height: 1),
+          ),
+          
+          // Pre-Inspection Report Row
+          _buildWorkflowStepRow(
+            title: '2. Pre-Inspection Report',
+            subtitle: isPreInspDeclined
+                ? 'Pre-inspection report was DECLINED.'
+                : (isPreInspApproved
+                    ? 'Pre-inspection report APPROVED.'
+                    : (hasPreInsp
+                        ? 'Report submitted. Awaiting Admin review.'
+                        : 'Submit site inspection findings.')),
+            isCompleted: hasPreInsp && !isPreInspDeclined,
+            action: !hasPreInsp
+                ? ElevatedButton.icon(
+                    onPressed: isAccepted
+                        ? () {
+                            setState(() => _activeSubView = 'preInspection');
+                          }
+                        : null,
+                    icon: const Icon(Icons.search_rounded, size: 14),
+                    label: const Text('Start Pre-Inspection'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminStyles.primary,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade100,
+                      disabledForegroundColor: Colors.grey.shade400,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  )
+                : TextButton.icon(
+                    onPressed: () {
+                      setState(() => _activeSubView = 'preInspection');
+                    },
+                    icon: const Icon(Icons.visibility_rounded, size: 14),
+                    label: const Text('View Report'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AdminStyles.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+          ),
+          
+          // Show Decline Alert if Pre-Inspection was declined
+          if (isPreInspDeclined) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AdminStyles.error.withValues(alpha: 0.05),
+                border: Border.all(color: AdminStyles.error.withValues(alpha: 0.15)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
                 children: [
-                  const Icon(Icons.add_a_photo_rounded, color: AdminStyles.primary),
-                  const SizedBox(height: 8),
-                  Text('Upload Evidence Image', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.primary)),
+                  const Icon(Icons.cancel_rounded, color: AdminStyles.error, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This work request was declined during pre-inspection review and has been closed.',
+                      style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.error, fontWeight: FontWeight.w500),
+                    ),
+                  ),
                 ],
               ),
             ),
+          ],
+          
+          if (isPreInspApproved) ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Divider(height: 1),
+            ),
+            
+            // Post-Repair Inspection Row
+            _buildWorkflowStepRow(
+              title: '3. Post-Repair Evaluation',
+              subtitle: isLastCompleted
+                  ? 'Work evaluation completed & approved!'
+                  : (isLastRework
+                      ? 'Rework requested. Please re-submit report.'
+                      : (isPendingEvaluation
+                          ? 'Report submitted. Awaiting Admin evaluation.'
+                          : 'Perform repair and submit completion report.')),
+              isCompleted: isLastCompleted,
+              action: (!hasPostRepair || isLastRework)
+                  ? ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() => _activeSubView = 'postRepair');
+                      },
+                      icon: const Icon(Icons.build_circle_rounded, size: 14),
+                      label: Text(isLastRework ? 'Submit Rework' : 'Start Post-Repair'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isLastRework ? AdminStyles.warning : AdminStyles.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    )
+                  : TextButton.icon(
+                      onPressed: () {
+                        setState(() => _activeSubView = 'postRepair');
+                      },
+                      icon: const Icon(Icons.visibility_rounded, size: 14),
+                      label: const Text('View Reports'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AdminStyles.primary,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                    ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkflowStepRow({
+    required String title,
+    required String subtitle,
+    required bool isCompleted,
+    required Widget action,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: isCompleted ? AdminStyles.success.withValues(alpha: 0.1) : Colors.grey.shade100,
+            shape: BoxShape.circle,
           ),
+          child: Icon(
+            isCompleted ? Icons.check_rounded : Icons.pending_actions_rounded,
+            color: isCompleted ? AdminStyles.success : Colors.grey.shade400,
+            size: 16,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 2),
+              Text(subtitle, style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textSecondary)),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        action,
       ],
     );
   }

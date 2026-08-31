@@ -12,8 +12,9 @@ import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
 class MaintenanceAcceptTaskWeb extends StatefulWidget {
   final WorkRequest task;
+  final VoidCallback? onBack;
 
-  const MaintenanceAcceptTaskWeb({super.key, required this.task});
+  const MaintenanceAcceptTaskWeb({super.key, required this.task, this.onBack});
 
   @override
   State<MaintenanceAcceptTaskWeb> createState() => _MaintenanceAcceptTaskWebState();
@@ -49,7 +50,11 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
         };
         await OfflineSyncService().queueAction('accept_work_request', payload);
         _showSuccess(messenger, 'You are offline. Task acceptance has been queued and will sync when reconnected.');
-        navigator.pop(true);
+        if (widget.onBack != null) {
+          widget.onBack!();
+        } else {
+          navigator.pop(true);
+        }
         return;
       }
 
@@ -82,7 +87,11 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
       );
 
       _showSuccess(messenger, 'Task accepted successfully. You can now begin the maintenance work.');
-      navigator.pop(true);
+      if (widget.onBack != null) {
+        widget.onBack!();
+      } else {
+        navigator.pop(true);
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isAccepting = false);
@@ -147,7 +156,13 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              if (widget.onBack != null) {
+                widget.onBack!();
+              } else {
+                Navigator.pop(context);
+              }
+            },
           ),
           const SizedBox(width: 16),
           Text('Task Acceptance', style: AdminStyles.headingStyle(fontSize: 20)),

@@ -44,6 +44,8 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
 
   List<PostRepairReport> _history = [];
   int _nextAttemptNumber = 1;
+  int _selectedAttemptIndex = 0;
+  bool _showNewSubmissionForm = true;
   String? _technicianSignatureBase64;
   
   List<XFile> _evidenceImages = [];
@@ -72,6 +74,8 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
       setState(() {
         _history = history;
         _nextAttemptNumber = history.length + 1;
+        _selectedAttemptIndex = history.isNotEmpty ? history.length - 1 : 0;
+        _showNewSubmissionForm = _isEntryMode;
         _isLoading = false;
       });
     } catch (_) {
@@ -241,7 +245,8 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
 
   @override
   Widget build(BuildContext context) {
-    final isCompact = MediaQuery.of(context).size.width < 960;
+    final width = MediaQuery.of(context).size.width;
+    final isCompact = width < 900;
 
     return Scaffold(
       backgroundColor: AdminStyles.bg,
@@ -251,9 +256,36 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
           Expanded(
             child: _isLoading || _isSubmitting
                 ? const Center(child: CircularProgressIndicator(color: AdminStyles.primary))
-                : _isEntryMode
-                    ? _buildEntryForm(isCompact)
-                    : _buildHistoryView(isCompact),
+                : SingleChildScrollView(
+                    padding: EdgeInsets.all(isCompact ? 16 : 32),
+                    child: Center(
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 900),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildTaskSummary(),
+                            const SizedBox(height: 24),
+                            _buildAttemptTabs(),
+                            if (_showNewSubmissionForm)
+                              Form(
+                                key: _formKey,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildFormFields(isCompact),
+                                    const SizedBox(height: 24),
+                                    _buildSubmitSection(),
+                                  ],
+                                ),
+                              )
+                            else if (_history.isNotEmpty)
+                              _buildDetailedView(_history[_selectedAttemptIndex]),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -283,56 +315,90 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
     );
   }
 
-  Widget _buildEntryForm(bool isCompact) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(isCompact ? 16 : 32),
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildTaskSummary(),
-                const SizedBox(height: 24),
-                _buildFormFields(isCompact),
-                if (_isEntryMode) ...[
-                  const SizedBox(height: 24),
-                  _buildSubmitSection(),
-                ],
-              ],
-            ),
-          ),
-        ),
+  Widget _buildAttemptTabs() {
+    if (_history.isEmpty) return const SizedBox.shrink();
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
       ),
-    );
-  }
-
-  Widget _buildHistoryView(bool isCompact) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(isCompact ? 16 : 32),
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTaskSummary(),
-              const SizedBox(height: 24),
-              if (_history.isEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AdminStyles.border)),
-                  child: Center(
-                    child: Text('No post-repair reports submitted yet.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            ..._history.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final report = entry.value;
+              final isSelected = !_showNewSubmissionForm && _selectedAttemptIndex == idx;
+              
+              String statusText = 'Attempt #${report.attemptNumber}';
+              if (report.adminEvaluation == 'satisfied') {
+                statusText += ' (Approved)';
+              } else if (report.adminEvaluation == 'rework') {
+                statusText += ' (Rework)';
+              } else {
+                statusText += ' (Pending)';
+              }
+              
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _showNewSubmissionForm = false;
+                      _selectedAttemptIndex = idx;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AdminStyles.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? Colors.white : AdminStyles.textSecondary,
+                      ),
+                    ),
                   ),
-                )
-              else
-                _buildDetailedView(_history.last),
-            ],
-          ),
+                ),
+              );
+            }),
+            if (_isEntryMode)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _showNewSubmissionForm = true;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _showNewSubmissionForm ? AdminStyles.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'New Submission (Attempt #$_nextAttemptNumber)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: _showNewSubmissionForm ? FontWeight.bold : FontWeight.normal,
+                        color: _showNewSubmissionForm ? Colors.white : AdminStyles.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

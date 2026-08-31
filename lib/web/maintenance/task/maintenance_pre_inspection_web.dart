@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
+import 'package:intl/intl.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/models/pre_inspection_model.dart';
@@ -36,10 +37,57 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
 
   String _severityLevel = 'Minor';
   String? _inspectorSignatureBase64;
-  bool _isLoading = false;
+  bool _isLoading = true;
   
   final List<XFile> _inspectionImages = [];
   bool _isUploadingImages = false;
+
+  PreInspectionReport? _existingReport;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingReport();
+  }
+
+  Future<void> _loadExistingReport() async {
+    try {
+      final report = await PreInspectionService.fetchLatestByWorkRequest(widget.request.id);
+      if (mounted) {
+        setState(() {
+          _existingReport = report;
+          if (report != null) {
+            _conditionController.text = report.conditionFound;
+            _descriptionController.text = report.description ?? '';
+            _rootCauseController.text = report.rootCause ?? '';
+            _severityLevel = report.severityLevel;
+            _recommendedActionController.text = report.recommendedAction ?? '';
+            _materialsController.text = report.materialsNeeded ?? '';
+            _estimatedTimeController.text = report.estimatedTime ?? '';
+            _notesController.text = report.notes ?? '';
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  List<String> _parseEvidenceUrls(String? evidence) {
+    if (evidence == null || evidence.trim().isEmpty) return [];
+    final clean = evidence.trim();
+    if (clean.startsWith('[') && clean.endsWith(']')) {
+      try {
+        final List<dynamic> decoded = jsonDecode(clean);
+        return decoded.map((e) => e.toString()).toList();
+      } catch (_) {}
+    }
+    if (clean.contains(',')) {
+      return clean.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
+    return [clean];
+  }
 
   @override
   void dispose() {
@@ -119,36 +167,45 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
       // 3. Update Work Request Status
       await WorkRequestService.updateStatus(widget.request.id, 'In Progress');
 
-      // 4. Notify Campus Admin
-      await AppNotificationService.notifyPreInspectionSubmittedToAdmin(
-        workRequestId: widget.request.id,
-        maintenanceName: user.name,
-        adminId: widget.request.approvedById,
-      );
-
-      if (mounted) {
-        _showSuccess('Pre-Inspection report submitted successfully!');
-        if (widget.onBack != null) {
-          widget.onBack!();
-        } else {
-          Navigator.pop(context, true);
-        }
+      _showSuccess('Pre-inspection report submitted successfully.');
+      if (widget.onBack != null) {
+        widget.onBack!();
+      } else {
+        Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) _showError('Submission failed: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      setState(() => _isLoading = false);
+      _showError('Failed to submit pre-inspection: $e');
     }
   }
 
-  void _showSuccess(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.success));
-  void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.error));
+  Future<String> _uploadImages({required String requestId, required List<XFile> imageFiles}) async {
+    final client = Supabase.instance.client;
+    List<String> urls = [];
 
-  Future<void> _pickImages() async {
+    for (int i = 0; i < imageFiles.length; i++) {
+      final file = imageFiles[i];
+      final bytes = await file.readAsBytes();
+      final extension = file.path.split('.').last.toLowerCase();
+      final path = 'work-evidence/$requestId/pre_${DateTime.now().millisecondsSinceEpoch}_$i.$extension';
+      
+      await client.storage.from('work-evidence').uploadBinary(
+        path, 
+        bytes, 
+        fileOptions: FileOptions(contentType: 'image/$extension'),
+      );
+      
+      final url = client.storage.from('work-evidence').getPublicUrl(path);
+      urls.add(url);
+    }
+    return jsonEncode(urls);
+  }
+
+  void _pickImages() async {
     final picker = ImagePicker();
-    final picked = await picker.pickMultiImage();
-    if (picked.isNotEmpty) {
-      setState(() => _inspectionImages.addAll(picked));
+    final images = await picker.pickMultiImage();
+    if (images.isNotEmpty) {
+      setState(() => _inspectionImages.addAll(images));
     }
   }
 
@@ -156,44 +213,22 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
     setState(() => _inspectionImages.removeAt(index));
   }
 
-  Future<String> _uploadImages({
-    required String requestId,
-    required List<XFile> imageFiles,
-  }) async {
-    final client = Supabase.instance.client;
-    List<String> urls = [];
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: AdminStyles.error));
+  }
 
-    for (int i = 0; i < imageFiles.length; i++) {
-      final imageFile = imageFiles[i];
-      final bytes = await imageFile.readAsBytes();
-      final extension = imageFile.name.contains('.')
-          ? imageFile.name.split('.').last.toLowerCase()
-          : 'jpg';
-      // Normalize MIME type — Supabase rejects 'image/jpg', needs 'image/jpeg'
-      final mimeType = extension == 'jpg' ? 'image/jpeg' : 'image/$extension';
-      final path = 'work-evidence/$requestId/pre_${DateTime.now().millisecondsSinceEpoch}_$i.$extension';
-
-      await client.storage.from('work-evidence').uploadBinary(
-        path,
-        bytes,
-        fileOptions: FileOptions(
-          contentType: mimeType,
-          upsert: true,
-        ),
-      );
-
-      final url = client.storage.from('work-evidence').getPublicUrl(path);
-      urls.add(url);
-    }
-    return jsonEncode(urls);
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: AdminStyles.success));
   }
 
   @override
   Widget build(BuildContext context) {
-    final isCompact = MediaQuery.of(context).size.width < 960;
+    final width = MediaQuery.of(context).size.width;
+    final isCompact = width < 900;
+    final isReadonly = _existingReport != null;
 
     return Scaffold(
-      backgroundColor: AdminStyles.bg,
+      backgroundColor: const Color(0xFFF8FAFC),
       body: Column(
         children: [
           _buildTopBar(),
@@ -212,7 +247,7 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
                             children: [
                               _buildTaskSummary(),
                               const SizedBox(height: 24),
-                              _buildFormFields(isCompact),
+                              _buildFormFields(isCompact, enabled: !isReadonly),
                               const SizedBox(height: 24),
                               _buildSignatureSection(),
                             ],
@@ -244,7 +279,10 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
             },
           ),
           const SizedBox(width: 16),
-          Text('Submit Pre-Inspection Report', style: AdminStyles.headingStyle(fontSize: 20)),
+          Text(
+            _existingReport != null ? 'Pre-Inspection Report Details' : 'Submit Pre-Inspection Report',
+            style: AdminStyles.headingStyle(fontSize: 20),
+          ),
         ],
       ),
     );
@@ -255,9 +293,9 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AdminStyles.primary.withOpacity(0.05),
+        color: AdminStyles.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AdminStyles.primary.withOpacity(0.15)),
+        border: Border.all(color: AdminStyles.primary.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,7 +318,7 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
     );
   }
 
-  Widget _buildFormFields(bool isCompact) {
+  Widget _buildFormFields(bool isCompact, {bool enabled = true}) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -293,53 +331,82 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
         children: [
           Text('Inspection Details', style: AdminStyles.headingStyle(fontSize: 16)),
           const SizedBox(height: 24),
-          _buildWebTextField(_conditionController, 'Condition Found *', 'Describe the exact issue found...', required: true),
+          _buildWebTextField(_conditionController, 'Condition Found *', 'Describe the exact issue found...', required: true, enabled: enabled),
           const SizedBox(height: 16),
-          _buildWebTextField(_descriptionController, 'Detailed Description', 'Provide more context about the condition...', maxLines: 3),
+          _buildWebTextField(_descriptionController, 'Detailed Description', 'Provide more context about the condition...', maxLines: 3, enabled: enabled),
           const SizedBox(height: 16),
           if (isCompact) ...[
-            _buildWebTextField(_rootCauseController, 'Root Cause (Optional)', 'What caused the issue?'),
+            _buildWebTextField(_rootCauseController, 'Root Cause (Optional)', 'What caused the issue?', enabled: enabled),
             const SizedBox(height: 16),
-            _buildSeverityDropdown(),
+            _buildSeverityDropdown(enabled: enabled),
           ] else ...[
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: _buildWebTextField(_rootCauseController, 'Root Cause (Optional)', 'What caused the issue?')),
+                Expanded(child: _buildWebTextField(_rootCauseController, 'Root Cause (Optional)', 'What caused the issue?', enabled: enabled)),
                 const SizedBox(width: 16),
-                Expanded(child: _buildSeverityDropdown()),
+                Expanded(child: _buildSeverityDropdown(enabled: enabled)),
               ],
             ),
           ],
           const SizedBox(height: 16),
-          _buildWebTextField(_recommendedActionController, 'Recommended Action', 'What needs to be done?', maxLines: 2),
+          _buildWebTextField(_recommendedActionController, 'Recommended Action', 'What needs to be done?', maxLines: 2, enabled: enabled),
           const SizedBox(height: 16),
-          _buildWebTextField(_materialsController, 'Materials/Parts Needed', 'List required parts and estimated costs...'),
+          _buildWebTextField(_materialsController, 'Materials/Parts Needed', 'List required parts and estimated costs...', enabled: enabled),
           const SizedBox(height: 16),
           if (isCompact) ...[
-            _buildWebTextField(_estimatedTimeController, 'Estimated Repair Time', 'e.g., 2 hours, 1 day'),
+            _buildWebTextField(_estimatedTimeController, 'Estimated Repair Time', 'e.g., 2 hours, 1 day', enabled: enabled),
             const SizedBox(height: 16),
-            _buildWebTextField(_notesController, 'Additional Notes', 'Any other information for the admin?'),
+            _buildWebTextField(_notesController, 'Additional Notes', 'Any other information for the admin?', enabled: enabled),
           ] else ...[
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: _buildWebTextField(_estimatedTimeController, 'Estimated Repair Time', 'e.g., 2 hours, 1 day')),
+                Expanded(child: _buildWebTextField(_estimatedTimeController, 'Estimated Repair Time', 'e.g., 2 hours, 1 day', enabled: enabled)),
                 const SizedBox(width: 16),
-                Expanded(child: _buildWebTextField(_notesController, 'Additional Notes', 'Any other information for the admin?')),
+                Expanded(child: _buildWebTextField(_notesController, 'Additional Notes', 'Any other information for the admin?', enabled: enabled)),
               ],
             ),
           ],
           const SizedBox(height: 24),
           Text('Inspection Photos', style: AdminStyles.headingStyle(fontSize: 16)),
           const SizedBox(height: 16),
-          _buildImageUploadSection(),
+          _buildImageUploadSection(enabled: enabled),
         ],
       ),
     );
   }
 
-  Widget _buildImageUploadSection() {
+  Widget _buildImageUploadSection({bool enabled = true}) {
+    if (!enabled) {
+      final evidence = _existingReport?.photoEvidence;
+      final urls = _parseEvidenceUrls(evidence);
+      if (urls.isEmpty) {
+        return Text('No photo evidence uploaded.', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted));
+      }
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1,
+        ),
+        itemCount: urls.length,
+        itemBuilder: (context, index) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              urls[index],
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image)),
+            ),
+          );
+        },
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -398,7 +465,7 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
     );
   }
 
-  Widget _buildSeverityDropdown() {
+  Widget _buildSeverityDropdown({bool enabled = true}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -410,13 +477,13 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
           items: ['Minor', 'Moderate', 'Critical']
               .map((e) => DropdownMenuItem(value: e, child: Text(e, style: AdminStyles.bodyStyle(fontSize: 14))))
               .toList(),
-          onChanged: (v) => setState(() => _severityLevel = v!),
+          onChanged: enabled ? (v) => setState(() => _severityLevel = v!) : null,
         ),
       ],
     );
   }
 
-  Widget _buildWebTextField(TextEditingController controller, String label, String hint, {int maxLines = 1, bool required = false, int maxLength = 490}) {
+  Widget _buildWebTextField(TextEditingController controller, String label, String hint, {int maxLines = 1, bool required = false, int maxLength = 490, bool enabled = true}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -426,10 +493,11 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
           controller: controller,
           maxLines: maxLines,
           maxLength: maxLength,
+          enabled: enabled,
           buildCounter: (context, {required currentLength, required isFocused, maxLength}) {
             if (maxLength == null) return null;
             final remaining = maxLength - currentLength;
-            if (remaining > 100) return null; // Hidden when plenty of space left
+            if (remaining > 100) return null;
             final color = remaining <= 20 ? AdminStyles.error : const Color(0xFFF59E0B);
             return Text(
               '$currentLength/$maxLength',
@@ -459,6 +527,10 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
         borderRadius: BorderRadius.circular(8),
         borderSide: const BorderSide(color: AdminStyles.primary, width: 1.5),
       ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: AdminStyles.border.withValues(alpha: 0.5)),
+      ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: AdminStyles.error),
@@ -471,6 +543,103 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
   }
 
   Widget _buildSignatureSection() {
+    if (_existingReport != null) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AdminStyles.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Submission Status', style: AdminStyles.headingStyle(fontSize: 16)),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: AdminStyles.success, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Report filed by ${_existingReport!.inspectorName} on ${DateFormat('MMM dd, yyyy').format(_existingReport!.inspectionDate)}',
+                  style: AdminStyles.bodyStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 16),
+            Text('Campus Admin Evaluation', style: AdminStyles.headingStyle(fontSize: 16)),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _existingReport!.status == 'Approved'
+                    ? AdminStyles.success.withValues(alpha: 0.05)
+                    : _existingReport!.status == 'Declined'
+                        ? AdminStyles.error.withValues(alpha: 0.05)
+                        : AdminStyles.warning.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _existingReport!.status == 'Approved'
+                      ? AdminStyles.success.withValues(alpha: 0.2)
+                      : _existingReport!.status == 'Declined'
+                          ? AdminStyles.error.withValues(alpha: 0.2)
+                          : AdminStyles.warning.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        _existingReport!.status == 'Approved'
+                            ? Icons.verified_rounded
+                            : _existingReport!.status == 'Declined'
+                                ? Icons.cancel_rounded
+                                : Icons.pending_rounded,
+                        color: _existingReport!.status == 'Approved'
+                            ? AdminStyles.success
+                            : _existingReport!.status == 'Declined'
+                                ? AdminStyles.error
+                                : AdminStyles.warning,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Status: ${_existingReport!.status.toUpperCase()}',
+                        style: AdminStyles.headingStyle(
+                          fontSize: 14,
+                          color: _existingReport!.status == 'Approved'
+                              ? AdminStyles.success
+                              : _existingReport!.status == 'Declined'
+                                  ? AdminStyles.error
+                                  : AdminStyles.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_existingReport!.reviewNotes != null && _existingReport!.reviewNotes!.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Admin Review Notes:',
+                      style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _existingReport!.reviewNotes!,
+                      style: AdminStyles.bodyStyle(fontSize: 12),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(

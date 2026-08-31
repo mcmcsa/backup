@@ -36,12 +36,17 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     _loadReport();
   }
 
+  List<PostRepairReport> _history = [];
+  int _selectedAttemptIndex = 0;
+
   Future<void> _loadReport() async {
     try {
-      final report = await PostRepairService.fetchLatestByWorkRequest(widget.request.id);
+      final history = await PostRepairService.fetchByWorkRequest(widget.request.id);
       if (mounted) {
         setState(() {
-          _report = report;
+          _history = history;
+          _selectedAttemptIndex = history.isNotEmpty ? history.length - 1 : 0;
+          _report = history.isNotEmpty ? history.last : null;
           _isLoading = false;
         });
       }
@@ -313,6 +318,8 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
   }
 
   Widget _buildContextColumn() {
+    if (_history.isEmpty) return const SizedBox.shrink();
+    final report = _history[_selectedAttemptIndex];
     return Column(
       children: [
         _buildInfoCard('Work Request', [
@@ -323,9 +330,9 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
         ]),
         const SizedBox(height: 24),
         _buildInfoCard('Technician Info', [
-          _buildSummaryRow('Name', _report!.technicianName),
-          _buildSummaryRow('Date', _formatDate(_report!.repairDate)),
-          _buildSummaryRow('Duration', _report!.repairDuration ?? 'N/A'),
+          _buildSummaryRow('Name', report.technicianName),
+          _buildSummaryRow('Date', _formatDate(report.repairDate)),
+          _buildSummaryRow('Duration', report.repairDuration ?? 'N/A'),
         ]),
         if (widget.request.reworkCount > 0) ...[
           const SizedBox(height: 24),
@@ -386,12 +393,15 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
   }
 
   Widget _buildEvaluationForm() {
-    final report = _report!;
-    final isActioned = report.status.toLowerCase() != 'pending' && report.status.toLowerCase() != 'submitted';
+    if (_history.isEmpty) return _buildEmptyState();
+    final report = _history[_selectedAttemptIndex];
+    final isLatest = _selectedAttemptIndex == _history.length - 1;
+    final isActioned = !isLatest || (report.status.toLowerCase() != 'pending' && report.status.toLowerCase() != 'submitted');
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Column(
       children: [
+        _buildAttemptTabs(),
         Container(
           padding: const EdgeInsets.all(32),
           decoration: AdminStyles.cardDecoration(),
@@ -493,6 +503,68 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAttemptTabs() {
+    if (_history.isEmpty) return const SizedBox.shrink();
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            ..._history.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final report = entry.value;
+              final isSelected = _selectedAttemptIndex == idx;
+              
+              String statusText = 'Attempt #${report.attemptNumber}';
+              if (report.adminEvaluation == 'satisfied') {
+                statusText += ' (Approved)';
+              } else if (report.adminEvaluation == 'rework') {
+                statusText += ' (Rework)';
+              } else {
+                statusText += ' (Pending)';
+              }
+              
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedAttemptIndex = idx;
+                      _report = report;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AdminStyles.primary : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected ? Colors.white : AdminStyles.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 
