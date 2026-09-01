@@ -219,8 +219,19 @@ class ChatBubble extends StatelessWidget {
   }
 
   Widget _buildTextContent() {
+    final text = message.content ?? '';
+    if (text.isEmpty && message.attachmentUrl != null && message.attachmentUrl!.isNotEmpty) {
+      return Text(
+        '📎 ${message.attachmentName ?? 'Attachment'}',
+        style: TextStyle(
+          fontSize: 14,
+          color: isMine ? Colors.white : const Color(0xFF1A1A1A),
+          height: 1.4,
+        ),
+      );
+    }
     return Text(
-      message.content ?? '',
+      text,
       style: TextStyle(
         fontSize: 14,
         color: isMine ? Colors.white : const Color(0xFF1A1A1A),
@@ -230,6 +241,18 @@ class ChatBubble extends StatelessWidget {
   }
 
   Widget _buildImageContent(BuildContext context) {
+    if (message.attachmentUrl == null || message.attachmentUrl!.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          '📷 Image unavailable',
+          style: TextStyle(
+            fontSize: 13,
+            color: isMine ? Colors.white70 : Colors.grey.shade600,
+          ),
+        ),
+      );
+    }
     return ClipRRect(
       borderRadius: BorderRadius.only(
         topLeft: const Radius.circular(18),
@@ -264,8 +287,20 @@ class ChatBubble extends StatelessWidget {
   }
 
   Widget _buildVoiceContent() {
+    if (message.attachmentUrl == null || message.attachmentUrl!.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Text(
+          '🎤 Voice message unavailable',
+          style: TextStyle(
+            fontSize: 13,
+            color: isMine ? Colors.white70 : Colors.grey.shade600,
+          ),
+        ),
+      );
+    }
     return SizedBox(
-      width: 220,
+      width: 240,
       child: VoicePlayerWidget(audioUrl: message.attachmentUrl!),
     );
   }

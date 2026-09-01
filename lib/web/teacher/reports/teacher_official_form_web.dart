@@ -21,6 +21,7 @@ class TeacherOfficialFormWeb extends StatefulWidget {
 class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
   List<ESignature> _signatures = [];
   bool _isLoading = true;
+  int _selectedPage = 0; // 0: Work Request Form, 1: Confirmation Form
 
   @override
   void initState() {
@@ -45,7 +46,11 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
   void _printForm() async {
     try {
       final pdfBytes = await IsoPdfService.generateWorkRequestPdf(widget.request);
-      await Printing.layoutPdf(onLayout: (_) => pdfBytes);
+      await Printing.layoutPdf(
+        onLayout: (_) => pdfBytes,
+        name: 'Work_Request_Forms_${widget.request.formattedId}',
+        format: IsoPdfService.longLandscapeFormat,
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -55,163 +60,136 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     }
   }
 
-  Widget _buildCheckline(String label, bool isChecked, String underlineText) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          const SizedBox(width: 80), // Indent like the form
-          Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.black, width: 2),
-            ),
-            child: isChecked
-                ? const Center(
-                    child: Text(
-                      'X',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black,
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 12),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontFamily: 'Courier',
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Stack(
-              alignment: Alignment.bottomLeft,
-              children: [
-                Container(
-                  height: 18,
-                  decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Colors.black, width: 1.5)),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 8, bottom: 2),
-                  child: Text(
-                    isChecked ? underlineText : '',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'Courier',
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 40),
-        ],
-      ),
-    );
+  void _savePdfFile() async {
+    try {
+      final pdfBytes = await IsoPdfService.generateWorkRequestPdf(widget.request);
+      await Printing.sharePdf(
+        bytes: pdfBytes,
+        filename: 'Work_Request_Forms_${widget.request.formattedId}.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving PDF file: $e'), backgroundColor: AdminStyles.error),
+        );
+      }
+    }
   }
 
-  Widget _buildSignatureColumn(String role, String headerLabel, String footerLabel, {String? dateLabel, DateTime? dateVal, String? extraLabel, String? extraVal}) {
-    final sig = _signatures.where((s) {
-      if (role == 'requestor') return s.signerRole == 'teacher' || s.signerRole == 'faculty' || s.signerRole == 'requestor';
-      if (role == 'admin') return s.signerRole == 'admin' || s.signerRole == 'approver';
-      if (role == 'accomplished') return s.signerRole == 'maintenance' || s.signerRole == 'technician';
-      return false;
-    }).firstOrNull;
+  Widget _buildSignatureColumn(
+    String roleKey,
+    String headerLabel,
+    String footerLabel, {
+    String? extraLabel,
+    String? extraVal,
+    String? dateLabel,
+    DateTime? dateVal,
+  }) {
+    final request = widget.request;
+    
+    ESignature? sig;
+    String printName = '';
+    
+    if (roleKey == 'requestor') {
+      sig = _signatures.where((s) =>
+        s.signerRole.toLowerCase() == 'teacher' ||
+        s.signerRole.toLowerCase() == 'faculty' ||
+        s.signerRole.toLowerCase() == 'requestor' ||
+        s.signatureType.toLowerCase() == 'requestor'
+      ).firstOrNull;
+      printName = sig?.signerName ?? request.requestorName;
+    } else if (roleKey == 'admin') {
+      sig = _signatures.where((s) =>
+        (s.signerRole.toLowerCase() == 'admin' || s.signerRole.toLowerCase() == 'campadmin') &&
+        (s.signatureType.toLowerCase() == 'approval' || s.signatureType.toLowerCase() == 'admin')
+      ).firstOrNull;
+      printName = sig?.signerName ?? request.approvedByName ?? '';
+    } else if (roleKey == 'accomplished') {
+      sig = _signatures.where((s) {
+        final role = s.signerRole.toLowerCase();
+        final type = s.signatureType.toLowerCase();
+        return (role == 'maintenance' || role == 'technician' || role == 'staff' || role == 'admin') ||
+               (type == 'completion' || type == 'accomplished');
+      }).firstOrNull;
+      printName = sig?.signerName ?? request.acceptedByName ?? '';
+    }
 
-    Uint8List? sigBytes;
+    Uint8List? bytes;
     if (sig != null && sig.signatureData.isNotEmpty) {
       try {
         final cleanBase64 = sig.signatureData.contains(',')
             ? sig.signatureData.split(',').last
             : sig.signatureData;
-        sigBytes = base64Decode(cleanBase64.trim());
+        bytes = base64Decode(cleanBase64.trim());
       } catch (_) {}
     }
 
-    return Container(
-      padding: const EdgeInsets.all(12),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 4.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             headerLabel,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 10,
               fontFamily: 'Courier',
               fontWeight: FontWeight.bold,
               color: Colors.black,
             ),
           ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: Stack(
-              alignment: Alignment.bottomCenter,
+          const SizedBox(height: 2),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                if (sigBytes != null)
-                  Positioned(
-                    bottom: 2,
-                    child: Container(
-                      height: 55,
-                      padding: const EdgeInsets.all(2),
-                      child: Image.memory(
-                        sigBytes,
-                        fit: BoxFit.contain,
-                      ),
-                    ),
+                Container(
+                  height: 30,
+                  alignment: Alignment.bottomCenter,
+                  child: bytes != null
+                      ? Image.memory(bytes, fit: BoxFit.contain)
+                      : const SizedBox(),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  printName.isNotEmpty ? printName : ' ',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontFamily: 'Courier',
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
                   ),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text(
-                      sig?.signerName ?? '',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'Courier',
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    Container(
-                      height: 1.5,
-                      color: Colors.black,
-                      margin: const EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      footerLabel,
-                      style: const TextStyle(
-                        fontSize: 9,
-                        fontFamily: 'Courier',
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  width: 165,
+                  height: 1.5,
+                  color: Colors.black,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  footerLabel,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 8,
+                    fontFamily: 'Courier',
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
           if (dateLabel != null)
             Row(
               children: [
                 Text(
                   '$dateLabel: ',
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontFamily: 'Courier',
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
@@ -219,14 +197,14 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                 ),
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.only(bottom: 2),
+                    padding: const EdgeInsets.only(bottom: 1),
                     decoration: const BoxDecoration(
                       border: Border(bottom: BorderSide(color: Colors.black, width: 1.5)),
                     ),
                     child: Text(
                       dateVal != null ? DateFormat('dd-MMM-yyyy').format(dateVal) : '',
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontFamily: 'Courier',
                         fontWeight: FontWeight.bold,
                         color: Colors.black,
@@ -242,7 +220,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                 Text(
                   '$extraLabel: ',
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 10,
                     fontFamily: 'Courier',
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
@@ -250,14 +228,14 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                 ),
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.only(bottom: 2),
+                    padding: const EdgeInsets.only(bottom: 1),
                     decoration: const BoxDecoration(
                       border: Border(bottom: BorderSide(color: Colors.black, width: 1.5)),
                     ),
                     child: Text(
                       extraVal ?? '',
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         fontFamily: 'Courier',
                         fontWeight: FontWeight.bold,
                         color: Colors.black,
@@ -267,6 +245,619 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                 ),
               ],
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCheckline(String label, bool isChecked, String underlineText) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3.0),
+      child: Row(
+        children: [
+          Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.black, width: 1.5),
+            ),
+            child: isChecked
+                ? const Center(
+                    child: Text(
+                      'X',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: 'Courier',
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 175,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontFamily: 'Courier',
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.only(bottom: 2),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.black, width: 1.5)),
+              ),
+              child: Text(
+                isChecked ? underlineText : '',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'Courier',
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkRequestForm(WorkRequest request, bool isOcular, bool isInstall, bool isRepair, bool isReplace, bool isOthers) {
+    return Container(
+      width: 1040,
+      height: 650,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+        border: Border.all(color: Colors.black, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ROW 1: Header Row (Logo, Title, ISO Code)
+          Container(
+            height: 90,
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Logo cell
+                Container(
+                  width: 140,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                  ),
+                  child: Image.asset(
+                    'assets/images/PsuLogo.png',
+                    width: 68,
+                    height: 68,
+                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.school, size: 48, color: Colors.black),
+                  ),
+                ),
+                // Title cell
+                Expanded(
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Text(
+                          'WORK REQUEST FORM',
+                          style: TextStyle(
+                            fontFamily: 'Courier',
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'PANGASINAN STATE UNIVERSITY',
+                          style: TextStyle(
+                            fontFamily: 'Courier',
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // ISO cell
+                Container(
+                  width: 180,
+                  padding: const EdgeInsets.all(12),
+                  alignment: Alignment.centerRight,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Text('FM-AD-ENG-02', style: TextStyle(fontFamily: 'Courier', fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black)),
+                      Text('Rev. 0', style: TextStyle(fontFamily: 'Courier', fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black)),
+                      Text('03-Oct-2017', style: TextStyle(fontFamily: 'Courier', fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // ROW 2: Date Row
+          Container(
+            height: 38,
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                const Text('DATE :', style: TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black)),
+                const SizedBox(width: 12),
+                Text(
+                  DateFormat('dd-MMM-yyyy').format(request.createdAt ?? request.dateSubmitted),
+                  style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                ),
+                const Spacer(),
+                Text(
+                  '20${DateFormat('yy - MM - dd').format(request.createdAt ?? request.dateSubmitted)}',
+                  style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                ),
+                const SizedBox(width: 40),
+              ],
+            ),
+          ),
+          // ROW 3: Campus & Department Row
+          Container(
+            height: 38,
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 12),
+                    decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                    ),
+                    child: const Text(
+                      'CAMPUS : SAN CARLOS CITY',
+                      style: TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 5,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      'DEPARTMENT: ${request.departmentName ?? ""}',
+                      style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // ROW 4: Building & Room Row
+          Container(
+            height: 38,
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 12),
+                    decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                    ),
+                    child: Text(
+                      'BUILDING NAME : ${request.buildingName ?? ""}',
+                      style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 5,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      'NAME OF OFFICE / ROOM : ${request.roomName ?? ""}',
+                      style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // ROW 5: Work Request Details Row (Checklist)
+          Expanded(
+            flex: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'WORK REQUEST :',
+                    style: TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: SizedBox(
+                        width: 620,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildCheckline('Ocular inspection of', isOcular, request.description),
+                            _buildCheckline('Installation of', isInstall, request.description),
+                            _buildCheckline('Repair of', isRepair, request.description),
+                            _buildCheckline('Replacement of', isReplace, request.description),
+                            _buildCheckline('Others (specify)', isOthers, request.typeOfRequest),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // ROW 6: Footer Signatures Row
+          Expanded(
+            flex: 4,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Requestor Column
+                Expanded(
+                  flex: 6,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                    ),
+                    child: _buildSignatureColumn(
+                      'requestor',
+                      'Requestor :',
+                      'Signature over Printed Name',
+                      extraLabel: 'Position / Designation',
+                      extraVal: request.requestorPosition,
+                    ),
+                  ),
+                ),
+                // Approved by Column
+                Expanded(
+                  flex: 5,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                    ),
+                    child: _buildSignatureColumn(
+                      'admin',
+                      'Approved by :',
+                      'Signature over Printed Name',
+                      dateLabel: 'Date',
+                      dateVal: request.approvedDate,
+                    ),
+                  ),
+                ),
+                // Accomplished by Column
+                Expanded(
+                  flex: 5,
+                  child: _buildSignatureColumn(
+                    'accomplished',
+                    'Work Request Accomplished by:',
+                    'Signature over Printed Name',
+                    dateLabel: 'Date',
+                    dateVal: request.dateCompleted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfirmationForm(WorkRequest request, bool isOcular, bool isInstall, bool isRepair, bool isReplace, bool isOthers) {
+    return Container(
+      width: 1040,
+      height: 650,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+        border: Border.all(color: Colors.black, width: 2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ROW 1: Header Row
+          Container(
+            height: 90,
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 140,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                  ),
+                  child: Image.asset(
+                    'assets/images/PsuLogo.png',
+                    width: 68,
+                    height: 68,
+                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.school, size: 48, color: Colors.black),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Text(
+                          'CONFIRM WORK REQUEST FORM',
+                          style: TextStyle(
+                            fontFamily: 'Courier',
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'PANGASINAN STATE UNIVERSITY',
+                          style: TextStyle(
+                            fontFamily: 'Courier',
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Office of the Physical Plant and Facilities',
+                          style: TextStyle(
+                            fontFamily: 'Courier',
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // ROW 2: Date Row
+          Container(
+            height: 38,
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 12),
+                const Text('DATE :', style: TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black)),
+                const SizedBox(width: 12),
+                Text(
+                  DateFormat('dd-MMM-yyyy').format(request.dateCompleted ?? request.createdAt ?? request.dateSubmitted),
+                  style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                ),
+                const Spacer(),
+                Text(
+                  '20${DateFormat('yy - MM - dd').format(request.dateCompleted ?? request.createdAt ?? request.dateSubmitted)}',
+                  style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                ),
+                const SizedBox(width: 40),
+              ],
+            ),
+          ),
+          // ROW 3: Campus & Department Row
+          Container(
+            height: 38,
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 12),
+                    decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                    ),
+                    child: const Text(
+                      'CAMPUS : SAN CARLOS CITY',
+                      style: TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 5,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      'DEPARTMENT: ${request.departmentName ?? ""}',
+                      style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // ROW 4: Building & Room Row
+          Container(
+            height: 38,
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 12),
+                    decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                    ),
+                    child: Text(
+                      'BUILDING NAME : ${request.buildingName ?? ""}',
+                      style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 5,
+                  child: Container(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 12),
+                    child: Text(
+                      'NAME OF OFFICE / ROOM : ${request.roomName ?? ""}',
+                      style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // ROW 5: Work Request Details Row (Checklist)
+          Expanded(
+            flex: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'WORK REQUEST :',
+                    style: TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: SizedBox(
+                        width: 620,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildCheckline('Ocular inspection of', isOcular, request.description),
+                            _buildCheckline('Installation of', isInstall, request.description),
+                            _buildCheckline('Repair of', isRepair, request.description),
+                            _buildCheckline('Replacement of', isReplace, request.description),
+                            _buildCheckline('Others (specify)', isOthers, request.typeOfRequest),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // ROW 6: Footer Signatures Row
+          Expanded(
+            flex: 4,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                    ),
+                    child: _buildSignatureColumn(
+                      'accomplished',
+                      'Work Request Accomplished by:',
+                      'Signature over Printed Name',
+                      dateLabel: 'Date',
+                      dateVal: request.dateCompleted,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 6,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: Colors.black, width: 2)),
+                    ),
+                    child: _buildSignatureColumn(
+                      'requestor',
+                      'Requestor:',
+                      'Signature over Printed Name',
+                      extraLabel: 'Position / Designation',
+                      extraVal: request.requestorPosition,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 6,
+                  child: _buildSignatureColumn(
+                    'admin',
+                    'Monitored and Evaluated by:',
+                    'Signature over Printed Name',
+                    dateLabel: 'Date',
+                    dateVal: request.approvedDate ?? request.dateCompleted,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -283,13 +874,11 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     final isReplace = typeLower.contains('replacement') || typeLower.contains('replace');
     final isOthers = !isOcular && !isInstall && !isRepair && !isReplace;
 
-    final width = MediaQuery.of(context).size.width;
-
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(24),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 1100, maxHeight: 850),
+        constraints: const BoxConstraints(maxWidth: 1150, maxHeight: 850),
         decoration: BoxDecoration(
           color: const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(16),
@@ -305,7 +894,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
           children: [
             // Toolbar header
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: const BoxDecoration(
                 color: Color(0xFF0F172A),
                 borderRadius: BorderRadius.only(
@@ -317,21 +906,71 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                 children: [
                   const Icon(Icons.description_rounded, color: Color(0xFF00BFA5), size: 20),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      width < 700 ? 'Form Preview' : 'Official Work Request Form Preview (ISO Standard)',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.all(3),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        InkWell(
+                          onTap: () => setState(() => _selectedPage = 0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: _selectedPage == 0 ? const Color(0xFF00BFA5) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              '1. Work Request Form',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () => setState(() => _selectedPage = 1),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: _selectedPage == 1 ? const Color(0xFF00BFA5) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              '2. Confirm Form',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
+                  const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed: _savePdfFile,
+                    icon: const Icon(Icons.download_rounded, size: 18, color: Colors.white),
+                    label: const Text('Save / Download PDF File', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFF00BFA5), width: 1.5),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton.icon(
                     onPressed: _printForm,
+                    icon: const Icon(Icons.print_rounded, size: 18),
+                    label: const Text('Print Form', style: TextStyle(fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00BFA5),
                       foregroundColor: Colors.white,
@@ -339,16 +978,6 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    child: width < 600
-                        ? const Icon(Icons.print_rounded, size: 18)
-                        : const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.print_rounded, size: 18),
-                              SizedBox(width: 8),
-                              Text('Print / Save PDF', style: TextStyle(fontWeight: FontWeight.bold)),
-                            ],
-                          ),
                   ),
                   const SizedBox(width: 12),
                   IconButton(
@@ -366,279 +995,9 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                       padding: const EdgeInsets.all(32),
                       child: Center(
                         child: FittedBox(
-                          child: Container(
-                            width: 1000,
-                            height: 680,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
-                              border: Border.all(color: Colors.black, width: 2),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                // ROW 1: Header Row (Logo, Title, ISO Code)
-                                Container(
-                                  height: 90,
-                                  decoration: const BoxDecoration(
-                                    border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      // Logo cell
-                                      Container(
-                                        width: 140,
-                                        alignment: Alignment.center,
-                                        decoration: const BoxDecoration(
-                                          border: Border(right: BorderSide(color: Colors.black, width: 2)),
-                                        ),
-                                        child: Image.asset(
-                                          'assets/images/PsuLogo.png',
-                                          width: 68,
-                                          height: 68,
-                                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.school, size: 48, color: Colors.black),
-                                        ),
-                                      ),
-                                      // Title cell
-                                      Expanded(
-                                        child: Container(
-                                          alignment: Alignment.center,
-                                          decoration: const BoxDecoration(
-                                            border: Border(right: BorderSide(color: Colors.black, width: 2)),
-                                          ),
-                                          child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: const [
-                                              Text(
-                                                'WORK REQUEST FORM',
-                                                style: TextStyle(
-                                                  fontFamily: 'Courier',
-                                                  fontSize: 24,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.black,
-                                                ),
-                                              ),
-                                              SizedBox(height: 4),
-                                              Text(
-                                                'PANGASINAN STATE UNIVERSITY',
-                                                style: TextStyle(
-                                                  fontFamily: 'Courier',
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.black,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      // ISO cell
-                                      Container(
-                                        width: 180,
-                                        padding: const EdgeInsets.all(12),
-                                        alignment: Alignment.centerRight,
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: const [
-                                            Text('FM-AD-ENG-02', style: TextStyle(fontFamily: 'Courier', fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black)),
-                                            Text('Rev. 0', style: TextStyle(fontFamily: 'Courier', fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black)),
-                                            Text('03-Oct-2017', style: TextStyle(fontFamily: 'Courier', fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black)),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // ROW 2: Date Row
-                                Container(
-                                  height: 38,
-                                  decoration: const BoxDecoration(
-                                    border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const SizedBox(width: 12),
-                                      const Text('DATE :', style: TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black)),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        DateFormat('dd-MMM-yyyy').format(request.createdAt ?? request.dateSubmitted),
-                                        style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                                      ),
-                                      const Spacer(),
-                                      Text(
-                                        '20${DateFormat('yy - MM - dd').format(request.createdAt ?? request.dateSubmitted)}',
-                                        style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                                      ),
-                                      const SizedBox(width: 40),
-                                    ],
-                                  ),
-                                ),
-                                // ROW 3: Campus & Department Row
-                                Container(
-                                  height: 38,
-                                  decoration: const BoxDecoration(
-                                    border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      // Campus cell
-                                      Expanded(
-                                        flex: 6,
-                                        child: Container(
-                                          alignment: Alignment.centerLeft,
-                                          padding: const EdgeInsets.only(left: 12),
-                                          decoration: const BoxDecoration(
-                                            border: Border(right: BorderSide(color: Colors.black, width: 2)),
-                                          ),
-                                          child: const Text(
-                                            'CAMPUS : SAN CARLOS CITY',
-                                            style: TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                                          ),
-                                        ),
-                                      ),
-                                      // Department cell
-                                      Expanded(
-                                        flex: 5,
-                                        child: Container(
-                                          alignment: Alignment.centerLeft,
-                                          padding: const EdgeInsets.only(left: 12),
-                                          child: Text(
-                                            'DEPARTMENT: ${request.departmentName ?? ""}',
-                                            style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // ROW 4: Building & Room Row
-                                Container(
-                                  height: 38,
-                                  decoration: const BoxDecoration(
-                                    border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      // Building cell
-                                      Expanded(
-                                        flex: 6,
-                                        child: Container(
-                                          alignment: Alignment.centerLeft,
-                                          padding: const EdgeInsets.only(left: 12),
-                                          decoration: const BoxDecoration(
-                                            border: Border(right: BorderSide(color: Colors.black, width: 2)),
-                                          ),
-                                          child: Text(
-                                            'BUILDING NAME : ${request.buildingName ?? ""}',
-                                            style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                                          ),
-                                        ),
-                                      ),
-                                      // Room cell
-                                      Expanded(
-                                        flex: 5,
-                                        child: Container(
-                                          alignment: Alignment.centerLeft,
-                                          padding: const EdgeInsets.only(left: 12),
-                                          child: Text(
-                                            'NAME OF OFFICE / ROOM : ${request.roomName ?? ""}',
-                                            style: const TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // ROW 5: Work Request Details Row (Checklist)
-                                Expanded(
-                                  flex: 6,
-                                  child: Container(
-                                    padding: const EdgeInsets.only(left: 12, top: 12),
-                                    decoration: const BoxDecoration(
-                                      border: Border(bottom: BorderSide(color: Colors.black, width: 2)),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'WORK REQUEST :',
-                                          style: TextStyle(fontFamily: 'Courier', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _buildCheckline('Ocular inspection of', isOcular, request.description),
-                                        _buildCheckline('Installation of', isInstall, request.description),
-                                        _buildCheckline('Repair of', isRepair, request.description),
-                                        _buildCheckline('Replacement of', isReplace, request.description),
-                                        _buildCheckline('Others (specify)', isOthers, request.typeOfRequest),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                // ROW 6: Footer Signatures Row
-                                Expanded(
-                                  flex: 5,
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      // Requestor Column
-                                      Expanded(
-                                        flex: 6,
-                                        child: Container(
-                                          decoration: const BoxDecoration(
-                                            border: Border(right: BorderSide(color: Colors.black, width: 2)),
-                                          ),
-                                          child: _buildSignatureColumn(
-                                            'requestor',
-                                            'Requestor :',
-                                            'Signature over Printed Name',
-                                            extraLabel: 'Position / Designation',
-                                            extraVal: request.requestorPosition,
-                                          ),
-                                        ),
-                                      ),
-                                      // Approved by Column
-                                      Expanded(
-                                        flex: 5,
-                                        child: Container(
-                                          decoration: const BoxDecoration(
-                                            border: Border(right: BorderSide(color: Colors.black, width: 2)),
-                                          ),
-                                          child: _buildSignatureColumn(
-                                            'admin',
-                                            'Approved by :',
-                                            'Signature over Printed Name',
-                                            dateLabel: 'Date',
-                                            dateVal: request.approvedDate,
-                                          ),
-                                        ),
-                                      ),
-                                      // Accomplished by Column
-                                      Expanded(
-                                        flex: 5,
-                                        child: _buildSignatureColumn(
-                                          'accomplished',
-                                          'Work Request Accomplished by:',
-                                          'Signature over Printed Name',
-                                          dateLabel: 'Date',
-                                          dateVal: request.dateCompleted,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          child: _selectedPage == 0
+                              ? _buildWorkRequestForm(request, isOcular, isInstall, isRepair, isReplace, isOthers)
+                              : _buildConfirmationForm(request, isOcular, isInstall, isRepair, isReplace, isOthers),
                         ),
                       ),
                     ),

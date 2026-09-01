@@ -182,7 +182,11 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
               if (_request != null) {
                 try {
                   final pdfBytes = await IsoPdfService.generateWorkRequestPdf(_request!);
-                  await Printing.layoutPdf(onLayout: (_) => pdfBytes);
+                  await Printing.layoutPdf(
+                    onLayout: (_) => pdfBytes,
+                    name: 'Work_Request_Form_${_request!.formattedId}',
+                    format: IsoPdfService.longLandscapeFormat,
+                  );
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -288,10 +292,10 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildInfoBox(
-                    icon: Icons.category_outlined,
-                    label: 'CATEGORY',
-                    value1: _request?.typeOfRequest ?? 'N/A',
-                    value2: _request?.priority ?? 'N/A',
+                    icon: Icons.flag_outlined,
+                    label: 'PRIORITY',
+                    value1: _request?.priority.isNotEmpty == true ? _request!.priority : 'Normal',
+                    value2: 'Pending Review',
                   ),
                 ),
               ],

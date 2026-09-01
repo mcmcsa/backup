@@ -900,7 +900,6 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
           ),
           const SizedBox(height: 24),
           _buildDetailChip(Icons.location_on_rounded, 'Location', '${_req.buildingName ?? 'N/A'} — ${_req.roomName ?? 'N/A'}', AdminStyles.primary),
-          _buildDetailChip(Icons.category_rounded, 'Category', _req.typeOfRequest.isNotEmpty ? _req.typeOfRequest : 'N/A', AdminStyles.secondary),
           _buildDetailChip(Icons.flag_rounded, 'Priority', priorityDisplay, priorityColor),
           _buildDetailChip(Icons.calendar_today_rounded, 'Submitted', DateFormat('MMM dd, yyyy').format(_req.dateSubmitted), AdminStyles.textSecondary),
           if (_req.requestorName.isNotEmpty)

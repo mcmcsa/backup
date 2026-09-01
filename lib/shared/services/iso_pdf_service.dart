@@ -8,6 +8,17 @@ import '../models/work_request_model.dart';
 import 'e_signature_service.dart';
 
 class IsoPdfService {
+  // Universal Standard Landscape (11.0" x 8.5")
+  // Compatible with Letter, A4, and Long Bond Paper in Chrome Print & saved PDF
+  static final longLandscapeFormat = PdfPageFormat(
+    11.0 * PdfPageFormat.inch, // 792 pt
+    8.5 * PdfPageFormat.inch,  // 612 pt
+    marginTop: 20,
+    marginBottom: 20,
+    marginLeft: 20,
+    marginRight: 20,
+  );
+
   static Future<Uint8List> generateWorkRequestPdf(WorkRequest request) async {
     final pdf = pw.Document();
 
@@ -18,20 +29,24 @@ class IsoPdfService {
     // Fetch signatures
     final signatures = await ESignatureService.fetchByWorkRequest(request.id);
     
-    final requesterSig = signatures.where((s) =>
-        (s.signerRole.toLowerCase() == 'teacher' || s.signerRole.toLowerCase() == 'requester') &&
-        (s.signatureType.toLowerCase() == 'approval' || s.signatureType.toLowerCase() == 'submission')
-    ).firstOrNull;
+    final requesterSig = signatures.where((s) {
+      final role = s.signerRole.toLowerCase();
+      final type = s.signatureType.toLowerCase();
+      return (role == 'teacher' || role == 'faculty' || role == 'requestor') ||
+             (type == 'requestor' || type == 'approval' || type == 'submission');
+    }).firstOrNull;
 
     final adminSig = signatures.where((s) =>
-        s.signerRole.toLowerCase() == 'admin' &&
-        s.signatureType.toLowerCase() == 'approval'
+        (s.signerRole.toLowerCase() == 'admin' || s.signerRole.toLowerCase() == 'campadmin') &&
+        (s.signatureType.toLowerCase() == 'approval' || s.signatureType.toLowerCase() == 'admin')
     ).firstOrNull;
 
-    final completionSig = signatures.where((s) =>
-        s.signerRole.toLowerCase() == 'maintenance' &&
-        s.signatureType.toLowerCase() == 'completion'
-    ).firstOrNull;
+    final completionSig = signatures.where((s) {
+      final role = s.signerRole.toLowerCase();
+      final type = s.signatureType.toLowerCase();
+      return (role == 'maintenance' || role == 'technician' || role == 'staff' || role == 'admin') ||
+             (type == 'completion' || type == 'accomplished');
+    }).firstOrNull;
 
     pw.MemoryImage? decodeSignature(String? base64Str) {
       if (base64Str == null || base64Str.isEmpty) return null;
@@ -50,28 +65,210 @@ class IsoPdfService {
     final adminSigImage = decodeSignature(adminSig?.signatureData);
     final completionSigImage = decodeSignature(completionSig?.signatureData);
 
-    pw.Widget buildCheckbox(String label, bool isChecked) {
-      return pw.Row(
-        mainAxisSize: pw.MainAxisSize.min,
-        children: [
-          pw.Container(
-            width: 12,
-            height: 12,
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.black, width: 1),
+    final fontCourierBold = pw.Font.courierBold();
+
+    final typeLower = request.typeOfRequest.toLowerCase();
+    final isOcular = typeLower.contains('ocular') || typeLower.contains('inspection');
+    final isInstall = typeLower.contains('installation') || typeLower.contains('install');
+    final isRepair = typeLower.contains('repair');
+    final isReplace = typeLower.contains('replacement') || typeLower.contains('replace');
+    final isOthers = !isOcular && !isInstall && !isRepair && !isReplace;
+
+    pw.Widget buildCheckline(String label, bool isChecked, String underlineText) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 2),
+        child: pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Container(
+              width: 14,
+              height: 14,
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.black, width: 1.5),
+              ),
+              child: isChecked
+                  ? pw.Center(
+                      child: pw.Text(
+                        'X',
+                        style: pw.TextStyle(
+                          font: fontCourierBold,
+                          fontSize: 10,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : null,
             ),
-            child: isChecked ? pw.Center(child: pw.Text('X', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))) : null,
-          ),
-          pw.SizedBox(width: 4),
-          pw.Text(label, style: const pw.TextStyle(fontSize: 10)),
-        ],
+            pw.SizedBox(width: 8),
+            pw.SizedBox(
+              width: 145,
+              child: pw.Text(
+                label,
+                style: pw.TextStyle(
+                  font: fontCourierBold,
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+            pw.Expanded(
+              child: pw.Container(
+                height: 16,
+                padding: const pw.EdgeInsets.only(left: 4),
+                decoration: const pw.BoxDecoration(
+                  border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1.5)),
+                ),
+                child: pw.Text(
+                  isChecked ? underlineText : '',
+                  style: pw.TextStyle(
+                    font: fontCourierBold,
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    pw.Widget buildSignatureColumn({
+      required String headerLabel,
+      required String footerLabel,
+      required String signerName,
+      required pw.MemoryImage? sigImage,
+      String? dateLabel,
+      DateTime? dateVal,
+      String? extraLabel,
+      String? extraVal,
+    }) {
+      return pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              headerLabel,
+              style: pw.TextStyle(
+                font: fontCourierBold,
+                fontSize: 10,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            pw.Center(
+              child: pw.Column(
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  pw.Container(
+                    height: 35,
+                    alignment: pw.Alignment.bottomCenter,
+                    child: sigImage != null
+                        ? pw.Image(sigImage, fit: pw.BoxFit.contain)
+                        : pw.SizedBox(),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    signerName.isNotEmpty ? signerName : ' ',
+                    textAlign: pw.TextAlign.center,
+                    style: pw.TextStyle(
+                      font: fontCourierBold,
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Container(
+                    width: 170,
+                    height: 1.5,
+                    color: PdfColors.black,
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    footerLabel,
+                    textAlign: pw.TextAlign.center,
+                    style: pw.TextStyle(
+                      font: fontCourierBold,
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (extraLabel != null)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(top: 4),
+                child: pw.Row(
+                  children: [
+                    pw.Text(
+                      '$extraLabel: ',
+                      style: pw.TextStyle(
+                        font: fontCourierBold,
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Expanded(
+                      child: pw.Container(
+                        padding: const pw.EdgeInsets.only(bottom: 1),
+                        decoration: const pw.BoxDecoration(
+                          border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1)),
+                        ),
+                        child: pw.Text(
+                          extraVal ?? '',
+                          style: pw.TextStyle(
+                            font: fontCourierBold,
+                            fontSize: 9,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (dateLabel != null)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(top: 4),
+                child: pw.Row(
+                  children: [
+                    pw.Text(
+                      '$dateLabel: ',
+                      style: pw.TextStyle(
+                        font: fontCourierBold,
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.Expanded(
+                      child: pw.Container(
+                        padding: const pw.EdgeInsets.only(bottom: 1),
+                        decoration: const pw.BoxDecoration(
+                          border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1)),
+                        ),
+                        child: pw.Text(
+                          dateVal != null ? DateFormat('dd-MMM-yyyy').format(dateVal) : '',
+                          style: pw.TextStyle(
+                            font: fontCourierBold,
+                            fontSize: 9,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       );
     }
 
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.all(36),
+        pageFormat: longLandscapeFormat,
         build: (pw.Context context) {
           return pw.Container(
             decoration: pw.BoxDecoration(
@@ -80,370 +277,528 @@ class IsoPdfService {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                // TOP SECTION: Header
+                // ROW 1: Header Row (Logo, Title, ISO Code)
                 pw.Container(
+                  height: 80,
                   decoration: const pw.BoxDecoration(
-                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1)),
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 2)),
                   ),
-                  child: pw.Row(
-                    children: [
-                      // Left Side (Form Details)
-                      pw.Expanded(
-                        flex: 6,
-                        child: pw.Container(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Row(
-                                children: [
-                                  pw.Text('Requestor :', style: const pw.TextStyle(fontSize: 10)),
-                                  pw.SizedBox(width: 8),
-                                  pw.Expanded(
-                                    child: pw.Container(
-                                      decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide())),
-                                      child: pw.Text(' ${request.requestorName}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              pw.SizedBox(height: 4),
-                              pw.Row(
-                                children: [
-                                  pw.Text('Position / Designation:', style: const pw.TextStyle(fontSize: 10)),
-                                  pw.SizedBox(width: 8),
-                                  pw.Expanded(
-                                    child: pw.Container(
-                                      decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide())),
-                                      child: pw.Text(' ${request.requestorPosition ?? ""}', style: const pw.TextStyle(fontSize: 10)),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              pw.SizedBox(height: 4),
-                              pw.Center(
-                                child: pw.Stack(
-                                  alignment: pw.Alignment.bottomCenter,
-                                  children: [
-                                    if (requesterSigImage != null)
-                                      pw.Container(
-                                        height: 35,
-                                        margin: const pw.EdgeInsets.only(bottom: 5),
-                                        child: pw.Image(requesterSigImage, fit: pw.BoxFit.contain),
-                                      ),
-                                    pw.Column(
-                                      children: [
-                                        pw.Container(
-                                          width: 150,
-                                          height: 1,
-                                          color: PdfColors.black,
-                                        ),
-                                        pw.SizedBox(height: 2),
-                                        pw.Text('Signature over Printed Name', style: const pw.TextStyle(fontSize: 8)),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // Right Side (Title & Logo)
-                      pw.Container(
-                        width: 1,
-                        color: PdfColors.black,
-                      ),
-                      pw.Expanded(
-                        flex: 5,
-                        child: pw.Container(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Row(
-                                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                                children: [
-                                  pw.Column(
-                                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                    children: [
-                                      pw.Text('DATE :', style: const pw.TextStyle(fontSize: 10)),
-                                      pw.Text('CAMPUS :', style: const pw.TextStyle(fontSize: 10)),
-                                      pw.Text('BUILDING NAME :', style: const pw.TextStyle(fontSize: 10)),
-                                      pw.Text('WORK REQUEST :', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                                    ],
-                                  ),
-                                  pw.Image(psuLogo, width: 40, height: 40),
-                                ],
-                              ),
-                              pw.SizedBox(height: 2),
-                              pw.Row(
-                                mainAxisAlignment: pw.MainAxisAlignment.start,
-                                children: [
-                                  pw.SizedBox(width: 80),
-                                  pw.Column(
-                                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                    children: [
-                                      pw.Text(DateFormat('dd-MMM-yyyy').format(request.createdAt ?? request.dateSubmitted), style: const pw.TextStyle(fontSize: 10)),
-                                      pw.Text('SAN CARLOS CITY', style: const pw.TextStyle(fontSize: 10)),
-                                      pw.Text(request.buildingName ?? '', style: const pw.TextStyle(fontSize: 10)),
-                                      pw.Text(request.formattedId, style: const pw.TextStyle(fontSize: 10)),
-                                    ],
-                                  )
-                                ]
-                              ),
-                              pw.SizedBox(height: 8),
-                              pw.Row(
-                                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                children: [
-                                  pw.Column(
-                                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                                    children: [
-                                      buildCheckbox('Ocular inspection of', request.typeOfRequest.toLowerCase().contains('inspection')),
-                                      pw.SizedBox(height: 4),
-                                      buildCheckbox('Installation of', request.typeOfRequest.toLowerCase().contains('install')),
-                                      pw.SizedBox(height: 4),
-                                      buildCheckbox('Repair of', request.typeOfRequest.toLowerCase().contains('repair')),
-                                      pw.SizedBox(height: 4),
-                                      buildCheckbox('Replacement of', request.typeOfRequest.toLowerCase().contains('replace')),
-                                      pw.SizedBox(height: 4),
-                                      buildCheckbox('Others (specify)', !request.typeOfRequest.toLowerCase().contains('inspection') && !request.typeOfRequest.toLowerCase().contains('install') && !request.typeOfRequest.toLowerCase().contains('repair') && !request.typeOfRequest.toLowerCase().contains('replace')),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              pw.SizedBox(height: 4),
-                              pw.Container(
-                                decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide())),
-                                width: double.infinity,
-                                child: pw.Text(' ${request.title}', style: const pw.TextStyle(fontSize: 10)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // MIDDLE SECTION: Big Title
-                pw.Container(
-                  decoration: const pw.BoxDecoration(
-                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 1)),
-                  ),
-                  child: pw.Row(
-                    children: [
-                      // Left Approval Box
-                      pw.Expanded(
-                        flex: 6,
-                        child: pw.Container(
-                          padding: const pw.EdgeInsets.all(8),
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Row(
-                                children: [
-                                  pw.Text('Approved by :', style: const pw.TextStyle(fontSize: 10)),
-                                  pw.SizedBox(width: 8),
-                                  pw.Expanded(
-                                    child: pw.Container(
-                                      decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide())),
-                                      child: pw.Text(' ${request.approvedByName ?? ""}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              pw.SizedBox(height: 4),
-                              pw.Center(
-                                child: pw.Stack(
-                                  alignment: pw.Alignment.bottomCenter,
-                                  children: [
-                                    if (adminSigImage != null)
-                                      pw.Container(
-                                        height: 35,
-                                        margin: const pw.EdgeInsets.only(bottom: 5),
-                                        child: pw.Image(adminSigImage, fit: pw.BoxFit.contain),
-                                      ),
-                                    pw.Column(
-                                      children: [
-                                        pw.Container(
-                                          width: 150,
-                                          height: 1,
-                                          color: PdfColors.black,
-                                        ),
-                                        pw.SizedBox(height: 2),
-                                        pw.Text('Signature over Printed Name', style: const pw.TextStyle(fontSize: 8)),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              pw.SizedBox(height: 8),
-                              pw.Row(
-                                children: [
-                                  pw.Text('Date :', style: const pw.TextStyle(fontSize: 10)),
-                                  pw.SizedBox(width: 8),
-                                  pw.Expanded(
-                                    child: pw.Container(
-                                      decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide())),
-                                      child: pw.Text(request.approvedDate != null ? DateFormat('dd-MMM-yyyy').format(request.approvedDate!) : '', style: const pw.TextStyle(fontSize: 10)),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      // Right Title Box
-                      pw.Container(
-                        width: 1,
-                        color: PdfColors.black,
-                      ),
-                      pw.Expanded(
-                        flex: 5,
-                        child: pw.Container(
-                          padding: const pw.EdgeInsets.symmetric(vertical: 24),
-                          child: pw.Column(
-                            mainAxisAlignment: pw.MainAxisAlignment.center,
-                            children: [
-                              pw.Text('WORK REQUEST FORM', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-                              pw.SizedBox(height: 4),
-                              pw.Text('PANGASINAN STATE UNIVERSITY', style: const pw.TextStyle(fontSize: 10)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // BOTTOM SECTION: Department & Accomplishment
-                pw.Container(
                   child: pw.Row(
                     crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                     children: [
-                      // Left Accomplishment Box
+                      // Logo cell
+                      pw.Container(
+                        width: 140,
+                        alignment: pw.Alignment.center,
+                        decoration: const pw.BoxDecoration(
+                          border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                        ),
+                        child: pw.Image(psuLogo, width: 64, height: 64),
+                      ),
+                      // Title cell
                       pw.Expanded(
-                        flex: 6,
                         child: pw.Container(
-                          padding: const pw.EdgeInsets.all(8),
+                          alignment: pw.Alignment.center,
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                          ),
                           child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            mainAxisAlignment: pw.MainAxisAlignment.center,
                             children: [
-                              pw.SizedBox(height: 16),
-                              pw.Row(
-                                children: [
-                                  pw.Text('Work Request Accomplished by:', style: const pw.TextStyle(fontSize: 10)),
-                                  pw.SizedBox(width: 8),
-                                    pw.Expanded(
-                                      child: pw.Container(
-                                        decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide())),
-                                        child: pw.Text(' ${request.acceptedByName ?? ""}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              pw.SizedBox(height: 4),
-                              pw.Center(
-                                child: pw.Stack(
-                                  alignment: pw.Alignment.bottomCenter,
-                                  children: [
-                                    if (completionSigImage != null)
-                                      pw.Container(
-                                        height: 35,
-                                        margin: const pw.EdgeInsets.only(bottom: 5),
-                                        child: pw.Image(completionSigImage, fit: pw.BoxFit.contain),
-                                      ),
-                                    pw.Column(
-                                      children: [
-                                        pw.Container(
-                                          width: 150,
-                                          height: 1,
-                                          color: PdfColors.black,
-                                        ),
-                                        pw.SizedBox(height: 2),
-                                        pw.Text('Signature over Printed Name', style: const pw.TextStyle(fontSize: 8)),
-                                      ],
-                                    ),
-                                  ],
+                              pw.Text(
+                                'WORK REQUEST FORM',
+                                style: pw.TextStyle(
+                                  font: fontCourierBold,
+                                  fontSize: 24,
+                                  fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              pw.SizedBox(height: 8),
-                              pw.Row(
-                                children: [
-                                  pw.Text('Date :', style: const pw.TextStyle(fontSize: 10)),
-                                  pw.SizedBox(width: 8),
-                                    pw.Expanded(
-                                      child: pw.Container(
-                                        decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide())),
-                                        child: pw.Text(request.dateCompleted != null ? DateFormat('dd-MMM-yyyy').format(request.dateCompleted!) : '', style: const pw.TextStyle(fontSize: 10)),
-                                      ),
-                                    ),
-                                ],
+                              pw.SizedBox(height: 4),
+                              pw.Text(
+                                'PANGASINAN STATE UNIVERSITY',
+                                style: pw.TextStyle(
+                                  font: fontCourierBold,
+                                  fontSize: 12,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                      // Right Department Box
+                      // ISO cell
                       pw.Container(
-                        width: 1,
-                        color: PdfColors.black,
+                        width: 170,
+                        padding: const pw.EdgeInsets.all(10),
+                        alignment: pw.Alignment.centerRight,
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.end,
+                          mainAxisAlignment: pw.MainAxisAlignment.center,
+                          children: [
+                            pw.Text('FM-AD-ENG-02', style: pw.TextStyle(font: fontCourierBold, fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                            pw.Text('Rev. 0', style: pw.TextStyle(font: fontCourierBold, fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                            pw.Text('03-Oct-2017', style: pw.TextStyle(font: fontCourierBold, fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                          ],
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+                // ROW 2: Date Row
+                pw.Container(
+                  height: 34,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 2)),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.SizedBox(width: 12),
+                      pw.Text('DATE :', style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(width: 12),
+                      pw.Text(
+                        DateFormat('dd-MMM-yyyy').format(request.createdAt ?? request.dateSubmitted),
+                        style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Expanded(child: pw.SizedBox()),
+                      pw.Text(
+                        '20${DateFormat('yy - MM - dd').format(request.createdAt ?? request.dateSubmitted)}',
+                        style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.SizedBox(width: 40),
+                    ],
+                  ),
+                ),
+                // ROW 3: Campus & Department Row
+                pw.Container(
+                  height: 34,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 2)),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      // Campus cell
+                      pw.Expanded(
+                        flex: 6,
+                        child: pw.Container(
+                          alignment: pw.Alignment.centerLeft,
+                          padding: const pw.EdgeInsets.only(left: 12),
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                          ),
+                          child: pw.Text(
+                            'CAMPUS : SAN CARLOS CITY',
+                            style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      // Department cell
                       pw.Expanded(
                         flex: 5,
                         child: pw.Container(
-                          padding: const pw.EdgeInsets.all(8),
+                          alignment: pw.Alignment.centerLeft,
+                          padding: const pw.EdgeInsets.only(left: 12),
+                          child: pw.Text(
+                            'DEPARTMENT: ${request.departmentName ?? ""}',
+                            style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // ROW 4: Building & Room Row
+                pw.Container(
+                  height: 34,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 2)),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      // Building cell
+                      pw.Expanded(
+                        flex: 6,
+                        child: pw.Container(
+                          alignment: pw.Alignment.centerLeft,
+                          padding: const pw.EdgeInsets.only(left: 12),
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                          ),
+                          child: pw.Text(
+                            'BUILDING NAME : ${request.buildingName ?? ""}',
+                            style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      // Room cell
+                      pw.Expanded(
+                        flex: 5,
+                        child: pw.Container(
+                          alignment: pw.Alignment.centerLeft,
+                          padding: const pw.EdgeInsets.only(left: 12),
+                          child: pw.Text(
+                            'NAME OF OFFICE / ROOM : ${request.roomName ?? ""}',
+                            style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // ROW 5: Work Request Details Row (Checklist)
+                pw.Container(
+                  height: 150,
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 2)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'WORK REQUEST :',
+                        style: pw.TextStyle(font: fontCourierBold, fontSize: 12, fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Expanded(
+                        child: pw.Center(
+                          child: pw.SizedBox(
+                            width: 520,
+                            child: pw.Column(
+                              mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+                              children: [
+                                buildCheckline('Ocular inspection of', isOcular, request.description),
+                                buildCheckline('Installation of', isInstall, request.description),
+                                buildCheckline('Repair of', isRepair, request.description),
+                                buildCheckline('Replacement of', isReplace, request.description),
+                                buildCheckline('Others (specify)', isOthers, request.typeOfRequest),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // ROW 6: Footer Signatures Row
+                pw.Container(
+                  height: 125,
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      // Requestor Column
+                      pw.Expanded(
+                        flex: 6,
+                        child: pw.Container(
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                          ),
+                          child: buildSignatureColumn(
+                            headerLabel: 'Requestor :',
+                            footerLabel: 'Signature over Printed Name',
+                            signerName: requesterSig?.signerName ?? request.requestorName,
+                            sigImage: requesterSigImage,
+                            extraLabel: 'Position / Designation',
+                            extraVal: request.requestorPosition,
+                          ),
+                        ),
+                      ),
+                      // Approved by Column
+                      pw.Expanded(
+                        flex: 5,
+                        child: pw.Container(
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                          ),
+                          child: buildSignatureColumn(
+                            headerLabel: 'Approved by :',
+                            footerLabel: 'Signature over Printed Name',
+                            signerName: adminSig?.signerName ?? request.approvedByName ?? '',
+                            sigImage: adminSigImage,
+                            dateLabel: 'Date',
+                            dateVal: request.approvedDate,
+                          ),
+                        ),
+                      ),
+                      // Accomplished by Column
+                      pw.Expanded(
+                        flex: 5,
+                        child: buildSignatureColumn(
+                          headerLabel: 'Work Request Accomplished by:',
+                          footerLabel: 'Signature over Printed Name',
+                          signerName: completionSig?.signerName ?? request.acceptedByName ?? '',
+                          sigImage: completionSigImage,
+                          dateLabel: 'Date',
+                          dateVal: request.dateCompleted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    // PAGE 2: CONFIRM WORK REQUEST FORM
+    pdf.addPage(
+      pw.Page(
+        pageFormat: longLandscapeFormat,
+        build: (pw.Context context) {
+          return pw.Container(
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.black, width: 2),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                // ROW 1: Header Row
+                pw.Container(
+                  height: 80,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 2)),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      // Logo cell
+                      pw.Container(
+                        width: 140,
+                        alignment: pw.Alignment.center,
+                        decoration: const pw.BoxDecoration(
+                          border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                        ),
+                        child: pw.Image(psuLogo, width: 64, height: 64),
+                      ),
+                      // Title cell
+                      pw.Expanded(
+                        child: pw.Container(
+                          alignment: pw.Alignment.center,
                           child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            mainAxisAlignment: pw.MainAxisAlignment.center,
                             children: [
-                              pw.Row(
-                                children: [
-                                  pw.Text('DEPARTMENT:', style: const pw.TextStyle(fontSize: 10)),
-                                ],
-                              ),
-                              pw.Container(
-                                decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide())),
-                                width: double.infinity,
-                                child: pw.Text(' ${request.department ?? ""}', style: const pw.TextStyle(fontSize: 10)),
-                              ),
-                              pw.SizedBox(height: 12),
-                              pw.Row(
-                                children: [
-                                  pw.Text('NAME OF OFFICE / ROOM :', style: const pw.TextStyle(fontSize: 10)),
-                                ],
-                              ),
-                              pw.Container(
-                                decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide())),
-                                width: double.infinity,
-                                child: pw.Text(' ${request.officeRoom ?? ""}', style: const pw.TextStyle(fontSize: 10)),
-                              ),
-                              pw.Spacer(),
-                              // Footer
-                              pw.Container(
-                                decoration: const pw.BoxDecoration(
-                                  border: pw.Border(
-                                    top: pw.BorderSide(),
-                                    left: pw.BorderSide(),
-                                  ),
+                              pw.Text(
+                                'CONFIRM WORK REQUEST FORM',
+                                style: pw.TextStyle(
+                                  font: fontCourierBold,
+                                  fontSize: 20,
+                                  fontWeight: pw.FontWeight.bold,
                                 ),
-                                padding: const pw.EdgeInsets.all(4),
-                                child: pw.Row(
-                                  children: [
-                                    pw.Text('20___ - ___ - ___', style: const pw.TextStyle(fontSize: 8)),
-                                    pw.Spacer(),
-                                    pw.Column(
-                                      crossAxisAlignment: pw.CrossAxisAlignment.end,
-                                      children: [
-                                        pw.Text('FM-AD-ENG-02', style: const pw.TextStyle(fontSize: 6)),
-                                        pw.Text('Rev 0', style: const pw.TextStyle(fontSize: 6)),
-                                        pw.Text('03-Oct-2017', style: const pw.TextStyle(fontSize: 6)),
-                                      ],
-                                    ),
-                                  ]
-                                )
-                              )
+                              ),
+                              pw.SizedBox(height: 3),
+                              pw.Text(
+                                'PANGASINAN STATE UNIVERSITY',
+                                style: pw.TextStyle(
+                                  font: fontCourierBold,
+                                  fontSize: 11,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.SizedBox(height: 2),
+                              pw.Text(
+                                'Office of the Physical Plant and Facilities',
+                                style: pw.TextStyle(
+                                  font: fontCourierBold,
+                                  fontSize: 10,
+                                ),
+                              ),
                             ],
                           ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // ROW 2: Date Row
+                pw.Container(
+                  height: 34,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 2)),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.SizedBox(width: 12),
+                      pw.Text('DATE :', style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(width: 12),
+                      pw.Text(
+                        DateFormat('dd-MMM-yyyy').format(request.dateCompleted ?? request.createdAt ?? request.dateSubmitted),
+                        style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Expanded(child: pw.SizedBox()),
+                      pw.Text(
+                        '20${DateFormat('yy - MM - dd').format(request.dateCompleted ?? request.createdAt ?? request.dateSubmitted)}',
+                        style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.SizedBox(width: 40),
+                    ],
+                  ),
+                ),
+                // ROW 3: Campus & Department Row
+                pw.Container(
+                  height: 34,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 2)),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      // Campus cell
+                      pw.Expanded(
+                        flex: 6,
+                        child: pw.Container(
+                          alignment: pw.Alignment.centerLeft,
+                          padding: const pw.EdgeInsets.only(left: 12),
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                          ),
+                          child: pw.Text(
+                            'CAMPUS : SAN CARLOS CITY',
+                            style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      // Department cell
+                      pw.Expanded(
+                        flex: 5,
+                        child: pw.Container(
+                          alignment: pw.Alignment.centerLeft,
+                          padding: const pw.EdgeInsets.only(left: 12),
+                          child: pw.Text(
+                            'DEPARTMENT: ${request.departmentName ?? ""}',
+                            style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // ROW 4: Building & Room Row
+                pw.Container(
+                  height: 34,
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 2)),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      // Building cell
+                      pw.Expanded(
+                        flex: 6,
+                        child: pw.Container(
+                          alignment: pw.Alignment.centerLeft,
+                          padding: const pw.EdgeInsets.only(left: 12),
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                          ),
+                          child: pw.Text(
+                            'BUILDING NAME : ${request.buildingName ?? ""}',
+                            style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      // Room cell
+                      pw.Expanded(
+                        flex: 5,
+                        child: pw.Container(
+                          alignment: pw.Alignment.centerLeft,
+                          padding: const pw.EdgeInsets.only(left: 12),
+                          child: pw.Text(
+                            'NAME OF OFFICE / ROOM : ${request.roomName ?? ""}',
+                            style: pw.TextStyle(font: fontCourierBold, fontSize: 11, fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // ROW 5: Work Request Details Row (Checklist)
+                pw.Container(
+                  height: 150,
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(bottom: pw.BorderSide(color: PdfColors.black, width: 2)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        'WORK REQUEST :',
+                        style: pw.TextStyle(font: fontCourierBold, fontSize: 12, fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Expanded(
+                        child: pw.Center(
+                          child: pw.SizedBox(
+                            width: 520,
+                            child: pw.Column(
+                              mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+                              children: [
+                                buildCheckline('Ocular inspection of', isOcular, request.description),
+                                buildCheckline('Installation of', isInstall, request.description),
+                                buildCheckline('Repair of', isRepair, request.description),
+                                buildCheckline('Replacement of', isReplace, request.description),
+                                buildCheckline('Others (specify)', isOthers, request.typeOfRequest),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // ROW 6: Footer Signatures Row
+                pw.Container(
+                  height: 125,
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      // Work Request Accomplished by Column
+                      pw.Expanded(
+                        flex: 6,
+                        child: pw.Container(
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                          ),
+                          child: buildSignatureColumn(
+                            headerLabel: 'Work Request Accomplished by:',
+                            footerLabel: 'Signature over Printed Name',
+                            signerName: completionSig?.signerName ?? request.acceptedByName ?? '',
+                            sigImage: completionSigImage,
+                            dateLabel: 'Date',
+                            dateVal: request.dateCompleted,
+                          ),
+                        ),
+                      ),
+                      // Requestor Column (using initial submission signature)
+                      pw.Expanded(
+                        flex: 6,
+                        child: pw.Container(
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(right: pw.BorderSide(color: PdfColors.black, width: 2)),
+                          ),
+                          child: buildSignatureColumn(
+                            headerLabel: 'Requestor:',
+                            footerLabel: 'Signature over Printed Name',
+                            signerName: requesterSig?.signerName ?? request.requestorName,
+                            sigImage: requesterSigImage,
+                            extraLabel: 'Position / Designation',
+                            extraVal: request.requestorPosition,
+                          ),
+                        ),
+                      ),
+                      // Monitored and Evaluated by Column
+                      pw.Expanded(
+                        flex: 6,
+                        child: buildSignatureColumn(
+                          headerLabel: 'Monitored and Evaluated by:',
+                          footerLabel: 'Signature over Printed Name',
+                          signerName: adminSig?.signerName ?? request.approvedByName ?? '',
+                          sigImage: adminSigImage,
+                          dateLabel: 'Date',
+                          dateVal: request.approvedDate ?? request.dateCompleted,
                         ),
                       ),
                     ],
@@ -459,3 +814,8 @@ class IsoPdfService {
     return pdf.save();
   }
 }
+
+
+
+
+

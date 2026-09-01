@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
-import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/models/post_repair_model.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/app_notification_service.dart';
-import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/post_repair_service.dart';
 import '../../../shared/services/work_request_service.dart';
-import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
@@ -192,12 +189,20 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
         ),
       );
 
-      // 3. Notify Campus Admin
-      await AppNotificationService.notifyPostRepairSubmittedToAdmin(
-        workRequestId: widget.request.id,
-        maintenanceName: user.name,
-        adminId: widget.request.approvedById,
-      );
+      // 3. Update work_request status back to 'Confirmed' so campus admin
+      //    can evaluate the newly submitted post-repair report
+      await WorkRequestService.updateStatus(widget.request.id, 'Confirmed');
+
+      // 4. Notify Campus Admin (best-effort – RLS may block non-admin inserts)
+      try {
+        await AppNotificationService.notifyPostRepairSubmittedToAdmin(
+          workRequestId: widget.request.id,
+          maintenanceName: user.name,
+          adminId: widget.request.approvedById,
+        );
+      } catch (_) {
+        // Notification failure should not block the submission success
+      }
 
       if (mounted) {
         _showSuccess('Post-Repair report submitted successfully!');

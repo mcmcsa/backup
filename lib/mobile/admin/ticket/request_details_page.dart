@@ -713,7 +713,11 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
             icon: const Icon(Icons.print_rounded, color: Color(0xFF4169E1)),
             onPressed: () async {
               final pdfBytes = await IsoPdfService.generateWorkRequestPdf(request);
-              await Printing.layoutPdf(onLayout: (_) => pdfBytes);
+              await Printing.layoutPdf(
+                onLayout: (_) => pdfBytes,
+                name: 'Work_Request_Form_${request.formattedId}',
+                format: IsoPdfService.longLandscapeFormat,
+              );
             },
           ),
         ],
