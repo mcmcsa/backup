@@ -1,8 +1,7 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../authentication/models/user_model.dart';
+import '../../config/supabase_config.dart';
 
 class SystemAdminService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -39,8 +38,7 @@ class SystemAdminService {
         'name': name.trim(),
         'role': role,
         'is_active': isActive,
-        'phone': phone?.trim(),
-        'updated_at': DateTime.now().toIso8601String(),
+        'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
       }).eq('id', id);
 
       // 2. Update role specific tables
@@ -48,14 +46,14 @@ class SystemAdminService {
         await _db.from('teacher_users').upsert({
           'user_id': id,
           'department_id': departmentId,
-          'position': position?.trim() ?? 'Faculty',
-          'employee_id': employeeId?.trim(),
+          'position': position?.trim().isNotEmpty == true ? position!.trim() : 'Faculty',
+          'employee_id': employeeId?.trim().isNotEmpty == true ? employeeId!.trim() : null,
         }, onConflict: 'user_id');
       } else if (role == 'maintenance') {
         await _db.from('maintenance_users').upsert({
           'user_id': id,
-          'specialization': specialization?.trim() ?? 'General',
-          'employee_id': employeeId?.trim(),
+          'specialization': specialization?.trim().isNotEmpty == true ? specialization!.trim() : 'General',
+          'employee_id': employeeId?.trim().isNotEmpty == true ? employeeId!.trim() : null,
         }, onConflict: 'user_id');
       }
 
@@ -78,34 +76,30 @@ class SystemAdminService {
     String? specialization,
   }) async {
     try {
-      final url = '${dotenv.env['SUPABASE_URL']}/auth/v1/signup';
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {
-          'apikey': dotenv.env['SUPABASE_ANON_KEY']!,
-          'Authorization': 'Bearer ${dotenv.env['SUPABASE_ANON_KEY']!}',
-          'Content-Type': 'application/json',
+      final isEnvInitialized = dotenv.isInitialized;
+      final url = (isEnvInitialized && dotenv.env['SUPABASE_URL']?.isNotEmpty == true)
+          ? dotenv.env['SUPABASE_URL']!
+          : supabaseUrl;
+      final anonKey = (isEnvInitialized && dotenv.env['SUPABASE_ANON_KEY']?.isNotEmpty == true)
+          ? dotenv.env['SUPABASE_ANON_KEY']!
+          : supabaseAnonKey;
+
+      final isolatedClient = SupabaseClient(url, anonKey);
+
+      final response = await isolatedClient.auth.signUp(
+        email: email.trim(),
+        password: password,
+        data: {
+          'name': name.trim(),
+          'role': role,
         },
-        body: jsonEncode({
-          'email': email.trim(),
-          'password': password,
-          'data': {
-            'name': name.trim(),
-            'role': role,
-          },
-        }),
       );
 
-      if (response.statusCode >= 400) {
-        final Map<String, dynamic> errorData = jsonDecode(response.body);
-        return errorData['message'] ?? errorData['msg'] ?? 'Registration failed.';
+      final newUserId = response.user?.id;
+      if (newUserId == null) {
+        isolatedClient.dispose();
+        return 'Registration failed: user creation returned no result.';
       }
-
-      final Map<String, dynamic> responseData = jsonDecode(response.body);
-      final userMap = responseData['user'] as Map<String, dynamic>?;
-      if (userMap == null) return 'Registration failed: no user data returned.';
-      final newUserId = userMap['id'] as String?;
-      if (newUserId == null) return 'Registration failed: user ID missing.';
 
       // 2. Create users profile record (it might be created by trigger, but update role/active to be sure)
       await _db.from('users').upsert({
@@ -114,7 +108,7 @@ class SystemAdminService {
         'name': name.trim(),
         'role': role,
         'is_active': true,
-        'phone': phone?.trim(),
+        'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
       }, onConflict: 'id');
 
       // 3. Create role-specific profile records
@@ -122,20 +116,24 @@ class SystemAdminService {
         await _db.from('teacher_users').upsert({
           'user_id': newUserId,
           'department_id': departmentId,
-          'position': position?.trim() ?? 'Faculty',
-          'employee_id': employeeId?.trim(),
+          'position': position?.trim().isNotEmpty == true ? position!.trim() : 'Faculty',
+          'employee_id': employeeId?.trim().isNotEmpty == true ? employeeId!.trim() : null,
         }, onConflict: 'user_id');
       } else if (role == 'maintenance') {
         await _db.from('maintenance_users').upsert({
           'user_id': newUserId,
-          'specialization': specialization?.trim() ?? 'General',
-          'employee_id': employeeId?.trim(),
+          'specialization': specialization?.trim().isNotEmpty == true ? specialization!.trim() : 'General',
+          'employee_id': employeeId?.trim().isNotEmpty == true ? employeeId!.trim() : null,
         }, onConflict: 'user_id');
       }
 
+      isolatedClient.dispose();
       return null;
+    } on AuthException catch (e) {
+      return e.message;
     } catch (e) {
       return e.toString();
     }
   }
 }
+

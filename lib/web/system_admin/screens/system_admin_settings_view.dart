@@ -564,7 +564,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                             ),
                           );
 
-                          if (shouldLogout == true && mounted) {
+                          if (shouldLogout == true && context.mounted) {
                             await authService.handleLogoutButton(context);
                           }
                         },

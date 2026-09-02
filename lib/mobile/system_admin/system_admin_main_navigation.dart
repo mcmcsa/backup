@@ -100,23 +100,30 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
           ),
         ),
         actions: [
-          IconButton(
-            onPressed: () {
-              final user = context.read<AuthService>().currentUser;
-              showWorkflowGuideDialog(context, role: user?.role.name);
-            },
-            icon: const Icon(Icons.help_outline_rounded),
-            tooltip: 'Workflow Guide',
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: TextButton.icon(
+              onPressed: () {
+                final user = context.read<AuthService>().currentUser;
+                showWorkflowGuideDialog(context, role: user?.role.name);
+              },
+              icon: const Icon(Icons.help_outline_rounded, color: Color(0xFF0F766E), size: 18),
+              label: const Text(
+                'Tutorial Guide',
+                style: TextStyle(color: Color(0xFF0F766E), fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              style: TextButton.styleFrom(
+                backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
           ),
+          const SizedBox(width: 4),
           IconButton(
             onPressed: _loadData,
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
-          ),
-          IconButton(
-            onPressed: _handleLogout,
-            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-            tooltip: 'Logout',
           ),
         ],
       ),
@@ -324,6 +331,42 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
         backgroundColor: _primaryTeal,
         child: const Icon(Icons.add, color: Colors.white),
       ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: Colors.grey.shade200)),
+          ),
+          child: InkWell(
+            onTap: _handleLogout,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              height: 46,
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Logout Account',
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -512,7 +555,8 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                         phone: phoneController.text,
                         specialization: specController.text,
                       );
-                      Navigator.pop(ctx);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      if (!context.mounted) return;
                       if (err == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Account Created!')),
@@ -656,7 +700,8 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                         phone: phoneController.text,
                         specialization: specController.text,
                       );
-                      Navigator.pop(ctx);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      if (!context.mounted) return;
                       if (err == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Account Configured!')),

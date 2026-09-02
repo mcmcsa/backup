@@ -327,7 +327,48 @@ class _SystemAdminMainNavigationWebState
             },
           ),
         ),
+        // Logout Button in Navigation Bar
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: InkWell(
+            onTap: _handleLogout,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.redAccent.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.logout_rounded,
+                    color: Colors.redAccent,
+                    size: 20,
+                  ),
+                  if (isMobile || _isMenuExpanded) ...[
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
         if (!isMobile) ...[
+          const SizedBox(height: 4),
           // Collapse Toggle
           IconButton(
             onPressed: () => setState(() => _isMenuExpanded = !_isMenuExpanded),
@@ -338,7 +379,7 @@ class _SystemAdminMainNavigationWebState
               color: Colors.white60,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
         ],
       ],
     );
@@ -444,33 +485,51 @@ class _SystemAdminMainNavigationWebState
                 ),
               ),
               const Spacer(),
-              IconButton(
+              // Tutorial Guide / Workflow Guide Button
+              TextButton.icon(
                 onPressed: () {
                   final user = context.read<AuthService>().currentUser;
                   showWorkflowGuideDialog(context, role: user?.role.name);
                 },
-                icon: const Icon(Icons.help_outline_rounded, color: Color(0xFF475569)),
-                tooltip: 'Workflow Guide',
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  _userName,
+                icon: const Icon(Icons.help_outline_rounded, color: Color(0xFF0F766E), size: 20),
+                label: Text(
+                  showFullTitle ? 'Tutorial Guide' : 'Guide',
                   style: const TextStyle(
-                    color: Color(0xFF475569),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F766E),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
                   ),
-                  overflow: TextOverflow.ellipsis,
+                ),
+                style: TextButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: _handleLogout,
-                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                tooltip: 'Logout',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircleAvatar(
+                      radius: 14,
+                      backgroundColor: Color(0xFF0F766E),
+                      child: Icon(Icons.person_rounded, size: 16, color: Colors.white),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _userName,
+                        style: const TextStyle(
+                          color: Color(0xFF475569),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           );
