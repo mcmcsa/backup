@@ -9,6 +9,9 @@ import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/iso_pdf_service.dart';
 import '../../admin/shared/admin_styles.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../shared/services/work_request_service.dart';
+
 class TeacherOfficialFormWeb extends StatefulWidget {
   final WorkRequest request;
 
@@ -19,21 +22,64 @@ class TeacherOfficialFormWeb extends StatefulWidget {
 }
 
 class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
+  late WorkRequest _currentRequest;
   List<ESignature> _signatures = [];
   bool _isLoading = true;
   int _selectedPage = 0; // 0: Work Request Form, 1: Confirmation Form
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
     super.initState();
-    _loadSignatures();
+    _currentRequest = widget.request;
+    _loadData();
+    _setupRealtime();
   }
 
-  Future<void> _loadSignatures() async {
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    final reqId = widget.request.id;
+    _realtimeChannel = Supabase.instance.client
+        .channel('public:official_form_$reqId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'work_requests',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: reqId,
+          ),
+          callback: (_) => _loadData(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'e_signatures',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'work_request_id',
+            value: reqId,
+          ),
+          callback: (_) => _loadData(),
+        )
+        .subscribe();
+  }
+
+  Future<void> _loadData() async {
     try {
+      final updated = await WorkRequestService.fetchById(widget.request.id);
       final sigs = await ESignatureService.fetchByWorkRequest(widget.request.id);
       if (mounted) {
         setState(() {
+          if (updated != null) {
+            _currentRequest = updated;
+          }
           _signatures = sigs;
           _isLoading = false;
         });
@@ -45,10 +91,10 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
 
   void _printForm() async {
     try {
-      final pdfBytes = await IsoPdfService.generateWorkRequestPdf(widget.request);
+      final pdfBytes = await IsoPdfService.generateWorkRequestPdf(_currentRequest);
       await Printing.layoutPdf(
         onLayout: (_) => pdfBytes,
-        name: 'Work_Request_Forms_${widget.request.formattedId}',
+        name: 'Work_Request_Forms_${_currentRequest.formattedId}',
         format: IsoPdfService.longLandscapeFormat,
       );
     } catch (e) {
@@ -62,10 +108,10 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
 
   void _savePdfFile() async {
     try {
-      final pdfBytes = await IsoPdfService.generateWorkRequestPdf(widget.request);
+      final pdfBytes = await IsoPdfService.generateWorkRequestPdf(_currentRequest);
       await Printing.sharePdf(
         bytes: pdfBytes,
-        filename: 'Work_Request_Forms_${widget.request.formattedId}.pdf',
+        filename: 'Work_Request_Forms_${_currentRequest.formattedId}.pdf',
       );
     } catch (e) {
       if (mounted) {
@@ -85,7 +131,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     String? dateLabel,
     DateTime? dateVal,
   }) {
-    final request = widget.request;
+    final request = _currentRequest;
     
     ESignature? sig;
     String printName = '';
@@ -108,11 +154,13 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
       sig = _signatures.where((s) {
         final role = s.signerRole.toLowerCase();
         final type = s.signatureType.toLowerCase();
-        return (role == 'maintenance' || role == 'technician' || role == 'staff' || role == 'admin') ||
-               (type == 'completion' || type == 'accomplished');
+        return (role == 'maintenance' || role == 'technician' || role == 'staff') ||
+               (type == 'completion' || type == 'accomplished' || type == 'post_repair' || type == 'pre_inspection');
       }).firstOrNull;
       printName = sig?.signerName ?? request.acceptedByName ?? '';
     }
+
+    final effectiveDate = dateVal ?? sig?.signedAt ?? (roleKey == 'accomplished' ? (request.dateCompleted ?? request.maintenanceEndTime ?? request.acceptedDate) : null);
 
     Uint8List? bytes;
     if (sig != null && sig.signatureData.isNotEmpty) {
@@ -202,7 +250,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                       border: Border(bottom: BorderSide(color: Colors.black, width: 1.5)),
                     ),
                     child: Text(
-                      dateVal != null ? DateFormat('dd-MMM-yyyy').format(dateVal) : '',
+                      effectiveDate != null ? DateFormat('dd-MMM-yyyy').format(effectiveDate) : '',
                       style: const TextStyle(
                         fontSize: 10,
                         fontFamily: 'Courier',
@@ -310,7 +358,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     );
   }
 
-  Widget _buildWorkRequestForm(WorkRequest request, bool isOcular, bool isInstall, bool isRepair, bool isReplace, bool isOthers) {
+  Widget _buildWorkRequestForm(WorkRequest request, bool isOcular, bool isInstall, bool isRepair, bool isReplace, bool isOthers, String specifyVal) {
     return Container(
       width: 1040,
       height: 650,
@@ -522,11 +570,11 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            _buildCheckline('Ocular inspection of', isOcular, request.description),
-                            _buildCheckline('Installation of', isInstall, request.description),
-                            _buildCheckline('Repair of', isRepair, request.description),
-                            _buildCheckline('Replacement of', isReplace, request.description),
-                            _buildCheckline('Others (specify)', isOthers, request.typeOfRequest),
+                            _buildCheckline('Ocular inspection of', isOcular, specifyVal),
+                            _buildCheckline('Installation of', isInstall, specifyVal),
+                            _buildCheckline('Repair of', isRepair, specifyVal),
+                            _buildCheckline('Replacement of', isReplace, specifyVal),
+                            _buildCheckline('Others (specify)', isOthers, specifyVal),
                           ],
                         ),
                       ),
@@ -554,7 +602,9 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                       'Requestor :',
                       'Signature over Printed Name',
                       extraLabel: 'Position / Designation',
-                      extraVal: request.requestorPosition,
+                      extraVal: request.requestorPosition.trim().isNotEmpty
+                          ? request.requestorPosition
+                          : 'Faculty Member / Requestor',
                     ),
                   ),
                 ),
@@ -593,7 +643,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     );
   }
 
-  Widget _buildConfirmationForm(WorkRequest request, bool isOcular, bool isInstall, bool isRepair, bool isReplace, bool isOthers) {
+  Widget _buildConfirmationForm(WorkRequest request, bool isOcular, bool isInstall, bool isRepair, bool isReplace, bool isOthers, String specifyVal) {
     return Container(
       width: 1040,
       height: 650,
@@ -795,11 +845,11 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            _buildCheckline('Ocular inspection of', isOcular, request.description),
-                            _buildCheckline('Installation of', isInstall, request.description),
-                            _buildCheckline('Repair of', isRepair, request.description),
-                            _buildCheckline('Replacement of', isReplace, request.description),
-                            _buildCheckline('Others (specify)', isOthers, request.typeOfRequest),
+                            _buildCheckline('Ocular inspection of', isOcular, specifyVal),
+                            _buildCheckline('Installation of', isInstall, specifyVal),
+                            _buildCheckline('Repair of', isRepair, specifyVal),
+                            _buildCheckline('Replacement of', isReplace, specifyVal),
+                            _buildCheckline('Others (specify)', isOthers, specifyVal),
                           ],
                         ),
                       ),
@@ -841,7 +891,9 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                       'Requestor:',
                       'Signature over Printed Name',
                       extraLabel: 'Position / Designation',
-                      extraVal: request.requestorPosition,
+                      extraVal: request.requestorPosition.trim().isNotEmpty
+                          ? request.requestorPosition
+                          : 'Faculty Member / Requestor',
                     ),
                   ),
                 ),
@@ -865,14 +917,35 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
 
   @override
   Widget build(BuildContext context) {
-    final request = widget.request;
-    final typeLower = request.typeOfRequest.toLowerCase();
-    
-    final isOcular = typeLower.contains('ocular') || typeLower.contains('inspection');
-    final isInstall = typeLower.contains('installation') || typeLower.contains('install');
-    final isRepair = typeLower.contains('repair');
-    final isReplace = typeLower.contains('replacement') || typeLower.contains('replace');
+    final request = _currentRequest;
+    final typeLower = (request.typeOfRequest + ' ' + request.title).toLowerCase();
+    bool isOcular = typeLower.contains('ocular') || typeLower.contains('inspection');
+    bool isInstall = typeLower.contains('installation') || typeLower.contains('install');
+    bool isRepair = typeLower.contains('repair') || typeLower.contains('fix');
+    bool isReplace = typeLower.contains('replacement') || typeLower.contains('replace');
+
+    if (typeLower.startsWith('ocular') || typeLower.startsWith('inspection')) {
+      isOcular = true; isInstall = false; isRepair = false; isReplace = false;
+    } else if (typeLower.startsWith('installation') || typeLower.startsWith('install')) {
+      isInstall = true; isOcular = false; isRepair = false; isReplace = false;
+    } else if (typeLower.startsWith('repair') || typeLower.startsWith('fix')) {
+      isRepair = true; isOcular = false; isInstall = false; isReplace = false;
+    } else if (typeLower.startsWith('replacement') || typeLower.startsWith('replace')) {
+      isReplace = true; isOcular = false; isInstall = false; isReplace = false;
+    }
+
     final isOthers = !isOcular && !isInstall && !isRepair && !isReplace;
+
+    String specifyVal = request.specifyText.trim();
+    if (specifyVal.isEmpty && request.typeOfRequest.contains(':')) {
+      specifyVal = request.typeOfRequest.split(':').last.trim();
+    }
+    if (specifyVal.isEmpty) {
+      specifyVal = request.description.trim();
+    }
+    if (specifyVal.isEmpty) {
+      specifyVal = request.title.trim();
+    }
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -996,8 +1069,8 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                       child: Center(
                         child: FittedBox(
                           child: _selectedPage == 0
-                              ? _buildWorkRequestForm(request, isOcular, isInstall, isRepair, isReplace, isOthers)
-                              : _buildConfirmationForm(request, isOcular, isInstall, isRepair, isReplace, isOthers),
+                              ? _buildWorkRequestForm(request, isOcular, isInstall, isRepair, isReplace, isOthers, specifyVal)
+                              : _buildConfirmationForm(request, isOcular, isInstall, isRepair, isReplace, isOthers, specifyVal),
                         ),
                       ),
                     ),

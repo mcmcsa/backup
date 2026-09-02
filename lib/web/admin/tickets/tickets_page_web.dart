@@ -580,43 +580,48 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
           ),
         ],
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: 1000,
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(flex: 1, child: _buildTableHeader('Ticket ID')),
-                    Expanded(flex: 2, child: _buildTableHeader('Requestor')),
-                    Expanded(flex: 2, child: _buildTableHeader('Title / Issue')),
-                    Expanded(flex: 2, child: _buildTableHeader('Date & Type')),
-                    Expanded(flex: 1, child: _buildTableHeader('Status')),
-                    Expanded(flex: 1, child: _buildTableHeader('Action')),
-                  ],
-                ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tableWidth = constraints.maxWidth < 800 ? 800.0 : constraints.maxWidth;
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: tableWidth,
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    decoration: const BoxDecoration(
+                      border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(flex: 1, child: _buildTableHeader('Ticket ID')),
+                        Expanded(flex: 2, child: _buildTableHeader('Requestor')),
+                        Expanded(flex: 2, child: _buildTableHeader('Title / Issue')),
+                        Expanded(flex: 2, child: _buildTableHeader('Date & Type')),
+                        Expanded(flex: 1, child: _buildTableHeader('Status')),
+                        Expanded(flex: 1, child: _buildTableHeader('Action')),
+                      ],
+                    ),
+                  ),
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: filtered.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                    itemBuilder: (context, index) {
+                      return _TicketTableRow(
+                        request: filtered[index],
+                        onViewDetails: widget.onViewDetails,
+                      );
+                    },
+                  ),
+                ],
               ),
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filtered.length,
-                separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                itemBuilder: (context, index) {
-                  return _TicketTableRow(
-                    request: filtered[index],
-                    onViewDetails: widget.onViewDetails,
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

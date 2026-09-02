@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/common_app_bar.dart';
+import '../../../authentication/services/auth_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../admin/shared/notifications_page.dart';
 
 class LogsPage extends StatefulWidget {
@@ -16,6 +19,77 @@ class LogsPage extends StatefulWidget {
 class _LogsPageState extends State<LogsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedTab = 'All';
+  List<LoginActivity> _logs = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() => setState(() {}));
+    _loadLogs();
+  }
+
+  Future<void> _loadLogs() async {
+    final user = context.read<AuthService>().currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final data = await LoginActivityService.fetchUserLogs(user.id);
+      data.sort((a, b) => b.loggedInAt.compareTo(a.loggedInAt));
+      if (mounted) {
+        setState(() {
+          _logs = data;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  List<LoginActivity> get _filteredLogs {
+    List<LoginActivity> filtered = _logs;
+
+    if (_selectedTab == 'Account') {
+      filtered = filtered.where((l) => l.eventType == 'login' || l.eventType == 'logout').toList();
+    } else if (_selectedTab == 'Reports') {
+      filtered = filtered.where((l) => l.title.toLowerCase().contains('request') || l.title.toLowerCase().contains('report')).toList();
+    } else if (_selectedTab == 'Settings') {
+      filtered = filtered.where((l) => l.title.toLowerCase().contains('setting') || l.title.toLowerCase().contains('profile')).toList();
+    }
+
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      filtered = filtered.where((l) =>
+        l.title.toLowerCase().contains(query) ||
+        (l.details?.toLowerCase().contains(query) ?? false) ||
+        l.eventType.toLowerCase().contains(query)
+      ).toList();
+    }
+    return filtered;
+  }
+
+  IconData _iconForLog(LoginActivity log) {
+    if (log.eventType == 'login') return Icons.login_rounded;
+    final title = log.title.toLowerCase();
+    if (title.contains('approve')) return Icons.check_circle_rounded;
+    if (title.contains('reject') || title.contains('declin')) return Icons.cancel_rounded;
+    if (title.contains('create') || title.contains('add') || title.contains('submit')) return Icons.add_circle_outline_rounded;
+    if (title.contains('update') || title.contains('edit')) return Icons.edit_note_rounded;
+    return Icons.history_rounded;
+  }
+
+  Color _colorForLog(LoginActivity log) {
+    if (log.eventType == 'login') return const Color(0xFF4169E1);
+    final title = log.title.toLowerCase();
+    if (title.contains('approve')) return const Color(0xFF059669);
+    if (title.contains('reject') || title.contains('declin')) return const Color(0xFFDC2626);
+    if (title.contains('create') || title.contains('add') || title.contains('submit')) return const Color(0xFF7C3AED);
+    return const Color(0xFF00BFA5);
+  }
 
   @override
   void dispose() {
@@ -52,7 +126,7 @@ class _LogsPageState extends State<LogsPage> {
               controller: _searchController,
               style: TextStyle(color: themeProvider.textColor),
               decoration: InputDecoration(
-                hintText: 'Search tracking number or room...',
+                hintText: 'Search activity logs...',
                 hintStyle: TextStyle(
                   color: Colors.grey.shade400,
                   fontSize: 14,
@@ -128,39 +202,106 @@ class _LogsPageState extends State<LogsPage> {
 
           // Logs List
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Column(
-                      children: [
-                        Icon(Icons.history, size: 48, color: themeProvider.subtitleColor),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No activity logs yet',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: themeProvider.subtitleColor,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _loadLogs,
+                    child: _filteredLogs.isEmpty
+                        ? ListView(
+                            children: [
+                              Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(32),
+                                  child: Column(
+                                    children: [
+                                      Icon(Icons.history, size: 48, color: themeProvider.subtitleColor),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'No activity logs yet',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: themeProvider.subtitleColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                            itemCount: _filteredLogs.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final log = _filteredLogs[index];
+                              final color = _colorForLog(log);
+                              final icon = _iconForLog(log);
+                              final timeStr = DateFormat('MMM dd, yyyy • hh:mm a').format(log.loggedInAt);
+
+                              return Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: themeProvider.cardColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: themeProvider.borderColor),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: color.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Icon(icon, size: 20, color: color),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            log.title,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: themeProvider.textColor,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            log.details ?? log.eventType,
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: themeProvider.subtitleColor,
+                                              height: 1.4,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            timeStr,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.grey.shade500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Your activity history will appear here',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: themeProvider.subtitleColor,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
-                const SizedBox(height: 100), // Space for bottom navigation
-              ],
-            ),
           ),
         ],
       ),

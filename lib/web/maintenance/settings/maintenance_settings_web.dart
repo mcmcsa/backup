@@ -76,6 +76,7 @@ class _MaintenanceSettingsWebState extends State<MaintenanceSettingsWeb> {
     bool obscureNew = true;
     bool obscureConfirm = true;
     bool isSaving = false;
+    String? errorMessage;
 
     String? validateStrongPassword(String? value) {
       final password = value ?? '';
@@ -116,6 +117,30 @@ class _MaintenanceSettingsWebState extends State<MaintenanceSettingsWeb> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        if (errorMessage != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFFCA5A5)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    errorMessage!,
+                                    style: const TextStyle(color: Color(0xFF991B1B), fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         TextFormField(
                           controller: oldPasswordController,
                           obscureText: obscureOld,
@@ -192,9 +217,9 @@ class _MaintenanceSettingsWebState extends State<MaintenanceSettingsWeb> {
                           if (!context.mounted) return;
                           
                           if (error != null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(error), backgroundColor: Colors.red),
-                            );
+                            setDialogState(() {
+                              errorMessage = error;
+                            });
                             return;
                           }
 
@@ -202,22 +227,48 @@ class _MaintenanceSettingsWebState extends State<MaintenanceSettingsWeb> {
 
                           if (!mounted) return;
 
-                          await showDialog<void>(
+                          final shouldLogout = await showDialog<bool>(
                             context: context,
                             barrierDismissible: false,
                             builder: (okContext) => AlertDialog(
-                              title: const Text('Password Updated'),
-                              content: const Text('Your password was changed successfully. Please login again.'),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              title: const Row(
+                                children: [
+                                  Icon(Icons.check_circle_rounded, color: Color(0xFF22C55E), size: 28),
+                                  SizedBox(width: 10),
+                                  Text('Password Updated', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                ],
+                              ),
+                              content: const Text(
+                                'Your password has been updated successfully.\n\nWould you like to keep logged in on this device or log out now?',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               actions: [
+                                OutlinedButton(
+                                  onPressed: () => Navigator.of(okContext).pop(false),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF475569),
+                                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  child: const Text('Keep Logged In', style: TextStyle(fontWeight: FontWeight.w600)),
+                                ),
                                 ElevatedButton(
-                                  onPressed: () => Navigator.of(okContext).pop(),
-                                  child: const Text('OK'),
+                                  onPressed: () => Navigator.of(okContext).pop(true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFEF4444),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  child: const Text('Logout Account', style: TextStyle(fontWeight: FontWeight.bold)),
                                 ),
                               ],
                             ),
                           );
 
-                          if (context.mounted) {
+                          if (shouldLogout == true && mounted) {
                             await authService.handleLogoutButton(context);
                           }
                         },

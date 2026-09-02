@@ -3,12 +3,11 @@ import 'package:provider/provider.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/providers/work_request_provider.dart';
 import '../../../shared/providers/room_provider.dart';
-
+import '../admin_nav_controller.dart';
 import '../shared/admin_styles.dart';
 
 // Mapping local colors to AdminStyles for compatibility and modularity
 const Color _bg = AdminStyles.bg;
-const Color _surface = AdminStyles.surface;
 const Color _border = AdminStyles.border;
 const Color _textPrimary = AdminStyles.textPrimary;
 const Color _textMuted = AdminStyles.textMuted;
@@ -725,62 +724,71 @@ class _RequestTableRowState extends State<_RequestTableRow> {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          color: _isHovered ? AdminStyles.bg : Colors.white,
-          border: Border(
-            bottom: BorderSide(color: AdminStyles.border),
+      child: InkWell(
+        onTap: () {
+          final controller = AdminNavController.of(context);
+          if (controller != null) {
+            controller.openWorkProcess(widget.request);
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            color: _isHovered ? AdminStyles.bg : Colors.white,
+            border: Border(
+              bottom: BorderSide(color: AdminStyles.border),
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 130,
-              child: Text(
-                '#${widget.request.id.substring(0, 8).toUpperCase()}',
-                style: AdminStyles.dataStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AdminStyles.textPrimary,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 130,
+                child: Text(
+                  '#${widget.request.id.substring(0, 8).toUpperCase()}',
+                  style: AdminStyles.dataStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AdminStyles.textPrimary,
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.request.title,
-                    style: AdminStyles.bodyStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AdminStyles.textPrimary,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.request.title,
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AdminStyles.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${widget.request.officeRoom} • ${widget.request.buildingName}',
-                    style: AdminStyles.bodyStyle(
-                      fontSize: 11,
-                      color: AdminStyles.textSecondary,
+                    const SizedBox(height: 4),
+                    Text(
+                      '${widget.request.officeRoom} • ${widget.request.buildingName}',
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 11,
+                        color: AdminStyles.textSecondary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            SizedBox(
-              width: 130,
-              child: Center(
-                child: _StatusBadge(status: widget.request.status),
+              SizedBox(
+                width: 130,
+                child: Center(
+                  child: _StatusBadge(status: widget.request.status),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -872,9 +880,17 @@ class _AgingTicketItemState extends State<_AgingTicketItem> {
     final days = DateTime.now().difference(widget.ticket.dateSubmitted).inDays;
     
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
+      child: InkWell(
+        onTap: () {
+          final controller = AdminNavController.of(context);
+          if (controller != null) {
+            controller.openWorkProcess(widget.ticket);
+          }
+        },
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
@@ -936,7 +952,8 @@ class _AgingTicketItemState extends State<_AgingTicketItem> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

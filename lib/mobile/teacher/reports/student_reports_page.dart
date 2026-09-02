@@ -47,7 +47,7 @@ class _StudentReportsPageState extends State<StudentReportsPage>
 
   void _startAutoRefresh() {
     _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       _loadRequests();
     });
   }
@@ -94,35 +94,56 @@ class _StudentReportsPageState extends State<StudentReportsPage>
 
   List<WorkRequest> get _filteredRequests {
     List<WorkRequest> filtered = _requests;
-    if (_selectedFilter == 'Pending') {
-      filtered = filtered.where((r) => r.status == 'Pending Assignment').toList();
-    } else if (_selectedFilter == 'In Progress') {
-      filtered = filtered
-          .where(
-            (r) => r.status == 'Assigned' ||
-                   r.status == 'Accepted by Maintenance' ||
-                   r.status == 'Pre-Inspection Submitted' ||
-                   r.status == 'Pre-Inspection Approved' ||
-                   r.status == 'Pre-Inspection Declined' ||
-                   r.status == 'In Progress (Post-Repair)' ||
-                   r.status == 'Post-Repair Submitted' ||
-                   r.status == 'Under Evaluation' ||
-                   r.status == 'For Rework',
-          )
-          .toList();
-    } else if (_selectedFilter == 'Complete') {
-      filtered = filtered.where((r) => r.status == 'Completed').toList();
+    final f = _selectedFilter.toLowerCase();
+    
+    if (f == 'pending') {
+      filtered = filtered.where((r) {
+        final s = r.status.toLowerCase();
+        return s.contains('pending');
+      }).toList();
+    } else if (f == 'in progress') {
+      filtered = filtered.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'assigned' ||
+            s == 'accepted by maintenance' ||
+            s == 'pre-inspection submitted' ||
+            s == 'pre-inspection approved' ||
+            s == 'in progress (post-repair)' ||
+            s == 'post-repair submitted' ||
+            s == 'under evaluation' ||
+            s == 'in progress' ||
+            s == 'in_progress' ||
+            s == 'under_maintenance';
+      }).toList();
+    } else if (f == 'declined') {
+      filtered = filtered.where((r) {
+        final s = r.status.toLowerCase();
+        return s.contains('declined') || s.contains('cancelled');
+      }).toList();
+    } else if (f == 'confirmed') {
+      filtered = filtered.where((r) {
+        final s = r.status.toLowerCase();
+        return s.contains('confirmed') || s == 'pre-inspection approved';
+      }).toList();
+    } else if (f == 'rework') {
+      filtered = filtered.where((r) {
+        final s = r.status.toLowerCase();
+        return s.contains('rework');
+      }).toList();
+    } else if (f == 'complete' || f == 'completed') {
+      filtered = filtered.where((r) {
+        final s = r.status.toLowerCase();
+        return s.contains('completed');
+      }).toList();
     }
+
     final query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
-      filtered = filtered
-          .where(
-            (r) =>
-                r.id.toLowerCase().contains(query) ||
-                (r.officeRoom?.toLowerCase().contains(query) ?? false) ||
-                r.title.toLowerCase().contains(query),
-          )
-          .toList();
+      filtered = filtered.where((r) =>
+          r.id.toLowerCase().contains(query) ||
+          (r.officeRoom?.toLowerCase().contains(query) ?? false) ||
+          (r.buildingName?.toLowerCase().contains(query) ?? false) ||
+          r.title.toLowerCase().contains(query)).toList();
     }
     return filtered;
   }
@@ -243,6 +264,12 @@ class _StudentReportsPageState extends State<StudentReportsPage>
                     const SizedBox(width: 8),
                     _buildFilterChip('In Progress', themeProvider),
                     const SizedBox(width: 8),
+                    _buildFilterChip('Confirmed', themeProvider),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('Rework', themeProvider),
+                    const SizedBox(width: 8),
+                    _buildFilterChip('Declined', themeProvider),
+                    const SizedBox(width: 8),
                     _buildFilterChip('Complete', themeProvider),
                   ],
                 ),
@@ -273,7 +300,7 @@ class _StudentReportsPageState extends State<StudentReportsPage>
                     : ListView.separated(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: _filteredRequests.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        separatorBuilder: (context, index) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                            final r = _filteredRequests[index];
                            final statusLabel = r.statusLabel;

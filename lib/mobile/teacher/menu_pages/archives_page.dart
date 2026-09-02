@@ -38,8 +38,11 @@ class _ArchivesPageState extends State<ArchivesPage> {
       } else {
         data = [];
       }
-      // Archives = done + cancelled
-      data = data.where((r) => ['completed', 'declined', 'cancelled'].contains(r.status.toLowerCase())).toList();
+      // Archives = completed + declined/cancelled
+      data = data.where((r) {
+        final s = r.status.toLowerCase();
+        return s.contains('completed') || s.contains('declined') || s.contains('cancelled');
+      }).toList();
       if (mounted) setState(() { _archivedRequests = data; _isLoading = false; });
     } catch (_) {
       if (mounted) setState(() { _isLoading = false; });
@@ -49,14 +52,19 @@ class _ArchivesPageState extends State<ArchivesPage> {
   List<WorkRequest> get _filteredArchives {
     List<WorkRequest> filtered = _archivedRequests;
     if (_selectedFilter == 'Completed') {
-      filtered = filtered.where((r) => r.status.toLowerCase() == 'completed').toList();
+      filtered = filtered.where((r) => r.status.toLowerCase().contains('completed')).toList();
     } else if (_selectedFilter == 'Declined' || _selectedFilter == 'Cancelled') {
-      filtered = filtered.where((r) => r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined').toList();
+      filtered = filtered.where((r) {
+        final s = r.status.toLowerCase();
+        return s.contains('declined') || s.contains('cancelled');
+      }).toList();
     }
     final query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
       filtered = filtered.where((r) =>
         r.id.toLowerCase().contains(query) ||
+        (r.officeRoom?.toLowerCase().contains(query) ?? false) ||
+        (r.buildingName?.toLowerCase().contains(query) ?? false) ||
         r.title.toLowerCase().contains(query)
       ).toList();
     }

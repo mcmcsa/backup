@@ -172,18 +172,31 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
               children: [
                 Expanded(
                   child: _buildStatCard(
-                    'TOTAL REPORTS',
-                    '${_requests.length}',
-                    const Color(0xFF00BFA5),
+                    'PENDING REVIEW',
+                    '${_requests.where((r) => r.status.toLowerCase().contains('pending')).length}',
+                    const Color(0xFFFF9800),
                     themeProvider,
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildStatCard(
-                    'IN PROGRESS',
-                    '${_requests.where((r) => r.status.toLowerCase() != 'completed' && r.status.toLowerCase() != 'declined' && r.status.toLowerCase() != 'cancelled' && r.status.toLowerCase() != 'declined/cancelled').length}',
-                    Colors.orange,
+                    'ACTIVE TASK',
+                    '${_requests.where((r) {
+                      final s = r.status.toLowerCase();
+                      return s == 'assigned' ||
+                          s == 'accepted by maintenance' ||
+                          s == 'pre-inspection submitted' ||
+                          s == 'pre-inspection approved' ||
+                          s == 'in progress (post-repair)' ||
+                          s == 'post-repair submitted' ||
+                          s == 'under evaluation' ||
+                          s == 'in progress' ||
+                          s == 'in_progress' ||
+                          s == 'under_maintenance' ||
+                          s.contains('rework');
+                    }).length}',
+                    const Color(0xFF2196F3),
                     themeProvider,
                   ),
                 ),
@@ -196,7 +209,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                   child: _buildStatCard(
                     'RESOLVED',
                     '${_requests.where((r) => r.status.toLowerCase() == 'completed').length}',
-                    Colors.green,
+                    const Color(0xFF4CAF50),
                     themeProvider,
                   ),
                 ),
@@ -204,8 +217,11 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                 Expanded(
                   child: _buildStatCard(
                     'DECLINED',
-                    '${_requests.where((r) => r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined' || r.status.toLowerCase() == 'declined/cancelled' || r.status.toLowerCase() == 'pre-inspection declined').length}',
-                    Colors.red,
+                    '${_requests.where((r) {
+                      final s = r.status.toLowerCase();
+                      return s.contains('declined') || s.contains('cancelled');
+                    }).length}',
+                    const Color(0xFFEF4444),
                     themeProvider,
                   ),
                 ),
@@ -380,6 +396,8 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
               color: themeProvider.subtitleColor,
               letterSpacing: 0.5,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
           Row(

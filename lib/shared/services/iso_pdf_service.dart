@@ -44,9 +44,13 @@ class IsoPdfService {
     final completionSig = signatures.where((s) {
       final role = s.signerRole.toLowerCase();
       final type = s.signatureType.toLowerCase();
-      return (role == 'maintenance' || role == 'technician' || role == 'staff' || role == 'admin') ||
-             (type == 'completion' || type == 'accomplished');
+      return (role == 'maintenance' || role == 'technician' || role == 'staff') ||
+             (type == 'completion' || type == 'accomplished' || type == 'post_repair' || type == 'pre_inspection');
     }).firstOrNull;
+
+    final reqPosition = (request.requestorPosition.trim().isNotEmpty)
+        ? request.requestorPosition
+        : 'Faculty Member / Requestor';
 
     pw.MemoryImage? decodeSignature(String? base64Str) {
       if (base64Str == null || base64Str.isEmpty) return null;
@@ -67,12 +71,34 @@ class IsoPdfService {
 
     final fontCourierBold = pw.Font.courierBold();
 
-    final typeLower = request.typeOfRequest.toLowerCase();
-    final isOcular = typeLower.contains('ocular') || typeLower.contains('inspection');
-    final isInstall = typeLower.contains('installation') || typeLower.contains('install');
-    final isRepair = typeLower.contains('repair');
-    final isReplace = typeLower.contains('replacement') || typeLower.contains('replace');
+    final typeLower = (request.typeOfRequest + ' ' + request.title).toLowerCase();
+    bool isOcular = typeLower.contains('ocular') || typeLower.contains('inspection');
+    bool isInstall = typeLower.contains('installation') || typeLower.contains('install');
+    bool isRepair = typeLower.contains('repair') || typeLower.contains('fix');
+    bool isReplace = typeLower.contains('replacement') || typeLower.contains('replace');
+
+    if (typeLower.startsWith('ocular') || typeLower.startsWith('inspection')) {
+      isOcular = true; isInstall = false; isRepair = false; isReplace = false;
+    } else if (typeLower.startsWith('installation') || typeLower.startsWith('install')) {
+      isInstall = true; isOcular = false; isRepair = false; isReplace = false;
+    } else if (typeLower.startsWith('repair') || typeLower.startsWith('fix')) {
+      isRepair = true; isOcular = false; isInstall = false; isReplace = false;
+    } else if (typeLower.startsWith('replacement') || typeLower.startsWith('replace')) {
+      isReplace = true; isOcular = false; isInstall = false; isRepair = false;
+    }
+
     final isOthers = !isOcular && !isInstall && !isRepair && !isReplace;
+
+    String specifyVal = request.specifyText.trim();
+    if (specifyVal.isEmpty && request.typeOfRequest.contains(':')) {
+      specifyVal = request.typeOfRequest.split(':').last.trim();
+    }
+    if (specifyVal.isEmpty) {
+      specifyVal = request.description.trim();
+    }
+    if (specifyVal.isEmpty) {
+      specifyVal = request.title.trim();
+    }
 
     pw.Widget buildCheckline(String label, bool isChecked, String underlineText) {
       return pw.Padding(
@@ -468,11 +494,11 @@ class IsoPdfService {
                             child: pw.Column(
                               mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                               children: [
-                                buildCheckline('Ocular inspection of', isOcular, request.description),
-                                buildCheckline('Installation of', isInstall, request.description),
-                                buildCheckline('Repair of', isRepair, request.description),
-                                buildCheckline('Replacement of', isReplace, request.description),
-                                buildCheckline('Others (specify)', isOthers, request.typeOfRequest),
+                                buildCheckline('Ocular inspection of', isOcular, specifyVal),
+                                buildCheckline('Installation of', isInstall, specifyVal),
+                                buildCheckline('Repair of', isRepair, specifyVal),
+                                buildCheckline('Replacement of', isReplace, specifyVal),
+                                buildCheckline('Others (specify)', isOthers, specifyVal),
                               ],
                             ),
                           ),
@@ -500,7 +526,7 @@ class IsoPdfService {
                             signerName: requesterSig?.signerName ?? request.requestorName,
                             sigImage: requesterSigImage,
                             extraLabel: 'Position / Designation',
-                            extraVal: request.requestorPosition,
+                            extraVal: reqPosition,
                           ),
                         ),
                       ),
@@ -530,7 +556,7 @@ class IsoPdfService {
                           signerName: completionSig?.signerName ?? request.acceptedByName ?? '',
                           sigImage: completionSigImage,
                           dateLabel: 'Date',
-                          dateVal: request.dateCompleted,
+                          dateVal: completionSig?.signedAt ?? request.dateCompleted ?? request.maintenanceEndTime ?? request.acceptedDate,
                         ),
                       ),
                     ],
@@ -736,11 +762,11 @@ class IsoPdfService {
                             child: pw.Column(
                               mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                               children: [
-                                buildCheckline('Ocular inspection of', isOcular, request.description),
-                                buildCheckline('Installation of', isInstall, request.description),
-                                buildCheckline('Repair of', isRepair, request.description),
-                                buildCheckline('Replacement of', isReplace, request.description),
-                                buildCheckline('Others (specify)', isOthers, request.typeOfRequest),
+                                buildCheckline('Ocular inspection of', isOcular, specifyVal),
+                                buildCheckline('Installation of', isInstall, specifyVal),
+                                buildCheckline('Repair of', isRepair, specifyVal),
+                                buildCheckline('Replacement of', isReplace, specifyVal),
+                                buildCheckline('Others (specify)', isOthers, specifyVal),
                               ],
                             ),
                           ),
@@ -768,7 +794,7 @@ class IsoPdfService {
                             signerName: completionSig?.signerName ?? request.acceptedByName ?? '',
                             sigImage: completionSigImage,
                             dateLabel: 'Date',
-                            dateVal: request.dateCompleted,
+                            dateVal: completionSig?.signedAt ?? request.dateCompleted ?? request.maintenanceEndTime ?? request.acceptedDate,
                           ),
                         ),
                       ),
@@ -785,7 +811,7 @@ class IsoPdfService {
                             signerName: requesterSig?.signerName ?? request.requestorName,
                             sigImage: requesterSigImage,
                             extraLabel: 'Position / Designation',
-                            extraVal: request.requestorPosition,
+                            extraVal: reqPosition,
                           ),
                         ),
                       ),

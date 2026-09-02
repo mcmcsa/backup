@@ -257,6 +257,9 @@ class AuthService extends ChangeNotifier {
           title: title,
           details: 'Logged out from the system',
         );
+        if (current.role == UserRole.maintenance) {
+          await MaintenanceStatusService.setOfflineOnLogout(current.id);
+        }
       }
 
       await _auth.auth.signOut(scope: SignOutScope.global);
@@ -289,6 +292,9 @@ class AuthService extends ChangeNotifier {
       if (profile != null) {
         try {
           await LoginActivityService.recordLogin(profile);
+          if (profile.role == UserRole.maintenance) {
+            await MaintenanceStatusService.setOnlineOnLogin(profile.id);
+          }
         } catch (e) {
           debugPrint('Session login activity recording failed: $e');
         }
@@ -465,10 +471,8 @@ class AuthService extends ChangeNotifier {
     try {
       await _auth.auth.updateUser(UserAttributes(password: newPassword));
 
-      if (_currentUser != null &&
-          (_currentUser!.role == UserRole.admin ||
-              _currentUser!.role == UserRole.campadmin)) {
-        await LoginActivityService.recordAdminAction(
+      if (_currentUser != null) {
+        await LoginActivityService.recordAction(
           user: _currentUser!,
           title: 'Changed Password',
           details: 'Updated account password',

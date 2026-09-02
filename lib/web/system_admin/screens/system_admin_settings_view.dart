@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/system_settings_model.dart';
 import '../../../shared/services/system_settings_service.dart';
+import '../../../shared/services/app_settings_service.dart';
+import '../../../shared/services/admin_audit_log_service.dart';
 import '../../admin/shared/admin_styles.dart';
 
 class SystemAdminSettingsView extends StatefulWidget {
@@ -31,6 +35,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
   String _semester = '1st Semester';
   bool _enforcePasswordPolicy = true;
   bool _maintenanceMode = false;
+  bool _qrRegenerationEnabled = false;
 
   bool _saving = false;
 
@@ -60,6 +65,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
 
     try {
       final s = await SystemSettingsService.fetchSettings();
+      final qrEnabled = await AppSettingsService.isQrRegenerationEnabled();
       if (mounted) {
         setState(() {
           _settings = s;
@@ -74,6 +80,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
           _semester = s.semester;
           _enforcePasswordPolicy = s.enforcePasswordPolicy;
           _maintenanceMode = s.maintenanceMode;
+          _qrRegenerationEnabled = qrEnabled;
           
           _loading = false;
         });
@@ -151,6 +158,8 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                           const SizedBox(height: 16),
                           _buildAcademicCard(),
                           const SizedBox(height: 16),
+                          _buildQrCodeCard(),
+                          const SizedBox(height: 16),
                           _buildSecurityCard(),
                         ],
                       )
@@ -170,7 +179,13 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                           const SizedBox(width: 24),
                           Expanded(
                             flex: 2,
-                            child: _buildSecurityCard(),
+                            child: Column(
+                              children: [
+                                _buildQrCodeCard(),
+                                const SizedBox(height: 24),
+                                _buildSecurityCard(),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -354,11 +369,282 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
     );
   }
 
+  void _showChangePasswordDialog() {
+    final formKey = GlobalKey<FormState>();
+    final oldPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool obscureOld = true;
+    bool obscureNew = true;
+    bool obscureConfirm = true;
+    bool isSaving = false;
+    String? errorMessage;
+
+    String? validateStrongPassword(String? value) {
+      final password = value ?? '';
+      if (password.isEmpty) return 'New password is required';
+      if (password.length < 8) return 'Password must be at least 8 characters';
+      if (!RegExp(r'[A-Z]').hasMatch(password)) {
+        return 'Password must include at least 1 uppercase letter';
+      }
+      if (!RegExp(r'[a-z]').hasMatch(password)) {
+        return 'Password must include at least 1 lowercase letter';
+      }
+      if (!RegExp(r'[0-9]').hasMatch(password)) {
+        return 'Password must include at least 1 number';
+      }
+      if (!RegExp(r'[^A-Za-z0-9]').hasMatch(password)) {
+        return 'Password must include at least 1 special character';
+      }
+      if (password == oldPasswordController.text) {
+        return 'New password must be different from old password';
+      }
+      return null;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold)),
+              content: SizedBox(
+                width: 400,
+                child: Form(
+                  key: formKey,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (errorMessage != null) ...[
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFFCA5A5)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded, color: Color(0xFFDC2626), size: 18),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    errorMessage!,
+                                    style: const TextStyle(color: Color(0xFF991B1B), fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        TextFormField(
+                          controller: oldPasswordController,
+                          obscureText: obscureOld,
+                          decoration: InputDecoration(
+                            labelText: 'Current Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(obscureOld ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setDialogState(() => obscureOld = !obscureOld),
+                            ),
+                          ),
+                          validator: (v) => (v == null || v.isEmpty) ? 'Current password is required' : null,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: newPasswordController,
+                          obscureText: obscureNew,
+                          decoration: InputDecoration(
+                            labelText: 'New Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(obscureNew ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setDialogState(() => obscureNew = !obscureNew),
+                            ),
+                          ),
+                          validator: validateStrongPassword,
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: confirmPasswordController,
+                          obscureText: obscureConfirm,
+                          decoration: InputDecoration(
+                            labelText: 'Confirm New Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(obscureConfirm ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
+                            ),
+                          ),
+                          validator: (v) {
+                            if (v == null || v.isEmpty) return 'Confirm password is required';
+                            if (v != newPasswordController.text) return 'Passwords do not match';
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() => isSaving = true);
+
+                          final authService = context.read<AuthService>();
+                          final error = await authService.changePassword(
+                            oldPassword: oldPasswordController.text,
+                            newPassword: newPasswordController.text,
+                          );
+
+                          setDialogState(() => isSaving = false);
+
+                          if (!context.mounted) return;
+
+                          if (error != null) {
+                            setDialogState(() {
+                              errorMessage = error;
+                            });
+                            return;
+                          }
+
+                          Navigator.of(dialogContext).pop();
+
+                          if (!mounted) return;
+
+                          final shouldLogout = await showDialog<bool>(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (okContext) => AlertDialog(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              title: const Row(
+                                children: [
+                                  Icon(Icons.check_circle_rounded, color: Color(0xFF22C55E), size: 28),
+                                  SizedBox(width: 10),
+                                  Text('Password Updated', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                ],
+                              ),
+                              content: const Text(
+                                'Your password has been updated successfully.\n\nWould you like to keep logged in on this device or log out now?',
+                                style: TextStyle(fontSize: 14),
+                              ),
+                              actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              actions: [
+                                OutlinedButton(
+                                  onPressed: () => Navigator.of(okContext).pop(false),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF475569),
+                                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  child: const Text('Keep Logged In', style: TextStyle(fontWeight: FontWeight.w600)),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.of(okContext).pop(true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFEF4444),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  child: const Text('Logout Account', style: TextStyle(fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (shouldLogout == true && mounted) {
+                            await authService.handleLogoutButton(context);
+                          }
+                        },
+                  child: isSaving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Update'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _toggleQrRegeneration(bool value) async {
+    if (value && !_qrRegenerationEnabled) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Enable QR Regeneration?'),
+          content: const Text(
+            'Regenerating QR codes changes room QR identity and may affect previously printed QR codes. Continue?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Enable'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm != true) return;
+    }
+
+    setState(() => _qrRegenerationEnabled = value);
+    await AppSettingsService.setQrRegenerationEnabled(value);
+    await AdminAuditLogService.logAction(
+      title: value ? 'Enabled QR Regeneration (System Admin)' : 'Disabled QR Regeneration (System Admin)',
+      details: 'System Admin Settings > QR Code',
+    );
+  }
+
+  Widget _buildQrCodeCard() {
+    return _SettingsCard(
+      title: 'QR Code Settings',
+      icon: Icons.qr_code_2_outlined,
+      children: [
+        SwitchListTile(
+          value: _qrRegenerationEnabled,
+          onChanged: _toggleQrRegeneration,
+          activeThumbColor: AdminStyles.primary,
+          title: Text('Allow QR Regeneration', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('Show regenerate option in Add/Edit Room across all campuses.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+          contentPadding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+
   Widget _buildSecurityCard() {
     return _SettingsCard(
       title: 'Security & Access',
       icon: Icons.security_rounded,
       children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.lock_outline_rounded, color: AdminStyles.primary),
+          title: Text('Change Password', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('Update your personal account password.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+          trailing: const Icon(Icons.chevron_right_rounded, color: AdminStyles.textMuted),
+          onTap: _showChangePasswordDialog,
+        ),
+        const Divider(height: 24, color: AdminStyles.border),
         _buildTextField('Session Timeout (Minutes)', _sessionTimeoutCtrl, Icons.timer_rounded, isNumber: true, required: true),
         const SizedBox(height: 24),
         

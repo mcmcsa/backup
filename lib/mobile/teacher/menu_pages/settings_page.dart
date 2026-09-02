@@ -25,7 +25,6 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _notificationsEnabled = true;
   bool _emailNotifications = false;
   bool _pushNotifications = true;
-  bool _qrRegenerationEnabled = false;
   bool _isLoadingPreferences = true;
 
   @override
@@ -36,13 +35,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadPreferences() async {
     final settings = await AppSettingsService.getNotificationSettings();
-    final qrRegenerationEnabled = await AppSettingsService.isQrRegenerationEnabled();
     if (!mounted) return;
     setState(() {
       _notificationsEnabled = settings['notificationsEnabled'] ?? true;
       _emailNotifications = settings['emailNotifications'] ?? false;
       _pushNotifications = settings['pushNotifications'] ?? true;
-      _qrRegenerationEnabled = qrRegenerationEnabled;
       _isLoadingPreferences = false;
     });
   }
@@ -94,39 +91,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _toggleQrRegeneration(bool value) async {
-    if (value && !_qrRegenerationEnabled) {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Enable QR Regeneration?'),
-          content: const Text(
-            'Regenerating QR codes changes room QR identity and may affect previously printed QR codes. Continue?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Enable'),
-            ),
-          ],
-        ),
-      );
 
-      if (confirm != true) return;
-    }
-
-    setState(() => _qrRegenerationEnabled = value);
-    await AppSettingsService.setQrRegenerationEnabled(value);
-    await AdminAuditLogService.logAction(
-      title: value ? 'Enabled QR Regeneration' : 'Disabled QR Regeneration',
-      details: 'Settings > QR Code',
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -232,26 +197,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 24),
 
           // QR Code Section
-          _buildSectionHeader('QR Code', themeProvider),
-          const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(
-              color: themeProvider.cardColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: themeProvider.borderColor),
-            ),
-            child: _buildSwitchItem(
-              icon: Icons.qr_code_2_outlined,
-              iconColor: Colors.blue,
-              title: 'Allow QR Regeneration',
-              subtitle: 'Show regenerate option in Add/Edit Room',
-              value: _qrRegenerationEnabled,
-              onChanged: _toggleQrRegeneration,
-              themeProvider: themeProvider,
-              enabled: !_isLoadingPreferences,
-            ),
-          ),
-          const SizedBox(height: 24),
+
 
           // Appearance Section
           _buildSectionHeader('Appearance', themeProvider),

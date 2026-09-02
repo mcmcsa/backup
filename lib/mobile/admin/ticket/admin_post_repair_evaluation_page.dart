@@ -9,7 +9,6 @@ import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/services/post_repair_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/e_signature_service.dart';
-import '../../../shared/widgets/workflow_status_badge.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import 'dart:convert';
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/services/maintenance_account_service.dart';
+import '../../../shared/widgets/availability_status_badge.dart';
 
 class MaintenanceManagementPage extends StatefulWidget {
   const MaintenanceManagementPage({super.key});
@@ -14,11 +16,70 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
   bool _showArchived = false;
   List<MaintenanceAccount> _activeAccounts = const [];
   List<MaintenanceAccount> _archivedAccounts = const [];
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
     super.initState();
     _loadAccounts();
+    _setupRealtime();
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel = Supabase.instance.client
+        .channel('public:mobile_maintenance_users_management')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'maintenance_users',
+          callback: (payload) {
+            final updatedRecord = payload.newRecord;
+            final userId = updatedRecord['user_id'] as String?;
+            final newStatus = updatedRecord['availability_status'] as String?;
+            if (userId != null && newStatus != null) {
+              if (mounted) {
+                setState(() {
+                  final index = _activeAccounts.indexWhere((m) => m.userId == userId);
+                  if (index != -1) {
+                    final old = _activeAccounts[index];
+                    final updatedList = List<MaintenanceAccount>.from(_activeAccounts);
+                    updatedList[index] = MaintenanceAccount(
+                      userId: old.userId,
+                      email: old.email,
+                      fullName: old.fullName,
+                      employeeId: old.employeeId,
+                      specialization: old.specialization,
+                      contactNo: old.contactNo,
+                      isActive: old.isActive,
+                      archivedAt: old.archivedAt,
+                      createdAt: old.createdAt,
+                      availabilityStatus: newStatus,
+                      currentLocation: old.currentLocation,
+                      currentAssignmentId: old.currentAssignmentId,
+                      estimatedCompletionTime: old.estimatedCompletionTime,
+                      lastActiveAt: old.lastActiveAt,
+                      workingHoursStart: old.workingHoursStart,
+                      workingHoursEnd: old.workingHoursEnd,
+                      statusUpdatedAt: old.statusUpdatedAt,
+                    );
+                    _activeAccounts = updatedList;
+                  } else {
+                    _loadAccounts();
+                  }
+                });
+              }
+            } else {
+              _loadAccounts();
+            }
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _loadAccounts() async {
@@ -654,25 +715,34 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
                                                 crossAxisAlignment:
                                                     CrossAxisAlignment.start,
                                                 children: [
-                                                  Text(
-                                                    account.fullName,
-                                                    maxLines: 2,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      fontSize: 16,
-                                                    ),
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          account.fullName,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                          style: const TextStyle(
+                                                            fontWeight: FontWeight.w700,
+                                                            fontSize: 15,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 6),
+                                                      AvailabilityStatusBadge(
+                                                        status: account.availabilityStatus,
+                                                        size: BadgeSize.small,
+                                                      ),
+                                                    ],
                                                   ),
                                                   const SizedBox(height: 4),
                                                   Text(
                                                     'Specialization: ${account.specialization ?? '-'}',
-                                                    maxLines: 2,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
                                                     style: const TextStyle(
-                                                      fontSize: 14,
+                                                      fontSize: 13,
+                                                      color: Color(0xFF64748B),
                                                     ),
                                                   ),
                                                 ],

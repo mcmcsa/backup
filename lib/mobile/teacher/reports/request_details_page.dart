@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/e_signature_model.dart';
@@ -42,12 +43,15 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
   List<PostRepairReport> _postRepairReports = [];
   final Map<String, String> _userNames = {};
 
+  RealtimeChannel? _realtimeChannel;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadRequest();
     _startAutoRefresh();
+    _setupRealtime();
   }
 
   @override
@@ -59,9 +63,28 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
 
   @override
   void dispose() {
+    _realtimeChannel?.unsubscribe();
     _autoRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel = Supabase.instance.client
+        .channel('public:mobile_request_details_${widget.trackingNumber}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'work_requests',
+          callback: (_) => _loadRequest(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'e_signatures',
+          callback: (_) => _loadRequest(),
+        )
+        .subscribe();
   }
 
   void _startAutoRefresh() {
@@ -134,26 +157,6 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     } catch (_) {}
   }
 
-
-  int _getWorkflowStep() {
-    if (_request == null) return 0;
-    switch (_request!.status) {
-      case 'pending':
-        return 1;
-      case 'approved':
-        return 2;
-      case 'in_progress':
-        return 3;
-      case 'under_maintenance':
-        return 4;
-      case 'completed':
-        return 6;
-      case 'rework':
-        return 3;
-      default:
-        return 1;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -365,7 +368,27 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: () {},
+                onPressed: () async {
+                  if (_request != null) {
+                    try {
+                      final pdfBytes = await IsoPdfService.generateWorkRequestPdf(_request!);
+                      await Printing.layoutPdf(
+                        onLayout: (_) => pdfBytes,
+                        name: 'Work_Request_Form_${_request!.formattedId}',
+                        format: IsoPdfService.longLandscapeFormat,
+                      );
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed to generate PDF: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  }
+                },
                 icon: const Icon(
                   Icons.description,
                   size: 18,
@@ -567,133 +590,6 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
         child: Icon(Icons.person, size: 18, color: Colors.grey.shade600),
       ),
     );
-  }
-
-  Widget _buildTimelineItem({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String date,
-    required String description,
-    String? subtitle,
-    bool isCompleted = false,
-    bool isLast = false,
-    bool showActions = false,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 18, color: iconColor),
-            ),
-            if (!isLast)
-              Container(width: 2, height: 60, color: Colors.grey.shade300),
-          ],
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                date,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-              if (description.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                ),
-              ],
-              if (subtitle != null) ...[
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                ),
-              ],
-              if (showActions) ...[
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4169E1).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Icon(
-                        Icons.person,
-                        size: 16,
-                        color: Color(0xFF4169E1),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.phone, size: 18),
-                      color: const Color(0xFF2196F3),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () {},
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.message, size: 18),
-                      color: const Color(0xFF2196F3),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () {},
-                    ),
-                  ],
-                ),
-              ],
-              if (!isLast) const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final hour = date.hour > 12
-        ? date.hour - 12
-        : (date.hour == 0 ? 12 : date.hour);
-    final minute = date.minute.toString().padLeft(2, '0');
-    final period = date.hour >= 12 ? 'PM' : 'AM';
-    return '${months[date.month - 1]} ${date.day}, ${date.year} - $hour:$minute $period';
   }
 
   bool _isUnassigned(String? staffId) {

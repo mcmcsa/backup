@@ -725,28 +725,22 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
   Widget _buildRequestCard(WorkRequest request) {
     Color urgencyColor;
     Color urgencyBgColor;
-    String urgencyLabel;
-
     switch (request.priority) {
       case 'high':
         urgencyColor = Colors.red;
         urgencyBgColor = const Color(0xFFFEE2E2);
-        urgencyLabel = 'HIGH URGENCY';
         break;
       case 'medium':
         urgencyColor = Colors.orange;
         urgencyBgColor = const Color(0xFFFFF7ED);
-        urgencyLabel = 'PENDING';
         break;
       case 'low':
         urgencyColor = const Color(0xFF4169E1);
         urgencyBgColor = const Color(0xFFEEF2FF);
-        urgencyLabel = 'LOW URGENCY';
         break;
       default:
         urgencyColor = Colors.grey;
         urgencyBgColor = Colors.grey.shade100;
-        urgencyLabel = 'NORMAL';
     }
 
     Color statusColor;

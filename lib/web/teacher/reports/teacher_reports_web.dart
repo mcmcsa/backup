@@ -155,7 +155,6 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
     );
   }
 
-  // ─── Page Header ────────────────────────────────────────────────────────────
   Widget _buildPageHeader(bool isCompact) {
     return Container(
       padding: EdgeInsets.fromLTRB(
@@ -164,23 +163,7 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
         isCompact ? 20 : 40,
         isCompact ? 10 : 16,
       ),
-      child:
-          isCompact
-              ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeaderTitle(),
-                  const SizedBox(height: 16),
-                  SizedBox(width: double.infinity, child: _buildExportButton()),
-                ],
-              )
-              : Row(
-                children: [
-                  Expanded(child: _buildHeaderTitle()),
-                  const SizedBox(width: 24),
-                  _buildExportButton(),
-                ],
-              ),
+      child: _buildHeaderTitle(),
     );
   }
 
@@ -219,25 +202,6 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
           ],
         ),
       ],
-    );
-  }
-
-  Widget _buildExportButton() {
-    return OutlinedButton.icon(
-      onPressed: () {},
-      icon: const Icon(Icons.download_rounded, size: 18),
-      label: const Text('Export'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AdminStyles.textPrimary,
-        side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: AdminStyles.bodyStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-          color: AdminStyles.textPrimary,
-        ),
-      ),
     );
   }
 

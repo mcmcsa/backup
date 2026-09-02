@@ -293,7 +293,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
       ),
       child: Column(
         children: [
-          // ── Logo / Brand ─────────────────────────────────────────────────
+          // ── Logo / Brand Header ─────────────────────────────────────────
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
             decoration: BoxDecoration(
@@ -301,114 +301,112 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.35),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset(
+                    'assets/images/app_logo_v2.png',
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'PSU MMS',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _textWhite, letterSpacing: -0.3),
+                      ),
+                      Text(
+                        'MAINTENANCE PORTAL',
+                        style: TextStyle(fontSize: 10, color: _textMuted, fontWeight: FontWeight.w700, letterSpacing: 0.8),
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.engineering_rounded, color: Colors.white, size: 24),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'PSU Maintenance',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _textWhite, letterSpacing: -0.3),
-                    ),
-                    Text(
-                      'Work Portal',
-                      style: TextStyle(fontSize: 11, color: _textMuted, fontWeight: FontWeight.w500),
-                    ),
-                  ],
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 12),
+          // ── Scrollable Navigation Items ────────────────────────────────
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                children: [
+                  // ── NAVIGATION Section ──────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'NAVIGATION',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _textMuted.withValues(alpha: 0.5), letterSpacing: 1.2),
+                      ),
+                    ),
+                  ),
 
-          // ── Section Label ─────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'NAVIGATION',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _textMuted.withValues(alpha: 0.5), letterSpacing: 1.2),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Column(
+                      children: [
+                        _buildNavItem(index: 0, icon: Icons.dashboard_rounded, title: 'Dashboard', closeDrawerOnTap: closeDrawerOnTap),
+                        _buildNavItem(index: 1, icon: Icons.assignment_rounded, title: 'Work Tasks', closeDrawerOnTap: closeDrawerOnTap),
+                        _buildNavItem(index: 2, icon: Icons.chat_bubble_outline_rounded, title: 'Messages', closeDrawerOnTap: closeDrawerOnTap),
+                        _buildNavItem(index: 3, icon: Icons.history_rounded, title: 'History', closeDrawerOnTap: closeDrawerOnTap),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ── ACCOUNT Section ─────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'ACCOUNT',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _textMuted.withValues(alpha: 0.5), letterSpacing: 1.2),
+                      ),
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Column(
+                      children: [
+                        _buildNavItem(index: 4, icon: Icons.person_outline_rounded, title: 'Profile', closeDrawerOnTap: closeDrawerOnTap),
+                        _buildNavItem(index: 5, icon: Icons.settings_outlined, title: 'Settings', closeDrawerOnTap: closeDrawerOnTap),
+                        _buildNavItem(index: 6, icon: Icons.account_tree_outlined, title: 'Work Flow', closeDrawerOnTap: closeDrawerOnTap),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
 
-          // ── Nav Items ─────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Column(
-              children: [
-                _buildNavItem(index: 0, icon: Icons.dashboard_rounded, title: 'Dashboard', closeDrawerOnTap: closeDrawerOnTap),
-                _buildNavItem(index: 1, icon: Icons.assignment_rounded, title: 'Work Tasks', closeDrawerOnTap: closeDrawerOnTap),
-                _buildNavItem(index: 2, icon: Icons.chat_bubble_outline_rounded, title: 'Messages', closeDrawerOnTap: closeDrawerOnTap),
-                _buildNavItem(index: 3, icon: Icons.history_rounded, title: 'History', closeDrawerOnTap: closeDrawerOnTap),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // ── Divider ──────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'ACCOUNT',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _textMuted.withValues(alpha: 0.5), letterSpacing: 1.2),
-              ),
-            ),
-          ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Column(
-              children: [
-                _buildNavItem(index: 4, icon: Icons.person_outline_rounded, title: 'Profile', closeDrawerOnTap: closeDrawerOnTap),
-                _buildNavItem(index: 5, icon: Icons.settings_outlined, title: 'Settings', closeDrawerOnTap: closeDrawerOnTap),
-                _buildNavItem(index: 6, icon: Icons.account_tree_outlined, title: 'Work Flow', closeDrawerOnTap: closeDrawerOnTap),
-              ],
-            ),
-          ),
-          
-          // User Profile & Logout
+          // ── Bottom Anchored User Profile & Logout ───────────────────────
           Container(
             decoration: const BoxDecoration(
               border: Border(top: BorderSide(color: _sidebarBorder)),
             ),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Avatar
                 Container(
-                  margin: const EdgeInsets.all(12),
-                  padding: const EdgeInsets.all(14),
+                  margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: _sidebarHover,
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: _sidebarBorder),
                   ),
                   child: Row(
                     children: [
-                      // Avatar
                       Container(
                         width: 38,
                         height: 38,
@@ -452,7 +450,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
                   child: _buildLogoutButton(),
                 ),
               ],

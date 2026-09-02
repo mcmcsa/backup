@@ -165,7 +165,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
   Widget _buildQuickStats(int pending, int active, int completed, bool isCompact) {
     final cards = [
       _StatCard(title: 'Pending Review', value: pending, icon: Icons.schedule_rounded, color: AdminStyles.warning),
-      _StatCard(title: 'In Progress', value: active, icon: Icons.engineering_rounded, color: AdminStyles.info),
+      _StatCard(title: 'Active Task', value: active, icon: Icons.engineering_rounded, color: AdminStyles.info),
       _StatCard(title: 'Recently Completed', value: completed, icon: Icons.check_circle_rounded, color: AdminStyles.success),
     ];
 

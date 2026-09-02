@@ -71,27 +71,54 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       return;
     }
 
-    await showDialog<void>(
+    final shouldLogout = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Password Updated'),
-          content: const Text(
-            'Your password was changed successfully. Please login again.',
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: Color(0xFF22C55E), size: 28),
+              SizedBox(width: 10),
+              Text('Password Updated', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
           ),
+          content: const Text(
+            'Your password has been changed successfully.\n\nWould you like to keep logged in on this device or log out now?',
+            style: TextStyle(fontSize: 14),
+          ),
+          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF475569),
+                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Keep Logged In', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
             ElevatedButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('OK'),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Logout Account', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         );
       },
     );
 
-    if (!mounted) return;
-    await authService.handleLogoutButton(context);
+    if (shouldLogout == true && mounted) {
+      await authService.handleLogoutButton(context);
+    } else if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   @override
