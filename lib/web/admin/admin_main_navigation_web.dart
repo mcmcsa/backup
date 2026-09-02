@@ -210,7 +210,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                         ),
                         const SizedBox(height: 16),
                         const Text(
-                          'Sign Out',
+                          'Logout',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -219,7 +219,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Are you sure you want to sign out?',
+                          'Are you sure you want to logout?',
                           style: TextStyle(
                             fontSize: 14,
                             color: Color(0xFF64748B),
@@ -265,7 +265,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                             ),
                             onPressed: () => Navigator.of(dialogContext).pop(true),
                             child: const Text(
-                              'Sign Out',
+                              'Logout',
                               style: TextStyle(fontWeight: FontWeight.w600),
                             ),
                           ),
@@ -834,12 +834,11 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
               ),
               const SizedBox(width: 12),
               Text(
-                'LOGOUT',
+                'Logout',
                 style: AdminStyles.headingStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                   color: const Color(0xFFFCA5A5),
-                  letterSpacing: 1,
                 ),
               ),
             ],

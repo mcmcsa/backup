@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
@@ -17,11 +18,33 @@ class TeacherDashboardWeb extends StatefulWidget {
 class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
     super.initState();
     _loadRequests();
+    _setupRealtime();
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    final authService = context.read<AuthService>();
+    final user = authService.currentUser;
+    if (user == null) return;
+
+    _realtimeChannel = WorkRequestService.listenToRequestorRequests(user.id, (data) {
+      if (mounted) {
+        setState(() {
+          _requests = data;
+        });
+      }
+    });
   }
 
   Future<void> _loadRequests() async {
@@ -46,7 +69,14 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
   }
 
   int _getCountByStatus(String status) {
-    return _requests.where((r) => r.status.toLowerCase() == status.toLowerCase()).length;
+    final target = status.toLowerCase();
+    return _requests.where((r) {
+      final s = r.status.toLowerCase();
+      if (target == 'pending') {
+        return s.contains('pending');
+      }
+      return s == target;
+    }).length;
   }
 
   @override
@@ -54,7 +84,14 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
     final authService = context.watch<AuthService>();
     final user = authService.currentUser;
     final pendingCount = _getCountByStatus('pending');
-    final activeCount = _requests.where((r) => ['in_progress', 'under_maintenance'].contains(r.status.toLowerCase())).length;
+    final activeCount = _requests.where((r) {
+      final s = r.status.toLowerCase();
+      return s == 'in progress' ||
+             s == 'in_progress' ||
+             s == 'under_maintenance' ||
+             s == 'confirmed' ||
+             s == 'rework';
+    }).length;
     final completedCount = _getCountByStatus('completed');
 
     if (_isLoading) {

@@ -130,7 +130,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
               const Spacer(),
               ListTile(
                 leading: const Icon(Icons.logout_rounded, color: Colors.red),
-                title: const Text('Log Out', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+                title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
                 onTap: () async {
                   Navigator.pop(context);
                   final authService = context.read<AuthService>();

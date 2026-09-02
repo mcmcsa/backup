@@ -242,7 +242,7 @@ class StudentDrawer extends StatelessWidget {
             ],
           ),
           content: const Text(
-            'Do you want to Log out?',
+            'Do you want to logout?',
             style: TextStyle(fontSize: 15),
           ),
           actions: [

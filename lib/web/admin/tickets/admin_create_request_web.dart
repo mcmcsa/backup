@@ -68,6 +68,10 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
     final user = context.read<AuthService>().currentUser;
     if (user != null) {
       _fullNameController.text = user.name;
+      final pos = (user.position != null && user.position!.trim().isNotEmpty)
+          ? user.position!.trim()
+          : user.roleLabel;
+      _positionController.text = pos;
     }
   }
 

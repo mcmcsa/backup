@@ -84,6 +84,73 @@ class RoomService {
     return list.isNotEmpty ? list.first : null;
   }
 
+  /// Find a room by scanned QR code data, room code, or room ID (case-insensitive).
+  /// Handles prefixes like 'ROOM:' and matches against official rooms created in system.
+  static Future<Room?> findRoomByScannedCode(String rawInput) async {
+    final input = rawInput.trim();
+    if (input.isEmpty) return null;
+
+    String cleanCode = input;
+    if (input.toUpperCase().startsWith('ROOM:')) {
+      cleanCode = input.substring(5).trim();
+    }
+
+    try {
+      final byQrData = await _db
+          .from(_table)
+          .select(_selectWithJoins)
+          .ilike('qr_code_data', input)
+          .maybeSingle();
+      if (byQrData != null) {
+        final list = await _mapRooms([byQrData]);
+        if (list.isNotEmpty) return list.first;
+      }
+    } catch (_) {}
+
+    try {
+      final byQrFormatted = await _db
+          .from(_table)
+          .select(_selectWithJoins)
+          .ilike('qr_code_data', 'ROOM:$cleanCode')
+          .maybeSingle();
+      if (byQrFormatted != null) {
+        final list = await _mapRooms([byQrFormatted]);
+        if (list.isNotEmpty) return list.first;
+      }
+    } catch (_) {}
+
+    try {
+      final byCode = await _db
+          .from(_table)
+          .select(_selectWithJoins)
+          .ilike('code', cleanCode)
+          .maybeSingle();
+      if (byCode != null) {
+        final list = await _mapRooms([byCode]);
+        if (list.isNotEmpty) return list.first;
+      }
+    } catch (_) {}
+
+    try {
+      final byCodeRaw = await _db
+          .from(_table)
+          .select(_selectWithJoins)
+          .ilike('code', input)
+          .maybeSingle();
+      if (byCodeRaw != null) {
+        final list = await _mapRooms([byCodeRaw]);
+        if (list.isNotEmpty) return list.first;
+      }
+    } catch (_) {}
+
+    try {
+      final byId = await fetchById(cleanCode) ?? await fetchById(input);
+      if (byId != null) return byId;
+    } catch (_) {}
+
+    return null;
+  }
+
   // ─── Create ──────────────────────────────────────────────────────────────
 
   static Future<String?> create({

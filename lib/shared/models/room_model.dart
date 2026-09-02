@@ -99,6 +99,21 @@ class Room {
       roomTypeName = map['room_type'] ?? '';
     }
 
+    int parseSeats(Map<String, dynamic> m) {
+      final val = m['seats'] ??
+          m['capacity'] ??
+          m['capacity_seats'] ??
+          m['seat_capacity'] ??
+          m['capacity_seat'] ??
+          m['seats_capacity'];
+
+      if (val == null) return 0;
+      if (val is int) return val;
+      if (val is double) return val.toInt();
+      if (val is String) return int.tryParse(val.trim()) ?? 0;
+      return 0;
+    }
+
     return Room(
       id: map['id']?.toString() ?? '',
       code: map['code']?.toString() ?? '',
@@ -107,7 +122,7 @@ class Room {
       building: buildingName,
       floorId: map['floor_id']?.toString() ?? '',
       floor: map['floor'] ?? map['floor_id']?.toString() ?? '',
-      seats: map['seats'] ?? 0,
+      seats: parseSeats(map),
       departmentId: map['department_id']?.toString() ?? '',
       department: departmentName,
       roomTypeId: map['room_type_id']?.toString() ?? '',

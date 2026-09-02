@@ -37,7 +37,7 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
     });
 
     try {
-      final room = await RoomService.fetchByCode(code);
+      final room = await RoomService.findRoomByScannedCode(code);
 
       if (!mounted) return;
 

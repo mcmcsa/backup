@@ -139,7 +139,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     await _stopScanner();
 
     try {
-      final room = await RoomService.fetchByCode(code);
+      final room = await RoomService.findRoomByScannedCode(code);
       if (!mounted) return;
 
       if (room != null) {

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../shared/models/room_model.dart';
+import '../../../../shared/services/room_service.dart';
 import '../../shared/admin_styles.dart';
 
-
-class AdminRoomDetailsPageWeb extends StatelessWidget {
+class AdminRoomDetailsPageWeb extends StatefulWidget {
   final Room room;
   final ValueChanged<Room>? onEditRoom;
   final VoidCallback? onBack;
@@ -17,13 +17,48 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
     this.onBack,
   });
 
+  @override
+  State<AdminRoomDetailsPageWeb> createState() => _AdminRoomDetailsPageWebState();
+}
+
+class _AdminRoomDetailsPageWebState extends State<AdminRoomDetailsPageWeb> {
+  late Room _room;
+
+  @override
+  void initState() {
+    super.initState();
+    _room = widget.room;
+    _fetchFreshRoom();
+  }
+
+  @override
+  void didUpdateWidget(covariant AdminRoomDetailsPageWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.room.id != widget.room.id || oldWidget.room.seats != widget.room.seats) {
+      _room = widget.room;
+      _fetchFreshRoom();
+    }
+  }
+
+  Future<void> _fetchFreshRoom() async {
+    try {
+      if (widget.room.id.isEmpty) return;
+      final fresh = await RoomService.fetchById(widget.room.id);
+      if (fresh != null && mounted) {
+        setState(() {
+          _room = fresh;
+        });
+      }
+    } catch (_) {}
+  }
+
   String _safe(String value, {String fallback = '-'}) {
     final text = value.trim();
     return text.isEmpty ? fallback : text;
   }
 
   String get _statusKey {
-    final status = room.status.trim().toLowerCase();
+    final status = _room.status.trim().toLowerCase();
     if (status == 'available') return 'available';
     return 'unavailable';
   }
@@ -55,11 +90,9 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
-    final roomCode = room.code.isNotEmpty ? room.code : room.id;
+    final roomCode = _room.code.isNotEmpty ? _room.code : _room.id;
 
     return Scaffold(
       backgroundColor: AdminStyles.bg,
@@ -140,8 +173,8 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
                                   label: 'Go back',
                                   child: OutlinedButton.icon(
                                     onPressed: () {
-                                      if (onBack != null) {
-                                        onBack!();
+                                      if (widget.onBack != null) {
+                                        widget.onBack!();
                                       } else if (Navigator.canPop(context)) {
                                         Navigator.pop(context);
                                       } else {
@@ -285,7 +318,7 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
                 children: [
                   _InfoCard(
                     label: 'Room Name',
-                    value: _safe(room.name),
+                    value: _safe(_room.name),
                     icon: Icons.meeting_room_rounded,
                   ),
                   _InfoCard(
@@ -295,12 +328,12 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
                   ),
                   _InfoCard(
                     label: 'Room Type',
-                    value: _safe(room.roomType),
+                    value: _safe(_room.roomType),
                     icon: Icons.category_rounded,
                   ),
                   _InfoCard(
                     label: 'Seats Capacity',
-                    value: '${room.seats} Seats',
+                    value: '${_room.seats} Seats',
                     icon: Icons.chair_alt_rounded,
                   ),
                 ],
@@ -338,19 +371,19 @@ class AdminRoomDetailsPageWeb extends StatelessWidget {
           _SummaryRow(
             icon: Icons.corporate_fare_rounded,
             label: 'Building Location',
-            value: _safe(room.building),
+            value: _safe(_room.building),
           ),
           const Divider(height: 24, thickness: 1, color: AdminStyles.border),
           _SummaryRow(
             icon: Icons.layers_rounded,
             label: 'Floor Assignment',
-            value: _safe(room.floor),
+            value: _safe(_room.floor),
           ),
           const Divider(height: 24, thickness: 1, color: AdminStyles.border),
           _SummaryRow(
             icon: Icons.apartment_rounded,
             label: 'Managing Department',
-            value: _safe(room.department),
+            value: _safe(_room.department),
           ),
           const Divider(height: 24, thickness: 1, color: AdminStyles.border),
           _SummaryRow(

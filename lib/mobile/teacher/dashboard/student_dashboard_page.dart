@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/models/work_request_model.dart';
@@ -23,6 +24,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
   final TextEditingController _searchController = TextEditingController();
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
@@ -31,6 +33,21 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
       if (mounted) setState(() {});
     });
     _loadRequests();
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    final authService = context.read<AuthService>();
+    final user = authService.currentUser;
+    if (user == null || user.id.isEmpty) return;
+
+    _realtimeChannel = WorkRequestService.listenToRequestorRequests(user.id, (data) {
+      if (mounted) {
+        setState(() {
+          _requests = data;
+        });
+      }
+    });
   }
 
   List<WorkRequest> get _filteredRequests {
@@ -62,6 +79,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
 
   @override
   void dispose() {
+    _realtimeChannel?.unsubscribe();
     _searchController.dispose();
     super.dispose();
   }

@@ -32,9 +32,6 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   late int _selectedIndex;
   WorkRequest? _selectedRequestForDetails;
   ChatRoom? _selectedChatRoom;
-  String _userName = 'Maintenance';
-  String _userSpecialization = 'Staff';
-  String? _userAvatarUrl;
   int _hoveredIndex = -1;
   bool _isUserMenuHovered = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -50,7 +47,6 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   static const _textWhite = Colors.white;
   static const _textMuted = Color(0xFF94A3B8);        // Slate-400
   static const _contentBg = Color(0xFFF1F5F9);        // Slate-100
-  static const _headerBg = Colors.white;
   static const _badgeRed = Color(0xFFEF4444);
 
   @override
@@ -121,12 +117,12 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                         ),
                         const SizedBox(height: 20),
                         const Text(
-                          'Sign Out',
+                          'Logout',
                           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Are you sure you want to sign out of the maintenance portal?',
+                          'Are you sure you want to logout of the maintenance portal?',
                           style: TextStyle(fontSize: 14, color: Color(0xFF64748B), height: 1.5),
                           textAlign: TextAlign.center,
                         ),
@@ -159,7 +155,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                               elevation: 0,
                             ),
                             onPressed: () => Navigator.of(dialogContext).pop(true),
-                            child: const Text('Sign Out', style: TextStyle(fontWeight: FontWeight.w700)),
+                            child: const Text('Logout', style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                         ),
                       ],
@@ -205,6 +201,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
         const MaintenanceProfileWeb(),
         const MaintenanceSettingsWeb(),
         const MaintenanceWorkflowWeb(),
+        const MaintenanceNotificationsWeb(),
       ],
     );
   }
@@ -551,7 +548,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
             children: [
               Icon(Icons.logout_rounded, color: Color(0xFFFCA5A5), size: 17),
               SizedBox(width: 8),
-              Text('Log Out', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFFCA5A5))),
+              Text('Logout', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFFCA5A5))),
             ],
           ),
         ),

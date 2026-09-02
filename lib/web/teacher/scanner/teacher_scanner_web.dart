@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../teacher_nav_controller.dart';
 import '../../../shared/services/room_service.dart';
@@ -52,14 +51,14 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
     });
 
     try {
-      final room = await RoomService.fetchByCode(code);
+      final room = await RoomService.findRoomByScannedCode(code);
       if (room != null) {
         if (mounted) {
           setState(() {
             _isScanning = false;
           });
           TeacherNavController.of(context)?.navigateTo(11,
-            roomId: room.code,
+            roomId: room.code.isNotEmpty ? room.code : room.id,
             roomName: room.name,
             buildingName: room.building,
           );

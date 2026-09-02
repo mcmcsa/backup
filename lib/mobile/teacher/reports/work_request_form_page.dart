@@ -2,8 +2,10 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/room_model.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/models/request_type_model.dart';
@@ -83,6 +85,14 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     }
     if (widget.roomName != null) {
       _officeRoomNameController.text = widget.roomName!;
+    }
+    final user = context.read<AuthService>().currentUser;
+    if (user != null) {
+      _fullNameController.text = user.name;
+      final pos = (user.position != null && user.position!.trim().isNotEmpty)
+          ? user.position!.trim()
+          : user.roleLabel;
+      _positionController.text = pos;
     }
   }
 
@@ -273,7 +283,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
             : _officeRoomNameController.text.trim();
 
         var selectedRoom = verifiedRoom;
-        selectedRoom ??= await RoomService.fetchByCode(submittedRoomCode);
+        selectedRoom ??= await RoomService.findRoomByScannedCode(submittedRoomCode);
 
         if (selectedRoom == null) {
           if (!mounted) return;

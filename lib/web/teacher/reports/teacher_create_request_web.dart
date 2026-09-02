@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../teacher_nav_controller.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -76,7 +75,10 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
     final user = context.read<AuthService>().currentUser;
     if (user != null) {
       _fullNameController.text = user.name;
-      _positionController.text = user.position ?? user.roleLabel;
+      final pos = (user.position != null && user.position!.trim().isNotEmpty)
+          ? user.position!.trim()
+          : user.roleLabel;
+      _positionController.text = pos;
     }
   }
 
@@ -151,7 +153,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
 
     try {
       final roomCode = _roomNumberController.text.trim();
-      var room = await RoomService.fetchByCode(roomCode);
+      var room = await RoomService.findRoomByScannedCode(roomCode);
 
       if (room == null) {
         throw 'Room not found. Please verify the room code.';

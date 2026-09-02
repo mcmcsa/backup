@@ -15,7 +15,6 @@ import 'menu/teacher_about_web.dart';
 import 'menu/teacher_contact_web.dart';
 import 'menu/teacher_workflow_web.dart';
 import 'menu/teacher_archives_web.dart';
-import '../../router/app_router.dart';
 import '../admin/shared/admin_styles.dart';
 import 'reports/teacher_create_request_web.dart';
 import 'chat/teacher_chat_web.dart';
@@ -159,9 +158,9 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                           child: const Icon(Icons.logout_rounded, color: _badgeRed, size: 28),
                         ),
                         const SizedBox(height: 16),
-                        Text('Log Out', style: AdminStyles.headingStyle(fontSize: 18)),
+                        Text('Logout', style: AdminStyles.headingStyle(fontSize: 18)),
                         const SizedBox(height: 8),
-                        Text('Are you sure you want to log out?', style: AdminStyles.bodyStyle()),
+                        Text('Are you sure you want to logout?', style: AdminStyles.bodyStyle()),
                       ],
                     ),
                   ),
@@ -184,7 +183,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(backgroundColor: _badgeRed, foregroundColor: Colors.white),
                             onPressed: () => Navigator.of(dialogContext).pop(true),
-                            child: const Text('Log Out'),
+                            child: const Text('Logout'),
                           ),
                         ),
                       ],
@@ -508,7 +507,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
               ),
               const SizedBox(width: 10),
               Text(
-                'Log out',
+                'Logout',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
