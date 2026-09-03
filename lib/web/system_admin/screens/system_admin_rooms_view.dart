@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../shared/models/building_model.dart';
 import '../../../shared/models/department_model.dart';
@@ -143,7 +145,7 @@ class _SystemAdminRoomsViewState extends State<SystemAdminRoomsView> {
         buildings: _buildings,
         departments: _departments,
         roomTypes: _roomTypes,
-        onSave: (name, code, bldgId, deptId, typeId, seats, floor, status) async {
+        onSave: (name, code, bldgId, deptId, typeId, seats, floor, status, imageUrl, updateImage) async {
           final err = await RoomService.create(
             name: name,
             code: code,
@@ -153,6 +155,7 @@ class _SystemAdminRoomsViewState extends State<SystemAdminRoomsView> {
             seats: seats,
             floor: floor,
             status: status,
+            imageUrl: imageUrl,
           );
           return err;
         },
@@ -212,7 +215,7 @@ class _SystemAdminRoomsViewState extends State<SystemAdminRoomsView> {
         buildings: _buildings,
         departments: _departments,
         roomTypes: _roomTypes,
-        onSave: (name, code, bldgId, deptId, typeId, seats, floor, status) async {
+        onSave: (name, code, bldgId, deptId, typeId, seats, floor, status, imageUrl, updateImage) async {
           final err = await RoomService.updateRoom(
             id: room.id,
             name: name,
@@ -223,6 +226,8 @@ class _SystemAdminRoomsViewState extends State<SystemAdminRoomsView> {
             seats: seats,
             floor: floor,
             status: status,
+            imageUrl: imageUrl,
+            updateImage: updateImage,
             allRooms: _rooms,
           );
           return err;
@@ -1109,6 +1114,19 @@ class _SystemAdminRoomsViewState extends State<SystemAdminRoomsView> {
 //  Add / Edit Dialog
 // ─────────────────────────────────────────────────────────────────────────────
 
+typedef RoomFormSaveCallback = Future<String?> Function(
+  String name,
+  String code,
+  String bldgId,
+  String deptId,
+  String typeId,
+  int seats,
+  String floor,
+  String status,
+  String? imageUrl,
+  bool updateImage,
+);
+
 class _RoomFormDialog extends StatefulWidget {
   final String title;
   final Room? room;
@@ -1116,7 +1134,7 @@ class _RoomFormDialog extends StatefulWidget {
   final List<Building> buildings;
   final List<Department> departments;
   final List<RoomType> roomTypes;
-  final Future<String?> Function(String name, String code, String bldgId, String deptId, String typeId, int seats, String floor, String status) onSave;
+  final RoomFormSaveCallback onSave;
   final VoidCallback onSuccess;
 
   const _RoomFormDialog({
@@ -1145,6 +1163,11 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
   String? _selectedTypeId;
   String _status = 'available';
 
+  Uint8List? _roomImageBytes;
+  String? _roomImageName;
+  String? _existingImageUrl;
+  bool _imageChanged = false;
+
   final _formKey = GlobalKey<FormState>();
   bool _saving = false;
   String? _serverError;
@@ -1157,6 +1180,7 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
       if (widget.room!.departmentId.isNotEmpty) _selectedDeptId = widget.room!.departmentId;
       if (widget.room!.roomTypeId.isNotEmpty) _selectedTypeId = widget.room!.roomTypeId;
       _status = widget.room!.status;
+      _existingImageUrl = widget.room!.imageUrl;
     }
   }
 
@@ -1169,11 +1193,36 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
     super.dispose();
   }
 
+  Future<void> _pickRoomImage() async {
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _roomImageBytes = bytes;
+          _roomImageName = image.name;
+          _imageChanged = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking room image: $e');
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _saving = true; _serverError = null; });
 
     final seats = int.tryParse(_seatsCtrl.text.trim()) ?? 0;
+
+    String? finalImageUrl = _existingImageUrl;
+    if (_roomImageBytes != null) {
+      finalImageUrl = await RoomService.uploadRoomImageBytes(
+        _roomImageBytes!,
+        _roomImageName ?? 'room.jpg',
+      );
+    }
 
     final err = await widget.onSave(
       _nameCtrl.text.trim(),
@@ -1184,6 +1233,8 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
       seats,
       _floorCtrl.text.trim(),
       _status,
+      finalImageUrl,
+      _imageChanged || widget.room == null,
     );
 
     if (!mounted) return;
@@ -1417,6 +1468,10 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
                   ],
                   onChanged: (v) => setState(() => _status = v ?? 'available'),
                 ),
+                const SizedBox(height: 16),
+
+                // Room Photo (Optional)
+                _buildRoomImagePicker(),
 
                 // Server error
                 if (_serverError != null) ...[
@@ -1488,6 +1543,124 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRoomImagePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label('Room Photo (Optional)'),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AdminStyles.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_roomImageBytes != null || (_existingImageUrl != null && _existingImageUrl!.isNotEmpty)) ...[
+                Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    Container(
+                      height: 220,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: _roomImageBytes != null
+                          ? Image.memory(
+                              _roomImageBytes!,
+                              fit: BoxFit.contain,
+                            )
+                          : Image.network(
+                              _existingImageUrl!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Container(
+                                color: Colors.grey.shade100,
+                                child: const Center(
+                                  child: Icon(Icons.broken_image_rounded, size: 36, color: Colors.grey),
+                                ),
+                              ),
+                            ),
+                    ),
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: CircleAvatar(
+                        backgroundColor: Colors.red.withValues(alpha: 0.85),
+                        radius: 15,
+                        child: IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 15, color: Colors.white),
+                          padding: EdgeInsets.zero,
+                          onPressed: () {
+                            setState(() {
+                              _roomImageBytes = null;
+                              _roomImageName = null;
+                              _existingImageUrl = null;
+                              _imageChanged = true;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _pickRoomImage,
+                  icon: const Icon(Icons.photo_camera_rounded, size: 16),
+                  label: const Text('Change Photo', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 36),
+                    foregroundColor: AdminStyles.primary,
+                    side: const BorderSide(color: AdminStyles.primary),
+                  ),
+                ),
+              ] else ...[
+                InkWell(
+                  onTap: _pickRoomImage,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    height: 90,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AdminStyles.border),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.add_a_photo_outlined, size: 24, color: AdminStyles.primary),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Upload 1 room photo (optional)',
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AdminStyles.primary,
+                          ),
+                        ),
+                        Text(
+                          'Max 1 image (JPG, PNG)',
+                          style: AdminStyles.bodyStyle(fontSize: 10, color: AdminStyles.textMuted),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 

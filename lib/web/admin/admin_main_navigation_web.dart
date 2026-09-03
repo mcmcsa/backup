@@ -363,14 +363,13 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
         if (_roomsSubview == _roomsSubviewDetails && _selectedRoom != null) {
           return AdminRoomDetailsPageWeb(
             room: _selectedRoom!,
-            onEditRoom: _openEditRoomInShell,
+            onEditRoom: null,
             onBack: _backToRoomsList,
           );
         }
 
         return AdminRoomsWeb(
-          onAddRoom: _openAddRoomInShell,
-          onEditRoom: _openEditRoomInShell,
+          showAddEdit: false,
           onViewRoom: _openRoomDetailsInShell,
         );
       case _usersIndex:
@@ -400,6 +399,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
     setState(() => _selectedIndex = index);
   }
 
+  // ignore: unused_element
   void _openAddRoomInShell() {
     setState(() {
       _selectedIndex = _roomsIndex;
@@ -407,6 +407,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
     });
   }
 
+  // ignore: unused_element
   void _openEditRoomInShell(Room room) {
     setState(() {
       _selectedIndex = _roomsIndex;

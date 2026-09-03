@@ -124,9 +124,124 @@ class _SystemAdminMainNavigationWebState
   }
 
   Future<void> _handleLogout() async {
-    final authService = context.read<AuthService>();
-    if (!mounted) return;
-    await authService.handleLogoutButton(context);
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (dialogContext) => Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 400),
+          margin: const EdgeInsets.all(24),
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.logout_rounded,
+                            color: Colors.redAccent,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Logout',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Are you sure you want to logout from System Management Console?',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF64748B),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.vertical(
+                        bottom: Radius.circular(16),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.of(dialogContext).pop(false),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF64748B),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            child: const Text(
+                              'Cancel',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.redAccent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: () => Navigator.of(dialogContext).pop(true),
+                            child: const Text(
+                              'Logout',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      final authService = context.read<AuthService>();
+      await authService.handleLogoutButton(context);
+    }
   }
 
   final List<Map<String, dynamic>> _menuItems = [
@@ -199,6 +314,9 @@ class _SystemAdminMainNavigationWebState
       case 0:
         return SystemAdminDashboardView(
           onCreateUser: () => setState(() => _selectedIndex = 1),
+          onAddDepartment: () => setState(() => _selectedIndex = 2),
+          onGenerateQR: () => setState(() => _selectedIndex = 4),
+          onBackupData: () => setState(() => _selectedIndex = 10),
         );
       case 1:
         return const SystemAdminUsersView();
@@ -222,7 +340,12 @@ class _SystemAdminMainNavigationWebState
                 onBack: _backToRoomsList,
               );
             }
-            return AdminRoomsWeb(onAddRoom: _openAddRoomInShell, onEditRoom: _openEditRoomInShell, onViewRoom: _openRoomDetailsInShell);
+            return AdminRoomsWeb(
+              onAddRoom: _openAddRoomInShell,
+              onEditRoom: _openEditRoomInShell,
+              onViewRoom: _openRoomDetailsInShell,
+              showAddEdit: true,
+            );
           }
         );
       case 4:
@@ -463,62 +586,69 @@ class _SystemAdminMainNavigationWebState
         builder: (context, constraints) {
           final showFullTitle = constraints.maxWidth > 500;
           return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              if (isMobile) ...[
-                Builder(
-                  builder: (context) => IconButton(
-                    icon: const Icon(Icons.menu_rounded, color: Color(0xFF1E293B)),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-              Flexible(
-                child: Text(
-                  showFullTitle ? 'System Management Console' : 'Console',
-                  style: const TextStyle(
-                    color: Color(0xFF1E293B),
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const Spacer(),
-              // Tutorial Guide / Workflow Guide Button
-              TextButton.icon(
-                onPressed: () {
-                  final user = context.read<AuthService>().currentUser;
-                  showWorkflowGuideDialog(context, role: user?.role.name);
-                },
-                icon: const Icon(Icons.help_outline_rounded, color: Color(0xFF0F766E), size: 20),
-                label: Text(
-                  showFullTitle ? 'Tutorial Guide' : 'Guide',
-                  style: const TextStyle(
-                    color: Color(0xFF0F766E),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-                style: TextButton.styleFrom(
-                  backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.08),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircleAvatar(
-                      radius: 14,
-                      backgroundColor: Color(0xFF0F766E),
-                      child: Icon(Icons.person_rounded, size: 16, color: Colors.white),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isMobile) ...[
+                    Builder(
+                      builder: (context) => IconButton(
+                        icon: const Icon(Icons.menu_rounded, color: Color(0xFF1E293B)),
+                        onPressed: () => Scaffold.of(context).openDrawer(),
+                      ),
                     ),
                     const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
+                  ],
+                  Text(
+                    showFullTitle ? 'System Management Console' : 'Console',
+                    style: const TextStyle(
+                      color: Color(0xFF1E293B),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Tutorial Guide Icon Button (Icon Only)
+                  Tooltip(
+                    message: 'Tutorial Guide',
+                    child: InkWell(
+                      onTap: () {
+                        final user = context.read<AuthService>().currentUser;
+                        showWorkflowGuideDialog(context, role: user?.role.name);
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(
+                          Icons.help_outline_rounded,
+                          color: Color(0xFF0F766E),
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Color(0xFF0F766E),
+                        child: Icon(Icons.person_rounded, size: 16, color: Colors.white),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
                         _userName,
                         style: const TextStyle(
                           color: Color(0xFF475569),
@@ -527,9 +657,9 @@ class _SystemAdminMainNavigationWebState
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
             ],
           );

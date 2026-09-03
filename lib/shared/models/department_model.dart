@@ -32,8 +32,6 @@ class Department {
     return {
       'id': id,
       'name': name,
-      'description': description,
-      'is_active': isActive,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };

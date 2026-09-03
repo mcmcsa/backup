@@ -79,8 +79,6 @@ class BuildingService {
         'name': name.trim(),
         'code': code.trim().toUpperCase(),
         if (departmentId.isNotEmpty) 'department_id': departmentId,
-        'number_of_floors': numberOfFloors,
-        'is_active': true,
         'created_at': now,
         'updated_at': now,
       });
@@ -135,8 +133,6 @@ class BuildingService {
         'name': name.trim(),
         'code': code.trim().toUpperCase(),
         'department_id': departmentId.isNotEmpty ? departmentId : null,
-        'number_of_floors': numberOfFloors,
-        'is_active': isActive,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', id);
 
@@ -163,11 +159,6 @@ class BuildingService {
 
   static Future<String?> setActive(String id, {required bool active}) async {
     try {
-      await _db.from(_table).update({
-        'is_active': active,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', id);
-
       await AdminAuditLogService.logAction(
         title: active ? 'Restored Building' : 'Disabled Building',
         details: 'Building ID: $id',
@@ -217,8 +208,6 @@ class BuildingService {
     final newBuilding = {
       'name': name,
       'code': '${code.substring(0, code.length > 10 ? 10 : code.length)}_${now.millisecondsSinceEpoch % 10000}',
-      'number_of_floors': 1,
-      'is_active': true,
       'created_at': now.toIso8601String(),
       'updated_at': now.toIso8601String(),
     };

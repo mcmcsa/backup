@@ -14,12 +14,15 @@ class AppUser {
   final String? profileImage;
   final DateTime? createdAt;
 
+  final bool mustChangePassword;
+
   AppUser({
     required this.id,
     required this.email,
     required this.name,
     required this.role,
     required this.isActive,
+    this.mustChangePassword = false,
     this.campus,
     this.department,
     this.position,
@@ -29,10 +32,20 @@ class AppUser {
     this.createdAt,
   });
 
-  factory AppUser.fromMap(Map<String, dynamic> map) {
+  factory AppUser.fromMap(
+    Map<String, dynamic> map, {
+    Map<String, String>? deptMap,
+  }) {
     final teacherProfile = _asMap(map['teacher_users']);
     final maintenanceProfile = _asMap(map['maintenance_users']);
     final teacherDepartment = _asMap(teacherProfile['departments']);
+    final userMetadata = _asMap(map['user_metadata']);
+
+    final mustChange = map['must_change_password'] == true ||
+        userMetadata['must_change_password'] == true;
+
+    final deptId = teacherProfile['department_id']?.toString() ?? map['department_id']?.toString();
+    final fallbackDeptName = (deptId != null && deptMap != null) ? deptMap[deptId] : null;
 
     return AppUser(
       id: map['id']?.toString() ?? '',
@@ -40,23 +53,31 @@ class AppUser {
       name: map['name'] ?? '',
       role: _parseRole(map['role']),
       isActive: map['is_active'] ?? true,
+      mustChangePassword: mustChange,
       campus: map['campus'],
-      department:
-          teacherProfile['department'] ??
-          teacherProfile['department_name'] ??
-          teacherDepartment['name'] ??
-          map['department'],
-      position:
-          teacherProfile['position'] ?? maintenanceProfile['specialization'],
-      employeeId:
-          teacherProfile['employee_id'] ?? maintenanceProfile['employee_id'],
+      department: _nonEmptyString(teacherDepartment['name']) ??
+          _nonEmptyString(teacherProfile['department_name']) ??
+          _nonEmptyString(teacherProfile['department']) ??
+          _nonEmptyString(fallbackDeptName) ??
+          _nonEmptyString(map['department_name']) ??
+          _nonEmptyString(map['department']),
+      position: _nonEmptyString(teacherProfile['position']) ??
+          _nonEmptyString(maintenanceProfile['specialization']) ??
+          _nonEmptyString(map['position']),
+      employeeId: _nonEmptyString(teacherProfile['employee_id']) ??
+          _nonEmptyString(maintenanceProfile['employee_id']),
       phone: map['phone'],
       profileImage: map['profile_image'],
-      createdAt:
-          map['created_at'] != null
-              ? DateTime.tryParse(map['created_at'].toString())
-              : null,
+      createdAt: map['created_at'] != null
+          ? DateTime.tryParse(map['created_at'].toString())
+          : null,
     );
+  }
+
+  static String? _nonEmptyString(dynamic v) {
+    if (v == null) return null;
+    final str = v.toString().trim();
+    return str.isNotEmpty ? str : null;
   }
 
   Map<String, dynamic> toMap() {
@@ -70,9 +91,10 @@ class AppUser {
   }
 
   static Map<String, dynamic> _asMap(dynamic value) {
-    if (value is Map<String, dynamic>) return value;
-    if (value is List && value.isNotEmpty && value.first is Map<String, dynamic>) {
-      return value.first as Map<String, dynamic>;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    if (value is List && value.isNotEmpty) {
+      final first = value.first;
+      if (first is Map) return Map<String, dynamic>.from(first);
     }
     return const <String, dynamic>{};
   }

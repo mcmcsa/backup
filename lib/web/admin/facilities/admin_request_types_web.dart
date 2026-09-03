@@ -473,12 +473,14 @@ class _AdminRequestTypesWebState extends State<AdminRequestTypesWeb> {
                               Expanded(
                                 child: const _RequestTypeTableHeader(
                                   title: 'Request Type',
+                                  alignment: Alignment.centerLeft,
                                 ),
                               ),
                               SizedBox(
                                 width: actionsColWidth,
                                 child: const _RequestTypeTableHeader(
                                   title: 'Actions',
+                                  alignment: Alignment.center,
                                 ),
                               ),
                             ],
@@ -513,7 +515,7 @@ class _AdminRequestTypesWebState extends State<AdminRequestTypesWeb> {
                                     SizedBox(
                                       width: actionsColWidth,
                                       child: Align(
-                                        alignment: Alignment.centerLeft,
+                                        alignment: Alignment.center,
                                         child: IconButton(
                                           icon: const Icon(
                                             Icons.edit_outlined,
@@ -552,19 +554,26 @@ class _AdminRequestTypesWebState extends State<AdminRequestTypesWeb> {
 
 class _RequestTypeTableHeader extends StatelessWidget {
   final String title;
-  static const Color _headerTextColor = Color(0xFF0F172A);
+  final Alignment alignment;
+  static const Color _headerTextColor = Color(0xFF64748B);
 
-  const _RequestTypeTableHeader({required this.title});
+  const _RequestTypeTableHeader({
+    required this.title,
+    this.alignment = Alignment.centerLeft,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: _headerTextColor,
-        letterSpacing: 0.2,
+    return Align(
+      alignment: alignment,
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: _headerTextColor,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

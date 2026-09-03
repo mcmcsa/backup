@@ -1,14 +1,44 @@
 
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../models/room_model.dart';
 import '../services/room_type_service.dart';
 import 'admin_audit_log_service.dart';
 import 'work_request_service.dart';
 import 'app_notification_service.dart';
+import 'qr_code_history_service.dart';
 
 class RoomService {
   static SupabaseClient get _db => Supabase.instance.client;
   static const String _table = 'rooms';
+  static const Uuid _uuid = Uuid();
+
+  static Future<String?> uploadRoomImageBytes(Uint8List bytes, String fileName) async {
+    try {
+      final ext = fileName.contains('.') ? fileName.split('.').last : 'jpg';
+      final path = 'rooms/${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}.$ext';
+      try {
+        await _db.storage.from('room-images').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: 'image/$ext'),
+        );
+        return _db.storage.from('room-images').getPublicUrl(path);
+      } catch (_) {
+        await _db.storage.from('work-request-attachments').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: 'image/$ext'),
+        );
+        return _db.storage.from('work-request-attachments').getPublicUrl(path);
+      }
+    } catch (e) {
+      debugPrint('Error uploading room image: $e');
+      return null;
+    }
+  }
 
   static const String _selectWithJoins = '*, buildings(name), departments(name), room_types(name)';
 
@@ -95,6 +125,7 @@ class RoomService {
       cleanCode = input.substring(5).trim();
     }
 
+    Room? foundRoom;
     try {
       final byQrData = await _db
           .from(_table)
@@ -103,52 +134,65 @@ class RoomService {
           .maybeSingle();
       if (byQrData != null) {
         final list = await _mapRooms([byQrData]);
-        if (list.isNotEmpty) return list.first;
+        if (list.isNotEmpty) foundRoom = list.first;
       }
     } catch (_) {}
 
-    try {
-      final byQrFormatted = await _db
-          .from(_table)
-          .select(_selectWithJoins)
-          .ilike('qr_code_data', 'ROOM:$cleanCode')
-          .maybeSingle();
-      if (byQrFormatted != null) {
-        final list = await _mapRooms([byQrFormatted]);
-        if (list.isNotEmpty) return list.first;
-      }
-    } catch (_) {}
+    if (foundRoom == null) {
+      try {
+        final byQrFormatted = await _db
+            .from(_table)
+            .select(_selectWithJoins)
+            .ilike('qr_code_data', 'ROOM:$cleanCode')
+            .maybeSingle();
+        if (byQrFormatted != null) {
+          final list = await _mapRooms([byQrFormatted]);
+          if (list.isNotEmpty) foundRoom = list.first;
+        }
+      } catch (_) {}
+    }
 
-    try {
-      final byCode = await _db
-          .from(_table)
-          .select(_selectWithJoins)
-          .ilike('code', cleanCode)
-          .maybeSingle();
-      if (byCode != null) {
-        final list = await _mapRooms([byCode]);
-        if (list.isNotEmpty) return list.first;
-      }
-    } catch (_) {}
+    if (foundRoom == null) {
+      try {
+        final byCode = await _db
+            .from(_table)
+            .select(_selectWithJoins)
+            .ilike('code', cleanCode)
+            .maybeSingle();
+        if (byCode != null) {
+          final list = await _mapRooms([byCode]);
+          if (list.isNotEmpty) foundRoom = list.first;
+        }
+      } catch (_) {}
+    }
 
-    try {
-      final byCodeRaw = await _db
-          .from(_table)
-          .select(_selectWithJoins)
-          .ilike('code', input)
-          .maybeSingle();
-      if (byCodeRaw != null) {
-        final list = await _mapRooms([byCodeRaw]);
-        if (list.isNotEmpty) return list.first;
-      }
-    } catch (_) {}
+    if (foundRoom == null) {
+      try {
+        final byCodeRaw = await _db
+            .from(_table)
+            .select(_selectWithJoins)
+            .ilike('code', input)
+            .maybeSingle();
+        if (byCodeRaw != null) {
+          final list = await _mapRooms([byCodeRaw]);
+          if (list.isNotEmpty) foundRoom = list.first;
+        }
+      } catch (_) {}
+    }
 
-    try {
-      final byId = await fetchById(cleanCode) ?? await fetchById(input);
-      if (byId != null) return byId;
-    } catch (_) {}
+    if (foundRoom == null) {
+      try {
+        final byId = await fetchById(cleanCode) ?? await fetchById(input);
+        if (byId != null) foundRoom = byId;
+      } catch (_) {}
+    }
 
-    return null;
+    if (foundRoom != null) {
+      // Record scan in qr_code_history
+      QRCodeHistoryService.recordScanForRoom(foundRoom.id);
+    }
+
+    return foundRoom;
   }
 
   // ─── Create ──────────────────────────────────────────────────────────────
@@ -162,6 +206,7 @@ class RoomService {
     required int seats,
     required String floor,
     required String status,
+    String? imageUrl,
   }) async {
     try {
       final existingCode = await _db
@@ -181,6 +226,7 @@ class RoomService {
         'seats': seats,
         'floor': floor.trim(),
         'status': status,
+        'image_url': imageUrl?.trim().isNotEmpty == true ? imageUrl!.trim() : null,
         'created_at': now,
         'updated_at': now,
       });
@@ -258,6 +304,8 @@ class RoomService {
     required String floor,
     required String status,
     required List<Room> allRooms,
+    String? imageUrl,
+    bool updateImage = false,
   }) async {
     try {
       final duplicateCode = allRooms.any(
@@ -273,7 +321,7 @@ class RoomService {
 
       final oldRoom = await fetchById(id);
 
-      await _db.from(_table).update({
+      final updateData = <String, dynamic>{
         'name': name.trim(),
         'code': code.trim().toUpperCase(),
         'building_id': buildingId.isNotEmpty ? buildingId : null,
@@ -283,7 +331,13 @@ class RoomService {
         'floor': floor.trim(),
         'status': status,
         'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', id);
+      };
+
+      if (updateImage) {
+        updateData['image_url'] = imageUrl?.trim().isNotEmpty == true ? imageUrl!.trim() : null;
+      }
+
+      await _db.from(_table).update(updateData).eq('id', id);
 
       await AdminAuditLogService.logAction(
         title: 'Updated Room',

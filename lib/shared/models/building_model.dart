@@ -48,8 +48,6 @@ class Building {
       'name': name,
       'code': code,
       if (departmentId.isNotEmpty) 'department_id': departmentId,
-      'number_of_floors': numberOfFloors,
-      'is_active': isActive,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };

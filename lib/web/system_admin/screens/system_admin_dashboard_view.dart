@@ -39,10 +39,19 @@ class _DashboardData {
 // Widget
 // ---------------------------------------------------------------------------
 class SystemAdminDashboardView extends StatefulWidget {
-  /// Called when the user taps "Create User" quick action.
+  /// Navigation callbacks for Quick Actions
   final VoidCallback? onCreateUser;
+  final VoidCallback? onAddDepartment;
+  final VoidCallback? onGenerateQR;
+  final VoidCallback? onBackupData;
 
-  const SystemAdminDashboardView({super.key, this.onCreateUser});
+  const SystemAdminDashboardView({
+    super.key,
+    this.onCreateUser,
+    this.onAddDepartment,
+    this.onGenerateQR,
+    this.onBackupData,
+  });
 
   @override
   State<SystemAdminDashboardView> createState() =>
@@ -92,6 +101,21 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
         LoginActivityService.fetchAdminLogs(),
       ]);
 
+      final rawLogs = results[5] as List<LoginActivity>;
+      final sanitizedLogs = rawLogs.map(LoginActivity.sanitize).toList();
+
+      final seenKeys = <String>{};
+      final uniqueLogs = <LoginActivity>[];
+      for (final log in sanitizedLogs) {
+        final window = log.loggedInAt.millisecondsSinceEpoch ~/ 600000;
+        final key = '${log.title}|${log.userName}|${log.details ?? ''}|$window';
+        if (seenKeys.add(key)) {
+          uniqueLogs.add(log);
+        }
+      }
+
+      uniqueLogs.sort((a, b) => b.loggedInAt.compareTo(a.loggedInAt));
+
       if (!mounted) return;
       setState(() {
         _data = _DashboardData(
@@ -100,7 +124,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
           rooms: results[2] as List<Room>,
           requests: results[3] as List<WorkRequest>,
           qrCount: results[4] as int,
-          recentActivity: (results[5] as List<LoginActivity>).take(12).toList(),
+          recentActivity: uniqueLogs.take(12).toList(),
         );
         _loading = false;
       });
@@ -127,12 +151,28 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
   int get _totalBuildings => _data!.buildings.length;
   int get _totalRooms => _data!.rooms.length;
   int get _totalRequests => _data!.requests.length;
-  int get _pendingCount =>
-      _data!.requests.where((r) => r.status == 'pending').length;
-  int get _approvedCount =>
-      _data!.requests.where((r) => r.status == 'approved').length;
-  int get _completedCount =>
-      _data!.requests.where((r) => r.status == 'completed').length;
+  int get _pendingCount => _data!.requests.where((r) {
+        final s = r.status.trim().toLowerCase();
+        return s == 'pending' || s == 'submitted';
+      }).length;
+
+  int get _approvedCount => _data!.requests.where((r) {
+        final s = r.status.trim().toLowerCase();
+        return s == 'approved' ||
+            s == 'in progress' ||
+            s == 'in_progress' ||
+            s == 'assigned' ||
+            s == 'confirmed' ||
+            s == 'accepted by maintenance' ||
+            s == 'pre-inspection submitted' ||
+            s == 'rework' ||
+            s == 'on going';
+      }).length;
+
+  int get _completedCount => _data!.requests.where((r) {
+        final s = r.status.trim().toLowerCase();
+        return s == 'completed' || s == 'resolved' || s == 'done';
+      }).length;
 
   /// Returns map of month-label → count for last 6 months.
   Map<String, int> get _requestsPerMonth {
@@ -158,7 +198,14 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
   Map<String, int> get _byCategory {
     final map = <String, int>{};
     for (final r in _data!.requests) {
-      final key = r.typeOfRequest.isNotEmpty ? r.typeOfRequest : 'Other';
+      String key = r.typeDisplay;
+      if (key.trim().isEmpty || key == 'N/A' || key == 'Other') {
+        if (r.title.trim().isNotEmpty) {
+          key = r.title.trim();
+        } else {
+          key = 'General Maintenance';
+        }
+      }
       map[key] = (map[key] ?? 0) + 1;
     }
     final sorted = map.entries.toList()
@@ -449,19 +496,19 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
         icon: Icons.business_rounded,
         label: 'Add Department',
         color: AdminStyles.secondary,
-        onTap: () => _snack('Department management coming soon'),
+        onTap: widget.onAddDepartment ?? () {},
       ),
       _QuickAction(
         icon: Icons.qr_code_2_rounded,
         label: 'Generate QR',
         color: Colors.purple,
-        onTap: () => _snack('QR generation available in the Rooms section'),
+        onTap: widget.onGenerateQR ?? () {},
       ),
       _QuickAction(
         icon: Icons.backup_rounded,
         label: 'Backup Data',
         color: AdminStyles.warning,
-        onTap: () => _snack('Database backup feature coming soon'),
+        onTap: widget.onBackupData ?? () {},
       ),
     ];
 
@@ -713,12 +760,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: card.isPulse
-              ? card.color.withValues(alpha: 0.4)
-              : AdminStyles.border,
-          width: card.isPulse ? 1.5 : 1,
-        ),
+        border: Border.all(color: AdminStyles.border, width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -743,21 +785,6 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
                 ),
                 child: Icon(card.icon, color: card.color, size: 20),
               ),
-              if (card.isPulse)
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: card.color,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: card.color.withValues(alpha: 0.5),
-                        blurRadius: 6,
-                      )
-                    ],
-                  ),
-                ),
             ],
           ),
           const SizedBox(height: 10),
@@ -798,22 +825,26 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
   Widget _buildChartsRow() {
     return Column(
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(flex: 5, child: _buildMonthlyChart()),
-            const SizedBox(width: 16),
-            Expanded(flex: 4, child: _buildCategoryChart()),
-          ],
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 5, child: _buildMonthlyChart()),
+              const SizedBox(width: 16),
+              Expanded(flex: 5, child: _buildCategoryChart()),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(flex: 4, child: _buildRoleDonut()),
-            const SizedBox(width: 16),
-            Expanded(flex: 5, child: _buildTopBuildingsChart()),
-          ],
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 5, child: _buildRoleDonut()),
+              const SizedBox(width: 16),
+              Expanded(flex: 5, child: _buildTopBuildingsChart()),
+            ],
+          ),
         ),
       ],
     );
@@ -1250,20 +1281,65 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
         ? 'System Admin'
         : log.role == 'campadmin'
             ? 'Campus Admin'
-            : log.role.substring(0, 1).toUpperCase() + log.role.substring(1);
+            : log.role.isNotEmpty
+                ? log.role.substring(0, 1).toUpperCase() + log.role.substring(1)
+                : 'User';
 
-    final elapsed = DateTime.now().difference(log.loggedInAt);
-    final timeAgo = elapsed.inMinutes < 60
-        ? '${elapsed.inMinutes}m ago'
-        : elapsed.inHours < 24
-            ? '${elapsed.inHours}h ago'
-            : '${elapsed.inDays}d ago';
+    final now = DateTime.now();
+    final logTime = log.loggedInAt.toLocal();
+    var elapsed = now.difference(logTime);
+    if (elapsed.isNegative) {
+      elapsed = Duration.zero;
+    }
+
+    final seconds = elapsed.inSeconds;
+    final minutes = elapsed.inMinutes;
+    final hours = elapsed.inHours;
+    final days = elapsed.inDays;
+
+    String timeAgo;
+    if (seconds < 30) {
+      timeAgo = 'Just now';
+    } else if (minutes < 60) {
+      timeAgo = minutes <= 1 ? '1min ago' : '${minutes}mins ago';
+    } else if (hours < 24) {
+      timeAgo = hours == 1 ? '1hr ago' : '${hours}hrs ago';
+    } else if (days < 7) {
+      timeAgo = days == 1 ? '1 day ago' : '$days days ago';
+    } else if (days < 30) {
+      final weeks = (days / 7).floor();
+      timeAgo = weeks == 1 ? '1 week ago' : '$weeks weeks ago';
+    } else if (days < 365) {
+      final months = (days / 30).floor();
+      timeAgo = months == 1 ? '1 mon ago' : '$months mons ago';
+    } else {
+      final years = (days / 365).floor();
+      timeAgo = years == 1 ? '1 yr ago' : '$years yrs ago';
+    }
+
+    String? detailsText = log.details;
+    if (detailsText != null && detailsText.isNotEmpty) {
+      // Strip out raw UUID patterns e.g. (f725ea9d-ceab-4cf4-a2ab-adf0b9805199) or (ID: uuid)
+      detailsText = detailsText
+          .replaceAll(RegExp(r'\s*\([0-9a-fA-F\-]{36}\)'), '')
+          .replaceAll(RegExp(r'\s*\(ID:\s*[^\)]+\)'), '')
+          .replaceAll(RegExp(r'\s*ID:\s*[0-9a-fA-F\-]{36}'), '');
+
+      // Remove any technical SQL error/command string
+      if (detailsText.contains('PostgresException') ||
+          detailsText.contains('PGRST') ||
+          detailsText.toLowerCase().contains('select ') ||
+          detailsText.toLowerCase().contains('insert ') ||
+          detailsText.toLowerCase().contains('update ')) {
+        detailsText = null;
+      }
+    }
 
     return Container(
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : Border(
+            : const Border(
                 bottom: BorderSide(
                     color: AdminStyles.border, width: 1)),
       ),
@@ -1297,9 +1373,9 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
                   '${log.userName} · $roleLabel',
                   style: AdminStyles.bodyStyle(fontSize: 12),
                 ),
-                if (log.details != null && log.details!.isNotEmpty)
+                if (detailsText != null && detailsText.trim().isNotEmpty)
                   Text(
-                    log.details!,
+                    detailsText.trim(),
                     style: AdminStyles.bodyStyle(
                         fontSize: 11, color: AdminStyles.textMuted),
                     overflow: TextOverflow.ellipsis,
@@ -1320,6 +1396,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
+  // ignore: unused_element
   void _snack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

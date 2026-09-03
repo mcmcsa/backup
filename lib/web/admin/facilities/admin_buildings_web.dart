@@ -620,18 +620,18 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                         children: [
                           SizedBox(
                             width: codeColWidth,
-                            child: _buildTableHeader('Code'),
+                            child: _buildTableHeader('Code', alignment: Alignment.centerLeft),
                           ),
-                          Expanded(child: _buildTableHeader('Building Name')),
-                          Expanded(child: _buildTableHeader('Department')),
+                          Expanded(child: _buildTableHeader('Building Name', alignment: Alignment.centerLeft)),
+                          Expanded(child: _buildTableHeader('Department', alignment: Alignment.centerLeft)),
                           SizedBox(
                             width: roomsColWidth,
-                            child: Center(child: _buildTableHeader('Rooms')),
+                            child: _buildTableHeader('Rooms', alignment: Alignment.center),
                           ),
                           SizedBox(width: columnsGap),
                           SizedBox(
                             width: actionsColWidth,
-                            child: _buildTableHeader('Actions'),
+                            child: _buildTableHeader('Actions', alignment: Alignment.center),
                           ),
                         ],
                       ),
@@ -698,7 +698,7 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                                 SizedBox(
                                   width: actionsColWidth,
                                   child: Align(
-                                    alignment: Alignment.centerLeft,
+                                    alignment: Alignment.center,
                                     child: IconButton(
                                       icon: const Icon(
                                         Icons.edit_outlined,
@@ -729,11 +729,12 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
     );
   }
 
-  Widget _buildTableHeader(String title) {
-    return Center(
+  Widget _buildTableHeader(String title, {Alignment alignment = Alignment.centerLeft}) {
+    return Align(
+      alignment: alignment,
       child: Text(
         title.toUpperCase(),
-        textAlign: TextAlign.center,
+        textAlign: alignment == Alignment.center ? TextAlign.center : TextAlign.left,
         style: AdminStyles.bodyStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,

@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../shared/models/qr_code_history_model.dart';
 import '../../../shared/models/room_model.dart';
@@ -43,15 +44,41 @@ class _SystemAdminQrManagementViewState
   String _sortField = 'created'; // 'created' | 'scans'
   bool _sortAsc = false;
 
+  RealtimeChannel? _syncChannel;
+
   @override
   void initState() {
     super.initState();
     _searchCtrl.addListener(() => setState(() => _page = 0));
     _load();
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    _syncChannel = Supabase.instance.client
+        .channel('system_admin_qr_sync')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'qr_code_history',
+          callback: (payload) {
+            if (mounted) _load();
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'rooms',
+          callback: (payload) {
+            if (mounted) _load();
+          },
+        )
+        .subscribe();
   }
 
   @override
   void dispose() {
+    _syncChannel?.unsubscribe();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -150,21 +177,19 @@ class _SystemAdminQrManagementViewState
   Future<void> _toggleActive(QRCodeHistory qr) async {
     final activate = !qr.isActive;
     final confirmed = await _confirm(
-      title: activate ? 'Restore QR Code' : 'Deactivate QR Code',
+      title: activate ? 'Activate QR Code' : 'Deactivate QR Code',
       message: activate
-          ? 'Restore this QR Code? It will be active for scanning again.'
-          : 'Deactivate this QR Code? It will no longer be usable for reporting.',
-      confirmLabel: activate ? 'Restore' : 'Deactivate',
+          ? 'Re-activate this QR Code for scanning and reporting?'
+          : 'Deactivate this QR Code? Users will not be able to report issues using it.',
+      confirmLabel: activate ? 'Activate' : 'Deactivate',
       danger: !activate,
     );
     if (!confirmed) return;
 
     try {
       if (activate) {
-        // Technically QRCodeHistoryService doesn't have an activateQRCode method yet
-        // so we just do nothing for now or alert user. 
-        _toast('Restore feature coming soon.', isError: true);
-        return;
+        await QRCodeHistoryService.activateQRCode(qr.id);
+        _toast('QR Code activated.');
       } else {
         await QRCodeHistoryService.deactivateQRCode(qr.id);
         _toast('QR Code deactivated.');
@@ -237,36 +262,85 @@ class _SystemAdminQrManagementViewState
       return;
     }
 
+    // Long Bond Paper size: 8.5 inches x 13.0 inches
+    const longBondFormat = PdfPageFormat(
+      8.5 * PdfPageFormat.inch,
+      13.0 * PdfPageFormat.inch,
+      marginTop: 0.4 * PdfPageFormat.inch,
+      marginBottom: 0.4 * PdfPageFormat.inch,
+      marginLeft: 0.4 * PdfPageFormat.inch,
+      marginRight: 0.4 * PdfPageFormat.inch,
+    );
+
     final doc = pw.Document();
-    for (final qr in list) {
-      final room = _roomsMap[qr.roomId];
+    const qrPerPage = 6;
+    final totalPages = (list.length / qrPerPage).ceil();
+
+    for (var pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+      final startIdx = pageIdx * qrPerPage;
+      final chunk = list.sublist(startIdx, (startIdx + qrPerPage).clamp(0, list.length));
+
       doc.addPage(
         pw.Page(
-          pageFormat: PdfPageFormat.a4,
+          pageFormat: longBondFormat,
           build: (pw.Context context) {
-            return pw.Center(
-              child: pw.Column(
-                mainAxisAlignment: pw.MainAxisAlignment.center,
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
-                children: [
-                  pw.Text(room?.code ?? 'Unknown Room',
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                // Page Header
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'PSU Maintenance System - Room QR Codes (Long Bond Paper)',
                       style: pw.TextStyle(
-                          fontSize: 40, fontWeight: pw.FontWeight.bold)),
-                  pw.SizedBox(height: 10),
-                  pw.Text(room?.building ?? '',
-                      style: const pw.TextStyle(fontSize: 20)),
-                  pw.SizedBox(height: 40),
-                  pw.BarcodeWidget(
-                    data: qr.qrCodeValue,
-                    barcode: pw.Barcode.qrCode(),
-                    width: 300,
-                    height: 300,
+                          fontSize: 10,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.teal900),
+                    ),
+                    pw.Text(
+                      'Page ${pageIdx + 1} of $totalPages (${list.length} QR codes)',
+                      style: const pw.TextStyle(
+                          fontSize: 9, color: PdfColors.grey700),
+                    ),
+                  ],
+                ),
+                pw.SizedBox(height: 6),
+                pw.Divider(color: PdfColors.grey400, thickness: 0.8),
+                pw.SizedBox(height: 10),
+
+                // 3 Rows x 2 Columns Grid (6 QR Codes Per Page)
+                for (var r = 0; r < 3; r++) ...[
+                  pw.Expanded(
+                    child: pw.Row(
+                      children: [
+                        if (r * 2 < chunk.length) ...[
+                          pw.Expanded(
+                            child: _buildPdfQrCard(
+                              chunk[r * 2],
+                              _roomsMap[chunk[r * 2].roomId],
+                            ),
+                          ),
+                        ] else ...[
+                          pw.Expanded(child: pw.SizedBox()),
+                        ],
+                        pw.SizedBox(width: 14),
+                        if (r * 2 + 1 < chunk.length) ...[
+                          pw.Expanded(
+                            child: _buildPdfQrCard(
+                              chunk[r * 2 + 1],
+                              _roomsMap[chunk[r * 2 + 1].roomId],
+                            ),
+                          ),
+                        ] else ...[
+                          pw.Expanded(child: pw.SizedBox()),
+                        ],
+                      ],
+                    ),
                   ),
-                  pw.SizedBox(height: 20),
-                  pw.Text('Scan for Maintenance Request',
-                      style: const pw.TextStyle(fontSize: 16)),
+                  if (r < 2) pw.SizedBox(height: 14),
                 ],
-              ),
+              ],
             );
           },
         ),
@@ -275,7 +349,69 @@ class _SystemAdminQrManagementViewState
 
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => doc.save(),
-      name: 'All_QR_Codes',
+      name: 'PSU_Room_QR_Codes_LongBond',
+    );
+  }
+
+  pw.Widget _buildPdfQrCard(QRCodeHistory qr, Room? room) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.white,
+        borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+        border: pw.Border.all(color: PdfColors.grey400, width: 1.5),
+      ),
+      child: pw.Column(
+        mainAxisAlignment: pw.MainAxisAlignment.center,
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.Text(
+            room?.code ?? 'Unknown Room',
+            style: pw.TextStyle(
+              fontSize: 18,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.black,
+            ),
+            textAlign: pw.TextAlign.center,
+            maxLines: 1,
+          ),
+          pw.SizedBox(height: 3),
+          pw.Text(
+            room?.building ?? 'Campus Facility',
+            style: const pw.TextStyle(
+              fontSize: 11,
+              color: PdfColors.grey700,
+            ),
+            textAlign: pw.TextAlign.center,
+            maxLines: 1,
+          ),
+          pw.SizedBox(height: 10),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(6),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.white,
+              border: pw.Border.all(color: PdfColors.grey300, width: 1),
+              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+            ),
+            child: pw.BarcodeWidget(
+              data: qr.qrCodeValue,
+              barcode: pw.Barcode.qrCode(),
+              width: 125,
+              height: 125,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Text(
+            'Scan for Maintenance Request',
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.teal800,
+            ),
+            textAlign: pw.TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
@@ -987,24 +1123,37 @@ class _SystemAdminQrManagementViewState
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
       child: Row(
         children: [
-          _th('QR Preview', flex: 1),
+          const SizedBox(
+            width: 70,
+            child: Text(
+              'QR PREVIEW',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: AdminStyles.textMuted,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
           _th('Room & Location', flex: 3),
           _sortableHeader('Generated', 'created', flex: 2),
-          _sortableHeader('Scans', 'scans', flex: 1),
-          _th('Status', flex: 2),
+          _sortableHeader('Scans', 'scans', flex: 1, center: true),
+          _th('Status', flex: 2, center: true),
           _th('Actions', flex: 2, center: true),
         ],
       ),
     );
   }
 
-  Widget _sortableHeader(String label, String field, {int flex = 1}) {
+  Widget _sortableHeader(String label, String field, {int flex = 1, bool center = false}) {
     final active = _sortField == field;
     return Expanded(
       flex: flex,
       child: GestureDetector(
         onTap: () => _toggleSort(field),
         child: Row(
+          mainAxisAlignment: center ? MainAxisAlignment.center : MainAxisAlignment.start,
           children: [
             Text(label.toUpperCase(),
                 style: TextStyle(
@@ -1052,22 +1201,27 @@ class _SystemAdminQrManagementViewState
       child: Row(
         children: [
           // QR Preview
-          Expanded(
-            flex: 1,
-            child: Container(
-              width: 46, height: 46,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AdminStyles.border),
-              ),
-              padding: const EdgeInsets.all(4),
-              child: QrImageView(
-                data: qr.qrCodeValue,
-                version: QrVersions.auto,
+          SizedBox(
+            width: 70,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AdminStyles.border),
+                ),
+                padding: const EdgeInsets.all(4),
+                child: QrImageView(
+                  data: qr.qrCodeValue,
+                  version: QrVersions.auto,
+                ),
               ),
             ),
           ),
+          const SizedBox(width: 16),
           // Room & Location
           Expanded(
             flex: 3,
@@ -1106,6 +1260,7 @@ class _SystemAdminQrManagementViewState
             flex: 1,
             child: Text(
               '${qr.scannedCount}',
+              textAlign: TextAlign.center,
               style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
@@ -1113,7 +1268,7 @@ class _SystemAdminQrManagementViewState
           Expanded(
             flex: 2,
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: Alignment.center,
               child: _StatusChip(isActive: qr.isActive),
             ),
           ),
@@ -1139,6 +1294,15 @@ class _SystemAdminQrManagementViewState
         ),
         const SizedBox(width: 6),
         _IconBtn(
+          icon: qr.isActive
+              ? Icons.do_not_disturb_on_outlined
+              : Icons.check_circle_outline_rounded,
+          tooltip: qr.isActive ? 'Deactivate' : 'Activate',
+          color: qr.isActive ? AdminStyles.warning : AdminStyles.success,
+          onTap: () => _toggleActive(qr),
+        ),
+        const SizedBox(width: 6),
+        _IconBtn(
           icon: Icons.print_outlined,
           tooltip: 'Print PDF',
           color: AdminStyles.primary,
@@ -1155,15 +1319,22 @@ class _SystemAdminQrManagementViewState
             if (v == 'delete') _delete(qr);
           },
           itemBuilder: (ctx) => [
-            if (qr.isActive)
-              PopupMenuItem(
-                value: 'toggle',
-                child: Row(children: [
-                  const Icon(Icons.do_not_disturb_on_rounded, size: 18, color: AdminStyles.warning),
-                  const SizedBox(width: 10),
-                  Text('Deactivate', style: AdminStyles.bodyStyle(color: AdminStyles.warning, fontWeight: FontWeight.w600)),
-                ]),
-              ),
+            PopupMenuItem(
+              value: 'toggle',
+              child: Row(children: [
+                Icon(
+                    qr.isActive
+                        ? Icons.do_not_disturb_on_rounded
+                        : Icons.check_circle_rounded,
+                    size: 18,
+                    color: qr.isActive ? AdminStyles.warning : AdminStyles.success),
+                const SizedBox(width: 10),
+                Text(qr.isActive ? 'Deactivate' : 'Activate',
+                    style: AdminStyles.bodyStyle(
+                        color: qr.isActive ? AdminStyles.warning : AdminStyles.success,
+                        fontWeight: FontWeight.w600)),
+              ]),
+            ),
             PopupMenuItem(
               value: 'delete',
               child: Row(children: [
@@ -1376,11 +1547,55 @@ class _SystemAdminQrManagementViewState
 //  Detail Dialog
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _QrDetailDialog extends StatelessWidget {
+class _QrDetailDialog extends StatefulWidget {
   final QRCodeHistory qr;
   final Room? room;
 
   const _QrDetailDialog({required this.qr, required this.room});
+
+  @override
+  State<_QrDetailDialog> createState() => _QrDetailDialogState();
+}
+
+class _QrDetailDialogState extends State<_QrDetailDialog> {
+  late QRCodeHistory _qr = widget.qr;
+  RealtimeChannel? _realtimeChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    _realtimeChannel = Supabase.instance.client
+        .channel('qr_detail_sync_${widget.qr.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'qr_code_history',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: widget.qr.id,
+          ),
+          callback: (payload) {
+            final newRecord = payload.newRecord;
+            if (newRecord != null && newRecord.isNotEmpty && mounted) {
+              setState(() {
+                _qr = QRCodeHistory.fromMap(newRecord);
+              });
+            }
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1417,33 +1632,30 @@ class _QrDetailDialog extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.all(12),
                 child: QrImageView(
-                  data: qr.qrCodeValue,
+                  data: _qr.qrCodeValue,
                   version: QrVersions.auto,
                 ),
               ),
               const SizedBox(height: 20),
-              Text(room?.code ?? 'Unknown Room', style: AdminStyles.headingStyle(fontSize: 22)),
-              Text(room?.building ?? 'Unknown Building', style: AdminStyles.bodyStyle(fontSize: 14, color: AdminStyles.textSecondary)),
+              Text(widget.room?.code ?? 'Unknown Room', style: AdminStyles.headingStyle(fontSize: 22)),
+              Text(widget.room?.building ?? 'Unknown Building', style: AdminStyles.bodyStyle(fontSize: 14, color: AdminStyles.textSecondary)),
               const SizedBox(height: 16),
-              _StatusChip(isActive: qr.isActive),
+              _StatusChip(isActive: _qr.isActive),
               const SizedBox(height: 20),
               const Divider(color: AdminStyles.border),
               const SizedBox(height: 16),
 
-              _row(Icons.fingerprint_rounded, 'QR Value', qr.qrCodeValue),
-              _row(Icons.calendar_today_outlined, 'Generated', _fmt(qr.createdAt)),
-              _row(Icons.qr_code_scanner_rounded, 'Total Scans', '${qr.scannedCount}'),
-              _row(Icons.update_rounded, 'Last Scanned', qr.lastScanned != null ? _fmt(qr.lastScanned!) : 'Never'),
+              _row(Icons.fingerprint_rounded, 'QR Value', _qr.qrCodeValue),
+              _row(Icons.calendar_today_outlined, 'Generated', _fmt(_qr.createdAt)),
+              _row(Icons.qr_code_scanner_rounded, 'Total Scans', '${_qr.scannedCount}'),
+              _row(Icons.update_rounded, 'Last Scanned', _qr.lastScanned != null ? _fmt(_qr.lastScanned!) : 'Never'),
 
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.print_outlined, size: 18),
-                  onPressed: () {
-                    // Logic is handled at list level, just close or print
-                    Navigator.pop(context);
-                  },
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  onPressed: () => Navigator.pop(context),
                   label: const Text('Close', style: TextStyle(fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AdminStyles.primary,

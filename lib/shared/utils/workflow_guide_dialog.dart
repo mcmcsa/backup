@@ -71,75 +71,142 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
         description: 'Track your completed tickets and statistics under the "History" tab.',
       ),
     ];
-  } else if (cleanRole == 'campadmin' || cleanRole == 'admin' || cleanRole == 'campus_admin') {
-    title = 'Campus Administrator Guide';
-    introText = 'As an Administrator, you orchestrate workflows, assign resources, and manage campus assets:';
+  } else if (cleanRole == 'admin' ||
+      cleanRole == 'system_admin' ||
+      cleanRole == 'sysadmin' ||
+      cleanRole == 'systemadministrator') {
+    title = 'System Administrator Guide';
+    introText =
+        'As the System Administrator, you manage global settings, user accounts, facility setup, security, system health, and database backups:';
     items = [
       GuideActionItem(
-        icon: Icons.rate_review_rounded,
-        title: 'Review & Approve Tickets',
-        description: 'Approve new tickets under Pending. Set priority (Standard/High), assign technicians, and sign to dispatch.',
+        icon: Icons.manage_accounts_rounded,
+        title: 'Global User Accounts',
+        description:
+            'Create new users, configure credentials, assign user roles (Faculty, Maintenance, Admin), and enable or disable accounts under "Users Management".',
       ),
       GuideActionItem(
-        icon: Icons.policy_rounded,
-        title: 'Inspection Evaluations',
-        description: 'Review submitted Pre-Inspection reports to confirm work starts, and inspect Post-Repair reports to close tickets or request Rework.',
+        icon: Icons.apartment_rounded,
+        title: 'Facility & Location Setup',
+        description:
+            'Manage departments, facility buildings, floor levels, room categories, request types, and room setups under "Facility Management" & "Rooms Management".',
       ),
       GuideActionItem(
-        icon: Icons.domain_rounded,
-        title: 'Campus Facility Setup',
-        description: 'Under Facilities, manage departments, buildings, floors, rooms, and request categories.',
-      ),
-      GuideActionItem(
-        icon: Icons.people_rounded,
-        title: 'Technician Management',
-        description: 'Oversee maintenance staff rosters, view active workloads, and delegate tasks efficiently.',
+        icon: Icons.qr_code_2_rounded,
+        title: 'QR Code Management',
+        description:
+            'Generate, preview, batch print, and manage room QR codes across campuses for rapid issue reporting.',
       ),
       GuideActionItem(
         icon: Icons.campaign_rounded,
         title: 'System Announcements',
-        description: 'Broadcast system-wide notices to inform requestors and maintenance staff about schedules or outages.',
+        description:
+            'Broadcast system-wide notices to inform requestors and maintenance staff about maintenance schedules or outages.',
+      ),
+      GuideActionItem(
+        icon: Icons.history_edu_rounded,
+        title: 'Audit Logging & Security',
+        description:
+            'Inspect detailed audit trails to track security actions, status modifications, and administrator updates across the system.',
+      ),
+      GuideActionItem(
+        icon: Icons.monitor_heart_rounded,
+        title: 'System Health Dashboard',
+        description:
+            'Monitor real-time system performance, database connection states, response times, and storage health.',
+      ),
+      GuideActionItem(
+        icon: Icons.backup_rounded,
+        title: 'Backup & Restore Control',
+        description:
+            'Perform automated or manual database snapshot backups and execute data restoration when needed.',
+      ),
+      GuideActionItem(
+        icon: Icons.analytics_rounded,
+        title: 'Reports & Feedback',
+        description:
+            'View aggregated facility maintenance expense logs, operational metrics, and user feedback logs.',
+      ),
+    ];
+  } else if (cleanRole == 'campadmin' ||
+      cleanRole == 'campus_admin' ||
+      cleanRole == 'camp_admin') {
+    title = 'Campus Administrator Guide';
+    introText =
+        'As an Administrator, you orchestrate workflows, assign resources, and manage campus assets:';
+    items = [
+      GuideActionItem(
+        icon: Icons.rate_review_rounded,
+        title: 'Review & Approve Tickets',
+        description:
+            'Approve new tickets under Pending. Set priority (Standard/High), assign technicians, and sign to dispatch.',
+      ),
+      GuideActionItem(
+        icon: Icons.policy_rounded,
+        title: 'Inspection Evaluations',
+        description:
+            'Review submitted Pre-Inspection reports to confirm work starts, and inspect Post-Repair reports to close tickets or request Rework.',
+      ),
+      GuideActionItem(
+        icon: Icons.domain_rounded,
+        title: 'Campus Facility Setup',
+        description:
+            'Under Facilities, manage departments, buildings, floors, rooms, and request categories.',
+      ),
+      GuideActionItem(
+        icon: Icons.people_rounded,
+        title: 'Technician Management',
+        description:
+            'Oversee maintenance staff rosters, view active workloads, and delegate tasks efficiently.',
+      ),
+      GuideActionItem(
+        icon: Icons.campaign_rounded,
+        title: 'System Announcements',
+        description:
+            'Broadcast system-wide notices to inform requestors and maintenance staff about schedules or outages.',
       ),
       GuideActionItem(
         icon: Icons.chat_rounded,
         title: 'Ticket Chat Control',
-        description: 'Chat directly with both the requestor (faculty/non-faculty) and the assigned maintenance technician on any ticket.',
+        description:
+            'Chat directly with both the requestor (faculty/non-faculty) and the assigned maintenance technician on any ticket.',
       ),
       GuideActionItem(
         icon: Icons.analytics_rounded,
         title: 'Analytics & Costs',
-        description: 'View overall facility maintenance expense logs, material usage, and response time metrics.',
+        description:
+            'View overall facility maintenance expense logs, material usage, and response time metrics.',
       ),
     ];
   } else {
-    // System Admin or generic guide
+    // Default / Generic guide
     title = 'System Administrator Guide';
-    introText = 'As the System Administrator, you manage global settings, security, database integrity, and accounts:';
+    introText =
+        'As the System Administrator, you manage global settings, security, database integrity, and accounts:';
     items = [
       GuideActionItem(
         icon: Icons.admin_panel_settings_rounded,
         title: 'Global User Accounts',
-        description: 'Create new users, modify roles, reset passwords, or suspend accounts under "Users Management".',
+        description:
+            'Create new users, modify roles, reset passwords, or suspend accounts under "Users Management".',
       ),
       GuideActionItem(
         icon: Icons.security_rounded,
         title: 'Audit Logging & Monitoring',
-        description: 'Inspect detailed audit trails to track security actions, status changes, and user updates.',
+        description:
+            'Inspect detailed audit trails to track security actions, status changes, and user updates.',
       ),
       GuideActionItem(
         icon: Icons.health_and_safety_rounded,
         title: 'System Health Dashboard',
-        description: 'Monitor real-time system performance, database connection states, response times, and storage indicators.',
+        description:
+            'Monitor real-time system performance, database connection states, response times, and storage indicators.',
       ),
       GuideActionItem(
         icon: Icons.backup_table_rounded,
         title: 'Backup & Restore Control',
-        description: 'Perform automated or manual database backups and restore them to maintain system reliability.',
-      ),
-      GuideActionItem(
-        icon: Icons.settings_applications_rounded,
-        title: 'System Configurations',
-        description: 'Set up global specializations, request classifications, room categories, and core parameters.',
+        description:
+            'Perform automated or manual database backups and restore them to maintain system reliability.',
       ),
     ];
   }

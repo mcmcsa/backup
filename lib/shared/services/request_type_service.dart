@@ -43,9 +43,6 @@ class RequestTypeService {
       final now = DateTime.now().toIso8601String();
       await _db.from(_table).insert({
         'name': name.trim(),
-        'description': description.trim(),
-        'priority': priority,
-        'is_active': isActive,
         'created_at': now,
         'updated_at': now,
       });
@@ -86,9 +83,6 @@ class RequestTypeService {
 
       await _db.from(_table).update({
         'name': name.trim(),
-        'description': description.trim(),
-        'priority': priority,
-        'is_active': isActive,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', id);
 
@@ -114,7 +108,6 @@ class RequestTypeService {
   // ─── Status & Delete ──────────────────────────────────────────────────────
 
   static Future<void> setActive(String id, bool isActive, String name) async {
-    await _db.from(_table).update({'is_active': isActive}).eq('id', id);
     await AdminAuditLogService.logAction(
       title: isActive ? 'Restored Request Category' : 'Disabled Request Category',
       details: 'Category: $name',

@@ -483,30 +483,13 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
     if (isMobile) {
       return Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _RoleOptionCard(
-                  title: 'System Admin',
-                  desc: 'Full access to all system features.',
-                  icon: Icons.shield_rounded,
-                  color: AdminStyles.error,
-                  isSelected: _selectedRole == 'admin',
-                  onTap: () => setState(() => _selectedRole = 'admin'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _RoleOptionCard(
-                  title: 'Campus Admin',
-                  desc: 'Manage requests for a campus.',
-                  icon: Icons.admin_panel_settings_rounded,
-                  color: AdminStyles.warning,
-                  isSelected: _selectedRole == 'campadmin',
-                  onTap: () => setState(() => _selectedRole = 'campadmin'),
-                ),
-              ),
-            ],
+          _RoleOptionCard(
+            title: 'Campus Admin',
+            desc: 'Manage requests for a campus.',
+            icon: Icons.admin_panel_settings_rounded,
+            color: AdminStyles.warning,
+            isSelected: _selectedRole == 'campadmin',
+            onTap: () => setState(() => _selectedRole = 'campadmin'),
           ),
           const SizedBox(height: 12),
           Row(
@@ -542,14 +525,6 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
       spacing: 16,
       runSpacing: 16,
       children: [
-        _RoleOptionCard(
-          title: 'System Admin',
-          desc: 'Full access to all system features.',
-          icon: Icons.shield_rounded,
-          color: AdminStyles.error,
-          isSelected: _selectedRole == 'admin',
-          onTap: () => setState(() => _selectedRole = 'admin'),
-        ),
         _RoleOptionCard(
           title: 'Campus Admin',
           desc: 'Manage requests for a campus.',

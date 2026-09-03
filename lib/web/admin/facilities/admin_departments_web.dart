@@ -468,11 +468,11 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: _buildTableHeader('Department Name'),
+                                child: _buildTableHeader('Department Name', alignment: Alignment.centerLeft),
                               ),
                               SizedBox(
                                 width: actionsColWidth,
-                                child: _buildTableHeader('Actions'),
+                                child: _buildTableHeader('Actions', alignment: Alignment.center),
                               ),
                             ],
                           ),
@@ -503,7 +503,7 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
                                     SizedBox(
                                       width: actionsColWidth,
                                       child: Align(
-                                        alignment: Alignment.centerLeft,
+                                        alignment: Alignment.center,
                                         child: IconButton(
                                           icon: const Icon(
                                             Icons.edit_outlined,
@@ -539,11 +539,12 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
     );
   }
 
-  Widget _buildTableHeader(String title) {
-    return Center(
+  Widget _buildTableHeader(String title, {Alignment alignment = Alignment.centerLeft}) {
+    return Align(
+      alignment: alignment,
       child: Text(
         title.toUpperCase(),
-        textAlign: TextAlign.center,
+        textAlign: alignment == Alignment.center ? TextAlign.center : TextAlign.left,
         style: AdminStyles.bodyStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,

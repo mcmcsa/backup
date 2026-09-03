@@ -27,11 +27,27 @@ class LoginActivity {
     required this.loggedInAt,
   });
 
+  static DateTime _parseDateTime(dynamic raw) {
+    if (raw == null) return DateTime.now();
+    if (raw is DateTime) return raw.isUtc ? raw.toLocal() : raw;
+    final str = raw.toString().trim();
+    if (str.isEmpty) return DateTime.now();
+
+    final isoStr = str.contains(' ') ? str.replaceFirst(' ', 'T') : str;
+    final parsed = DateTime.tryParse(isoStr);
+    if (parsed != null) {
+      return parsed.isUtc ? parsed.toLocal() : parsed;
+    }
+    return DateTime.now();
+  }
+
   factory LoginActivity.fromMap(Map<String, dynamic> map) {
     final timestampRaw =
-        map['logged_in_at']?.toString() ?? map['logged_at']?.toString();
+        map['logged_in_at'] ?? map['logged_at'] ?? map['created_at'];
 
-    return LoginActivity(
+    final parsedTime = _parseDateTime(timestampRaw);
+
+    final raw = LoginActivity(
       userId: map['user_id']?.toString() ?? '',
       userName: map['user_name']?.toString() ?? '',
       role: map['role']?.toString() ?? '',
@@ -39,9 +55,81 @@ class LoginActivity {
       title: map['title']?.toString() ?? 'Admin Login',
       details: map['details']?.toString(),
       workRequestId: map['work_request_id']?.toString(),
-      loggedInAt: DateTime.parse(
-        timestampRaw ?? DateTime.now().toIso8601String(),
-      ),
+      loggedInAt: parsedTime,
+    );
+
+    return sanitize(raw);
+  }
+
+  static LoginActivity sanitize(LoginActivity log) {
+    String cleanTitle = log.title;
+
+    final dbTriggerPattern =
+        RegExp(r'^Admin\s+(UPDATE|INSERT|DELETE)\s+on\s+([a_z0-9_]+)', caseSensitive: false);
+    final match = dbTriggerPattern.firstMatch(cleanTitle);
+    if (match != null) {
+      final actionRaw = match.group(1)!.toUpperCase();
+      final tableRaw = match.group(2)!.toLowerCase();
+
+      String actionLabel = 'Updated';
+      if (actionRaw == 'INSERT') actionLabel = 'Added';
+      if (actionRaw == 'DELETE') actionLabel = 'Deleted';
+
+      String tableLabel = 'Record';
+      if (tableRaw == 'buildings') {
+        tableLabel = 'Building';
+      } else if (tableRaw == 'departments') {
+        tableLabel = 'Department';
+      } else if (tableRaw == 'rooms') {
+        tableLabel = 'Room';
+      } else if (tableRaw == 'room_types') {
+        tableLabel = 'Room Type';
+      } else if (tableRaw == 'floors') {
+        tableLabel = 'Floor';
+      } else if (tableRaw == 'request_types') {
+        tableLabel = 'Request Type';
+      } else if (tableRaw == 'users') {
+        tableLabel = 'User';
+      }
+
+      cleanTitle = '$actionLabel $tableLabel';
+    }
+
+    String? cleanDetails = log.details;
+    if (cleanDetails != null && cleanDetails.trim().isNotEmpty) {
+      final trimmed = cleanDetails.trim();
+      if (trimmed.startsWith('{') ||
+          trimmed.contains('"table"') ||
+          trimmed.contains('"schema"') ||
+          trimmed.contains('"operation"') ||
+          trimmed.contains('"record_id"')) {
+        cleanDetails = null;
+      } else {
+        cleanDetails = cleanDetails
+            .replaceAll(RegExp(r'\s*\([0-9a-fA-F\-]{36}\)'), '')
+            .replaceAll(RegExp(r'\s*\(ID:\s*[^\)]+\)'), '')
+            .replaceAll(RegExp(r'\s*ID:\s*[0-9a-fA-F\-]{36}'), '');
+
+        if (cleanDetails.contains('PostgresException') ||
+            cleanDetails.contains('PGRST') ||
+            cleanDetails.toLowerCase().contains('select ') ||
+            cleanDetails.toLowerCase().contains('insert ') ||
+            cleanDetails.toLowerCase().contains('update ')) {
+          cleanDetails = null;
+        }
+      }
+    }
+
+    return LoginActivity(
+      userId: log.userId,
+      userName: log.userName,
+      role: log.role,
+      eventType: log.eventType,
+      title: cleanTitle,
+      details:
+          cleanDetails?.trim().isNotEmpty == true ? cleanDetails!.trim() : null,
+      workRequestId: log.workRequestId,
+      loggedInAt: log.loggedInAt,
     );
   }
 
@@ -105,10 +193,15 @@ class LoginActivityService {
 
   static Future<void> recordLogin(AppUser user) async {
     String title = 'User Login';
-    if (user.role == UserRole.admin) title = 'Admin Login';
-    else if (user.role == UserRole.campadmin) title = 'Campus Admin Login';
-    else if (user.role == UserRole.teacher) title = 'Teacher Login';
-    else if (user.role == UserRole.maintenance) title = 'Maintenance Login';
+    if (user.role == UserRole.admin) {
+      title = 'Admin Login';
+    } else if (user.role == UserRole.campadmin) {
+      title = 'Campus Admin Login';
+    } else if (user.role == UserRole.teacher) {
+      title = 'Teacher Login';
+    } else if (user.role == UserRole.maintenance) {
+      title = 'Maintenance Login';
+    }
 
     await _append({
       'user_id': user.id,
@@ -204,34 +297,49 @@ class LoginActivityService {
 
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
-    if (raw == null) {
-      return dbLogs;
+    final localLogs = raw == null
+        ? <LoginActivity>[]
+        : (jsonDecode(raw) as List)
+            .map(
+              (item) =>
+                  LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)),
+            )
+            .where((log) =>
+                log.role == UserRole.admin.name ||
+                log.role == UserRole.campadmin.name)
+            .toList();
+
+    List<LoginActivity> result = _mergeAndDeduplicateLogs(dbLogs, localLogs);
+
+    if (userId != null && userId.trim().isNotEmpty) {
+      result = result.where((log) => log.userId == userId).toList();
     }
 
-    final localLogs = (jsonDecode(raw) as List)
-        .map(
-          (item) =>
-              LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)),
-        )
-        .where((log) =>
-            log.role == UserRole.admin.name ||
-            log.role == UserRole.campadmin.name)
-        .toList();
+    return result;
+  }
+
+  static List<LoginActivity> _mergeAndDeduplicateLogs(
+    List<LoginActivity> dbLogs,
+    List<LoginActivity> localLogs,
+  ) {
+    // DB logs are authoritative persistent records; localLogs are offline fallback
+    final List<LoginActivity> source =
+        dbLogs.isNotEmpty ? dbLogs : localLogs;
+
+    final sanitizedLogs = source.map(LoginActivity.sanitize).toList();
+    sanitizedLogs.sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
 
     final merged = <LoginActivity>[];
     final seen = <String>{};
 
-    for (final log in [...dbLogs, ...localLogs]) {
-      // Deduplicate by minute to catch duplicates with slightly different seconds
-      final minuteKey = log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 60000;
-      final key = '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|$minuteKey';
+    for (final log in sanitizedLogs) {
+      final titleKey = log.title.trim().toLowerCase();
+      final detailsKey = (log.details ?? '').trim().toLowerCase();
+      final window = log.loggedInAt.millisecondsSinceEpoch ~/ 300000;
+      final key = '${log.userId}|$titleKey|$detailsKey|$window';
       if (seen.add(key)) {
         merged.add(log);
       }
-    }
-
-    if (userId != null && userId.trim().isNotEmpty) {
-      merged.removeWhere((log) => log.userId != userId);
     }
 
     merged.sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));

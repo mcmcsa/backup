@@ -154,6 +154,40 @@ class QRCodeHistoryService {
     }
   }
 
+  // Activate QR code
+  static Future<void> activateQRCode(String id) async {
+    try {
+      await _db.from(_table).update({'is_active': true}).eq('id', id);
+      await AdminAuditLogService.logAction(
+        title: 'Activated QR Code',
+        details: 'QR Code ID: $id',
+      );
+    } catch (e) {
+      throw Exception('Error activating QR code: $e');
+    }
+  }
+
+  // Increment scan count when room is scanned
+  static Future<void> recordScanForRoom(String roomId) async {
+    try {
+      final matches = await _db
+          .from(_table)
+          .select('id, scanned_count')
+          .eq('room_id', roomId)
+          .order('created_at', ascending: false);
+
+      if (matches != null && (matches as List).isNotEmpty) {
+        final target = (matches as List).first;
+        final id = target['id'].toString();
+        final currentCount = (target['scanned_count'] as int?) ?? 0;
+        await _db.from(_table).update({
+          'scanned_count': currentCount + 1,
+          'last_scanned': DateTime.now().toIso8601String(),
+        }).eq('id', id);
+      }
+    } catch (_) {}
+  }
+
   // Clear all QR codes
   static Future<void> clearHistory() async {
     try {

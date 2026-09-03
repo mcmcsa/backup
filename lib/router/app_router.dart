@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../authentication/models/user_model.dart';
+import '../authentication/screens/force_change_password_screen.dart';
 import '../authentication/screens/login_page.dart';
 import '../authentication/screens/login_screen_web.dart';
 import '../authentication/services/auth_service.dart';
@@ -88,6 +89,13 @@ String? resolveAuthRedirect({
     return isAtLogin ? null : (kIsWeb ? '/' : '/login');
   }
 
+  if (user.mustChangePassword) {
+    if (location == '/force-change-password') {
+      return null;
+    }
+    return '/force-change-password';
+  }
+
   final dashboardRoute = user.dashboardRoute;
 
   if (isAtRoot || isAtStartup || isAtLogin) {
@@ -132,12 +140,16 @@ GoRouter buildAppRouter(AuthService authService) {
     },
     errorBuilder: (context, state) => Scaffold(
       body: Center(
-        child: Text('Navigation Error: ${state.error} \\nLocation: ${state.matchedLocation}', 
+        child: Text('Navigation Error: ${state.error} \nLocation: ${state.matchedLocation}', 
           style: const TextStyle(color: Colors.red)),
       ),
     ),
     observers: [appRouteObserver],
     routes: [
+      GoRoute(
+        path: '/force-change-password',
+        builder: (context, state) => const ForceChangePasswordScreen(),
+      ),
       GoRoute(
         path: '/',
         builder: (context, state) =>

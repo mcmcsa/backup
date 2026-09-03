@@ -6,18 +6,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/admin_styles.dart';
 import 'add_room_page.dart';
 import 'admin_room_details_page_web.dart';
-import 'admin_edit_room_page_web.dart';
 
 class AdminRoomsWeb extends StatefulWidget {
   final VoidCallback? onAddRoom;
   final ValueChanged<Room>? onEditRoom;
   final ValueChanged<Room>? onViewRoom;
+  final bool showAddEdit;
 
   const AdminRoomsWeb({
     super.key,
     this.onAddRoom,
     this.onEditRoom,
     this.onViewRoom,
+    this.showAddEdit = true,
   });
 
   @override
@@ -262,6 +263,22 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                           ),
                           const SizedBox(width: 10),
                           _buildRefreshButton(),
+                          if (widget.showAddEdit) ...[
+                            const SizedBox(width: 10),
+                            ElevatedButton.icon(
+                              onPressed: _openAddRoomPage,
+                              icon: const Icon(Icons.add_rounded, size: 18),
+                              label: const Text('Add Room'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _primaryBlue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -369,6 +386,22 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                       _buildViewToggle(),
                       const SizedBox(width: 10),
                       _buildRefreshButton(),
+                      if (widget.showAddEdit) ...[
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          onPressed: _openAddRoomPage,
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('Add Room'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
               ],
@@ -422,6 +455,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                                 room: filteredRooms[index],
                                 onViewRoom: widget.onViewRoom,
                                 onEditRoom: widget.onEditRoom,
+                                showAddEdit: widget.showAddEdit,
                               );
                             },
                           );
@@ -443,6 +477,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                                   room: filteredRooms[index],
                                   onViewRoom: widget.onViewRoom,
                                   onEditRoom: widget.onEditRoom,
+                                  showAddEdit: widget.showAddEdit,
                                 ),
                               );
                             },
@@ -495,6 +530,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                       room: filtered[index],
                       onViewRoom: widget.onViewRoom,
                       onEditRoom: widget.onEditRoom,
+                      showAddEdit: widget.showAddEdit,
                     );
                   },
                 ),
@@ -927,25 +963,17 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                       );
                     },
                   ),
-                  const SizedBox(width: 8),
-                  _ActionIconButton(
-                    tooltip: 'Edit room',
-                    icon: Icons.edit_outlined,
-                    onTap: () {
-                      final selectedRoom = room['room'] as Room;
-                      if (widget.onEditRoom != null) {
+                  if (widget.showAddEdit && widget.onEditRoom != null) ...[
+                    const SizedBox(width: 8),
+                    _ActionIconButton(
+                      tooltip: 'Edit room',
+                      icon: Icons.edit_outlined,
+                      onTap: () {
+                        final selectedRoom = room['room'] as Room;
                         widget.onEditRoom!(selectedRoom);
-                        return;
-                      }
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AdminEditRoomPageWeb(room: selectedRoom),
-                        ),
-                      );
-                    },
-                  ),
+                      },
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -1051,11 +1079,13 @@ class _RoomCard extends StatefulWidget {
   final Map<String, dynamic> room;
   final ValueChanged<Room>? onViewRoom;
   final ValueChanged<Room>? onEditRoom;
+  final bool showAddEdit;
 
   const _RoomCard({
     required this.room,
     this.onViewRoom,
     this.onEditRoom,
+    this.showAddEdit = true,
   });
 
   @override
@@ -1328,11 +1358,13 @@ class _RoomTableRow extends StatefulWidget {
   final Map<String, dynamic> room;
   final ValueChanged<Room>? onViewRoom;
   final ValueChanged<Room>? onEditRoom;
+  final bool showAddEdit;
 
   const _RoomTableRow({
     required this.room,
     this.onViewRoom,
     this.onEditRoom,
+    this.showAddEdit = true,
   });
 
   @override
@@ -1465,6 +1497,16 @@ class _RoomTableRowState extends State<_RoomTableRow> {
                       );
                     },
                   ),
+                  if (widget.showAddEdit && widget.onEditRoom != null) ...[
+                    const SizedBox(width: 8),
+                    _ActionIconButton(
+                      tooltip: 'Edit room',
+                      icon: Icons.edit_outlined,
+                      onTap: () {
+                        widget.onEditRoom!(selectedRoom);
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),

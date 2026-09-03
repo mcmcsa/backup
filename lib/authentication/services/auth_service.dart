@@ -20,6 +20,35 @@ class AuthService extends ChangeNotifier {
   String? _loginError;
   final bool _restoreSessionOnStartup;
   late final StreamSubscription<AuthState> _authStateSubscription;
+  RealtimeChannel? _profileRealtimeChannel;
+
+  /// Set to true while an admin is creating a user account to prevent
+  /// the isolated Supabase client from bleeding its auth state into this service.
+  static bool _suppressAuthChanges = false;
+
+  /// Call this before starting any user creation flow to silence auth events.
+  static void beginUserCreation() {
+    _suppressAuthChanges = true;
+    debugPrint('[AuthService] Auth state changes suppressed (user creation in progress).');
+  }
+
+  /// Call this after user creation completes. Resumes auth state handling
+  /// and queues a re-sync so the admin session is correctly reflected in the UI.
+  static AuthService? _instance;
+  static void endUserCreation() {
+    _suppressAuthChanges = false;
+    debugPrint('[AuthService] Auth state changes resumed.');
+    // Re-sync from the main client session (which was restored by SystemAdminService)
+    // so the UI reflects the admin's session, not the newly created user.
+    final inst = _instance;
+    if (inst != null) {
+      Future.microtask(() async {
+        await inst._syncCurrentUserFromSession(_auth.auth.currentSession);
+        inst.notifyListeners();
+      });
+    }
+  }
+
   static const List<String> _institutionalDomains = [
     'psu.edu.ph',
     'university.edu',
@@ -37,6 +66,7 @@ class AuthService extends ChangeNotifier {
 
   AuthService({bool restoreSessionOnStartup = true})
       : _restoreSessionOnStartup = restoreSessionOnStartup {
+    _instance = this; // Allow static endUserCreation() to call instance methods.
     _authStateSubscription = _auth.auth.onAuthStateChange.listen(
       (data) => _handleAuthStateChange(data.event, data.session),
     );
@@ -63,10 +93,19 @@ class AuthService extends ChangeNotifier {
     AuthChangeEvent event,
     Session? session,
   ) async {
+    // While an admin is creating a user account, all auth state events from
+    // the isolated Supabase client are suppressed to prevent session hijacking.
+    if (_suppressAuthChanges) {
+      debugPrint('[AuthService] Auth state change suppressed during user creation: $event');
+      _isSessionInitialized = true;
+      return;
+    }
     try {
       switch (event) {
         case AuthChangeEvent.signedOut:
         case AuthChangeEvent.userDeleted:
+          _profileRealtimeChannel?.unsubscribe();
+          _profileRealtimeChannel = null;
           _currentUser = null;
           _isPostLoginSplashActive = false;
           _pauseLoginRedirectOnce = false;
@@ -94,16 +133,77 @@ class AuthService extends ChangeNotifier {
   Future<void> _syncCurrentUserFromSession(Session? session) async {
     final supabaseUser = session?.user ?? _auth.auth.currentUser;
     if (supabaseUser == null) {
+      _profileRealtimeChannel?.unsubscribe();
+      _profileRealtimeChannel = null;
       _currentUser = null;
       return;
     }
 
     _currentUser = await _fetchProfile(supabaseUser.id);
+    _subscribeToProfileRealtime(supabaseUser.id);
     if (_currentUser?.role == UserRole.maintenance) {
       try {
         await MaintenanceStatusService.setOnlineOnLogin(_currentUser!.id);
       } catch (_) {}
     }
+  }
+
+  void _subscribeToProfileRealtime(String userId) {
+    if (_profileRealtimeChannel != null) return;
+    _profileRealtimeChannel = _auth
+        .channel('user_profile_sync_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'users',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id',
+            value: userId,
+          ),
+          callback: (_) async {
+            final updated = await _fetchProfile(userId);
+            if (updated != null) {
+              _currentUser = updated;
+              notifyListeners();
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'teacher_users',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (_) async {
+            final updated = await _fetchProfile(userId);
+            if (updated != null) {
+              _currentUser = updated;
+              notifyListeners();
+            }
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'maintenance_users',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (_) async {
+            final updated = await _fetchProfile(userId);
+            if (updated != null) {
+              _currentUser = updated;
+              notifyListeners();
+            }
+          },
+        )
+        .subscribe();
   }
 
   bool consumeLoginRedirectPause() {
@@ -623,6 +723,43 @@ class AuthService extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------
+  // Force change password for mandatory password reset on first login
+  // ---------------------------------------------------------------
+  Future<String?> forceChangePassword(String newPassword) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final user = _auth.auth.currentUser;
+      if (user == null) return 'No authenticated user found.';
+
+      await _auth.auth.updateUser(
+        UserAttributes(
+          password: newPassword.trim(),
+          data: {'must_change_password': false},
+        ),
+      );
+
+      try {
+        await _auth.from('users').update({
+          'must_change_password': false,
+        }).eq('id', user.id);
+      } catch (_) {}
+
+      _currentUser = await _fetchProfile(user.id);
+      notifyListeners();
+      return null;
+    } on AuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // ---------------------------------------------------------------
   // Internal: fetch profile row from Supabase
   // ---------------------------------------------------------------
   Future<AppUser?> _fetchProfile(String userId) async {
@@ -634,6 +771,22 @@ class AuthService extends ChangeNotifier {
     if (baseProfile == null) return null;
 
     final mergedProfile = Map<String, dynamic>.from(baseProfile);
+    final currentSupabaseUser = _auth.auth.currentUser;
+    if (currentSupabaseUser?.id == userId && currentSupabaseUser?.userMetadata != null) {
+      mergedProfile['user_metadata'] = currentSupabaseUser!.userMetadata;
+    }
+
+    // Build department lookup map for fallback resolution
+    final deptMap = <String, String>{};
+    try {
+      final List<dynamic> deptsJson = await _auth.from('departments').select('id, name');
+      for (final d in deptsJson) {
+        if (d is Map && d['id'] != null && d['name'] != null) {
+          deptMap[d['id'].toString()] = d['name'].toString();
+        }
+      }
+    } catch (_) {}
+
     final role = (mergedProfile['role'] ?? '').toString().toLowerCase();
 
     if (role == UserRole.teacher.name) {
@@ -643,7 +796,12 @@ class AuthService extends ChangeNotifier {
           .eq('user_id', userId)
           .maybeSingle();
       if (teacherProfile != null) {
-        mergedProfile['teacher_users'] = teacherProfile;
+        final tRow = Map<String, dynamic>.from(teacherProfile);
+        final deptId = tRow['department_id']?.toString();
+        if (deptId != null && deptMap.containsKey(deptId)) {
+          tRow['departments'] = {'name': deptMap[deptId]};
+        }
+        mergedProfile['teacher_users'] = tRow;
       }
     } else if (role == UserRole.maintenance.name) {
       final maintenanceProfile = await _auth
@@ -656,11 +814,12 @@ class AuthService extends ChangeNotifier {
       }
     }
 
-    return AppUser.fromMap(mergedProfile);
+    return AppUser.fromMap(mergedProfile, deptMap: deptMap);
   }
 
   @override
   void dispose() {
+    _profileRealtimeChannel?.unsubscribe();
     _authStateSubscription.cancel();
     super.dispose();
   }

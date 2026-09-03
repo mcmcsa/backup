@@ -1,4 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../shared/utils/app_route_observer.dart';
 import '../../../../shared/models/room_model.dart';
@@ -42,6 +44,25 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
   bool _isSaving = false;
   String _generatedQrData = '';
   bool _allowQrRegeneration = false;
+
+  Uint8List? _roomImageBytes;
+  String? _roomImageName;
+
+  Future<void> _pickRoomImage() async {
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _roomImageBytes = bytes;
+          _roomImageName = image.name;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking room image: $e');
+    }
+  }
 
   bool get _isDepartmentSelected =>
       _selectedDepartment != _noDepartmentOption &&
@@ -589,6 +610,14 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
         throw Exception('Selected room type was not found');
       }
 
+      String? imageUrl;
+      if (_roomImageBytes != null) {
+        imageUrl = await RoomService.uploadRoomImageBytes(
+          _roomImageBytes!,
+          _roomImageName ?? 'room.jpg',
+        );
+      }
+
       final room = Room(
         id: '',
         code: roomCode,
@@ -603,6 +632,7 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
         roomTypeId: roomType.id,
         roomType: _selectedRoomType,
         status: _selectedStatus,
+        imageUrl: imageUrl,
         qrCodeData: qrData,
       );
 
@@ -1283,6 +1313,105 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          _buildFieldBlock(
+            label: 'Room Photo (Optional)',
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFCBD5E1)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_roomImageBytes != null) ...[
+                    Stack(
+                      alignment: Alignment.topRight,
+                      children: [
+                        Container(
+                          height: 220,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Image.memory(
+                            _roomImageBytes!,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: CircleAvatar(
+                            backgroundColor: Colors.red.withValues(alpha: 0.85),
+                            radius: 15,
+                            child: IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 15, color: Colors.white),
+                              padding: EdgeInsets.zero,
+                              onPressed: () {
+                                setState(() {
+                                  _roomImageBytes = null;
+                                  _roomImageName = null;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _pickRoomImage,
+                      icon: const Icon(Icons.photo_camera_rounded, size: 16),
+                      label: const Text('Change Photo', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 36),
+                        foregroundColor: AdminStyles.primary,
+                        side: const BorderSide(color: AdminStyles.primary),
+                      ),
+                    ),
+                  ] else ...[
+                    InkWell(
+                      onTap: _pickRoomImage,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        height: 95,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFCBD5E1)),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.add_a_photo_outlined, size: 24, color: AdminStyles.primary),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Upload 1 room photo (optional)',
+                              style: AdminStyles.bodyStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AdminStyles.primary,
+                              ),
+                            ),
+                            Text(
+                              'Max 1 image (JPG, PNG)',
+                              style: AdminStyles.bodyStyle(fontSize: 10, color: AdminStyles.textMuted),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ],
       ),

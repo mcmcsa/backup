@@ -43,10 +43,6 @@ class DepartmentService {
       final now = DateTime.now().toIso8601String();
       await _db.from(_table).insert({
         'name': name.trim(),
-        'description': description?.trim().isNotEmpty == true
-            ? description!.trim()
-            : null,
-        'is_active': true,
         'created_at': now,
         'updated_at': now,
       });
@@ -93,10 +89,6 @@ class DepartmentService {
 
       await _db.from(_table).update({
         'name': name.trim(),
-        'description': description?.trim().isNotEmpty == true
-            ? description!.trim()
-            : null,
-        'is_active': isActive,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', id);
 
@@ -123,11 +115,6 @@ class DepartmentService {
 
   static Future<String?> setActive(String id, {required bool active}) async {
     try {
-      await _db.from(_table).update({
-        'is_active': active,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', id);
-
       await AdminAuditLogService.logAction(
         title: active ? 'Restored Department' : 'Disabled Department',
         details: 'Department ID: $id',
@@ -175,7 +162,6 @@ class DepartmentService {
     final now = DateTime.now();
     final newDept = {
       'name': name,
-      'is_active': true,
       'created_at': now.toIso8601String(),
       'updated_at': now.toIso8601String(),
     };

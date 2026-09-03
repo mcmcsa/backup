@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -82,6 +83,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   String _statusFilter = 'all';
 
   // ── Selection & pagination ────────────────────────────────────────────────
+  bool _showSelection = false;
   final Set<String> _selectedIds = {};
   int _currentPage = 0;
 
@@ -93,6 +95,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   // ─────────────────────────────────────────────────────────────────────────
 
   RealtimeChannel? _syncChannel;
+  StreamSubscription? _activitySub;
 
   @override
   void initState() {
@@ -100,6 +103,9 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     _searchCtrl.addListener(() => setState(() => _currentPage = 0));
     _load();
     _setupRealtime();
+    _activitySub = LoginActivityService.changes.listen((_) {
+      if (mounted) _load();
+    });
   }
 
   void _setupRealtime() {
@@ -129,11 +135,20 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
             if (mounted) _load();
           },
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'admin_activity_logs',
+          callback: (payload) {
+            if (mounted) _load();
+          },
+        )
         .subscribe();
   }
 
   @override
   void dispose() {
+    _activitySub?.cancel();
     _syncChannel?.unsubscribe();
     _searchCtrl.dispose();
     super.dispose();
@@ -153,7 +168,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
       final results = await Future.wait([
         SystemAdminService.fetchAllUsers(),
         DepartmentService.fetchAll(),
-        LoginActivityService.fetchAdminLogs(),
+        LoginActivityService.fetchAllLogs(),
       ]);
 
       final users = results[0] as List<AppUser>;
@@ -166,9 +181,11 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
         loginMap[u.id] = null;
       }
       for (final log in logs) {
-        final existing = loginMap[log.userId];
-        if (existing == null || log.loggedInAt.isAfter(existing)) {
-          loginMap[log.userId] = log.loggedInAt;
+        if (log.eventType == 'login') {
+          final existing = loginMap[log.userId];
+          if (existing == null || log.loggedInAt.isAfter(existing)) {
+            loginMap[log.userId] = log.loggedInAt;
+          }
         }
       }
 
@@ -240,13 +257,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     );
     if (!confirmed) return;
 
-    final err = await SystemAdminService.updateUserAccount(
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role.name,
-      isActive: activate,
-    );
+    final err = await SystemAdminService.setUserActive(user.id, activate);
     if (err == null) {
       _toast('${user.name} has been ${activate ? 'activated' : 'deactivated'}.');
       _load();
@@ -283,13 +294,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     );
     if (!confirmed) return;
 
-    final err = await SystemAdminService.updateUserAccount(
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role.name,
-      isActive: false,
-    );
+    final err = await SystemAdminService.setUserActive(user.id, false);
     if (err == null) {
       _toast('${user.name} has been removed.');
       _load();
@@ -308,16 +313,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     );
     if (!confirmed) return;
     for (final id in _selectedIds) {
-      final matches = _allUsers.where((u) => u.id == id);
-      if (matches.isEmpty) continue; // skip stale IDs safely
-      final user = matches.first;
-      await SystemAdminService.updateUserAccount(
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role.name,
-        isActive: false,
-      );
+      await SystemAdminService.setUserActive(id, false);
     }
     _toast('${_selectedIds.length} accounts deactivated.');
     _load();
@@ -462,7 +458,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
                   _buildSummaryCards(isMobile, constraints.maxWidth),
                   const SizedBox(height: 20),
                   _buildToolbar(isMobile, constraints.maxWidth),
-                  if (_selectedIds.isNotEmpty) ...[
+                  if (_showSelection && _selectedIds.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _buildBulkBar(),
                   ],
@@ -580,6 +576,35 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     final actionRow = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        OutlinedButton.icon(
+          onPressed: () {
+            setState(() {
+              _showSelection = !_showSelection;
+              if (!_showSelection) {
+                _selectedIds.clear();
+              }
+            });
+          },
+          icon: Icon(
+            _showSelection ? Icons.close_rounded : Icons.checklist_rounded,
+            size: 18,
+          ),
+          label: Text(_showSelection ? 'Cancel Select' : 'Select Users'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor:
+                _showSelection ? AdminStyles.error : AdminStyles.primary,
+            side: BorderSide(
+              color: _showSelection
+                  ? AdminStyles.error.withValues(alpha: 0.5)
+                  : AdminStyles.primary.withValues(alpha: 0.5),
+            ),
+            padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 12 : 16, vertical: 14),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(width: 8),
         ElevatedButton.icon(
           onPressed: () => setState(() => _isAddingUser = true),
           icon: const Icon(Icons.person_add_rounded, size: 18),
@@ -955,29 +980,34 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   Widget _buildTableHeader(bool allSelected, List<AppUser> pageUsers) {
     return Container(
       color: const Color(0xFFF8FAFC),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Row(
         children: [
-          Checkbox(
-            value: allSelected,
-            tristate: true,
-            onChanged: (v) {
-              setState(() {
-                if (allSelected) {
-                  _selectedIds.removeAll(pageUsers.map((u) => u.id));
-                } else {
-                  _selectedIds.addAll(pageUsers.map((u) => u.id));
-                }
-              });
-            },
-            activeColor: AdminStyles.primary,
-          ),
-          _th('Name', flex: 3),
-          _th('Email', flex: 3),
-          _th('Role', flex: 2),
-          _th('Department', flex: 2),
-          _th('Status', flex: 2),
-          _th('Last Login', flex: 2),
+          if (_showSelection) ...[
+            SizedBox(
+              width: 24,
+              child: Checkbox(
+                value: allSelected,
+                tristate: true,
+                onChanged: (v) {
+                  setState(() {
+                    if (allSelected) {
+                      _selectedIds.removeAll(pageUsers.map((u) => u.id));
+                    } else {
+                      _selectedIds.addAll(pageUsers.map((u) => u.id));
+                    }
+                  });
+                },
+                activeColor: AdminStyles.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          _th('Name', flex: 3, center: true),
+          _th('Email', flex: 3, center: true),
+          _th('Role', flex: 2, center: true),
+          _th('Status', flex: 2, center: true),
+          _th('Last Login', flex: 2, center: true),
           _th('Actions', flex: 2, center: true),
         ],
       ),
@@ -987,14 +1017,17 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   Widget _th(String label, {int flex = 1, bool center = false}) {
     return Expanded(
       flex: flex,
-      child: Text(
-        label.toUpperCase(),
-        textAlign: center ? TextAlign.center : TextAlign.left,
-        style: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          color: AdminStyles.textMuted,
-          letterSpacing: 1.0,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Text(
+          label.toUpperCase(),
+          textAlign: center ? TextAlign.center : TextAlign.left,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: AdminStyles.textMuted,
+            letterSpacing: 1.0,
+          ),
         ),
       ),
     );
@@ -1009,98 +1042,123 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
       color: isSelected
           ? AdminStyles.primary.withValues(alpha: 0.04)
           : Colors.transparent,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         children: [
-          Checkbox(
-            value: isSelected,
-            onChanged: (v) {
-              setState(() {
-                if (v == true) {
-                  _selectedIds.add(user.id);
-                } else {
-                  _selectedIds.remove(user.id);
-                }
-              });
-            },
-            activeColor: AdminStyles.primary,
-          ),
-          // Name + avatar
+          if (_showSelection) ...[
+            SizedBox(
+              width: 24,
+              child: Checkbox(
+                value: isSelected,
+                onChanged: (v) {
+                  setState(() {
+                    if (v == true) {
+                      _selectedIds.add(user.id);
+                    } else {
+                      _selectedIds.remove(user.id);
+                    }
+                  });
+                },
+                activeColor: AdminStyles.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          // Name + avatar (Left-aligned)
           Expanded(
             flex: 3,
-            child: Row(
-              children: [
-                _Avatar(name: user.name, role: user.role, size: 34),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.name,
-                        style: AdminStyles.bodyStyle(
-                          fontWeight: FontWeight.w700,
-                          color: AdminStyles.textPrimary,
-                          fontSize: 13,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (user.employeeId != null)
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  _Avatar(name: user.name, role: user.role, size: 34),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                         Text(
-                          'ID: ${user.employeeId}',
+                          user.name,
                           style: AdminStyles.bodyStyle(
-                              fontSize: 10, color: AdminStyles.textMuted),
+                            fontWeight: FontWeight.w700,
+                            color: AdminStyles.textPrimary,
+                            fontSize: 13,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                    ],
+                        if (user.employeeId != null)
+                          Text(
+                            'ID: ${user.employeeId}',
+                            style: AdminStyles.bodyStyle(
+                                fontSize: 10, color: AdminStyles.textMuted),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          // Email
+          // Email (Centered)
           Expanded(
             flex: 3,
-            child: Text(
-              user.email,
-              style: AdminStyles.bodyStyle(fontSize: 12),
-              overflow: TextOverflow.ellipsis,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.center,
+                child: Text(
+                  user.email,
+                  textAlign: TextAlign.center,
+                  style: AdminStyles.bodyStyle(fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
           ),
-          // Role
+          // Role (Centered)
           Expanded(
             flex: 2,
-            child: _RoleBadge(role: user.role),
-          ),
-          // Department
-          Expanded(
-            flex: 2,
-            child: Text(
-              user.department ?? '—',
-              style: AdminStyles.bodyStyle(fontSize: 12),
-              overflow: TextOverflow.ellipsis,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _RoleBadge(role: user.role, alignLeft: false),
             ),
           ),
-          // Status
+          // Status (Centered)
           Expanded(
             flex: 2,
-            child: _StatusBadge(isActive: user.isActive),
-          ),
-          // Last Login
-          Expanded(
-            flex: 2,
-            child: Text(
-              lastLogin != null ? _formatRelative(lastLogin) : 'Never',
-              style: AdminStyles.bodyStyle(
-                  fontSize: 11,
-                  color: lastLogin != null
-                      ? AdminStyles.textSecondary
-                      : AdminStyles.textMuted),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _StatusBadge(isActive: user.isActive, alignLeft: false),
             ),
           ),
-          // Actions
+          // Last Login (Centered)
           Expanded(
             flex: 2,
-            child: _buildActionButtons(user),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Align(
+                alignment: Alignment.center,
+                child: Text(
+                  lastLogin != null ? _formatRelative(lastLogin) : 'Never',
+                  textAlign: TextAlign.center,
+                  style: AdminStyles.bodyStyle(
+                      fontSize: 11,
+                      color: lastLogin != null
+                          ? AdminStyles.textSecondary
+                          : AdminStyles.textMuted),
+                ),
+              ),
+            ),
+          ),
+          // Actions (Centered)
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildActionButtons(user),
+            ),
           ),
         ],
       ),
@@ -1110,6 +1168,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   Widget _buildActionButtons(AppUser user) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
         _IconBtn(
           icon: Icons.visibility_outlined,
@@ -1117,12 +1176,14 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
           color: AdminStyles.primary,
           onTap: () => _showUserDetail(user),
         ),
+        const SizedBox(width: 6),
         _IconBtn(
           icon: Icons.edit_outlined,
           tooltip: 'Edit',
           color: AdminStyles.secondary,
           onTap: () => _showEditDialog(user),
         ),
+        const SizedBox(width: 6),
         _ActionMenu(
           items: [
             _MenuItem(
@@ -1374,11 +1435,29 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   // ── Utilities ─────────────────────────────────────────────────────────────
 
   String _formatRelative(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 30) return '${diff.inDays}d ago';
-    return '${(diff.inDays / 30).floor()}mo ago';
+    final now = DateTime.now();
+    final localDt = dt.toLocal();
+    var diff = now.difference(localDt);
+    if (diff.isNegative) {
+      diff = Duration.zero;
+    }
+
+    final seconds = diff.inSeconds;
+    final minutes = diff.inMinutes;
+    final hours = diff.inHours;
+    final days = diff.inDays;
+
+    if (seconds < 30) {
+      return 'Just now';
+    } else if (minutes < 60) {
+      return minutes <= 1 ? '1m ago' : '${minutes}m ago';
+    } else if (hours < 24) {
+      return '${hours}h ago';
+    } else if (days < 30) {
+      return '${days}d ago';
+    } else {
+      return '${(days / 30).floor()}mo ago';
+    }
   }
 }
 
@@ -1420,14 +1499,19 @@ class _Avatar extends StatelessWidget {
 class _RoleBadge extends StatelessWidget {
   final UserRole role;
   final bool small;
+  final bool alignLeft;
 
-  const _RoleBadge({required this.role, this.small = false});
+  const _RoleBadge({
+    required this.role,
+    this.small = false,
+    this.alignLeft = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final rs = _roleStyle(role);
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: alignLeft ? Alignment.centerLeft : Alignment.center,
       child: Container(
         padding: EdgeInsets.symmetric(
             horizontal: small ? 6 : 8, vertical: small ? 2 : 3),
@@ -1458,13 +1542,18 @@ class _RoleBadge extends StatelessWidget {
 class _StatusBadge extends StatelessWidget {
   final bool isActive;
   final bool compact;
+  final bool alignLeft;
 
-  const _StatusBadge({required this.isActive, this.compact = false});
+  const _StatusBadge({
+    required this.isActive,
+    this.compact = false,
+    this.alignLeft = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: alignLeft ? Alignment.centerLeft : Alignment.center,
       child: Container(
         padding: EdgeInsets.symmetric(
             horizontal: compact ? 6 : 8, vertical: compact ? 2 : 4),
@@ -1556,10 +1645,9 @@ class _ActionMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<int>(
-      icon: const Icon(Icons.more_vert_rounded,
-          color: AdminStyles.textMuted, size: 18),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      padding: EdgeInsets.zero,
+      tooltip: 'More actions',
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       onSelected: (i) => items[i].onTap(),
       itemBuilder: (ctx) => items.asMap().entries.map((e) {
         final item = e.value;
@@ -1577,6 +1665,19 @@ class _ActionMenu extends StatelessWidget {
           ),
         );
       }).toList(),
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: AdminStyles.textMuted.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Icon(
+          Icons.more_vert_rounded,
+          color: AdminStyles.textSecondary,
+          size: 16,
+        ),
+      ),
     );
   }
 }
@@ -1670,7 +1771,7 @@ class _UserDetailDialog extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _Avatar(name: user.name, role: user.role, size: 52),
+                            _Avatar(name: user.name, role: user.role, size: 48),
                             IconButton(
                               onPressed: () => Navigator.pop(context),
                               icon: const Icon(Icons.close_rounded,
@@ -1681,33 +1782,37 @@ class _UserDetailDialog extends StatelessWidget {
                         const SizedBox(height: 12),
                         Text(user.name,
                             style: AdminStyles.headingStyle(fontSize: 18)),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _RoleBadge(role: user.role),
-                            _StatusBadge(isActive: user.isActive),
+                            _RoleBadge(role: user.role, alignLeft: true),
+                            _StatusBadge(isActive: user.isActive, alignLeft: false),
                           ],
                         ),
                       ],
                     )
                   : Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        _Avatar(name: user.name, role: user.role, size: 52),
-                        const SizedBox(width: 16),
+                        _Avatar(name: user.name, role: user.role, size: 48),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(user.name,
-                                  style: AdminStyles.headingStyle(fontSize: 18)),
+                                  style: AdminStyles.headingStyle(fontSize: 18),
+                                  overflow: TextOverflow.ellipsis),
                               const SizedBox(height: 4),
-                              _RoleBadge(role: user.role),
+                              _RoleBadge(role: user.role, alignLeft: true),
                             ],
                           ),
                         ),
-                        _StatusBadge(isActive: user.isActive),
                         const SizedBox(width: 8),
+                        _StatusBadge(isActive: user.isActive, alignLeft: false),
+                        const SizedBox(width: 4),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close_rounded,
@@ -1801,9 +1906,8 @@ class _DetailRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: AdminStyles.textMuted),
+          Icon(icon, size: 18, color: AdminStyles.textMuted),
           const SizedBox(width: 10),
           SizedBox(
             width: 110,
@@ -1901,6 +2005,8 @@ class _EditUserDialogState extends State<_EditUserDialog> {
           _role == 'maintenance' && _posCtrl.text.trim().isNotEmpty
               ? _posCtrl.text.trim()
               : null,
+      updateRoleProfiles: true,
+      updatePhone: true,
     );
 
     setState(() => _saving = false);
@@ -1960,12 +2066,13 @@ class _EditUserDialogState extends State<_EditUserDialog> {
                 DropdownButtonFormField<String>(
                   initialValue: _role,
                   decoration: _inputDecor(Icons.shield_outlined),
-                  items: const [
-                    DropdownMenuItem(value: 'admin', child: Text('System Admin')),
-                    DropdownMenuItem(
+                  items: [
+                    if (widget.user.role.name == 'admin')
+                      const DropdownMenuItem(value: 'admin', child: Text('System Admin')),
+                    const DropdownMenuItem(
                         value: 'campadmin', child: Text('Campus Admin')),
-                    DropdownMenuItem(value: 'teacher', child: Text('Teacher')),
-                    DropdownMenuItem(
+                    const DropdownMenuItem(value: 'teacher', child: Text('Teacher')),
+                    const DropdownMenuItem(
                         value: 'maintenance', child: Text('Maintenance')),
                   ],
                   onChanged: (v) => setState(() => _role = v ?? _role),

@@ -489,10 +489,10 @@ class _AdminRoomTypesWebState extends State<AdminRoomTypesWeb> {
                           ),
                           child: Row(
                             children: [
-                              Expanded(child: _buildTableHeader('Type')),
+                              Expanded(child: _buildTableHeader('Type', alignment: Alignment.centerLeft)),
                               SizedBox(
                                 width: actionsColWidth,
-                                child: _buildTableHeader('Actions'),
+                                child: _buildTableHeader('Actions', alignment: Alignment.center),
                               ),
                             ],
                           ),
@@ -524,7 +524,7 @@ class _AdminRoomTypesWebState extends State<AdminRoomTypesWeb> {
                                     SizedBox(
                                       width: actionsColWidth,
                                       child: Align(
-                                        alignment: Alignment.centerLeft,
+                                        alignment: Alignment.center,
                                         child: IconButton(
                                           icon: const Icon(
                                             Icons.edit_outlined,
@@ -560,14 +560,17 @@ class _AdminRoomTypesWebState extends State<AdminRoomTypesWeb> {
     );
   }
 
-  Widget _buildTableHeader(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        color: _darkText,
-        letterSpacing: 0.2,
+  Widget _buildTableHeader(String title, {Alignment alignment = Alignment.centerLeft}) {
+    return Align(
+      alignment: alignment,
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: _subtleText,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

@@ -44,6 +44,19 @@ class MaintenanceAccount {
 }
 
 
+class _InMemoryGotrueAsyncStorage extends GotrueAsyncStorage {
+  const _InMemoryGotrueAsyncStorage();
+
+  @override
+  Future<String?> getItem({required String key}) async => null;
+
+  @override
+  Future<void> removeItem({required String key}) async {}
+
+  @override
+  Future<void> setItem({required String key, required String value}) async {}
+}
+
 class MaintenanceAccountService {
   static SupabaseClient get _db => Supabase.instance.client;
 
@@ -61,6 +74,7 @@ class MaintenanceAccountService {
       authOptions: const AuthClientOptions(
         authFlowType: AuthFlowType.implicit,
         autoRefreshToken: false,
+        pkceAsyncStorage: _InMemoryGotrueAsyncStorage(),
       ),
     );
 
@@ -87,6 +101,7 @@ class MaintenanceAccountService {
         'name': fullName.trim(),
         'role': 'maintenance',
         'is_active': true,
+        'must_change_password': true,
       }, onConflict: 'id');
 
       try {
@@ -381,6 +396,7 @@ class MaintenanceAccountService {
       authOptions: const AuthClientOptions(
         authFlowType: AuthFlowType.implicit,
         autoRefreshToken: false,
+        pkceAsyncStorage: _InMemoryGotrueAsyncStorage(),
       ),
     );
 
@@ -416,7 +432,11 @@ class MaintenanceAccountService {
       final response = await isolatedClient.auth.signUp(
         email: normalizedEmail,
         password: password,
-        data: {'name': fullName.trim(), 'role': 'maintenance'},
+        data: {
+          'name': fullName.trim(),
+          'role': 'maintenance',
+          'must_change_password': true,
+        },
       );
 
       final newUser = response.user;
