@@ -34,6 +34,9 @@ import 'shared/about_system_page.dart';
 import 'shared/settings_page_web.dart';
 import 'chat/admin_chat_page_web.dart';
 import '../../shared/models/work_request_model.dart';
+import 'package:go_router/go_router.dart';
+import 'tickets/admin_create_request_web.dart';
+import 'tickets/admin_room_verification_web.dart';
 import 'tickets/admin_work_process_web.dart';
 import 'admin_nav_controller.dart';
 
@@ -41,8 +44,19 @@ class AdminMainNavigationWeb extends StatefulWidget {
   static const int aboutIndex = 17;
   static const int chatIndex = 20;
   final int initialIndex;
+  final bool showCreateRequest;
+  final String? createRoomId;
+  final String? createRoomName;
+  final String? createBuildingName;
 
-  const AdminMainNavigationWeb({super.key, this.initialIndex = 0});
+  const AdminMainNavigationWeb({
+    super.key,
+    this.initialIndex = 0,
+    this.showCreateRequest = false,
+    this.createRoomId,
+    this.createRoomName,
+    this.createBuildingName,
+  });
 
   @override
   State<AdminMainNavigationWeb> createState() => _AdminMainNavigationWebState();
@@ -75,6 +89,8 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   static const int _roomsSubviewDetails = 3;
   static const int _ticketsSubviewList = 0;
   static const int _ticketsSubviewProcess = 1;
+  static const int _ticketsSubviewCreate = 2;
+  static const int _ticketsSubviewVerifyRoom = 3;
   static const FacilityQuickActionsConfig _facilityQuickActionsConfig =
       FacilityQuickActionsConfig(
         departmentsIndex: _departmentsIndex,
@@ -93,6 +109,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   int _roomsSubview = _roomsSubviewList;
   Room? _selectedRoom;
   int _ticketsSubview = _ticketsSubviewList;
+  Room? _verifiedRoom;
   WorkRequest? _selectedTicket;
   ChatRoom? _selectedChatRoom;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -151,9 +168,31 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    if (widget.showCreateRequest) {
+      if (widget.createRoomId != null || widget.createBuildingName != null) {
+        _ticketsSubview = _ticketsSubviewCreate;
+      } else {
+        _ticketsSubview = _ticketsSubviewVerifyRoom;
+      }
+    }
     _loadUserInfo();
     _loadUnreadNotificationCount();
     _subscribeNotifications();
+  }
+
+  @override
+  void didUpdateWidget(AdminMainNavigationWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.showCreateRequest && !oldWidget.showCreateRequest) {
+      setState(() {
+        _selectedIndex = _ticketsIndex;
+        if (widget.createRoomId != null || widget.createBuildingName != null) {
+          _ticketsSubview = _ticketsSubviewCreate;
+        } else {
+          _ticketsSubview = _ticketsSubviewVerifyRoom;
+        }
+      });
+    }
   }
 
   Future<void> _loadUserInfo() async {
@@ -304,6 +343,39 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
       case _workRequestsIndex:
         return const AdminWorkRequestsWeb();
       case _ticketsIndex:
+        if (_ticketsSubview == _ticketsSubviewVerifyRoom) {
+          return AdminRoomVerificationWeb(
+            onRoomVerified: (verifiedRoom) {
+              setState(() {
+                _verifiedRoom = verifiedRoom;
+                _ticketsSubview = _ticketsSubviewCreate;
+              });
+            },
+            onBack: () {
+              setState(() {
+                _ticketsSubview = _ticketsSubviewList;
+              });
+              if (GoRouterState.of(context).matchedLocation == '/admin/work-requests/create') {
+                context.go('/admin/dashboard');
+              }
+            },
+          );
+        }
+        if (_ticketsSubview == _ticketsSubviewCreate) {
+          final roomCode = (_verifiedRoom?.code.isNotEmpty == true) ? _verifiedRoom!.code : _verifiedRoom?.id;
+          return AdminCreateRequestWeb(
+            roomId: roomCode ?? widget.createRoomId,
+            roomName: _verifiedRoom?.name ?? widget.createRoomName,
+            buildingName: _verifiedRoom?.building ?? widget.createBuildingName,
+            departmentName: _verifiedRoom?.department,
+            floor: _verifiedRoom?.floor,
+            onBack: () {
+              setState(() {
+                _ticketsSubview = _ticketsSubviewVerifyRoom;
+              });
+            },
+          );
+        }
         if (_ticketsSubview == _ticketsSubviewProcess && _selectedTicket != null) {
           return AdminWorkProcessWeb(
             request: _selectedTicket!,
@@ -315,6 +387,12 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
             setState(() {
               _selectedTicket = request;
               _ticketsSubview = _ticketsSubviewProcess;
+            });
+          },
+          onCreateRequest: () {
+            setState(() {
+              _verifiedRoom = null;
+              _ticketsSubview = _ticketsSubviewVerifyRoom;
             });
           },
         );
@@ -709,6 +787,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
               _selectedIndex = index;
               _roomsSubview = _roomsSubviewList;
               _selectedRoom = null;
+              _ticketsSubview = _ticketsSubviewList;
             });
             if (closeDrawerOnTap && Navigator.of(context).canPop()) {
               Navigator.of(context).pop();

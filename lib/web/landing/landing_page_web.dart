@@ -31,14 +31,15 @@ class _LandingPageWebState extends State<LandingPageWeb> {
   final GlobalKey _howItWorksKey = GlobalKey();
   final GlobalKey _featuresKey = GlobalKey();
   final GlobalKey _aboutKey = GlobalKey();
+  final GlobalKey _contactKey = GlobalKey();
 
   void _scrollToSection(GlobalKey key) {
     final context = key.currentContext;
     if (context != null) {
       Scrollable.ensureVisible(
         context,
-        duration: const Duration(milliseconds: 600),
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 650),
+        curve: Curves.easeInOutCubic,
       );
     }
   }
@@ -95,47 +96,60 @@ class _LandingPageWebState extends State<LandingPageWeb> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Left: Brand Logo & Title
-          Row(
-            children: [
-              Image.asset(
-                'assets/images/psu_logo_v3.png',
-                height: width < 600 ? 36 : 48,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Icon(
-                  Icons.engineering_rounded,
-                  color: _royalBlue,
-                  size: width < 600 ? 30 : 40,
-                ),
-              ),
-              SizedBox(width: width < 600 ? 8 : 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
+          InkWell(
+            onTap: () {
+              _scrollController.animateTo(
+                0,
+                duration: const Duration(milliseconds: 600),
+                curve: Curves.easeInOutCubic,
+              );
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(4.0),
+              child: Row(
                 children: [
-                  Text(
-                    'PSU MMS',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: width < 600 ? 16 : 22,
-                      fontWeight: FontWeight.bold,
-                      color: _navyBlue,
-                      height: 1.1,
+                  Image.asset(
+                    'assets/images/psu_logo_v3.png',
+                    height: width < 600 ? 36 : 48,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => Icon(
+                      Icons.engineering_rounded,
+                      color: _royalBlue,
+                      size: width < 600 ? 30 : 40,
                     ),
                   ),
-                  if (width >= 600) ...[
-                    const SizedBox(height: 2),
-                    const Text(
-                      'Maintenance Management System',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 11,
-                        color: _textSlate,
+                  SizedBox(width: width < 600 ? 8 : 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'PSU MMS',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: width < 600 ? 16 : 22,
+                          fontWeight: FontWeight.bold,
+                          color: _navyBlue,
+                          height: 1.1,
+                        ),
                       ),
-                    ),
-                  ],
+                      if (width >= 600) ...[
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Maintenance Management System',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 11,
+                            color: _textSlate,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
-            ],
+            ),
           ),
 
           // Center: Navigation Links (Desktop only)
@@ -145,8 +159,8 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                 _buildNavLink(0, 'Home', () {
                   _scrollController.animateTo(
                     0,
-                    duration: const Duration(milliseconds: 500),
-                    curve: Curves.easeInOut,
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeInOutCubic,
                   );
                 }),
                 const SizedBox(width: 32),
@@ -156,7 +170,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                 const SizedBox(width: 32),
                 _buildNavLink(3, 'How It Works', () => _scrollToSection(_howItWorksKey)),
                 const SizedBox(width: 32),
-                _buildNavLink(4, 'Contact', () {}),
+                _buildNavLink(4, 'Contact', () => _scrollToSection(_contactKey)),
               ],
             ),
 
@@ -165,42 +179,48 @@ class _LandingPageWebState extends State<LandingPageWeb> {
             onEnter: (_) => setState(() => _isLoginHovered = true),
             onExit: (_) => setState(() => _isLoginHovered = false),
             cursor: SystemMouseCursors.click,
-            child: AnimatedContainer(
+            child: AnimatedScale(
+              scale: _isLoginHovered ? 1.05 : 1.0,
               duration: const Duration(milliseconds: 200),
-              decoration: BoxDecoration(
-                color: _isLoginHovered ? _royalBlue.withBlue(200) : _royalBlue,
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: _isLoginHovered
-                    ? [
-                        BoxShadow(
-                          color: _royalBlue.withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        )
-                      ]
-                    : [],
-              ),
-              child: ElevatedButton.icon(
-                onPressed: () => context.go('/login'),
-                icon: Icon(Icons.login_rounded, size: width < 600 ? 14 : 16, color: Colors.white),
-                label: Text(
-                  'Login',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: width < 600 ? 12 : 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+              curve: Curves.easeInOutCubic,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOutCubic,
+                decoration: BoxDecoration(
+                  color: _isLoginHovered ? const Color(0xFF1D4ED8) : _royalBlue,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: _isLoginHovered
+                      ? [
+                          BoxShadow(
+                            color: _royalBlue.withValues(alpha: 0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          )
+                        ]
+                      : [],
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: width < 600 ? 12 : 20,
-                    vertical: width < 600 ? 12 : 18,
+                child: ElevatedButton.icon(
+                  onPressed: () => context.go('/login'),
+                  icon: Icon(Icons.login_rounded, size: width < 600 ? 14 : 16, color: Colors.white),
+                  label: Text(
+                    'Login',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontSize: width < 600 ? 12 : 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: width < 600 ? 14 : 22,
+                      vertical: width < 600 ? 12 : 18,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ),
@@ -213,7 +233,6 @@ class _LandingPageWebState extends State<LandingPageWeb> {
 
   Widget _buildNavLink(int index, String title, VoidCallback onTap) {
     final isHovered = _hoveredNavIndex == index;
-    final isHome = index == 0; // Home defaults to active highlight style
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hoveredNavIndex = index),
@@ -224,20 +243,23 @@ class _LandingPageWebState extends State<LandingPageWeb> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              title,
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeInOut,
               style: TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 15,
-                fontWeight: (isHome || isHovered) ? FontWeight.bold : FontWeight.w500,
-                color: (isHome || isHovered) ? _royalBlue : _navyBlue,
+                fontWeight: isHovered ? FontWeight.bold : FontWeight.w600,
+                color: isHovered ? _royalBlue : _navyBlue,
               ),
+              child: Text(title),
             ),
             const SizedBox(height: 4),
             AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeInOutCubic,
               height: 2,
-              width: isHome ? 28 : (isHovered ? 20 : 0),
+              width: isHovered ? 28 : 0,
               color: _royalBlue,
             ),
           ],
@@ -339,42 +361,47 @@ class _LandingPageWebState extends State<LandingPageWeb> {
               onEnter: (_) => setState(() => _isGetStartedHovered = true),
               onExit: (_) => setState(() => _isGetStartedHovered = false),
               cursor: SystemMouseCursors.click,
-              child: AnimatedContainer(
+              child: AnimatedScale(
+                scale: _isGetStartedHovered ? 1.04 : 1.0,
                 duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  color: _isGetStartedHovered ? _royalBlue.withBlue(200) : _royalBlue,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: _isGetStartedHovered
-                      ? [
-                          BoxShadow(
-                            color: _royalBlue.withOpacity(0.3),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          )
-                        ]
-                      : [],
-                ),
-                child: ElevatedButton.icon(
-                  onPressed: () => context.go('/login'),
-                  icon: Icon(Icons.qr_code_scanner_rounded, size: screenWidth < 600 ? 16 : 20, color: Colors.white),
-                  label: Text(
-                    'Get Started',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: screenWidth < 600 ? 14 : 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                curve: Curves.easeInOutCubic,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  decoration: BoxDecoration(
+                    color: _isGetStartedHovered ? const Color(0xFF1D4ED8) : _royalBlue,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: _isGetStartedHovered
+                        ? [
+                            BoxShadow(
+                              color: _royalBlue.withValues(alpha: 0.35),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            )
+                          ]
+                        : [],
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: screenWidth < 600 ? 20 : 32,
-                      vertical: screenWidth < 600 ? 14 : 20,
+                  child: ElevatedButton.icon(
+                    onPressed: () => context.go('/login'),
+                    icon: Icon(Icons.qr_code_scanner_rounded, size: screenWidth < 600 ? 16 : 20, color: Colors.white),
+                    label: Text(
+                      'Get Started',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: screenWidth < 600 ? 14 : 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: screenWidth < 600 ? 20 : 32,
+                        vertical: screenWidth < 600 ? 14 : 20,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ),
@@ -384,51 +411,55 @@ class _LandingPageWebState extends State<LandingPageWeb> {
               onEnter: (_) => setState(() => _isDownloadAppHovered = true),
               onExit: (_) => setState(() => _isDownloadAppHovered = false),
               cursor: SystemMouseCursors.click,
-              child: AnimatedContainer(
+              child: AnimatedScale(
+                scale: _isDownloadAppHovered ? 1.04 : 1.0,
                 duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  color: _isDownloadAppHovered ? Colors.white : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _royalBlue, width: 2),
-                  boxShadow: _isDownloadAppHovered
-                      ? [
-                          BoxShadow(
-                            color: _royalBlue.withOpacity(0.1),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          )
-                        ]
-                      : [],
-                ),
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    // Logic to download APK using programmatic anchor click for mobile/desktop compatibility.
-                    final anchor = html.AnchorElement(href: '/downloads/psu_maintsystem.apk')
-                      ..setAttribute('download', 'psu_maintsystem.apk')
-                      ..style.display = 'none';
-                    html.document.body?.append(anchor);
-                    anchor.click();
-                    anchor.remove();
-                  },
-                  icon: Icon(Icons.android_rounded, size: screenWidth < 600 ? 16 : 20, color: _royalBlue),
-                  label: Text(
-                    'Download App',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: screenWidth < 600 ? 14 : 16,
-                      fontWeight: FontWeight.bold,
-                      color: _royalBlue,
-                    ),
+                curve: Curves.easeInOutCubic,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  decoration: BoxDecoration(
+                    color: _isDownloadAppHovered ? Colors.white : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _royalBlue, width: 2),
+                    boxShadow: _isDownloadAppHovered
+                        ? [
+                            BoxShadow(
+                              color: _royalBlue.withValues(alpha: 0.12),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            )
+                          ]
+                        : [],
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: screenWidth < 600 ? 20 : 32,
-                      vertical: screenWidth < 600 ? 14 : 20,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      final anchor = html.AnchorElement(href: '/downloads/psu_maintsystem.apk')
+                        ..setAttribute('download', 'psu_maintsystem.apk')
+                        ..style.display = 'none';
+                      html.document.body?.append(anchor);
+                      anchor.click();
+                      anchor.remove();
+                    },
+                    icon: Icon(Icons.android_rounded, size: screenWidth < 600 ? 16 : 20, color: _royalBlue),
+                    label: Text(
+                      'Download App',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: screenWidth < 600 ? 14 : 16,
+                        fontWeight: FontWeight.bold,
+                        color: _royalBlue,
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(6), // Compensating for border
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: screenWidth < 600 ? 20 : 32,
+                        vertical: screenWidth < 600 ? 14 : 20,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
                     ),
                   ),
                 ),
@@ -439,6 +470,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
         const SizedBox(height: 36),
         // Inline Features highlights styled as premium pill badges
         Wrap(
+          key: _featuresKey,
           spacing: 16,
           runSpacing: 12,
           children: [
@@ -460,7 +492,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
         border: Border.all(color: _borderSlate, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -518,7 +550,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                     gradient: RadialGradient(
                       colors: [
                         const Color(0xFFE0F2FE),
-                        const Color(0xFFE0F2FE).withOpacity(0.0),
+                        const Color(0xFFE0F2FE).withValues(alpha: 0.0),
                       ],
                     ),
                   ),
@@ -534,7 +566,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                 child: Image.asset(
                   'assets/images/login_brand.png',
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
                 ),
               ),
 
@@ -558,9 +590,11 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                   cursor: SystemMouseCursors.click,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    transform: Matrix4.identity()
-                      ..translate(_isQrCardHovered ? 4.0 : 0.0, _isQrCardHovered ? -6.0 : 0.0)
-                      ..scale(_isQrCardHovered ? 1.03 : 1.0),
+                    transform: Matrix4.translationValues(
+                      _isQrCardHovered ? 4.0 : 0.0,
+                      _isQrCardHovered ? -6.0 : 0.0,
+                      0.0,
+                    ),
                     child: _buildQrScanCard(),
                   ),
                 ),
@@ -579,12 +613,12 @@ class _LandingPageWebState extends State<LandingPageWeb> {
         borderRadius: BorderRadius.circular(40),
         boxShadow: [
           BoxShadow(
-            color: _royalBlue.withOpacity(0.12),
+            color: _royalBlue.withValues(alpha: 0.12),
             blurRadius: 40,
             offset: const Offset(0, 16),
           ),
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 24,
             offset: const Offset(0, 8),
           ),
@@ -640,7 +674,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   child: Row(
                     children: [
-                      Icon(Icons.arrow_back_ios_rounded, color: Colors.white.withOpacity(0.8), size: 12),
+                      Icon(Icons.arrow_back_ios_rounded, color: Colors.white.withValues(alpha: 0.8), size: 12),
                       const SizedBox(width: 4),
                       const Text(
                         'New Maintenance Request',
@@ -822,9 +856,9 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.white.withOpacity(0.08),
-                        Colors.white.withOpacity(0.0),
-                        Colors.black.withOpacity(0.03),
+                        Colors.white.withValues(alpha: 0.08),
+                        Colors.white.withValues(alpha: 0.0),
+                        Colors.black.withValues(alpha: 0.03),
                       ],
                       stops: const [0.0, 0.45, 1.0],
                     ),
@@ -845,12 +879,12 @@ class _LandingPageWebState extends State<LandingPageWeb> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.12),
+            color: Colors.black.withValues(alpha: 0.12),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
-        border: Border.all(color: _royalBlue.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: _royalBlue.withValues(alpha: 0.3), width: 1.5),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1061,13 +1095,13 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                 color: isHovered ? _royalBlue : const Color(0xFFEFF6FF),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isHovered ? _royalBlue : _royalBlue.withOpacity(0.15),
+                  color: isHovered ? _royalBlue : _royalBlue.withValues(alpha: 0.15),
                   width: 1.5,
                 ),
                 boxShadow: isHovered
                     ? [
                         BoxShadow(
-                          color: _royalBlue.withOpacity(0.25),
+                          color: _royalBlue.withValues(alpha: 0.25),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         )
@@ -1118,7 +1152,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
     final padding = isDesktop ? const EdgeInsets.symmetric(horizontal: 60, vertical: 40) : const EdgeInsets.all(24);
 
     return Container(
-      key: _featuresKey,
+      key: _contactKey,
       color: const Color(0xFF0F172A),
       padding: padding,
       child: isDesktop
@@ -1160,7 +1194,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
     return Container(
       width: 1,
       height: 48,
-      color: Colors.white.withOpacity(0.12),
+      color: Colors.white.withValues(alpha: 0.12),
     );
   }
 
@@ -1180,12 +1214,12 @@ class _LandingPageWebState extends State<LandingPageWeb> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isHovered ? Colors.white.withOpacity(0.15) : Colors.transparent,
+                color: isHovered ? Colors.white.withValues(alpha: 0.15) : Colors.transparent,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 icon,
-                color: isHovered ? _accentAmber : Colors.white.withOpacity(0.85),
+                color: isHovered ? _accentAmber : Colors.white.withValues(alpha: 0.85),
                 size: 32,
               ),
             ),
@@ -1210,7 +1244,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                     style: TextStyle(
                       fontFamily: 'Inter',
                       fontSize: 12,
-                      color: isHovered ? Colors.white : Colors.white.withOpacity(0.6),
+                      color: isHovered ? Colors.white : Colors.white.withValues(alpha: 0.6),
                     ),
                   ),
                 ],

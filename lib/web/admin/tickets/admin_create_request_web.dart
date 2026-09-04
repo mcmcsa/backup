@@ -20,12 +20,18 @@ class AdminCreateRequestWeb extends StatefulWidget {
   final String? roomId;
   final String? buildingName;
   final String? roomName;
+  final String? departmentName;
+  final String? floor;
+  final VoidCallback? onBack;
 
   const AdminCreateRequestWeb({
     super.key,
     this.roomId,
     this.buildingName,
     this.roomName,
+    this.departmentName,
+    this.floor,
+    this.onBack,
   });
 
   @override
@@ -48,15 +54,19 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
   String _selectedPriority = 'medium';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
+  bool _showDropdownErrors = false;
 
   final List<XFile> _selectedImages = [];
   final ImagePicker _imagePicker = ImagePicker();
 
-  List<String> _buildings = [];
   List<String> _colleges = [];
   List<String> _floors = [];
   List<String> _requestTypes = [];
   final Map<String, List<String>> _buildingsByDepartment = {};
+
+  bool get _isLocationLocked =>
+      (widget.roomId != null && widget.roomId!.isNotEmpty) ||
+      (widget.buildingName != null && widget.buildingName!.isNotEmpty);
 
   @override
   void initState() {
@@ -94,24 +104,34 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
       }
 
       setState(() {
-        _buildings = buildings;
         _colleges = depts;
         _floors = floors.where((f) => f.trim().isNotEmpty).toList();
         if (_floors.isEmpty) _floors = ['N/A'];
         _requestTypes = requestTypes;
         
-        if (widget.buildingName != null) {
+        if (widget.departmentName != null && widget.departmentName!.isNotEmpty && _colleges.contains(widget.departmentName)) {
+          _selectedCollege = widget.departmentName!;
+        } else if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
           _selectedCollege = _colleges.firstWhere(
             (c) => _buildingsByDepartment[c]?.contains(widget.buildingName) ?? false,
-            orElse: () => _colleges.isNotEmpty ? _colleges.first : '',
+            orElse: () => '',
           );
-          _selectedBuilding = widget.buildingName!;
-        } else if (_colleges.isNotEmpty) {
-          _selectedCollege = _colleges.first;
-          _selectedBuilding = _buildingsByDepartment[_selectedCollege]?.first ?? '';
+        } else {
+          _selectedCollege = '';
         }
 
-        if (_floors.isNotEmpty) _selectedFloor = _floors.first;
+        if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
+          _selectedBuilding = widget.buildingName!;
+        } else {
+          _selectedBuilding = '';
+        }
+
+        if (widget.floor != null && widget.floor!.isNotEmpty && _floors.contains(widget.floor)) {
+          _selectedFloor = widget.floor!;
+        } else {
+          _selectedFloor = '';
+        }
+
         if (_requestTypes.isNotEmpty) _selectedRequestType = _requestTypes.first;
       });
     }
@@ -135,11 +155,23 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
   Future<void> _submitRequest() async {
     if (!_formKey.currentState!.validate()) return;
     
+    if (_selectedCollege.isEmpty || _selectedBuilding.isEmpty || _selectedFloor.isEmpty) {
+      setState(() => _showDropdownErrors = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select Department, Building, and Floor.'),
+          backgroundColor: AdminStyles.error,
+        ),
+      );
+      return;
+    }
+
     if (_requesterSignatureBase64 == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signature is required'), backgroundColor: AdminStyles.error));
       return;
     }
 
+    final authService = context.read<AuthService>();
     setState(() => _isSubmitting = true);
 
     try {
@@ -155,7 +187,6 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
         throw 'This room already has an active maintenance request.';
       }
 
-      final authService = context.read<AuthService>();
       final user = authService.currentUser;
       final helper = DropdownDataHelper();
       
@@ -300,8 +331,10 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
   Widget _buildHeader(bool isMobile) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: isMobile ? 16 : 24),
-      color: AdminStyles.surface,
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: AdminStyles.border))),
+      decoration: BoxDecoration(
+        color: AdminStyles.surface,
+        border: Border(bottom: BorderSide(color: AdminStyles.border)),
+      ),
       child: isMobile
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,7 +343,13 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
-                      onPressed: () => context.go('/admin/dashboard'),
+                      onPressed: () {
+                        if (widget.onBack != null) {
+                          widget.onBack!();
+                        } else {
+                          context.go('/admin/dashboard');
+                        }
+                      },
                     ),
                     const SizedBox(width: 8),
                     const Expanded(
@@ -339,7 +378,13 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
-                  onPressed: () => context.go('/admin/dashboard'),
+                  onPressed: () {
+                    if (widget.onBack != null) {
+                      widget.onBack!();
+                    } else {
+                      context.go('/admin/dashboard');
+                    }
+                  },
                 ),
                 const SizedBox(width: 16),
                 Column(
@@ -373,18 +418,49 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
           title: 'Location Details',
           icon: Icons.location_on_rounded,
           children: [
+            if (_isLocationLocked)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF0F766E).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock_rounded, size: 16, color: Color(0xFF0F766E)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Location details are locked because the room has already been verified.',
+                        style: AdminStyles.bodyStyle(
+                          fontSize: 12,
+                          color: const Color(0xFF0F766E),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (isMobile) ...[
               _buildInputField(
                 label: 'Room Code',
                 controller: _roomNumberController,
-                hint: 'e.g. 101, 205',
+                hint: 'ex. CLR 1',
                 validator: (v) => v!.isEmpty ? 'Required' : null,
+                readOnly: _isLocationLocked,
               ),
               const SizedBox(height: 16),
               _buildInputField(
                 label: 'Room Name (Optional)',
                 controller: _officeRoomNameController,
-                hint: 'e.g. CS Lab 1',
+                hint: 'ex. Computer Lab 1',
+                readOnly: _isLocationLocked,
               ),
             ] else
               Row(
@@ -393,8 +469,9 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                     child: _buildInputField(
                       label: 'Room Code',
                       controller: _roomNumberController,
-                      hint: 'e.g. 101, 205',
+                      hint: 'ex. CLR 1',
                       validator: (v) => v!.isEmpty ? 'Required' : null,
+                      readOnly: _isLocationLocked,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -402,7 +479,8 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                     child: _buildInputField(
                       label: 'Room Name (Optional)',
                       controller: _officeRoomNameController,
-                      hint: 'e.g. CS Lab 1',
+                      hint: 'ex. Computer Lab 1',
+                      readOnly: _isLocationLocked,
                     ),
                   ),
                 ],
@@ -412,18 +490,26 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
               _buildDropdownField(
                 label: 'Department/College',
                 value: _selectedCollege,
+                hintText: 'Select Department',
                 items: _colleges,
+                enabled: !_isLocationLocked,
+                showError: _showDropdownErrors,
                 onChanged: (v) => setState(() {
-                  _selectedCollege = v!;
-                  _selectedBuilding = _buildingsByDepartment[v]?.first ?? '';
+                  _selectedCollege = v ?? '';
+                  _selectedBuilding = '';
                 }),
               ),
               const SizedBox(height: 16),
               _buildDropdownField(
                 label: 'Building',
                 value: _selectedBuilding,
-                items: _buildingsByDepartment[_selectedCollege] ?? [],
-                onChanged: (v) => setState(() => _selectedBuilding = v!),
+                hintText: 'Select Building',
+                items: _selectedCollege.isNotEmpty
+                    ? (_buildingsByDepartment[_selectedCollege] ?? [])
+                    : (_colleges.expand((c) => _buildingsByDepartment[c] ?? <String>[]).toSet().toList()),
+                enabled: !_isLocationLocked,
+                showError: _showDropdownErrors,
+                onChanged: (v) => setState(() => _selectedBuilding = v ?? ''),
               ),
             ] else
               Row(
@@ -432,10 +518,13 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                     child: _buildDropdownField(
                       label: 'Department/College',
                       value: _selectedCollege,
+                      hintText: 'Select Department',
                       items: _colleges,
+                      enabled: !_isLocationLocked,
+                      showError: _showDropdownErrors,
                       onChanged: (v) => setState(() {
-                        _selectedCollege = v!;
-                        _selectedBuilding = _buildingsByDepartment[v]?.first ?? '';
+                        _selectedCollege = v ?? '';
+                        _selectedBuilding = '';
                       }),
                     ),
                   ),
@@ -444,8 +533,13 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                     child: _buildDropdownField(
                       label: 'Building',
                       value: _selectedBuilding,
-                      items: _buildingsByDepartment[_selectedCollege] ?? [],
-                      onChanged: (v) => setState(() => _selectedBuilding = v!),
+                      hintText: 'Select Building',
+                      items: _selectedCollege.isNotEmpty
+                          ? (_buildingsByDepartment[_selectedCollege] ?? [])
+                          : (_colleges.expand((c) => _buildingsByDepartment[c] ?? <String>[]).toSet().toList()),
+                      enabled: !_isLocationLocked,
+                      showError: _showDropdownErrors,
+                      onChanged: (v) => setState(() => _selectedBuilding = v ?? ''),
                     ),
                   ),
                 ],
@@ -455,8 +549,11 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
               _buildDropdownField(
                 label: 'Floor',
                 value: _selectedFloor,
+                hintText: 'Select Floor',
                 items: _floors,
-                onChanged: (v) => setState(() => _selectedFloor = v!),
+                enabled: !_isLocationLocked,
+                showError: _showDropdownErrors,
+                onChanged: (v) => setState(() => _selectedFloor = v ?? ''),
               )
             else
               Row(
@@ -465,8 +562,11 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                     child: _buildDropdownField(
                       label: 'Floor',
                       value: _selectedFloor,
+                      hintText: 'Select Floor',
                       items: _floors,
-                      onChanged: (v) => setState(() => _selectedFloor = v!),
+                      enabled: !_isLocationLocked,
+                      showError: _showDropdownErrors,
+                      onChanged: (v) => setState(() => _selectedFloor = v ?? ''),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -502,7 +602,9 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
             _buildDropdownField(
               label: 'Priority Level',
               value: _selectedPriority,
+              hintText: 'Select Priority',
               items: const ['low', 'medium', 'high'],
+              isRequired: false,
               onChanged: (v) => setState(() => _selectedPriority = v!),
             ),
             const SizedBox(height: 24),
@@ -516,26 +618,27 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
             const SizedBox(height: 24),
             _buildLabel('Upload Photos (optional)'),
             const SizedBox(height: 8),
-            GestureDetector(
-              onTap: _pickImages,
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AdminStyles.border, width: 1.5),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _pickImages,
+                  icon: const Icon(Icons.add_photo_alternate_rounded, size: 20),
+                  label: const Text('Add Photos'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AdminStyles.primary,
+                    side: const BorderSide(color: AdminStyles.primary),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                 ),
-                child: Column(
-                  children: [
-                    Icon(Icons.cloud_upload_outlined, size: 48, color: Colors.grey.shade400),
-                    const SizedBox(height: 12),
-                    Text('Tap to upload photos', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
-                    const SizedBox(height: 4),
-                    Text('PNG, JPG up to 10MB', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-                  ],
+                const SizedBox(width: 12),
+                Text(
+                  'PNG, JPG up to 10MB',
+                  style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
                 ),
-              ),
+              ],
             ),
             if (_selectedImages.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -658,7 +761,14 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
     );
   }
 
-  Widget _buildInputField({required String label, required TextEditingController controller, String? hint, int maxLines = 1, String? Function(String?)? validator}) {
+  Widget _buildInputField({
+    required String label,
+    required TextEditingController controller,
+    String? hint,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+    bool readOnly = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -667,15 +777,16 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
         TextFormField(
           controller: controller,
           maxLines: maxLines,
-          style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary),
+          readOnly: readOnly,
+          style: AdminStyles.bodyStyle(color: readOnly ? AdminStyles.textMuted : AdminStyles.textPrimary),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
             filled: true,
-            fillColor: AdminStyles.bg,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AdminStyles.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: AdminStyles.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: AdminStyles.primary)),
+            fillColor: readOnly ? Colors.grey.shade200 : AdminStyles.bg,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: readOnly ? Colors.grey.shade300 : AdminStyles.border)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: readOnly ? Colors.grey.shade300 : AdminStyles.border)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: readOnly ? Colors.grey.shade300 : AdminStyles.primary)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
           validator: validator,
@@ -684,28 +795,74 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
     );
   }
 
-  Widget _buildDropdownField({required String label, required String value, required List<String> items, required void Function(String?) onChanged}) {
+  Widget _buildDropdownField({
+    required String label,
+    required String value,
+    String hintText = 'Select Option',
+    required List<String> items,
+    required void Function(String?)? onChanged,
+    bool enabled = true,
+    bool isRequired = true,
+    bool showError = false,
+  }) {
+    final hasError = showError && isRequired && value.isEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildLabel(label),
+        Row(
+          children: [
+            _buildLabel(label),
+            if (isRequired)
+              const Text(
+                ' *',
+                style: TextStyle(color: AdminStyles.error, fontWeight: FontWeight.bold),
+              ),
+          ],
+        ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: AdminStyles.bg,
+            color: enabled ? AdminStyles.bg : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AdminStyles.border),
+            border: Border.all(
+              color: hasError
+                  ? AdminStyles.error
+                  : (enabled ? AdminStyles.border : Colors.grey.shade300),
+              width: hasError ? 1.5 : 1.0,
+            ),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: value.isEmpty ? null : value,
+              value: (value.isNotEmpty && items.contains(value)) ? value : null,
+              hint: Text(
+                hintText,
+                style: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
+              ),
               isExpanded: true,
-              items: items.map((i) => DropdownMenuItem(value: i, child: Text(i, style: AdminStyles.bodyStyle()))).toList(),
-              onChanged: onChanged,
+              items: items
+                  .map((i) => DropdownMenuItem(
+                        value: i,
+                        child: Text(
+                          i,
+                          style: AdminStyles.bodyStyle(
+                            color: enabled ? AdminStyles.textPrimary : AdminStyles.textMuted,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+              onChanged: enabled ? onChanged : null,
             ),
           ),
         ),
+        if (hasError) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Please select $label',
+            style: const TextStyle(color: AdminStyles.error, fontSize: 12),
+          ),
+        ],
       ],
     );
   }

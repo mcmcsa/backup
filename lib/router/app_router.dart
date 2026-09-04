@@ -124,6 +124,32 @@ String? resolveAuthRedirect({
   return null;
 }
 
+Page<dynamic> _buildSmoothPageTransition({
+  required BuildContext context,
+  required GoRouterState state,
+  required Widget child,
+}) {
+  if (!kIsWeb) {
+    return MaterialPage<void>(key: state.pageKey, child: child);
+  }
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 280),
+    reverseTransitionDuration: const Duration(milliseconds: 220),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curvedAnim = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeInOutCubic,
+      );
+      return FadeTransition(
+        opacity: curvedAnim,
+        child: child,
+      );
+    },
+  );
+}
+
 GoRouter buildAppRouter(AuthService authService) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -148,95 +174,145 @@ GoRouter buildAppRouter(AuthService authService) {
     routes: [
       GoRoute(
         path: '/force-change-password',
-        builder: (context, state) => const ForceChangePasswordScreen(),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: const ForceChangePasswordScreen(),
+        ),
       ),
       GoRoute(
         path: '/',
-        builder: (context, state) =>
-            kIsWeb ? const LandingPageWeb() : const LoginPage(),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: kIsWeb ? const LandingPageWeb() : const LoginPage(),
+        ),
       ),
       GoRoute(
         path: appStartupRoute,
-        builder: (context, state) => const _AppStartupPage(),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: const _AppStartupPage(),
+        ),
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) =>
-            kIsWeb ? const LoginScreenWeb() : const LoginPage(),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: kIsWeb ? const LoginScreenWeb() : const LoginPage(),
+        ),
       ),
       GoRoute(
         path: '/post-login-splash',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final args = state.extra as Map<String, dynamic>? ?? const {};
           final destinationRoute =
               args['destinationRoute'] as String? ??
               authService.currentUser?.dashboardRoute ??
               '/login';
 
-          return kIsWeb
-              ? SmartSplashScreen(
-                  destinationRoute: destinationRoute,
-                  onCompleted: () {
-                    authService.finishPostLoginSplash();
-                  },
-                )
-              : LoadingScreen(
-                  destinationRoute: destinationRoute,
-                  delay: const Duration(seconds: 4),
-                  statusText: 'INITIALIZING',
-                  onCompleted: () {
-                    authService.finishPostLoginSplash();
-                  },
-                );
+          return _buildSmoothPageTransition(
+            context: context,
+            state: state,
+            child: kIsWeb
+                ? SmartSplashScreen(
+                    destinationRoute: destinationRoute,
+                    onCompleted: () {
+                      authService.finishPostLoginSplash();
+                    },
+                  )
+                : LoadingScreen(
+                    destinationRoute: destinationRoute,
+                    delay: const Duration(seconds: 4),
+                    statusText: 'INITIALIZING',
+                    onCompleted: () {
+                      authService.finishPostLoginSplash();
+                    },
+                  ),
+          );
         },
       ),
       GoRoute(
         path: '/admin/dashboard',
-        builder: (context, state) => kIsWeb
-            ? const web_admin.AdminMainNavigationWeb()
-            : const mobile_admin.MainNavigation(),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: kIsWeb
+              ? const web_admin.AdminMainNavigationWeb()
+              : const mobile_admin.MainNavigation(),
+        ),
       ),
       GoRoute(
         path: '/system-admin/dashboard',
-        builder: (context, state) => kIsWeb
-            ? const web_sysadmin.SystemAdminMainNavigationWeb()
-            : const mobile_sysadmin.SystemAdminMainNavigation(),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: kIsWeb
+              ? const web_sysadmin.SystemAdminMainNavigationWeb()
+              : const mobile_sysadmin.SystemAdminMainNavigation(),
+        ),
       ),
       GoRoute(
         path: teacherDashboardRoute,
-        builder: (context, state) => kIsWeb
-            ? const web_teacher.TeacherNavigationWeb(initialIndex: 0)
-            : const StudentTeacherNavigation(initialIndex: 0),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: kIsWeb
+              ? const web_teacher.TeacherNavigationWeb(initialIndex: 0)
+              : const StudentTeacherNavigation(initialIndex: 0),
+        ),
       ),
       GoRoute(
         path: teacherReportsRoute,
-        builder: (context, state) => kIsWeb
-            ? const web_teacher.TeacherNavigationWeb(initialIndex: 1)
-            : const StudentTeacherNavigation(initialIndex: 3),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: kIsWeb
+              ? const web_teacher.TeacherNavigationWeb(initialIndex: 1)
+              : const StudentTeacherNavigation(initialIndex: 3),
+        ),
       ),
       GoRoute(
         path: teacherLogsRoute,
-        builder: (context, state) => kIsWeb
-            ? const web_teacher.TeacherNavigationWeb(initialIndex: 2)
-            : const StudentTeacherNavigation(initialIndex: 1),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: kIsWeb
+              ? const web_teacher.TeacherNavigationWeb(initialIndex: 2)
+              : const StudentTeacherNavigation(initialIndex: 1),
+        ),
       ),
       GoRoute(
         path: teacherScannerRoute,
-        builder: (context, state) => kIsWeb
-            ? const web_teacher.TeacherNavigationWeb(initialIndex: 3)
-            : const StudentTeacherNavigation(initialIndex: 2),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: kIsWeb
+              ? const web_teacher.TeacherNavigationWeb(initialIndex: 3)
+              : const StudentTeacherNavigation(initialIndex: 2),
+        ),
       ),
       GoRoute(
         path: teacherProfileRoute,
-        builder: (context, state) => kIsWeb
-            ? const web_teacher.TeacherNavigationWeb(initialIndex: 4)
-            : const StudentTeacherNavigation(initialIndex: 4),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: kIsWeb
+              ? const web_teacher.TeacherNavigationWeb(initialIndex: 4)
+              : const StudentTeacherNavigation(initialIndex: 4),
+        ),
       ),
       GoRoute(
         path: '/maintenance/dashboard',
-        builder: (context, state) => kIsWeb
-            ? const web_maintenance.MaintenanceNavigationWeb()
-            : const MaintenanceNavigation(),
+        pageBuilder: (context, state) => _buildSmoothPageTransition(
+          context: context,
+          state: state,
+          child: kIsWeb
+              ? const web_maintenance.MaintenanceNavigationWeb()
+              : const MaintenanceNavigation(),
+        ),
       ),
       GoRoute(
         path: '/manual-room-entry',
@@ -270,23 +346,23 @@ GoRouter buildAppRouter(AuthService authService) {
       ),
       GoRoute(
         path: '/teacher-archives',
-        redirect: (_, __) => teacherArchivesRoute,
+        redirect: (context, state) => teacherArchivesRoute,
       ),
       GoRoute(
         path: '/teacher-settings',
-        redirect: (_, __) => teacherSettingsRoute,
+        redirect: (context, state) => teacherSettingsRoute,
       ),
       GoRoute(
         path: '/teacher-about-us',
-        redirect: (_, __) => teacherAboutRoute,
+        redirect: (context, state) => teacherAboutRoute,
       ),
       GoRoute(
         path: '/teacher-contact-us',
-        redirect: (_, __) => teacherContactRoute,
+        redirect: (context, state) => teacherContactRoute,
       ),
       GoRoute(
         path: '/teacher-system-workflow',
-        redirect: (_, __) => teacherWorkflowRoute,
+        redirect: (context, state) => teacherWorkflowRoute,
       ),
       GoRoute(
         path: '/room-verification',
@@ -381,12 +457,18 @@ GoRouter buildAppRouter(AuthService authService) {
       ),
       GoRoute(
         path: '/admin/work-requests/create',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final args = state.extra as Map<String, dynamic>?;
-          return AdminCreateRequestWeb(
-            roomId: args?['roomId'],
-            roomName: args?['roomName'],
-            buildingName: args?['buildingName'],
+          return _buildSmoothPageTransition(
+            context: context,
+            state: state,
+            child: web_admin.AdminMainNavigationWeb(
+              initialIndex: 3,
+              showCreateRequest: true,
+              createRoomId: args?['roomId'],
+              createRoomName: args?['roomName'],
+              createBuildingName: args?['buildingName'],
+            ),
           );
         },
       ),

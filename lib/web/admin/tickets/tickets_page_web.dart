@@ -11,10 +11,12 @@ import 'admin_work_process_web.dart';
 
 class TicketsPageWeb extends StatefulWidget {
   final void Function(WorkRequest)? onViewDetails;
+  final VoidCallback? onCreateRequest;
 
   const TicketsPageWeb({
     super.key,
     this.onViewDetails,
+    this.onCreateRequest,
   });
 
   @override
@@ -725,7 +727,13 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
       child: SizedBox(
         height: 42,
         child: ElevatedButton.icon(
-          onPressed: () => context.go('/admin/work-requests/create'),
+          onPressed: () {
+            if (widget.onCreateRequest != null) {
+              widget.onCreateRequest!();
+            } else {
+              context.go('/admin/work-requests/create');
+            }
+          },
           icon: const Icon(Icons.add_rounded, size: 18),
           label: const Text('Create Request'),
           style: ElevatedButton.styleFrom(

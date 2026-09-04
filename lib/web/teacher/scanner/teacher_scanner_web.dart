@@ -170,7 +170,7 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
                 style: AdminStyles.headingStyle(fontSize: 18, letterSpacing: 2),
                 textAlign: TextAlign.center,
                 decoration: InputDecoration(
-                  hintText: 'e.g. 402',
+                  hintText: 'ex. CLR 1',
                   hintStyle: AdminStyles.bodyStyle(color: AdminStyles.textMuted, fontSize: 18),
                   filled: true,
                   fillColor: AdminStyles.bg,

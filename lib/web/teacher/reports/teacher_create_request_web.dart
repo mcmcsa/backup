@@ -52,12 +52,14 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
-  final String _selectedPriority = ''; // Priority is set by admin, not on submission
+  String _selectedPriority = 'medium';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
+  bool _showDropdownErrors = false;
 
   final List<XFile> _selectedImages = [];
   final ImagePicker _imagePicker = ImagePicker();
+
   List<String> _colleges = [];
   List<String> _floors = [];
   List<String> _requestTypes = [];
@@ -109,18 +111,18 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
           _selectedCollege = _colleges.firstWhere(
             (c) => _buildingsByDepartment[c]?.contains(widget.buildingName) ?? false,
-            orElse: () => _colleges.isNotEmpty ? _colleges.first : '',
+            orElse: () => '',
           );
           final availableBuildings = _buildingsByDepartment[_selectedCollege] ?? [];
           _selectedBuilding = availableBuildings.contains(widget.buildingName) 
               ? widget.buildingName! 
               : (availableBuildings.isNotEmpty ? availableBuildings.first : '');
-        } else if (_colleges.isNotEmpty) {
-          _selectedCollege = _colleges.first;
-          _selectedBuilding = _buildingsByDepartment[_selectedCollege]?.first ?? '';
+        } else {
+          _selectedCollege = '';
+          _selectedBuilding = '';
         }
 
-        if (_floors.isNotEmpty) _selectedFloor = _floors.first;
+        _selectedFloor = '';
         if (_requestTypes.isNotEmpty) _selectedRequestType = _requestTypes.first;
       });
     }
@@ -144,6 +146,17 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   Future<void> _submitRequest() async {
     if (!_formKey.currentState!.validate()) return;
     
+    if (_selectedCollege.isEmpty || _selectedBuilding.isEmpty || _selectedFloor.isEmpty) {
+      setState(() => _showDropdownErrors = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select Department, Building, and Floor.'),
+          backgroundColor: AdminStyles.error,
+        ),
+      );
+      return;
+    }
+
     if (_requesterSignatureBase64 == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signature is required'), backgroundColor: AdminStyles.error));
       return;
@@ -745,7 +758,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                   child: _buildInputField(
                     label: 'Room Code',
                     controller: _roomNumberController,
-                    hint: 'e.g. 101, 205',
+                    hint: 'ex. CLR 1',
                     validator: (v) => v!.isEmpty ? 'Required' : null,
                     readOnly: _isLocationLocked,
                   ),
@@ -755,7 +768,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                   child: _buildInputField(
                     label: 'Room Name',
                     controller: _officeRoomNameController,
-                    hint: 'e.g. CS Lab 1',
+                    hint: 'ex. Computer Lab 1',
                     validator: (v) => v!.trim().isEmpty ? 'Required' : null,
                     readOnly: _isLocationLocked,
                   ),
@@ -769,11 +782,13 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                   child: _buildDropdownField(
                     label: 'Department/College',
                     value: _selectedCollege,
+                    hintText: 'Select Department',
                     items: _colleges,
                     enabled: !_isLocationLocked,
+                    showError: _showDropdownErrors,
                     onChanged: (v) => setState(() {
-                      _selectedCollege = v!;
-                      _selectedBuilding = _buildingsByDepartment[v]?.first ?? '';
+                      _selectedCollege = v ?? '';
+                      _selectedBuilding = '';
                     }),
                   ),
                 ),
@@ -782,9 +797,13 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                   child: _buildDropdownField(
                     label: 'Building',
                     value: _selectedBuilding,
-                    items: _buildingsByDepartment[_selectedCollege] ?? [],
+                    hintText: 'Select Building',
+                    items: _selectedCollege.isNotEmpty
+                        ? (_buildingsByDepartment[_selectedCollege] ?? [])
+                        : (_colleges.expand((c) => _buildingsByDepartment[c] ?? <String>[]).toSet().toList()),
                     enabled: !_isLocationLocked,
-                    onChanged: (v) => setState(() => _selectedBuilding = v!),
+                    showError: _showDropdownErrors,
+                    onChanged: (v) => setState(() => _selectedBuilding = v ?? ''),
                   ),
                 ),
               ],
@@ -796,9 +815,11 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                   child: _buildDropdownField(
                     label: 'Floor',
                     value: _selectedFloor,
+                    hintText: 'Select Floor',
                     items: _floors,
                     enabled: !_isLocationLocked,
-                    onChanged: (v) => setState(() => _selectedFloor = v!),
+                    showError: _showDropdownErrors,
+                    onChanged: (v) => setState(() => _selectedFloor = v ?? ''),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -844,110 +865,85 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
             const SizedBox(height: 24),
             _buildLabel('Upload Photos (optional)'),
             const SizedBox(height: 8),
-            if (_selectedImages.isEmpty)
-              GestureDetector(
-                onTap: _pickImages,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AdminStyles.border, width: 1.5, style: BorderStyle.solid),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.cloud_upload_outlined, size: 32, color: Colors.grey.shade400),
-                      const SizedBox(height: 8),
-                      Text('Upload', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontWeight: FontWeight.w500)),
-                    ],
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _pickImages,
+                  icon: const Icon(Icons.add_photo_alternate_rounded, size: 20),
+                  label: const Text('Add Photos'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AdminStyles.primary,
+                    side: const BorderSide(color: AdminStyles.primary),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
-              )
-            else
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: _selectedImages.asMap().entries.map((entry) {
-                        return Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Container(
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AdminStyles.border),
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: FutureBuilder<Uint8List>(
-                                  future: entry.value.readAsBytes(),
-                                  builder: (context, snapshot) {
-                                    if (snapshot.connectionState == ConnectionState.waiting) {
-                                      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-                                    }
-                                    if (snapshot.hasData) {
-                                      return Image.memory(snapshot.data!, fit: BoxFit.cover);
-                                    }
-                                    return const Icon(Icons.error_outline, color: AdminStyles.error);
-                                  },
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: -8,
-                              right: -8,
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedImages.removeAt(entry.key);
-                                  });
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: AdminStyles.error,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
-                                  ),
-                                  child: const Icon(Icons.close, size: 14, color: Colors.white),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  GestureDetector(
-                    onTap: _pickImages,
-                    child: Container(
-                      width: 120,
-                      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AdminStyles.border, width: 1.5, style: BorderStyle.solid),
+                const SizedBox(width: 12),
+                Text(
+                  'PNG, JPG up to 10MB',
+                  style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+                ),
+              ],
+            ),
+            if (_selectedImages.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: _selectedImages.asMap().entries.map((entry) {
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AdminStyles.border),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: FutureBuilder<Uint8List>(
+                            future: entry.value.readAsBytes(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                              }
+                              if (snapshot.hasData) {
+                                return Image.memory(snapshot.data!, fit: BoxFit.cover);
+                              }
+                              return const Icon(Icons.error_outline, color: AdminStyles.error);
+                            },
+                          ),
+                        ),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.cloud_upload_outlined, size: 32, color: Colors.grey.shade400),
-                          const SizedBox(height: 8),
-                          Text('Upload', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontWeight: FontWeight.w500)),
-                        ],
+                      Positioned(
+                        top: -8,
+                        right: -8,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedImages.removeAt(entry.key);
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: AdminStyles.error,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: const Icon(Icons.close, size: 14, color: Colors.white),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ],
+                    ],
+                  );
+                }).toList(),
               ),
+            ],
           ],
         ),
       ],
@@ -1048,25 +1044,48 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   Widget _buildDropdownField({
     required String label,
     required String value,
+    String hintText = 'Select Option',
     required List<String> items,
     required void Function(String?)? onChanged,
     bool enabled = true,
+    bool isRequired = true,
+    bool showError = false,
   }) {
+    final hasError = showError && isRequired && value.isEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildLabel(label),
+        Row(
+          children: [
+            _buildLabel(label),
+            if (isRequired)
+              const Text(
+                ' *',
+                style: TextStyle(color: AdminStyles.error, fontWeight: FontWeight.bold),
+              ),
+          ],
+        ),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: enabled ? AdminStyles.bg : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: enabled ? AdminStyles.border : Colors.grey.shade300),
+            border: Border.all(
+              color: hasError
+                  ? AdminStyles.error
+                  : (enabled ? AdminStyles.border : Colors.grey.shade300),
+              width: hasError ? 1.5 : 1.0,
+            ),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: (value.isEmpty || !items.contains(value)) ? null : value,
+              value: (value.isNotEmpty && items.contains(value)) ? value : null,
+              hint: Text(
+                hintText,
+                style: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
+              ),
               isExpanded: true,
               items: items
                   .map((i) => DropdownMenuItem(
@@ -1083,6 +1102,13 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
             ),
           ),
         ),
+        if (hasError) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Please select $label',
+            style: const TextStyle(color: AdminStyles.error, fontSize: 12),
+          ),
+        ],
       ],
     );
   }
