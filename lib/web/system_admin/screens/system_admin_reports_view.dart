@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:universal_html/html.dart' as html;
 
 import '../../../authentication/models/user_model.dart';
 import '../../../shared/models/request_type_model.dart';
@@ -30,6 +34,17 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   List<AppUser> _allUsers = [];
   List<RequestType> _allRequestTypes = [];
 
+  RealtimeChannel? _realtimeChannel;
+  Timer? _autoRefreshTimer;
+
+  static const List<String> _standardRequestTypes = [
+    'Ocular Inspection',
+    'Installation',
+    'Repair',
+    'Replacement',
+    'Others',
+  ];
+
   // ── Filters ───────────────────────────────────────────────────────────────
   DateTime? _startDate;
   DateTime? _endDate;
@@ -40,6 +55,48 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   void initState() {
     super.initState();
     _loadData();
+    _setupRealtime();
+    _startAutoRefresh();
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    if (_realtimeChannel != null) {
+      Supabase.instance.client.removeChannel(_realtimeChannel!);
+    }
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    try {
+      _realtimeChannel?.unsubscribe();
+      _realtimeChannel = WorkRequestService.listenToAllWorkRequests((updatedRequests) {
+        if (mounted) {
+          setState(() {
+            _allRequests = updatedRequests;
+          });
+        }
+      });
+    } catch (_) {}
+  }
+
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _silentRefresh();
+    });
+  }
+
+  Future<void> _silentRefresh() async {
+    try {
+      final reqs = await WorkRequestService.fetchAll();
+      if (mounted) {
+        setState(() {
+          _allRequests = reqs;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadData() async {
@@ -73,6 +130,25 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
     }
   }
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  String _normalizeRequestType(WorkRequest r) {
+    final raw = (r.typeDisplay.isNotEmpty ? r.typeDisplay : r.typeOfRequest).trim();
+    final lower = raw.toLowerCase();
+
+    if (lower.startsWith('ocular inspection') || lower.startsWith('ocular')) {
+      return 'Ocular Inspection';
+    } else if (lower.startsWith('installation')) {
+      return 'Installation';
+    } else if (lower.startsWith('repair')) {
+      return 'Repair';
+    } else if (lower.startsWith('replacement')) {
+      return 'Replacement';
+    } else {
+      return 'Others';
+    }
+  }
+
   // ── Derived Data for Charts ───────────────────────────────────────────────
 
   List<WorkRequest> get _filteredRequests {
@@ -80,7 +156,15 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
       // Date filter
       if (_startDate != null && r.dateSubmitted.isBefore(_startDate!)) return false;
       if (_endDate != null && r.dateSubmitted.isAfter(_endDate!.add(const Duration(days: 1)))) return false;
-      if (_selectedRequestType != null && r.typeOfRequest != _selectedRequestType) return false;
+      
+      // Request Type filter
+      if (_selectedRequestType != null && _selectedRequestType!.isNotEmpty) {
+        final category = _normalizeRequestType(r);
+        if (category.toLowerCase() != _selectedRequestType!.trim().toLowerCase()) {
+          return false;
+        }
+      }
+
       if (_selectedBuilding != null && !(r.buildingName ?? '').contains(_selectedBuilding!)) return false;
       
       return true;
@@ -115,9 +199,15 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   }
 
   Map<String, int> get _categoryDistribution {
-    final map = <String, int>{};
+    final map = <String, int>{
+      'Ocular Inspection': 0,
+      'Installation': 0,
+      'Repair': 0,
+      'Replacement': 0,
+      'Others': 0,
+    };
     for (final r in _filteredRequests) {
-      final c = r.typeOfRequest;
+      final c = _normalizeRequestType(r);
       map[c] = (map[c] ?? 0) + 1;
     }
     return map;
@@ -126,8 +216,11 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   Map<String, int> get _personnelPerformance {
     final map = <String, int>{};
     for (final r in _filteredRequests) {
-      if (r.status == 'completed' && r.assignedToId != null) {
-        final userName = _allUsers.firstWhere((u) => u.id == r.assignedToId, orElse: () => AppUser(id: '', email: '', name: 'Unknown', role: UserRole.maintenance, isActive: true)).name;
+      if (r.status.trim().toLowerCase() == 'completed' && r.assignedToId != null) {
+        final userName = _allUsers.firstWhere(
+          (u) => u.id == r.assignedToId,
+          orElse: () => AppUser(id: '', email: '', name: 'Unknown', role: UserRole.maintenance, isActive: true),
+        ).name;
         map[userName] = (map[userName] ?? 0) + 1;
       }
     }
@@ -157,7 +250,7 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
               pw.Text('Status Distribution', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
               ..._statusDistribution.entries.map((e) => pw.Text('${e.key}: ${e.value}')),
               pw.SizedBox(height: 20),
-              pw.Text('Category Distribution', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Request Type Distribution', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
               ..._categoryDistribution.entries.map((e) => pw.Text('${e.key}: ${e.value}')),
               pw.SizedBox(height: 20),
               pw.Text('Top Performing Personnel (Completed)', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
@@ -175,32 +268,57 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   }
 
   void _exportCSV() {
-    // Generate CSV string
     final StringBuffer buffer = StringBuffer();
-    buffer.writeln('ID,Title,Category,Status,Location,Priority,Created At');
+    // Add UTF-8 BOM so Excel opens it with correct column formatting
+    buffer.write('\uFEFF');
+    buffer.writeln('ID,Title,Request Type,Status,Location,Priority,Date Submitted,Date Completed');
+
     for (final r in _filteredRequests) {
-      final title = r.title.replaceAll(',', ' ');
-      final loc = (r.buildingName ?? '').replaceAll(',', ' ');
-      buffer.writeln('${r.id},$title,${r.typeOfRequest},${r.status},$loc,${r.priority},${r.dateSubmitted.toIso8601String()}');
+      final id = _escapeCsv(r.id);
+      final title = _escapeCsv(r.title);
+      final reqType = _escapeCsv(_normalizeRequestType(r));
+      final status = _escapeCsv(r.status);
+      final loc = _escapeCsv(r.buildingName ?? 'N/A');
+      final priority = _escapeCsv(r.priority);
+      final dateSub = _escapeCsv(DateFormat('yyyy-MM-dd HH:mm').format(r.dateSubmitted));
+      final dateComp = _escapeCsv(r.dateCompleted != null ? DateFormat('yyyy-MM-dd HH:mm').format(r.dateCompleted!) : 'N/A');
+
+      buffer.writeln('$id,$title,$reqType,$status,$loc,$priority,$dateSub,$dateComp');
     }
-    
-    // In a real web environment we'd use dart:html anchor download. 
-    // For Desktop we'd use path_provider. 
-    // Here we just show a dialog with the CSV text since we want simple cross-platform.
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Export Data (CSV / Excel format)'),
-        content: SizedBox(
-          width: 500,
-          height: 300,
-          child: SelectableText(buffer.toString(), style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))
-        ],
-      ),
-    );
+
+    try {
+      final bytes = utf8.encode(buffer.toString());
+      final blob = html.Blob([bytes], 'text/csv;charset=utf-8');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final fileName = 'System_Reports_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
+      
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', fileName)
+        ..click();
+      
+      html.Url.revokeObjectUrl(url);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloaded $fileName'),
+            backgroundColor: AdminStyles.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Export CSV error: $e');
+    }
+  }
+
+  String _escapeCsv(dynamic item) {
+    if (item == null) return '';
+    final str = item.toString().replaceAll('"', '""');
+    if (str.contains(',') || str.contains('"') || str.contains('\n')) {
+      return '"$str"';
+    }
+    return str;
   }
 
   // ── UI Building ───────────────────────────────────────────────────────────
@@ -302,18 +420,31 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   Widget _buildFilters(bool isMobile) {
     final dateFilter = InkWell(
       onTap: () async {
-        final range = await showDateRangePicker(
+        final range = await showDialog<DateTimeRange>(
           context: context,
-          firstDate: DateTime(2020),
-          lastDate: DateTime.now(),
-          initialDateRange: _startDate != null && _endDate != null
-              ? DateTimeRange(start: _startDate!, end: _endDate!)
-              : null,
-          builder: (context, child) => Theme(
-            data: ThemeData.light().copyWith(
-              colorScheme: const ColorScheme.light(primary: AdminStyles.primary),
+          builder: (ctx) => Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            clipBehavior: Clip.antiAlias,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500, maxHeight: 560),
+              child: Theme(
+                data: ThemeData.light().copyWith(
+                  colorScheme: const ColorScheme.light(
+                    primary: AdminStyles.primary,
+                    onPrimary: Colors.white,
+                    surface: Colors.white,
+                    onSurface: AdminStyles.textPrimary,
+                  ),
+                ),
+                child: DateRangePickerDialog(
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime.now(),
+                  initialDateRange: _startDate != null && _endDate != null
+                      ? DateTimeRange(start: _startDate!, end: _endDate!)
+                      : null,
+                ),
+              ),
             ),
-            child: child!,
           ),
         );
         if (range != null) {
@@ -356,7 +487,7 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
       ),
     );
 
-    final catFilter = Container(
+    final reqTypeFilter = Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -368,12 +499,12 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
         child: DropdownButton<String>(
           value: _selectedRequestType,
           isExpanded: true,
-          hint: const Text('All Categories'),
+          hint: const Text('All Request Type'),
           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textMuted, size: 18),
           style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary, fontWeight: FontWeight.w600),
           items: [
-            const DropdownMenuItem(value: null, child: Text('All Categories')),
-            ..._allRequestTypes.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))),
+            const DropdownMenuItem(value: null, child: Text('All Request Type')),
+            ..._standardRequestTypes.map((name) => DropdownMenuItem(value: name, child: Text(name))),
           ],
           onChanged: (v) => setState(() => _selectedRequestType = v),
         ),
@@ -400,7 +531,7 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
         children: [
           dateFilter,
           const SizedBox(height: 12),
-          catFilter,
+          reqTypeFilter,
           const SizedBox(height: 12),
           clearBtn,
         ],
@@ -411,7 +542,7 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
       children: [
         Expanded(flex: 2, child: dateFilter),
         const SizedBox(width: 16),
-        Expanded(flex: 1, child: catFilter),
+        Expanded(flex: 1, child: reqTypeFilter),
         const SizedBox(width: 16),
         clearBtn,
       ],
@@ -419,8 +550,8 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   }
 
   Widget _buildStatCards(bool isMobile) {
-    final pending = _filteredRequests.where((r) => r.status == 'pending').length;
-    final completed = _filteredRequests.where((r) => r.status == 'completed').length;
+    final pending = _filteredRequests.where((r) => r.status.trim().toLowerCase() == 'pending').length;
+    final completed = _filteredRequests.where((r) => r.status.trim().toLowerCase() == 'completed').length;
     
     final cards = [
       _StatCard(label: 'Total Filtered', value: _filteredRequests.length, icon: Icons.assignment_rounded, color: AdminStyles.primary),
@@ -436,7 +567,7 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
           double aspect = 1.8;
           if (cardWidth < 500) {
             crossAxisCount = 1;
-            aspect = 3.2;
+            aspect = 2.4;
           } else if (cardWidth < 800) {
             crossAxisCount = 2;
             aspect = 2.0;
@@ -501,6 +632,8 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
           const SizedBox(height: 16),
           _buildBarChart('Requests by Status', _statusDistribution),
           const SizedBox(height: 16),
+          _buildBarChart('Request Type Statistics', _categoryDistribution),
+          const SizedBox(height: 16),
           _buildBarChart('Top Personnel', _personnelPerformance),
         ],
       );
@@ -517,7 +650,7 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: _buildBarChart('Category Statistics', _categoryDistribution)),
+            Expanded(child: _buildBarChart('Request Type Statistics', _categoryDistribution)),
             const SizedBox(width: 16),
             Expanded(child: _buildBarChart('Personnel Performance (Completed)', _personnelPerformance)),
           ],
@@ -548,42 +681,68 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
           Expanded(
             child: data.isEmpty
                 ? const Center(child: Text('No data available'))
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: data.entries.map((e) {
-                      final ratio = maxVal == 0 ? 0.0 : e.value / maxVal;
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              if (e.value > 0)
-                                Text(
-                                  '${e.value}',
-                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AdminStyles.textPrimary),
-                                ),
-                              const SizedBox(height: 4),
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 800),
-                                height: 140 * ratio,
-                                decoration: BoxDecoration(
-                                  color: AdminStyles.primary.withValues(alpha: 0.8),
-                                  borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-                                ),
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final double maxBarHeight = math.max(10.0, constraints.maxHeight - 54);
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: data.entries.map((e) {
+                          final ratio = maxVal == 0 ? 0.0 : e.value / maxVal;
+                          final barHeight = maxBarHeight * ratio;
+
+                          return Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  if (e.value > 0)
+                                    Text(
+                                      '${e.value}',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        color: AdminStyles.textPrimary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    )
+                                  else
+                                    const SizedBox(height: 12),
+                                  const SizedBox(height: 4),
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 800),
+                                    height: math.max(4.0, barHeight),
+                                    decoration: BoxDecoration(
+                                      color: AdminStyles.primary.withValues(alpha: 0.8),
+                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  SizedBox(
+                                    height: 24,
+                                    child: Center(
+                                      child: Text(
+                                        e.key,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: AdminStyles.textMuted,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                e.key,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 10, color: AdminStyles.textMuted, fontWeight: FontWeight.w600),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
+                            ),
+                          );
+                        }).toList(),
                       );
-                    }).toList(),
+                    },
                   ),
           ),
         ],
@@ -600,3 +759,4 @@ class _StatCard {
 
   _StatCard({required this.label, required this.value, required this.icon, required this.color});
 }
+

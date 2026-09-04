@@ -518,14 +518,20 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
         _buildSectionLabel('Quick Actions'),
         const SizedBox(height: 14),
         isMobile
-            ? GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 2.6,
-                children: actions.map(_buildQuickActionTile).toList(),
+            ? LayoutBuilder(
+                builder: (context, constraints) {
+                  final crossCount = constraints.maxWidth < 420 ? 1 : 2;
+                  final aspect = constraints.maxWidth < 420 ? 3.8 : 2.2;
+                  return GridView.count(
+                    crossAxisCount: crossCount,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: aspect,
+                    children: actions.map(_buildQuickActionTile).toList(),
+                  );
+                },
               )
             : Row(
                 children: actions
@@ -728,7 +734,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 3.5,
+            childAspectRatio: 2.4,
             children: cards.map(_buildStatCardWidget).toList(),
           );
         } else if (width < 800) {
@@ -738,7 +744,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 1.55,
+            childAspectRatio: 1.45,
             children: cards.map(_buildStatCardWidget).toList(),
           );
         }
@@ -756,7 +762,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
 
   Widget _buildStatCardWidget(_StatCard card) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -777,24 +783,58 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: card.color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(card.icon, color: card.color, size: 20),
               ),
+              if (card.isPulse)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: card.color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: card.color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Active',
+                        style: TextStyle(
+                          color: card.color,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            '${card.value}',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: card.color,
-              letterSpacing: -1,
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '${card.value}',
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w800,
+                color: card.color,
+                letterSpacing: -1,
+              ),
             ),
           ),
           const SizedBox(height: 2),
@@ -805,6 +845,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
               fontWeight: FontWeight.w700,
               color: AdminStyles.textPrimary,
             ),
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           Text(
@@ -813,6 +854,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
               fontSize: 11,
               color: AdminStyles.textMuted,
             ),
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
         ],

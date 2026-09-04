@@ -331,14 +331,20 @@ class _SystemAdminBackupRestoreViewState extends State<SystemAdminBackupRestoreV
             ),
           ),
           const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.3,
-            children: cards.map((c) => _buildStatTile(c)).toList(),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final crossCount = constraints.maxWidth < 450 ? 1 : 2;
+              final aspect = constraints.maxWidth < 450 ? 2.3 : 1.3;
+              return GridView.count(
+                crossAxisCount: crossCount,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: aspect,
+                children: cards.map((c) => _buildStatTile(c)).toList(),
+              );
+            },
           ),
         ],
       );

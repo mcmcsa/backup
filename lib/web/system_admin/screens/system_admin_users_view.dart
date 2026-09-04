@@ -1682,40 +1682,83 @@ class _ActionMenu extends StatelessWidget {
   }
 }
 
-class _PaginationBtn extends StatelessWidget {
+class _PaginationBtn extends StatefulWidget {
   final IconData icon;
   final VoidCallback? onTap;
 
   const _PaginationBtn({required this.icon, this.onTap});
 
   @override
+  State<_PaginationBtn> createState() => _PaginationBtnState();
+}
+
+class _PaginationBtnState extends State<_PaginationBtn> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Material(
-        color: onTap != null ? Colors.white : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              border: Border.all(color: AdminStyles.border),
-              borderRadius: BorderRadius.circular(8),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(8),
+            splashColor: AdminStyles.primary.withValues(alpha: 0.15),
+            highlightColor: AdminStyles.primary.withValues(alpha: 0.08),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: enabled
+                    ? (_isHovered
+                        ? AdminStyles.primary.withValues(alpha: 0.1)
+                        : Colors.white)
+                    : const Color(0xFFF1F5F9),
+                border: Border.all(
+                  color: enabled && _isHovered
+                      ? AdminStyles.primary
+                      : AdminStyles.border,
+                ),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: enabled && _isHovered
+                    ? [
+                        BoxShadow(
+                          color: AdminStyles.primary.withValues(alpha: 0.12),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : [],
+              ),
+              child: AnimatedScale(
+                scale: _isHovered && enabled ? 1.1 : 1.0,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeInOut,
+                child: Icon(
+                  widget.icon,
+                  size: 18,
+                  color: enabled
+                      ? (_isHovered
+                          ? AdminStyles.primary
+                          : AdminStyles.textPrimary)
+                      : AdminStyles.textMuted,
+                ),
+              ),
             ),
-            child: Icon(icon,
-                size: 18,
-                color: onTap != null
-                    ? AdminStyles.textPrimary
-                    : AdminStyles.textMuted),
           ),
         ),
       ),
     );
   }
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Summary card data model

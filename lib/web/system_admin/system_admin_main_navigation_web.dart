@@ -395,13 +395,16 @@ class _SystemAdminMainNavigationWebState
 
   Widget _buildSidebar() {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeInOutCubic,
       width: _isMenuExpanded ? 260 : 70,
       decoration: const BoxDecoration(
         color: _sidebarBg,
         border: Border(right: BorderSide(color: _sidebarBorder, width: 1)),
       ),
-      child: _buildSidebarContents(isMobile: false),
+      child: ClipRect(
+        child: _buildSidebarContents(isMobile: false),
+      ),
     );
   }
 
@@ -419,7 +422,7 @@ class _SystemAdminMainNavigationWebState
           child: Row(
             children: [
               const Icon(Icons.shield_outlined, color: Colors.tealAccent, size: 28),
-              if (isMobile || _isMenuExpanded) ...[
+              if (isMobile) ...[
                 const SizedBox(width: 12),
                 const Text(
                   'SYSTEM ADMIN',
@@ -428,6 +431,32 @@ class _SystemAdminMainNavigationWebState
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.0,
+                  ),
+                ),
+              ] else ...[
+                Expanded(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    opacity: _isMenuExpanded ? 1.0 : 0.0,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const NeverScrollableScrollPhysics(),
+                      child: Row(
+                        children: const [
+                          SizedBox(width: 12),
+                          Text(
+                            'SYSTEM ADMIN',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -471,7 +500,7 @@ class _SystemAdminMainNavigationWebState
                     color: Colors.redAccent,
                     size: 20,
                   ),
-                  if (isMobile || _isMenuExpanded) ...[
+                  if (isMobile) ...[
                     const SizedBox(width: 12),
                     const Expanded(
                       child: Text(
@@ -484,6 +513,31 @@ class _SystemAdminMainNavigationWebState
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                  ] else ...[
+                    Expanded(
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        opacity: _isMenuExpanded ? 1.0 : 0.0,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const NeverScrollableScrollPhysics(),
+                          child: Row(
+                            children: const [
+                              SizedBox(width: 12),
+                              Text(
+                                'Logout',
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -492,17 +546,37 @@ class _SystemAdminMainNavigationWebState
         ),
         if (!isMobile) ...[
           const SizedBox(height: 4),
-          // Collapse Toggle
-          IconButton(
-            onPressed: () => setState(() => _isMenuExpanded = !_isMenuExpanded),
-            icon: Icon(
-              _isMenuExpanded
-                  ? Icons.chevron_left_rounded
-                  : Icons.chevron_right_rounded,
-              color: Colors.white60,
+          // Collapse Toggle aligned to the far right with smooth rotation
+          AnimatedAlign(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeInOutCubic,
+            alignment: _isMenuExpanded ? Alignment.centerRight : Alignment.center,
+            child: Padding(
+              padding: EdgeInsets.only(right: _isMenuExpanded ? 8.0 : 0.0),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  onTap: () => setState(() => _isMenuExpanded = !_isMenuExpanded),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: AnimatedRotation(
+                      turns: _isMenuExpanded ? 0.0 : 0.5,
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeInOutCubic,
+                      child: const Icon(
+                        Icons.chevron_left_rounded,
+                        color: Colors.white70,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
         ],
       ],
     );
@@ -532,7 +606,8 @@ class _SystemAdminMainNavigationWebState
         }
       },
       borderRadius: BorderRadius.circular(10),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         height: 48,
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -547,7 +622,7 @@ class _SystemAdminMainNavigationWebState
               color: isSelected ? Colors.white : Colors.white70,
               size: 22,
             ),
-            if (isMobile || _isMenuExpanded) ...[
+            if (isMobile) ...[
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -558,6 +633,31 @@ class _SystemAdminMainNavigationWebState
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                   overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ] else ...[
+              Expanded(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  opacity: _isMenuExpanded ? 1.0 : 0.0,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 12),
+                        Text(
+                          label,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.white70,
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ],

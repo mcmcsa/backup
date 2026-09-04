@@ -215,13 +215,20 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
     ];
 
     if (isMobile) {
-      return GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 12, crossAxisSpacing: 12,
-        childAspectRatio: 1.4,
-        children: cards.map((c) => _buildMetricTile(c)).toList(),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final crossCount = constraints.maxWidth < 450 ? 1 : 2;
+          final aspect = constraints.maxWidth < 450 ? 2.4 : 1.4;
+          return GridView.count(
+            crossAxisCount: crossCount,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: aspect,
+            children: cards.map((c) => _buildMetricTile(c)).toList(),
+          );
+        },
       );
     }
 

@@ -250,13 +250,32 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
 
     final dateFilter = InkWell(
       onTap: () async {
-        final range = await showDateRangePicker(
+        final range = await showDialog<DateTimeRange>(
           context: context,
-          firstDate: DateTime(2020),
-          lastDate: DateTime.now(),
-          initialDateRange: _startDate != null && _endDate != null
-              ? DateTimeRange(start: _startDate!, end: _endDate!)
-              : null,
+          builder: (ctx) => Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            clipBehavior: Clip.antiAlias,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500, maxHeight: 560),
+              child: Theme(
+                data: ThemeData.light().copyWith(
+                  colorScheme: const ColorScheme.light(
+                    primary: AdminStyles.primary,
+                    onPrimary: Colors.white,
+                    surface: Colors.white,
+                    onSurface: AdminStyles.textPrimary,
+                  ),
+                ),
+                child: DateRangePickerDialog(
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime.now(),
+                  initialDateRange: _startDate != null && _endDate != null
+                      ? DateTimeRange(start: _startDate!, end: _endDate!)
+                      : null,
+                ),
+              ),
+            ),
+          ),
         );
         if (range != null) {
           setState(() {

@@ -86,7 +86,7 @@ String? resolveAuthRedirect({
     if (isAtStartup) {
       return kIsWeb ? '/' : '/login';
     }
-    return isAtLogin ? null : (kIsWeb ? '/' : '/login');
+    return isAtLogin ? null : '/login';
   }
 
   if (user.mustChangePassword) {

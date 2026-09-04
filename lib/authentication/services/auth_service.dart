@@ -340,39 +340,46 @@ class AuthService extends ChangeNotifier {
   // Logout
   // ---------------------------------------------------------------
   Future<void> logout() async {
-    _isLoading = true;
+    final current = _currentUser;
+
+    // Immediately clear local session state & notify router
+    _profileRealtimeChannel?.unsubscribe();
+    _profileRealtimeChannel = null;
+    _currentUser = null;
+    _isSessionInitialized = true;
+    _isPostLoginSplashActive = false;
+    _pauseLoginRedirectOnce = false;
+    _isLoading = false;
     notifyListeners();
 
-    final current = _currentUser;
-    try {
-      if (current != null) {
-        String title = 'User Logout';
-        if (current.role == UserRole.admin) title = 'Admin Logout';
-        else if (current.role == UserRole.campadmin) title = 'Campus Admin Logout';
-        else if (current.role == UserRole.teacher) title = 'Teacher Logout';
-        else if (current.role == UserRole.maintenance) title = 'Maintenance Logout';
+    // Perform backend activity logging & offline update in background
+    if (current != null) {
+      unawaited(() async {
+        try {
+          String title = 'User Logout';
+          if (current.role == UserRole.admin) title = 'Admin Logout';
+          else if (current.role == UserRole.campadmin) title = 'Campus Admin Logout';
+          else if (current.role == UserRole.teacher) title = 'Teacher Logout';
+          else if (current.role == UserRole.maintenance) title = 'Maintenance Logout';
 
-        await LoginActivityService.recordAction(
-          user: current,
-          title: title,
-          details: 'Logged out from the system',
-        );
-        if (current.role == UserRole.maintenance) {
-          await MaintenanceStatusService.setOfflineOnLogout(current.id);
+          await LoginActivityService.recordAction(
+            user: current,
+            title: title,
+            details: 'Logged out from the system',
+          );
+          if (current.role == UserRole.maintenance) {
+            await MaintenanceStatusService.setOfflineOnLogout(current.id);
+          }
+        } catch (e) {
+          debugPrint('Logout activity logging error: $e');
         }
-      }
+      }());
+    }
 
+    try {
       await _auth.auth.signOut(scope: SignOutScope.global);
-      _currentUser = null;
-      _isSessionInitialized = true;
-      _isPostLoginSplashActive = false;
-      _pauseLoginRedirectOnce = false;
-      notifyListeners();
     } catch (e) {
-      debugPrint('Logout error: $e');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      debugPrint('Logout signOut error: $e');
     }
   }
 
@@ -681,16 +688,15 @@ class AuthService extends ChangeNotifier {
     if (_isHandlingLogout) return;
     _isHandlingLogout = true;
     try {
-      if (_currentUser?.role == UserRole.maintenance) {
-        await MaintenanceStatusService.setOfflineOnLogout(_currentUser!.id);
-      }
-      await logout();
-
       final routerContext =
           context.mounted ? context : rootNavigatorKey.currentContext;
       if (routerContext != null) {
-        GoRouter.of(routerContext).go('/login');
+        try {
+          GoRouter.of(routerContext).go('/login');
+        } catch (_) {}
       }
+
+      await logout();
     } finally {
       _isHandlingLogout = false;
     }
@@ -725,17 +731,40 @@ class AuthService extends ChangeNotifier {
   // ---------------------------------------------------------------
   // Force change password for mandatory password reset on first login
   // ---------------------------------------------------------------
-  Future<String?> forceChangePassword(String newPassword) async {
+  Future<String?> forceChangePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
     _isLoading = true;
     notifyListeners();
 
     try {
       final user = _auth.auth.currentUser;
-      if (user == null) return 'No authenticated user found.';
+      final email = user?.email;
+      if (user == null || email == null) return 'No authenticated user found.';
+
+      final trimmedCurrent = currentPassword.trim();
+      final trimmedNew = newPassword.trim();
+
+      if (trimmedCurrent == trimmedNew) {
+        return 'Your new password cannot be the same as your initial temporary password. Please enter a different password.';
+      }
+
+      // Re-authenticate with current password to verify validity
+      try {
+        await _auth.auth.signInWithPassword(
+          email: email,
+          password: trimmedCurrent,
+        );
+      } on AuthException catch (_) {
+        return 'Current temporary password is incorrect.';
+      } catch (_) {
+        return 'Current temporary password is incorrect.';
+      }
 
       await _auth.auth.updateUser(
         UserAttributes(
-          password: newPassword.trim(),
+          password: trimmedNew,
           data: {'must_change_password': false},
         ),
       );
@@ -750,6 +779,12 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       return null;
     } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('different from the old password') ||
+          msg.contains('same as old password') ||
+          msg.contains('same as the old')) {
+        return 'Your new password cannot be the same as your initial temporary password. Please enter a different password.';
+      }
       return e.message;
     } catch (e) {
       return e.toString();
