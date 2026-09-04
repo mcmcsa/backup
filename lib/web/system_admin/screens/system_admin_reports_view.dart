@@ -7,9 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:universal_html/html.dart' as html;
 
 import '../../../authentication/models/user_model.dart';
-import '../../../shared/models/request_type_model.dart';
 import '../../../shared/models/work_request_model.dart';
-import '../../../shared/services/request_type_service.dart';
 import '../../../shared/services/system_admin_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../admin/shared/admin_styles.dart';
@@ -32,7 +30,6 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
 
   List<WorkRequest> _allRequests = [];
   List<AppUser> _allUsers = [];
-  List<RequestType> _allRequestTypes = [];
 
   RealtimeChannel? _realtimeChannel;
   Timer? _autoRefreshTimer;
@@ -109,14 +106,12 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
       final results = await Future.wait([
         WorkRequestService.fetchAll(),
         SystemAdminService.fetchAllUsers(),
-        RequestTypeService.fetchAll(),
       ]);
 
       if (mounted) {
         setState(() {
           _allRequests = results[0] as List<WorkRequest>;
           _allUsers = results[1] as List<AppUser>;
-          _allRequestTypes = results[2] as List<RequestType>;
           _loading = false;
         });
       }
@@ -292,7 +287,7 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
       final url = html.Url.createObjectUrlFromBlob(blob);
       final fileName = 'System_Reports_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
       
-      final anchor = html.AnchorElement(href: url)
+      html.AnchorElement(href: url)
         ..setAttribute('download', fileName)
         ..click();
       
