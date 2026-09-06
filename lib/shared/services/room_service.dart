@@ -1,10 +1,10 @@
 
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/room_model.dart';
 import '../services/room_type_service.dart';
+import '../services/floor_service.dart';
 import 'admin_audit_log_service.dart';
 import 'work_request_service.dart';
 import 'app_notification_service.dart';
@@ -47,6 +47,10 @@ class RoomService {
     final roomTypeNames = {
       for (final roomType in roomTypes) roomType.id: roomType.name,
     };
+    final floors = await FloorService.fetchAll();
+    final floorNames = {
+      for (final f in floors) f.id: f.name,
+    };
 
     return data.map((e) {
       final row = Map<String, dynamic>.from(e as Map);
@@ -55,6 +59,13 @@ class RoomService {
 
       if (roomTypeName.isNotEmpty) {
         row['room_types'] = {'name': roomTypeName};
+      }
+
+      final floorId = row['floor_id']?.toString() ?? '';
+      final floorName = floorNames[floorId] ?? row['floor'] ?? row['floor_snapshot'] ?? '';
+      if (floorName.isNotEmpty) {
+        row['floors'] = {'name': floorName};
+        row['floor'] = floorName;
       }
 
       return Room.fromMap(row);

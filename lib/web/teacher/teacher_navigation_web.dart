@@ -43,6 +43,8 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   String? _createRoomId;
   String? _createRoomName;
   String? _createBuildingName;
+  String? _createFloor;
+  String? _createDepartmentName;
   WorkRequest? _selectedRequestForDetails;
   ChatRoom? _selectedChatRoom;
 
@@ -232,10 +234,12 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
         const TeacherSettingsWeb(),
         const TeacherContactWeb(),
         TeacherCreateRequestWeb(
-          key: ValueKey('$_createRoomId-$_createRoomName-$_createBuildingName'),
+          key: ValueKey('$_createRoomId-$_createRoomName-$_createBuildingName-$_createFloor'),
           roomId: _createRoomId,
           roomName: _createRoomName,
           buildingName: _createBuildingName,
+          floor: _createFloor,
+          departmentName: _createDepartmentName,
         ),
         const TeacherNotificationsWeb(),
       ],
@@ -266,7 +270,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                 ),
                 Expanded(
                   child: TeacherNavController(
-                    navigateTo: (i, {roomId, roomName, buildingName, request, chatRoom}) {
+                    navigateTo: (i, {roomId, roomName, buildingName, floor, departmentName, request, chatRoom}) {
                       setState(() {
                         _selectedIndex = i;
                         _selectedRequestForDetails = request;
@@ -277,6 +281,8 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                           _createRoomId = roomId;
                           _createRoomName = roomName;
                           _createBuildingName = buildingName;
+                          _createFloor = floor;
+                          _createDepartmentName = departmentName;
                         }
                       });
                     },
@@ -306,7 +312,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                     _buildHeader(),
                     Expanded(
                       child: TeacherNavController(
-                        navigateTo: (i, {roomId, roomName, buildingName, request, chatRoom}) {
+                        navigateTo: (i, {roomId, roomName, buildingName, floor, departmentName, request, chatRoom}) {
                           setState(() {
                             _selectedIndex = i;
                             _selectedRequestForDetails = request;
@@ -317,6 +323,8 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                               _createRoomId = roomId;
                               _createRoomName = roomName;
                               _createBuildingName = buildingName;
+                              _createFloor = floor;
+                              _createDepartmentName = departmentName;
                             }
                           });
                         },

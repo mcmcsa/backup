@@ -99,6 +99,17 @@ class Room {
       roomTypeName = map['room_type'] ?? '';
     }
 
+    String floorName = '';
+    if (map['floors'] is Map) {
+      floorName = map['floors']['name'] ?? '';
+    }
+    if (floorName.isEmpty && map['floor'] != null && map['floor'].toString().isNotEmpty) {
+      floorName = map['floor'].toString();
+    }
+    if (floorName.isEmpty && map['floor_snapshot'] != null) {
+      floorName = map['floor_snapshot'].toString();
+    }
+
     int parseSeats(Map<String, dynamic> m) {
       final val = m['seats'] ??
           m['capacity'] ??
@@ -121,7 +132,7 @@ class Room {
       buildingId: map['building_id']?.toString() ?? '',
       building: buildingName,
       floorId: map['floor_id']?.toString() ?? '',
-      floor: map['floor'] ?? map['floor_id']?.toString() ?? '',
+      floor: floorName,
       seats: parseSeats(map),
       departmentId: map['department_id']?.toString() ?? '',
       department: departmentName,

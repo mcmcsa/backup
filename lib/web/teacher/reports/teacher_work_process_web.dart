@@ -35,6 +35,7 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
   bool _isLoading = true;
   final Map<String, String> _userNames = {};
   Timer? _autoRefreshTimer;
+  String _selectedFilter = 'Timeline';
   late final AnimationController _animController = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 700),
@@ -119,6 +120,52 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
         });
       }
     }
+  }
+
+  bool _isRequestorSignature(ESignature s) {
+    // 1. Explicitly exclude any admin, campus admin, technician, or maintenance roles/types
+    final role = s.signerRole.trim().toLowerCase();
+    final type = s.signatureType.trim().toLowerCase();
+    if (role == 'admin' || role == 'campadmin' || role == 'campus admin' ||
+        role == 'maintenance' || role == 'technician') {
+      return false;
+    }
+    if (type.contains('pre_inspection') || type.contains('post_repair')) {
+      return false;
+    }
+
+    // 2. Check signerId against requestorId or reportedById
+    final reqId = _req.requestorId?.trim();
+    if (reqId != null && reqId.isNotEmpty && s.signerId.trim() == reqId) {
+      return true;
+    }
+    final reportedId = _req.reportedById?.trim();
+    if (reportedId != null && reportedId.isNotEmpty && s.signerId.trim() == reportedId) {
+      return true;
+    }
+
+    // 3. Check signerName against requestorName, reportedByName, or displayRequestorName
+    final signerName = s.signerName.trim().toLowerCase();
+    final reqName = _req.requestorName.trim().toLowerCase();
+    final dispName = _req.displayRequestorName.trim().toLowerCase();
+    final reportedName = (_req.reportedByName ?? '').trim().toLowerCase();
+    
+    if (signerName.isNotEmpty) {
+      if (reqName.isNotEmpty && signerName == reqName) return true;
+      if (dispName.isNotEmpty && signerName == dispName) return true;
+      if (reportedName.isNotEmpty && signerName == reportedName) return true;
+    }
+
+    // 4. Check role: 'teacher' or 'requestor'
+    if (role == 'teacher' || role == 'requestor') {
+      return true;
+    }
+
+    return false;
+  }
+
+  List<ESignature> get _requestorSignatures {
+    return _signatures.where(_isRequestorSignature).toList();
   }
 
   // ─── Status Helpers ──────────────────────────────────────────────────────────
@@ -228,17 +275,22 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
       color: AdminStyles.primary,
     ));
 
-    // 2. Admin Review & Approval
+    // 2. Campus Admin Review & Approval
     final isApproved = ['assigned', 'confirmed', 'rework', 'completed', 'in progress', 'in_progress', 'declined'].contains(task.status.toLowerCase());
     final isDeclinedInitially = task.status.toLowerCase() == 'declined' && task.preInspectionId == null;
+    final campusAdminName = (task.approvedByName != null && task.approvedByName!.trim().isNotEmpty)
+        ? task.approvedByName!.trim()
+        : 'Campus Admin';
     steps.add(_TimelineStep(
       icon: Icons.admin_panel_settings_rounded,
-      title: isDeclinedInitially ? 'Request Declined' : 'Admin Review & Approval',
+      title: isDeclinedInitially ? 'Request Declined by Campus Admin' : 'Campus Admin Review & Approval',
       desc: isDeclinedInitially
-          ? 'Request was declined and closed.'
+          ? 'Request was declined by Campus Admin.'
           : (isApproved
-              ? 'Request approved by ${task.approvedByName ?? "Admin"}.'
-              : 'Waiting for admin approval.'),
+              ? (task.approvedByName != null && task.approvedByName!.trim().isNotEmpty
+                  ? 'Request approved by Campus Admin ($campusAdminName).'
+                  : 'Request approved by Campus Admin.')
+              : 'Waiting for Campus Admin approval.'),
       date: task.approvedDate,
       isCompleted: isApproved,
       color: isDeclinedInitially ? AdminStyles.error : AdminStyles.secondary,
@@ -280,14 +332,14 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
       final isPreInspDeclined = _preInspectionReport!.status == 'Declined';
       final approvedByName = _preInspectionReport!.adminApprovedBy != null
           ? (_userNames[_preInspectionReport!.adminApprovedBy] ?? _preInspectionReport!.adminApprovedBy)
-          : "Admin";
+          : "Campus Admin";
       
       steps.add(_TimelineStep(
         icon: isPreInspDeclined ? Icons.cancel_rounded : Icons.fact_check_rounded,
         title: isPreInspDeclined ? 'Pre-Inspection Declined' : 'Pre-Inspection Approved',
         desc: isReviewed
             ? '${_preInspectionReport!.status} by $approvedByName'
-            : 'Awaiting pre-inspection review.',
+            : 'Awaiting Campus Admin pre-inspection review.',
         date: _preInspectionReport?.adminApprovedDate,
         isCompleted: isReviewed && !isPreInspDeclined,
         color: isPreInspDeclined ? AdminStyles.error : AdminStyles.success,
@@ -319,7 +371,7 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
       final isRework = report.adminEvaluation == 'rework';
       final evaluatedByName = report.adminEvaluatedBy != null
           ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
-          : "Admin";
+          : "Campus Admin";
       
       final isLatestReport = i == sortedAttempts.length - 1;
       if (isEvaluated || isLatestReport) {
@@ -383,36 +435,241 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
                 : FadeTransition(
                     opacity: _fadeAnim,
                     child: SingleChildScrollView(
-                      padding: EdgeInsets.all(isCompact ? 20 : 40),
+                      padding: EdgeInsets.all(isCompact ? 16 : 28),
                       child: Center(
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1100),
-                          child: Column(
-                            children: [
-                              _buildStatusHero(),
-                              const SizedBox(height: 32),
-                              isCompact
-                                  ? Column(children: [
-                                      _buildTimelineCard(),
-                                      const SizedBox(height: 24),
-                                      _buildInfoPanel(),
-                                    ])
-                                  : Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(flex: 6, child: _buildTimelineCard()),
-                                        const SizedBox(width: 28),
-                                        Expanded(flex: 4, child: _buildInfoPanel()),
-                                      ],
-                                    ),
-                            ],
-                          ),
+                          constraints: const BoxConstraints(maxWidth: 1150),
+                          child: isCompact
+                              ? _buildCompactLayout()
+                              : _buildDesktopLayout(),
                         ),
                       ),
                     ),
                   ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCompactLayout() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildCompactStatusCard(),
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: _buildFilterButtons(),
+          ),
+        ),
+        const SizedBox(height: 14),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 260),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.02),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          ),
+          child: KeyedSubtree(
+            key: ValueKey(_selectedFilter),
+            child: _selectedFilter == 'Timeline'
+                ? _buildTimelineCard()
+                : (_selectedFilter == 'Details'
+                    ? _buildRequestInfoCard()
+                    : _buildSignaturesCard()),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopLayout() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Left Column (flex: 6): Filter buttons right on top of Work Request Timeline!
+        Expanded(
+          flex: 6,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildFilterButtons(),
+              const SizedBox(height: 14),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.02),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: KeyedSubtree(
+                  key: ValueKey(_selectedFilter),
+                  child: _selectedFilter == 'Timeline'
+                      ? _buildTimelineCard()
+                      : (_selectedFilter == 'Details'
+                          ? _buildRequestInfoCard()
+                          : _buildSignaturesCard()),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 24),
+        // Right Column (flex: 4): Compact status card (Rework Needed) on the right, plus info
+        Expanded(
+          flex: 4,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildCompactStatusCard(),
+              const SizedBox(height: 20),
+              if (_selectedFilter == 'Timeline') ...[
+                _buildRequestInfoCard(),
+                if (_requestorSignatures.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _buildSignaturesCard(),
+                ],
+              ] else if (_selectedFilter == 'Details') ...[
+                if (_requestorSignatures.isNotEmpty) ...[
+                  _buildSignaturesCard(),
+                  const SizedBox(height: 20),
+                ],
+              ] else if (_selectedFilter == 'Signature') ...[
+                _buildRequestInfoCard(),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterButtons() {
+    final filters = [
+      {'label': 'Timeline', 'icon': Icons.timeline_rounded},
+      {'label': 'Details', 'icon': Icons.description_outlined},
+      {'label': 'Signature', 'icon': Icons.draw_outlined},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: filters.map((f) {
+          final label = f['label'] as String;
+          final icon = f['icon'] as IconData;
+          final isSelected = _selectedFilter == label;
+
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                if (_selectedFilter != label) {
+                  setState(() => _selectedFilter = label);
+                }
+              },
+              borderRadius: BorderRadius.circular(9),
+              hoverColor: AdminStyles.primary.withValues(alpha: 0.04),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeInOutCubic,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? AdminStyles.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(9),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: AdminStyles.primary.withValues(alpha: 0.28),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TweenAnimationBuilder<Color?>(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeInOut,
+                      tween: ColorTween(
+                        end: isSelected ? Colors.white : AdminStyles.textSecondary,
+                      ),
+                      builder: (context, iconColor, _) => Icon(
+                        icon,
+                        size: 16,
+                        color: iconColor,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeInOut,
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected ? Colors.white : AdminStyles.textSecondary,
+                      ),
+                      child: Text(label),
+                    ),
+                    if (label == 'Signature' && _requestorSignatures.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Colors.white.withValues(alpha: 0.25)
+                              : AdminStyles.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${_requestorSignatures.length}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: isSelected ? Colors.white : AdminStyles.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -523,8 +780,8 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
     );
   }
 
-  // ─── Status Hero ─────────────────────────────────────────────────────────────
-  Widget _buildStatusHero() {
+  // ─── Compact Status Card (Positioned on the Right) ─────────────────────────
+  Widget _buildCompactStatusCard() {
     String title, desc;
     IconData icon;
 
@@ -562,134 +819,139 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
       icon = Icons.cancel_rounded;
     } else if (isRework) {
       title = 'Rework Needed';
-      desc = 'The administrator requested rework on the performed repairs.';
+      desc = 'The Campus Admin requested rework on the performed repairs.';
       icon = Icons.history_rounded;
     } else if (hasPostRepair && !isPostRepairEvaluated) {
-      // Step 7: Campus Admin reviews/evaluates post-repair inspection -> Under Evaluation
       title = 'Under Evaluation';
-      desc = 'The campus admin is currently evaluating the post-repair inspection.';
+      desc = 'The Campus Admin is currently evaluating the post-repair inspection.';
       icon = Icons.rate_review_rounded;
     } else if (hasPostRepair) {
-      // Step 6: Maintenance user submits post-repair inspection -> Post-Repair Inspection Submitted
-      title = 'Post-Repair Inspection Submitted';
-      desc = 'Repair completed. Post-repair report has been submitted.';
+      title = 'Post-Repair Submitted';
+      desc = 'Repair completed. Post-repair report has been submitted to Campus Admin.';
       icon = Icons.fact_check_rounded;
     } else if (isPreInspApproved) {
-      // Step 5: Campus Admin confirms -> Confirmed
       title = 'Confirmed';
       desc = 'The pre-inspection has been confirmed. The repair is in progress.';
       icon = Icons.construction_rounded;
     } else if (hasPreInsp && !isPreInspReviewed) {
-      // Step 4: Maintenance user submits pre-inspection -> Pre-Inspection Submitted
       title = 'Pre-Inspection Submitted';
-      desc = 'Pre-inspection report has been submitted and is awaiting admin decision.';
+      desc = 'Pre-inspection report has been submitted and is awaiting Campus Admin decision.';
       icon = Icons.search_rounded;
     } else if (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance') {
       if (req.acceptedDate == null) {
-        // Step 2: Campus Admin reviews and approves -> Approved
         title = 'Approved';
-        desc = 'The request has been approved and assigned to a technician. Awaiting acceptance.';
+        desc = 'The request has been approved by Campus Admin and assigned to a technician.';
         icon = Icons.thumb_up_rounded;
       } else {
-        // Step 3: Maintenance user accepts the work request -> Accepted
         title = 'Accepted';
         desc = 'The maintenance user accepted the task and is working on it.';
         icon = Icons.assignment_turned_in_rounded;
       }
     } else {
-      // Step 1: Work request submitted -> Awaiting Review
       title = 'Awaiting Review';
-      desc = 'Your request has been received and is pending admin review.';
+      desc = 'Your request has been received and is pending Campus Admin review.';
       icon = Icons.pending_actions_rounded;
     }
 
-    final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 600;
-
-    Widget iconContainer = Container(
-      width: isMobile ? 60 : 80,
-      height: isMobile ? 60 : 80,
+    return Container(
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: _statusColor.withValues(alpha: 0.15),
-        shape: BoxShape.circle,
-        border: Border.all(color: _statusColor.withValues(alpha: 0.3), width: 2),
-      ),
-      child: Icon(icon, color: _statusColor, size: isMobile ? 28 : 38),
-    );
-
-    Widget textColumn = Column(
-      crossAxisAlignment: isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-      children: [
-        Text(
-          title, 
-          textAlign: isMobile ? TextAlign.center : TextAlign.start,
-          style: AdminStyles.headingStyle(fontSize: isMobile ? 18 : 26, color: _statusColor),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          desc, 
-          textAlign: isMobile ? TextAlign.center : TextAlign.start,
-          style: AdminStyles.bodyStyle(fontSize: isMobile ? 13 : 15, color: AdminStyles.textSecondary, height: 1.5),
-        ),
-        if (_req.maintenanceNotes != null && _req.maintenanceNotes!.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AdminStyles.info.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AdminStyles.info.withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.sticky_note_2_rounded, color: AdminStyles.info, size: 16),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _req.maintenanceNotes!,
-                    style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary, height: 1.4),
-                  ),
-                ),
-              ],
-            ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _statusColor.withValues(alpha: 0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: _statusColor.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
-      ],
-    );
-
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 20 : 32),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            _statusColor.withValues(alpha: 0.12),
-            _statusColor.withValues(alpha: 0.04),
-            Colors.white.withValues(alpha: 0.0),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _statusColor.withValues(alpha: 0.25)),
-        color: Colors.white,
       ),
-      child: isMobile
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                iconContainer,
-                const SizedBox(height: 16),
-                textColumn,
-              ],
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                iconContainer,
-                const SizedBox(width: 28),
-                Expanded(child: textColumn),
-              ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _statusColor.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _statusColor.withValues(alpha: 0.25), width: 1.5),
+                ),
+                child: Icon(icon, color: _statusColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AdminStyles.headingStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: _statusColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _statusLabel,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: _statusColor,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            desc,
+            style: AdminStyles.bodyStyle(
+              fontSize: 12,
+              color: AdminStyles.textSecondary,
+              height: 1.4,
             ),
+          ),
+          if (_req.maintenanceNotes != null && _req.maintenanceNotes!.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDFA),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFCCFBF1)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.note_alt_outlined, color: AdminStyles.primary, size: 14),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _req.maintenanceNotes!.trim(),
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 11,
+                        color: AdminStyles.textPrimary,
+                        fontWeight: FontWeight.w500,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -717,7 +979,7 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
                 child: const Icon(Icons.timeline_rounded, color: AdminStyles.primary, size: 20),
               ),
               const SizedBox(width: 12),
-              Text('Activity Timeline', style: AdminStyles.headingStyle(fontSize: 18)),
+              Text('Work Request Timeline', style: AdminStyles.headingStyle(fontSize: 18)),
             ],
           ),
           const SizedBox(height: 32),
@@ -844,18 +1106,7 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
     );
   }
 
-  // ─── Info Panel ──────────────────────────────────────────────────────────────
-  Widget _buildInfoPanel() {
-    return Column(
-      children: [
-        _buildRequestInfoCard(),
-        if (_signatures.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          _buildSignaturesCard(),
-        ],
-      ],
-    );
-  }
+
 
   Widget _buildRequestInfoCard() {
     // Only show priority if the admin has already reviewed/approved (status != 'pending').
@@ -1060,12 +1311,14 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
   }
 
   Widget _buildSignaturesCard() {
+    final sigs = _requestorSignatures;
+
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AdminStyles.success.withValues(alpha: 0.3)),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 12, offset: Offset(0, 4))],
       ),
       child: Column(
@@ -1082,11 +1335,38 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
                 child: const Icon(Icons.verified_rounded, color: AdminStyles.success, size: 20),
               ),
               const SizedBox(width: 12),
-              Text('Verified Signatures', style: AdminStyles.headingStyle(fontSize: 17)),
+              Text('Requestor Signature', style: AdminStyles.headingStyle(fontSize: 17)),
             ],
           ),
           const SizedBox(height: 20),
-          ..._signatures.map((s) => _buildSignatureItem(s)),
+          if (sigs.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.draw_rounded, size: 36, color: AdminStyles.textMuted.withValues(alpha: 0.5)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No Requestor Signature Recorded',
+                    style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textSecondary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Your signature as the requestor will appear here once attached to this work request.',
+                    textAlign: TextAlign.center,
+                    style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...sigs.map((s) => _buildSignatureItem(s)),
         ],
       ),
     );
@@ -1136,28 +1416,11 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
                   Text(s.signerName, style: AdminStyles.headingStyle(fontSize: 13)),
                   Text(
                     () {
-                      final role = s.signerRole.trim().toLowerCase();
                       final type = s.signatureType.trim().toLowerCase();
-                      if (role == 'teacher' || role == 'requestor') {
-                        if (type == 'approval' || type == 'submission') {
-                          return 'Requestor Approval';
-                        } else if (type == 'completion') {
-                          return 'Requestor Completion';
-                        }
-                      } else if (role == 'admin' || role == 'approver') {
-                        if (type == 'completion') {
-                          return 'Admin Completion';
-                        } else {
-                          return 'Admin Approval';
-                        }
-                      } else if (role == 'maintenance' || role == 'technician') {
-                        if (type == 'completion') {
-                          return 'Maintenance Completion';
-                        } else {
-                          return 'Maintenance Sign';
-                        }
+                      if (type == 'completion') {
+                        return 'Requestor (Completion Confirmation)';
                       }
-                      return s.signerRole.toUpperCase();
+                      return 'Requestor (Submission)';
                     }(),
                     style: AdminStyles.bodyStyle(fontSize: 10, color: AdminStyles.textMuted),
                   ),

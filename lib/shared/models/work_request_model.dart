@@ -43,10 +43,72 @@ class WorkRequest {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  static String extractTypeOfRequest({dynamic rawType, String? title}) {
+    if (rawType != null && rawType.toString().trim().isNotEmpty) {
+      final raw = rawType.toString().trim();
+      if (raw.contains(':')) {
+        final prefix = raw.split(':').first.trim();
+        if (prefix.isNotEmpty) return prefix;
+      }
+      return raw;
+    }
+
+    final cleanTitle = (title ?? '').trim();
+    if (cleanTitle.isNotEmpty) {
+      String stripped = cleanTitle;
+      if (stripped.toLowerCase().startsWith('maintenance:')) {
+        stripped = stripped.substring('maintenance:'.length).trim();
+      } else if (stripped.toLowerCase().startsWith('work request –')) {
+        stripped = stripped.substring('work request –'.length).trim();
+      } else if (stripped.toLowerCase().startsWith('work request -')) {
+        stripped = stripped.substring('work request -'.length).trim();
+      }
+
+      const knownTypes = [
+        'Replacement of',
+        'Installation of',
+        'Repair of',
+        'Ocular inspection of',
+        'Ocular Inspection of',
+        'Ocular inspection',
+        'Ocular Inspection',
+        'Cleaning of',
+        'Cleaning',
+        'Replacement',
+        'Installation',
+        'Repair',
+        'Remediation',
+      ];
+
+      for (final kt in knownTypes) {
+        if (stripped.toLowerCase().startsWith(kt.toLowerCase())) {
+          return kt;
+        }
+      }
+
+      if (stripped.contains(':')) {
+        final prefix = stripped.split(':').first.trim();
+        if (prefix.isNotEmpty) return prefix;
+      }
+
+      if (stripped.isNotEmpty) {
+        return stripped;
+      }
+    }
+
+    return '';
+  }
+
   /// Returns the type of request as submitted by the requestor.
   String get typeDisplay {
-    if (typeOfRequest.isNotEmpty) return typeOfRequest;
-    // Fallback: try to extract from title (e.g. "Maintenance: Replacement of: Door Knob")
+    if (typeOfRequest.isNotEmpty) {
+      if (typeOfRequest.contains(':')) {
+        return typeOfRequest.split(':').first.trim();
+      }
+      return typeOfRequest;
+    }
+    final extracted = extractTypeOfRequest(title: title);
+    if (extracted.isNotEmpty) return extracted;
     final colonIdx = title.indexOf(':');
     if (colonIdx != -1 && colonIdx < title.length - 1) {
       return title.substring(colonIdx + 1).trim();
@@ -132,10 +194,10 @@ class WorkRequest {
       roomId: map['room_id'],
       roomName: map['room_name'] ?? _nestedText(map['room'], 'name'),
       requestTypeId: map['request_type_id']?.toString(),
-      typeOfRequest:
-        map['type_of_request'] ??
-        _nestedText(map['request_type'], 'name') ??
-        '',
+      typeOfRequest: extractTypeOfRequest(
+        rawType: map['type_of_request'] ?? _nestedText(map['request_type'], 'name'),
+        title: map['title']?.toString(),
+      ),
       dateSubmitted: DateTime.parse(
         map['date_submitted'] ?? DateTime.now().toIso8601String(),
       ),

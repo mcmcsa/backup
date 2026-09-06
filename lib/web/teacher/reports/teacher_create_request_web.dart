@@ -27,12 +27,16 @@ class TeacherCreateRequestWeb extends StatefulWidget {
   final String? roomId;
   final String? buildingName;
   final String? roomName;
+  final String? floor;
+  final String? departmentName;
 
   const TeacherCreateRequestWeb({
     super.key,
     this.roomId,
     this.buildingName,
     this.roomName,
+    this.floor,
+    this.departmentName,
   });
 
   @override
@@ -66,6 +70,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   final Map<String, List<String>> _buildingsByDepartment = {};
 
   WorkRequest? _submittedRequest;
+  String _lastCheckedRoomCode = '';
 
   @override
   void initState() {
@@ -73,6 +78,16 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
     _loadDropdownData();
     if (widget.roomId != null) _roomNumberController.text = widget.roomId!;
     if (widget.roomName != null) _officeRoomNameController.text = widget.roomName!;
+    if (widget.floor != null && widget.floor!.isNotEmpty) _selectedFloor = widget.floor!;
+    if (widget.departmentName != null && widget.departmentName!.isNotEmpty) _selectedCollege = widget.departmentName!;
+
+    final initialCode = widget.roomId ?? _roomNumberController.text;
+    if (initialCode.trim().isNotEmpty) {
+      _lastCheckedRoomCode = initialCode.trim().toUpperCase();
+      _fetchRoomDetails(initialCode.trim());
+    }
+
+    _roomNumberController.addListener(_onRoomCodeChanged);
     
     final user = context.read<AuthService>().currentUser;
     if (user != null) {
@@ -82,6 +97,53 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
           : user.roleLabel;
       _positionController.text = pos;
     }
+  }
+
+  @override
+  void dispose() {
+    _roomNumberController.removeListener(_onRoomCodeChanged);
+    super.dispose();
+  }
+
+  void _onRoomCodeChanged() {
+    final text = _roomNumberController.text.trim().toUpperCase();
+    if (text.isNotEmpty && text != _lastCheckedRoomCode) {
+      _lastCheckedRoomCode = text;
+      _fetchRoomDetails(text);
+    }
+  }
+
+  Future<void> _fetchRoomDetails(String roomCode) async {
+    final code = roomCode.trim();
+    if (code.isEmpty) return;
+
+    try {
+      final room = await RoomService.findRoomByScannedCode(code);
+      if (room != null && mounted) {
+        setState(() {
+          if (_officeRoomNameController.text.trim().isEmpty || widget.roomName == null) {
+            _officeRoomNameController.text = room.name;
+          }
+          if (room.department.isNotEmpty && (_colleges.isEmpty || _colleges.contains(room.department))) {
+            _selectedCollege = room.department;
+          }
+          if (room.building.isNotEmpty) {
+            final availableBuildings = _buildingsByDepartment[_selectedCollege] ?? [];
+            if (availableBuildings.contains(room.building)) {
+              _selectedBuilding = room.building;
+            } else {
+              _selectedBuilding = room.building;
+            }
+          }
+          if (room.floor.isNotEmpty) {
+            _selectedFloor = room.floor;
+            if (!_floors.contains(_selectedFloor)) {
+              _floors.add(_selectedFloor);
+            }
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadDropdownData() async {
@@ -108,23 +170,40 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         if (_floors.isEmpty) _floors = ['N/A'];
         _requestTypes = requestTypes;
         
-        if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
+        if (widget.departmentName != null && widget.departmentName!.isNotEmpty && _colleges.contains(widget.departmentName)) {
+          _selectedCollege = widget.departmentName!;
+        } else if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
           _selectedCollege = _colleges.firstWhere(
             (c) => _buildingsByDepartment[c]?.contains(widget.buildingName) ?? false,
             orElse: () => '',
           );
+        } else if (_selectedCollege.isEmpty) {
+          _selectedCollege = '';
+        }
+
+        if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
           final availableBuildings = _buildingsByDepartment[_selectedCollege] ?? [];
           _selectedBuilding = availableBuildings.contains(widget.buildingName) 
               ? widget.buildingName! 
-              : (availableBuildings.isNotEmpty ? availableBuildings.first : '');
-        } else {
-          _selectedCollege = '';
-          _selectedBuilding = '';
+              : (availableBuildings.isNotEmpty ? availableBuildings.first : widget.buildingName!);
         }
 
-        _selectedFloor = '';
-        if (_requestTypes.isNotEmpty) _selectedRequestType = _requestTypes.first;
+        if (widget.floor != null && widget.floor!.isNotEmpty) {
+          _selectedFloor = widget.floor!;
+        }
+
+        if (_selectedFloor.isNotEmpty && !_floors.contains(_selectedFloor)) {
+          _floors.add(_selectedFloor);
+        }
+
+        if (_requestTypes.isNotEmpty && _selectedRequestType.isEmpty) {
+          _selectedRequestType = _requestTypes.first;
+        }
       });
+
+      if (_selectedFloor.isEmpty && _roomNumberController.text.trim().isNotEmpty) {
+        _fetchRoomDetails(_roomNumberController.text.trim());
+      }
     }
   }
 
@@ -151,6 +230,17 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select Department, Building, and Floor.'),
+          backgroundColor: AdminStyles.error,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedImages.isEmpty) {
+      setState(() => _showDropdownErrors = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please upload at least one photo of the issue.'),
           backgroundColor: AdminStyles.error,
         ),
       );
@@ -229,10 +319,14 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       final building = await helper.getBuildingByName(_selectedBuilding);
       final dept = await helper.getDepartmentByName(_selectedCollege);
       
-      var typeRecord = await helper.getRequestTypeByName(typeLabel);
+      final baseType = _selectedRequestType == 'Others'
+          ? _otherRequestTypeController.text.trim()
+          : _selectedRequestType.trim();
+
+      var typeRecord = await helper.getRequestTypeByName(baseType);
       if (typeRecord == null) {
         try {
-          final res = await Supabase.instance.client.from('request_types').insert({'name': typeLabel}).select().maybeSingle();
+          final res = await Supabase.instance.client.from('request_types').insert({'name': baseType}).select().maybeSingle();
           if (res != null) typeRecord = RequestType.fromMap(res);
         } catch (_) {
           // If RLS blocks inserting request type for non-admin roles, leave typeRecord null.
@@ -253,7 +347,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         roomId: room.id,
         roomName: _officeRoomNameController.text.trim().isNotEmpty ? _officeRoomNameController.text.trim() : room.name,
         requestTypeId: typeRecord?.id,
-        typeOfRequest: typeLabel,
+        typeOfRequest: baseType,
         dateSubmitted: DateTime.now(),
         requestorName: _fullNameController.text.trim(),
         requestorPosition: _positionController.text.trim(),
@@ -507,7 +601,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                             const SizedBox(height: 16),
                             _buildSuccessDetailRow(
                               'Tracking Number',
-                              _submittedRequest!.id,
+                              _submittedRequest!.id.length > 8 ? _submittedRequest!.id.substring(0, 8) : _submittedRequest!.id,
                               isCopyable: true,
                             ),
                             const Divider(height: 24, color: Color(0xFFE2E8F0)),
@@ -863,7 +957,15 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
               validator: (v) => v!.isEmpty ? 'Required' : null,
             ),
             const SizedBox(height: 24),
-            _buildLabel('Upload Photos (optional)'),
+            Row(
+              children: [
+                _buildLabel('Upload Photos'),
+                const Text(
+                  ' *',
+                  style: TextStyle(color: AdminStyles.error, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -873,7 +975,11 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                   label: const Text('Add Photos'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AdminStyles.primary,
-                    side: const BorderSide(color: AdminStyles.primary),
+                    side: BorderSide(
+                      color: (_showDropdownErrors && _selectedImages.isEmpty)
+                          ? AdminStyles.error
+                          : AdminStyles.primary,
+                    ),
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -887,6 +993,13 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                 ),
               ],
             ),
+            if (_showDropdownErrors && _selectedImages.isEmpty) ...[
+              const SizedBox(height: 6),
+              const Text(
+                'Please upload at least one photo of the issue.',
+                style: TextStyle(color: AdminStyles.error, fontSize: 12),
+              ),
+            ],
             if (_selectedImages.isNotEmpty) ...[
               const SizedBox(height: 16),
               Wrap(

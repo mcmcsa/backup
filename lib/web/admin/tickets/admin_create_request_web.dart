@@ -15,6 +15,7 @@ import '../../../shared/widgets/signature_pad_widget.dart';
 import '../shared/admin_styles.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import '../../teacher/reports/teacher_request_success_web.dart';
 
 class AdminCreateRequestWeb extends StatefulWidget {
   final String? roomId;
@@ -68,12 +69,24 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
       (widget.roomId != null && widget.roomId!.isNotEmpty) ||
       (widget.buildingName != null && widget.buildingName!.isNotEmpty);
 
+  String _lastCheckedRoomCode = '';
+
   @override
   void initState() {
     super.initState();
     _loadDropdownData();
     if (widget.roomId != null) _roomNumberController.text = widget.roomId!;
     if (widget.roomName != null) _officeRoomNameController.text = widget.roomName!;
+    if (widget.floor != null && widget.floor!.isNotEmpty) _selectedFloor = widget.floor!;
+    if (widget.departmentName != null && widget.departmentName!.isNotEmpty) _selectedCollege = widget.departmentName!;
+
+    final initialCode = widget.roomId ?? _roomNumberController.text;
+    if (initialCode.trim().isNotEmpty) {
+      _lastCheckedRoomCode = initialCode.trim().toUpperCase();
+      _fetchRoomDetails(initialCode.trim());
+    }
+
+    _roomNumberController.addListener(_onRoomCodeChanged);
     
     final user = context.read<AuthService>().currentUser;
     if (user != null) {
@@ -83,6 +96,53 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
           : user.roleLabel;
       _positionController.text = pos;
     }
+  }
+
+  @override
+  void dispose() {
+    _roomNumberController.removeListener(_onRoomCodeChanged);
+    super.dispose();
+  }
+
+  void _onRoomCodeChanged() {
+    final text = _roomNumberController.text.trim().toUpperCase();
+    if (text.isNotEmpty && text != _lastCheckedRoomCode) {
+      _lastCheckedRoomCode = text;
+      _fetchRoomDetails(text);
+    }
+  }
+
+  Future<void> _fetchRoomDetails(String roomCode) async {
+    final code = roomCode.trim();
+    if (code.isEmpty) return;
+
+    try {
+      final room = await RoomService.findRoomByScannedCode(code);
+      if (room != null && mounted) {
+        setState(() {
+          if (_officeRoomNameController.text.trim().isEmpty || widget.roomName == null) {
+            _officeRoomNameController.text = room.name;
+          }
+          if (room.department.isNotEmpty && (_colleges.isEmpty || _colleges.contains(room.department))) {
+            _selectedCollege = room.department;
+          }
+          if (room.building.isNotEmpty) {
+            final availableBuildings = _buildingsByDepartment[_selectedCollege] ?? [];
+            if (availableBuildings.contains(room.building)) {
+              _selectedBuilding = room.building;
+            } else {
+              _selectedBuilding = room.building;
+            }
+          }
+          if (room.floor.isNotEmpty) {
+            _selectedFloor = room.floor;
+            if (!_floors.contains(_selectedFloor)) {
+              _floors.add(_selectedFloor);
+            }
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadDropdownData() async {
@@ -116,24 +176,33 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
             (c) => _buildingsByDepartment[c]?.contains(widget.buildingName) ?? false,
             orElse: () => '',
           );
-        } else {
+        } else if (_selectedCollege.isEmpty) {
           _selectedCollege = '';
         }
 
         if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
-          _selectedBuilding = widget.buildingName!;
-        } else {
-          _selectedBuilding = '';
+          final availableBuildings = _buildingsByDepartment[_selectedCollege] ?? [];
+          _selectedBuilding = availableBuildings.contains(widget.buildingName) 
+              ? widget.buildingName! 
+              : (availableBuildings.isNotEmpty ? availableBuildings.first : widget.buildingName!);
         }
 
-        if (widget.floor != null && widget.floor!.isNotEmpty && _floors.contains(widget.floor)) {
+        if (widget.floor != null && widget.floor!.isNotEmpty) {
           _selectedFloor = widget.floor!;
-        } else {
-          _selectedFloor = '';
         }
 
-        if (_requestTypes.isNotEmpty) _selectedRequestType = _requestTypes.first;
+        if (_selectedFloor.isNotEmpty && !_floors.contains(_selectedFloor)) {
+          _floors.add(_selectedFloor);
+        }
+
+        if (_requestTypes.isNotEmpty && _selectedRequestType.isEmpty) {
+          _selectedRequestType = _requestTypes.first;
+        }
       });
+
+      if (_selectedFloor.isEmpty && _roomNumberController.text.trim().isNotEmpty) {
+        _fetchRoomDetails(_roomNumberController.text.trim());
+      }
     }
   }
 
@@ -160,6 +229,17 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select Department, Building, and Floor.'),
+          backgroundColor: AdminStyles.error,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedImages.isEmpty) {
+      setState(() => _showDropdownErrors = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please upload at least one photo of the issue.'),
           backgroundColor: AdminStyles.error,
         ),
       );
@@ -269,12 +349,27 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
       );
 
       if (mounted) {
-        context.go('/work-request-success', extra: {
-          'trackingNumber': inserted.id,
-          'location': '${inserted.roomName} - ${inserted.buildingName}',
-          'severity': inserted.priority.toUpperCase(),
-          'reportedDate': inserted.dateSubmitted,
-        });
+        TeacherRequestSuccessWeb.showAsDialog(
+          context,
+          trackingNumber: inserted.id,
+          location: '${inserted.roomName} - ${inserted.buildingName}',
+          severity: inserted.priority.toUpperCase(),
+          reportedDate: inserted.dateSubmitted,
+          onViewStatus: () {
+            if (widget.onBack != null) {
+              widget.onBack!();
+            } else {
+              context.go('/admin/dashboard');
+            }
+          },
+          onBackToHome: () {
+            if (widget.onBack != null) {
+              widget.onBack!();
+            } else {
+              context.go('/admin/dashboard');
+            }
+          },
+        );
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AdminStyles.error));
@@ -616,7 +711,15 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
               validator: (v) => v!.isEmpty ? 'Required' : null,
             ),
             const SizedBox(height: 24),
-            _buildLabel('Upload Photos (optional)'),
+            Row(
+              children: [
+                _buildLabel('Upload Photos'),
+                const Text(
+                  ' *',
+                  style: TextStyle(color: AdminStyles.error, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -626,7 +729,11 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                   label: const Text('Add Photos'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AdminStyles.primary,
-                    side: const BorderSide(color: AdminStyles.primary),
+                    side: BorderSide(
+                      color: (_showDropdownErrors && _selectedImages.isEmpty)
+                          ? AdminStyles.error
+                          : AdminStyles.primary,
+                    ),
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -640,6 +747,13 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                 ),
               ],
             ),
+            if (_showDropdownErrors && _selectedImages.isEmpty) ...[
+              const SizedBox(height: 6),
+              const Text(
+                'Please upload at least one photo of the issue.',
+                style: TextStyle(color: AdminStyles.error, fontSize: 12),
+              ),
+            ],
             if (_selectedImages.isNotEmpty) ...[
               const SizedBox(height: 16),
               Wrap(

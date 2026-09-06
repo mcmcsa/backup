@@ -113,7 +113,7 @@ class WorkRequestSuccessPage extends StatelessWidget {
                   const SizedBox(height: 20),
                   _buildDetailRow(
                     label: 'Tracking Number',
-                    value: trackingNumber,
+                    value: trackingNumber.trim().length > 8 ? trackingNumber.trim().substring(0, 8) : trackingNumber.trim(),
                     valueColor: const Color(0xFF4169E1),
                     isBold: true,
                   ),
@@ -132,27 +132,30 @@ class WorkRequestSuccessPage extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             // View Request Status Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  // Navigate to request tracking/status page
-                  context.go(teacherDashboardRoute);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00BFA5),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 280),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Navigate to request tracking/status page
+                    context.go(teacherDashboardRoute);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00BFA5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
                   ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'View Request Status',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                  child: const Text(
+                    'View Request Status',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),

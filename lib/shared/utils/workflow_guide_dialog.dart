@@ -133,31 +133,31 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
       cleanRole == 'camp_admin') {
     title = 'Campus Administrator Guide';
     introText =
-        'As an Administrator, you orchestrate workflows, assign resources, and manage campus assets:';
+        'As a Campus Administrator, you review work requests, assign maintenance personnel, and manage ticket workflows:';
     items = [
+      GuideActionItem(
+        icon: Icons.note_add_rounded,
+        title: 'Create Work Request',
+        description:
+            'Submit maintenance requests for rooms and facilities within your campus, attach required photos, and track progress.',
+      ),
       GuideActionItem(
         icon: Icons.rate_review_rounded,
         title: 'Review & Approve Tickets',
         description:
-            'Approve new tickets under Pending. Set priority (Standard/High), assign technicians, and sign to dispatch.',
+            'Review incoming tickets under Pending, set priority level (Standard/High), and approve requests for maintenance.',
+      ),
+      GuideActionItem(
+        icon: Icons.assignment_ind_rounded,
+        title: 'Assign Maintenance Staff',
+        description:
+            'Assign qualified maintenance personnel/technicians to approved work requests and sign off to dispatch.',
       ),
       GuideActionItem(
         icon: Icons.policy_rounded,
         title: 'Inspection Evaluations',
         description:
             'Review submitted Pre-Inspection reports to confirm work starts, and inspect Post-Repair reports to close tickets or request Rework.',
-      ),
-      GuideActionItem(
-        icon: Icons.domain_rounded,
-        title: 'Campus Facility Setup',
-        description:
-            'Under Facilities, manage departments, buildings, floors, rooms, and request categories.',
-      ),
-      GuideActionItem(
-        icon: Icons.people_rounded,
-        title: 'Technician Management',
-        description:
-            'Oversee maintenance staff rosters, view active workloads, and delegate tasks efficiently.',
       ),
       GuideActionItem(
         icon: Icons.campaign_rounded,
@@ -169,13 +169,7 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
         icon: Icons.chat_rounded,
         title: 'Ticket Chat Control',
         description:
-            'Chat directly with both the requestor (faculty/non-faculty) and the assigned maintenance technician on any ticket.',
-      ),
-      GuideActionItem(
-        icon: Icons.analytics_rounded,
-        title: 'Analytics & Costs',
-        description:
-            'View overall facility maintenance expense logs, material usage, and response time metrics.',
+            'Chat directly with both the requestor (faculty/non-faculty) and the assigned maintenance personnel on any ticket.',
       ),
     ];
   } else {

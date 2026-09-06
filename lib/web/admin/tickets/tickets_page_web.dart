@@ -1357,28 +1357,17 @@ class _TicketTableRowState extends State<_TicketTableRow> {
             ),
             Expanded(
               flex: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _text(widget.request.requestorName, fallback: 'Unknown User'),
-                    textAlign: TextAlign.center,
-                    style: AdminStyles.headingStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+              child: Center(
+                child: Text(
+                  _text(widget.request.requestorName, fallback: 'Unknown User'),
+                  textAlign: TextAlign.center,
+                  style: AdminStyles.headingStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
                   ),
-                  Text(
-                    _text(widget.request.departmentName, fallback: 'No Department'),
-                    textAlign: TextAlign.center,
-                    style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
             Expanded(
@@ -1422,7 +1411,7 @@ class _TicketTableRowState extends State<_TicketTableRow> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    _text(widget.request.typeOfRequest),
+                    _text(widget.request.typeDisplay),
                     textAlign: TextAlign.center,
                     style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
                     maxLines: 1,

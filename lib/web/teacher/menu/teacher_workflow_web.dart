@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../admin/shared/admin_styles.dart';
 
 class TeacherSystemWorkflowWeb extends StatelessWidget {
@@ -53,7 +53,7 @@ class TeacherSystemWorkflowWeb extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Process Lifecycle', style: AdminStyles.headingStyle(fontSize: isNarrow ? 18 : 20)),
+          Text('Work Request Process', style: AdminStyles.headingStyle(fontSize: isNarrow ? 18 : 20)),
           const SizedBox(height: 8),
           Text(
             'Your request goes through the following stages before it is resolved.',
@@ -63,9 +63,9 @@ class TeacherSystemWorkflowWeb extends StatelessWidget {
           _buildStep(1, 'Submit Work Request',
             'You file a ticket by scanning a room QR code or manually selecting a room. Describe the issue, choose the type, and submit.',
             AdminStyles.info, actor: 'You (Teacher / Requestor)', statusLabel: 'PENDING'),
-          _buildStep(2, 'Admin Review & Approval',
-            'The administrator reviews your request, sets a priority level (Standard or High), selects an available maintenance technician, and approves it with an e-signature.',
-            AdminStyles.warning, actor: 'Administrator', statusLabel: 'APPROVED'),
+          _buildStep(2, 'Campus Admin Review & Approval',
+            'The campus administrator reviews your request, sets a priority level (Standard or High), selects an available maintenance technician, and approves it with an e-signature.',
+            AdminStyles.warning, actor: 'Campus Admin', statusLabel: 'APPROVED'),
           _buildStep(3, 'Technician Acceptance',
             'The assigned maintenance technician opens the task, signs an electronic acknowledgment, and officially starts the job.',
             AdminStyles.primary, actor: 'Maintenance Technician', statusLabel: 'IN PROGRESS'),
@@ -73,8 +73,8 @@ class TeacherSystemWorkflowWeb extends StatelessWidget {
             'Before executing the repair, the technician conducts an initial inspection and submits a pre-inspection report documenting the current condition.',
             const Color(0xFF8B5CF6), actor: 'Maintenance Technician', statusLabel: 'IN PROGRESS'),
           _buildStep(5, 'Pre-Inspection Review',
-            'The administrator reviews the pre-inspection report. If satisfactory, the request is Confirmed and work proceeds. If not, it may be Declined and the ticket is closed.',
-            const Color(0xFFEF4444), actor: 'Administrator', statusLabel: 'CONFIRMED / DECLINED', isAlternate: true),
+            'The campus administrator reviews the pre-inspection report. If satisfactory, the request is Confirmed and work proceeds. If not, it may be Declined and the ticket is closed.',
+            const Color(0xFFEF4444), actor: 'Campus Admin', statusLabel: 'CONFIRMED / DECLINED', isAlternate: true),
           _buildStep(6, 'Work Execution (Under Maintenance)',
             'The technician performs the required repair or maintenance work on-site. The request is now marked as Under Maintenance.',
             const Color(0xFF0EA5E9), actor: 'Maintenance Technician', statusLabel: 'UNDER MAINTENANCE'),
@@ -82,8 +82,8 @@ class TeacherSystemWorkflowWeb extends StatelessWidget {
             'After completing the work, the technician uploads a photo as evidence, notes what was done, and submits the post-repair report with an e-signature.',
             const Color(0xFFF59E0B), actor: 'Maintenance Technician', statusLabel: 'POST-REPAIR SUBMITTED'),
           _buildStep(8, 'Final Evaluation & Closure',
-            'The administrator evaluates the post-repair report. If satisfactory, the ticket is marked Completed and you receive a notification. If unsatisfactory, a Rework is requested and the process returns to Step 6.',
-            AdminStyles.success, actor: 'Administrator', statusLabel: 'COMPLETED / REWORK', isAlternate: true, isLast: true),
+            'The campus administrator evaluates the post-repair report. If satisfactory, the ticket is marked Completed and you receive a notification. If unsatisfactory, a Rework is requested and the process returns to Step 6.',
+            AdminStyles.success, actor: 'Campus Admin', statusLabel: 'COMPLETED / REWORK', isAlternate: true, isLast: true),
         ],
       ),
     );

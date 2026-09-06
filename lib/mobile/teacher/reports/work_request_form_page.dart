@@ -263,6 +263,12 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           return;
         }
 
+        if (_selectedImages.isEmpty) {
+          if (!mounted) return;
+          _showErrorDialog('Please upload at least one photo of the issue.');
+          return;
+        }
+
         if (_requesterSignatureBase64 == null ||
             _requesterSignatureBase64!.isEmpty) {
           if (!mounted) return;
@@ -706,7 +712,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildLabel('Upload Photos (optional)'),
+                  _buildLabel('Upload Photos *'),
                   const SizedBox(height: 8),
                   GestureDetector(
                     onTap: _pickImages,

@@ -10,6 +10,8 @@ class TeacherNavController extends InheritedWidget {
     String? roomId,
     String? roomName,
     String? buildingName,
+    String? floor,
+    String? departmentName,
     WorkRequest? request,
     ChatRoom? chatRoom,
   }) navigateTo;
