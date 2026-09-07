@@ -341,11 +341,6 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
                 'Settings',
                 style: AdminStyles.headingStyle(fontSize: 28, fontWeight: FontWeight.w900),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Configure web preferences and system behavior.',
-                style: AdminStyles.bodyStyle(fontSize: 15, color: AdminStyles.textSecondary),
-              ),
               const SizedBox(height: 24),
               _sectionTitle('Notifications'),
               const SizedBox(height: 12),

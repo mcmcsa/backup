@@ -272,13 +272,8 @@ class _AdminFloorsWebState extends State<AdminFloorsWeb> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Floors Management', style: AdminStyles.pageTitleStyle()),
-            const SizedBox(height: 8),
-            Text(
-              'Manage facility floors and levels.',
-              style: AdminStyles.pageSubtitleStyle(),
-            ),
-            const SizedBox(height: 32),
+            Text('Floors', style: AdminStyles.pageTitleStyle()),
+            const SizedBox(height: 24),
             _buildSearchAndActions(),
             const SizedBox(height: 14),
             FacilityQuickActionsRow(

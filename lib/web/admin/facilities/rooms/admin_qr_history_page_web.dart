@@ -637,16 +637,6 @@ class _AdminQrHistoryPageWebState extends State<AdminQrHistoryPageWeb> {
                         color: AdminStyles.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Review generated room QR codes, monitor usage trends, and print professional labels for onsite operations.',
-                      style: AdminStyles.bodyStyle(
-                        fontSize: isMobile ? 13 : 14,
-                        fontWeight: FontWeight.w500,
-                        color: AdminStyles.textSecondary,
-                        height: 1.45,
-                      ),
-                    ),
                   ],
                 ),
               ),

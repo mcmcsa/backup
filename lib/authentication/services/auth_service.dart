@@ -631,6 +631,7 @@ class AuthService extends ChangeNotifier {
             'role': updatedUser.role.name,
             'phone': updatedUser.phone,
             'profile_image': updatedUser.profileImage,
+            'position': updatedUser.position,
           })
           .eq('id', updatedUser.id);
 

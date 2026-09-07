@@ -110,12 +110,7 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Maintenance History', style: AdminStyles.pageTitleStyle()),
-              const SizedBox(height: 6),
-              Text(
-                'Completed and declined requests from database records',
-                style: AdminStyles.pageSubtitleStyle(),
-              ),
+              Text('History', style: AdminStyles.pageTitleStyle()),
               const SizedBox(height: 20),
               Row(
                 children: [

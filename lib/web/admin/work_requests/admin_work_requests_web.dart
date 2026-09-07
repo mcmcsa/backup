@@ -156,14 +156,9 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-         Text(
+        Text(
           'Work Requests',
           style: AdminStyles.headingStyle(fontSize: 28, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Manage all work requests across the system.',
-          style: AdminStyles.bodyStyle(fontSize: 15, fontWeight: FontWeight.w500),
         ),
       ],
     );

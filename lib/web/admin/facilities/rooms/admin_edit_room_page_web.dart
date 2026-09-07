@@ -765,11 +765,6 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Edit Room', style: AdminStyles.pageTitleStyle()),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Update room profile and location details with the same workflow as Add Room.',
-                      style: AdminStyles.pageSubtitleStyle(),
-                    ),
                     const SizedBox(height: 20),
                     _buildFormPanel(),
                     const SizedBox(height: 20),
@@ -784,11 +779,6 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Edit Room', style: AdminStyles.pageTitleStyle()),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Update room profile and location details with the same workflow as Add Room.',
-                    style: AdminStyles.pageSubtitleStyle(),
-                  ),
                   const SizedBox(height: 20),
                   content,
                 ],

@@ -1148,11 +1148,6 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Add New Room', style: AdminStyles.pageTitleStyle()),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Create a new room profile and generate a QR code before saving.',
-                      style: AdminStyles.pageSubtitleStyle(),
-                    ),
                     const SizedBox(height: 20),
                     _buildFormPanel(),
                     const SizedBox(height: 20),
@@ -1167,11 +1162,6 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Add New Room', style: AdminStyles.pageTitleStyle()),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Create a new room profile and generate a QR code before saving.',
-                    style: AdminStyles.pageSubtitleStyle(),
-                  ),
                   const SizedBox(height: 20),
                   content,
                 ],

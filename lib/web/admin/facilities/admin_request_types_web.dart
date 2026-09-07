@@ -282,21 +282,12 @@ class _AdminRequestTypesWebState extends State<AdminRequestTypesWeb> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Request Types Management',
+              'Request Types',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.w800,
                 color: _darkText,
                 letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Manage available request categories used in work requests.',
-              style: TextStyle(
-                fontSize: 15,
-                color: _subtleText.withValues(alpha: 0.8),
-                fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(height: 24),

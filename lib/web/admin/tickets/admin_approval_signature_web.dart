@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -114,6 +116,15 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
         setState(() {
           _signatures = results[0] as List<ESignature>;
           _maintenanceStaff = results[1] as List<MaintenanceAccount>;
+          if (_pendingSignatureBase64 == null) {
+            final adminSig = _signatures.cast<ESignature?>().firstWhere(
+              (s) => s != null && (s.signerRole == 'admin' || s.signatureType == 'approval') && s.signatureData.isNotEmpty,
+              orElse: () => null,
+            );
+            if (adminSig != null) {
+              _pendingSignatureBase64 = adminSig.signatureData;
+            }
+          }
           _isLoading = false;
         });
       }
@@ -484,6 +495,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
           signerName: sig.signerName,
           label: label,
           date: sig.signedAt,
+          signatureData: sig.signatureData,
         ),
       );
     }
@@ -511,34 +523,165 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
     required String signerName,
     required String label,
     required DateTime date,
+    String? signatureData,
   }) {
+    final hasSig = signatureData != null && signatureData.trim().isNotEmpty;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: AdminStyles.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
-            child: const Icon(Icons.verified_rounded, size: 16, color: AdminStyles.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  signerName,
-                  style: AdminStyles.headingStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: hasSig ? () => _showSignaturePreviewModal(signerName, label, signatureData) : null,
+        borderRadius: BorderRadius.circular(12),
+        hoverColor: AdminStyles.primary.withValues(alpha: 0.05),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: AdminStyles.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.verified_rounded, size: 16, color: AdminStyles.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      signerName,
+                      style: AdminStyles.headingStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$label • ${DateFormat('MMM dd, yyyy · HH:mm').format(date)}',
+                      style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  '$label • ${DateFormat('MMM dd, yyyy · HH:mm').format(date)}',
-                  style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
+              ),
+              if (hasSig)
+                Tooltip(
+                  message: 'View signature',
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AdminStyles.bg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AdminStyles.border),
+                    ),
+                    child: const Icon(Icons.remove_red_eye_outlined, size: 15, color: AdminStyles.textSecondary),
+                  ),
                 ),
-              ],
-            ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  void _showSignaturePreviewModal(String signerName, String roleLabel, String base64Data) {
+    Uint8List? bytes;
+    try {
+      final clean = base64Data.contains(',') ? base64Data.split(',').last : base64Data;
+      bytes = base64Decode(clean);
+    } catch (_) {
+      bytes = null;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          width: 520,
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AdminStyles.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.verified_user_rounded, color: AdminStyles.primary, size: 20),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('$roleLabel Signature', style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 2),
+                        Text('Signed by $signerName', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                height: 220,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9FAFB),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AdminStyles.border),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      bottom: 28,
+                      left: 20,
+                      right: 20,
+                      child: Container(height: 1, color: Colors.black12),
+                    ),
+                    const Positioned(
+                      bottom: 10,
+                      left: 24,
+                      child: Text(
+                        'Verified Signature Record',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black26, letterSpacing: 0.5),
+                      ),
+                    ),
+                    Center(
+                      child: bytes != null
+                          ? Image.memory(bytes, fit: BoxFit.contain)
+                          : const Text('Signature preview not available'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminStyles.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  child: const Text('Close'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -891,6 +1034,21 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                           ],
                         ),
                       ),
+                      if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty) ...[
+                        const SizedBox(width: 16),
+                        OutlinedButton.icon(
+                          onPressed: _openSignatureDialog,
+                          icon: const Icon(Icons.verified_user_rounded, size: 18),
+                          label: const Text('View Approved Signature'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AdminStyles.success,
+                            side: BorderSide(color: AdminStyles.success.withValues(alpha: 0.5)),
+                            backgroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -916,75 +1074,218 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   }
 
   void _openSignatureDialog() {
+    bool isEditing = _pendingSignatureBase64 == null || _pendingSignatureBase64!.isEmpty;
+
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          child: Container(
-            width: 540,
-            padding: const EdgeInsets.all(28),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            Uint8List? signatureBytes;
+            if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty) {
+              try {
+                final clean = _pendingSignatureBase64!.contains(',')
+                    ? _pendingSignatureBase64!.split(',').last
+                    : _pendingSignatureBase64!;
+                signatureBytes = base64Decode(clean);
+              } catch (_) {
+                signatureBytes = null;
+              }
+            }
+
+            final showViewMode = !isEditing && signatureBytes != null;
+
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              child: Container(
+                width: 560,
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AdminStyles.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.draw_rounded, color: AdminStyles.primary, size: 20),
+                    // Header
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AdminStyles.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            showViewMode ? Icons.verified_user_rounded : Icons.draw_rounded,
+                            color: AdminStyles.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                showViewMode
+                                    ? 'Current Administrative Signature'
+                                    : (_pendingSignatureBase64 != null ? 'Change E-Signature' : 'Administrative E-Signature'),
+                                style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                showViewMode
+                                    ? 'Review your official signature or choose to re-draw/upload a new one.'
+                                    : 'Draw or upload your official signature below and click Confirm Signature.',
+                                style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+                    const SizedBox(height: 20),
+
+                    // Body
+                    if (showViewMode) ...[
+                      // --- VIEW MODE ---
+                      Container(
+                        width: double.infinity,
+                        height: 220,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FAFB),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AdminStyles.border),
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              bottom: 28,
+                              left: 20,
+                              right: 20,
+                              child: Container(height: 1, color: Colors.black12),
+                            ),
+                            const Positioned(
+                              bottom: 10,
+                              left: 24,
+                              child: Text(
+                                'Authorized Official Signature',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black38,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            Center(
+                              child: Image.memory(
+                                signatureBytes,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) => const Text('Unable to render signature preview'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
                         children: [
-                          Text('Administrative E-Signature', style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Draw your official signature below and click Confirm Signature.',
-                            style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+                          if (!_isApproved) ...[
+                            TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _pendingSignatureBase64 = null;
+                                });
+                                setDialogState(() {
+                                  isEditing = true;
+                                });
+                              },
+                              icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AdminStyles.error),
+                              label: Text('Remove', style: AdminStyles.bodyStyle(color: AdminStyles.error, fontSize: 13)),
+                            ),
+                          ],
+                          const Spacer(),
+                          if (!_isApproved) ...[
+                            OutlinedButton.icon(
+                              onPressed: () {
+                                setDialogState(() {
+                                  isEditing = true;
+                                });
+                              },
+                              icon: const Icon(Icons.edit_rounded, size: 18),
+                              label: const Text('Change Signature'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AdminStyles.primary,
+                                side: const BorderSide(color: AdminStyles.primary),
+                                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                          ],
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AdminStyles.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              elevation: 0,
+                            ),
+                            child: Text(_isApproved ? 'Close' : 'Keep Signature'),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
+                    ] else ...[
+                      // --- EDIT / DRAW MODE ---
+                      SignaturePadWidget(
+                        title: '',
+                        subtitle: '',
+                        height: 220,
+                        onSignatureComplete: (base64) {
+                          if (base64.isNotEmpty) {
+                            setState(() {
+                              _pendingSignatureBase64 = base64;
+                              _signatureError = null;
+                            });
+                            Navigator.pop(ctx);
+                            _showSuccess('Signature confirmed! Click "Work Request Approve" below to finalize.');
+                          }
+                        },
+                      ),
+                      if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: () {
+                              setDialogState(() {
+                                isEditing = false;
+                              });
+                            },
+                            icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                            label: const Text('Cancel and keep current signature'),
+                            style: TextButton.styleFrom(foregroundColor: AdminStyles.textMuted),
+                          ),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
-                const SizedBox(height: 20),
-                SignaturePadWidget(
-                  title: '',
-                  subtitle: '',
-                  height: 220,
-                  onSignatureComplete: (base64) {
-                    if (base64.isNotEmpty) {
-                      setState(() {
-                        _pendingSignatureBase64 = base64;
-                        _signatureError = null;
-                      });
-                      Navigator.pop(ctx);
-                      _showSuccess('Signature confirmed! Click "Work Request Approve" below to finalize.');
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -994,6 +1295,4 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
 
   void _showSuccess(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.success));
   void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.error));
-
-  String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
 }

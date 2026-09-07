@@ -451,13 +451,8 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Buildings Management', style: AdminStyles.pageTitleStyle()),
-            const SizedBox(height: 8),
-            Text(
-              'Manage facility buildings and information.',
-              style: AdminStyles.pageSubtitleStyle(),
-            ),
-            const SizedBox(height: 32),
+            Text('Buildings', style: AdminStyles.pageTitleStyle()),
+            const SizedBox(height: 24),
             _buildSearchAndActions(),
             const SizedBox(height: 14),
             FacilityQuickActionsRow(

@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
@@ -42,53 +44,148 @@ class _AdminApprovalSignaturePageState
   Future<void> _loadSignatures() async {
     final sigs = await ESignatureService.fetchByWorkRequest(widget.request.id);
     if (mounted) {
-      setState(() => _signatures = sigs);
+      setState(() {
+        _signatures = sigs;
+        if (_pendingSignatureBase64 == null) {
+          final adminSig = _signatures.cast<ESignature?>().firstWhere(
+            (s) => s != null && (s.signerRole == 'admin' || s.signatureType == 'approval') && s.signatureData.isNotEmpty,
+            orElse: () => null,
+          );
+          if (adminSig != null) {
+            _pendingSignatureBase64 = adminSig.signatureData;
+          }
+        }
+      });
     }
   }
 
   void _openSignatureDialog() {
+    bool isEditing = _pendingSignatureBase64 == null || _pendingSignatureBase64!.isEmpty;
+
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Uint8List? signatureBytes;
+            if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty) {
+              try {
+                final clean = _pendingSignatureBase64!.contains(',')
+                    ? _pendingSignatureBase64!.split(',').last
+                    : _pendingSignatureBase64!;
+                signatureBytes = base64Decode(clean);
+              } catch (_) {
+                signatureBytes = null;
+              }
+            }
+
+            final showViewMode = !isEditing && signatureBytes != null;
+
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Admin E-Signature',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          showViewMode
+                              ? 'Current Signature'
+                              : (_pendingSignatureBase64 != null ? 'Change Signature' : 'Admin E-Signature'),
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
+                    const SizedBox(height: 12),
+                    if (showViewMode) ...[
+                      Container(
+                        width: double.infinity,
+                        height: 180,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FAFB),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Center(
+                          child: Image.memory(
+                            signatureBytes!,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Text('Unable to preview signature'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          if (!_isApproved) ...[
+                            TextButton.icon(
+                              onPressed: () {
+                                setState(() => _pendingSignatureBase64 = null);
+                                setDialogState(() => isEditing = true);
+                              },
+                              icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                              label: const Text('Remove', style: TextStyle(color: Colors.red, fontSize: 13)),
+                            ),
+                          ],
+                          const Spacer(),
+                          if (!_isApproved) ...[
+                            OutlinedButton.icon(
+                              onPressed: () => setDialogState(() => isEditing = true),
+                              icon: const Icon(Icons.edit, size: 16),
+                              label: const Text('Change'),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF4169E1),
+                              foregroundColor: Colors.white,
+                            ),
+                            child: Text(_isApproved ? 'Close' : 'Keep'),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      SignaturePadWidget(
+                        title: '',
+                        subtitle: '',
+                        height: 200,
+                        onSignatureComplete: (base64) {
+                          if (base64.isNotEmpty) {
+                            setState(() {
+                              _pendingSignatureBase64 = base64;
+                            });
+                            Navigator.pop(ctx);
+                          }
+                        },
+                      ),
+                      if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: () => setDialogState(() => isEditing = false),
+                            icon: const Icon(Icons.arrow_back, size: 14),
+                            label: const Text('Back to current signature'),
+                          ),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
-                const SizedBox(height: 12),
-                SignaturePadWidget(
-                  title: '',
-                  subtitle: '',
-                  height: 200,
-                  onSignatureComplete: (base64) {
-                    if (base64.isNotEmpty) {
-                      setState(() {
-                        _pendingSignatureBase64 = base64;
-                      });
-                      Navigator.pop(ctx);
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -289,7 +386,7 @@ class _AdminApprovalSignaturePageState
                             ElevatedButton.icon(
                               onPressed: _openSignatureDialog,
                               icon: const Icon(Icons.draw_rounded, size: 18),
-                              label: Text(_pendingSignatureBase64 != null ? 'Change Signature' : 'Signature'),
+                              label: Text(_pendingSignatureBase64 != null ? 'View / Change Signature' : 'Signature'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: _pendingSignatureBase64 != null ? const Color(0xFF4169E1).withValues(alpha: 0.1) : const Color(0xFF4169E1),
                                 foregroundColor: _pendingSignatureBase64 != null ? const Color(0xFF4169E1) : Colors.white,

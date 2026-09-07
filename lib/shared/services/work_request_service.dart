@@ -20,7 +20,7 @@ class WorkRequestService {
       'department:departments(name), '
       'room:rooms(name), '
       'request_type:request_types(name), '
-      'requestor:users!work_requests_requestor_id_fkey(name), '
+      'requestor:users!work_requests_requestor_id_fkey(name, teacher_users(position)), '
       'approver:users!work_requests_approved_by_id_fkey(name), '
       'assignee:users!work_requests_assigned_to_id_fkey(name), '
       'pre_reports:pre_inspection_reports(id), '

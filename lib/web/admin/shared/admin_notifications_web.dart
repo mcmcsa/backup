@@ -411,15 +411,6 @@ class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
             letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Live notifications from your database feed.',
-          style: TextStyle(
-            fontSize: 15,
-            color: _subtleText.withValues(alpha: 0.8),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
       ],
     );
   }

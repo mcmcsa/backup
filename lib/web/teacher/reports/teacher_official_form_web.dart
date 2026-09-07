@@ -11,6 +11,7 @@ import '../../admin/shared/admin_styles.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/utils/signature_image_helper.dart';
 
 class TeacherOfficialFormWeb extends StatefulWidget {
   final WorkRequest request;
@@ -24,9 +25,11 @@ class TeacherOfficialFormWeb extends StatefulWidget {
 class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
   late WorkRequest _currentRequest;
   List<ESignature> _signatures = [];
+  Map<String, Uint8List> _transparentSignatureCache = {};
   bool _isLoading = true;
   int _selectedPage = 0; // 0: Work Request Form, 1: Confirmation Form
   RealtimeChannel? _realtimeChannel;
+  String? _requestorLivePosition;
 
   @override
   void initState() {
@@ -68,6 +71,18 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
           ),
           callback: (_) => _loadData(),
         )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'users',
+          callback: (_) => _loadData(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'teacher_users',
+          callback: (_) => _loadData(),
+        )
         .subscribe();
   }
 
@@ -75,18 +90,116 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     try {
       final updated = await WorkRequestService.fetchById(widget.request.id);
       final sigs = await ESignatureService.fetchByWorkRequest(widget.request.id);
+
+      // Process signatures into transparent versions in background
+      final Map<String, Uint8List> cleanSigs = {};
+      for (final s in sigs) {
+        if (s.signatureData.isNotEmpty) {
+          try {
+            final cleanBase64 = s.signatureData.contains(',')
+                ? s.signatureData.split(',').last.trim()
+                : s.signatureData.trim();
+            final rawBytes = base64Decode(cleanBase64);
+            final cleanBytes = await SignatureImageHelper.removeBackground(rawBytes);
+            cleanSigs[s.id] = cleanBytes;
+          } catch (_) {}
+        }
+      }
+      
+      String? livePos;
+      final reqId = updated?.requestorId ?? widget.request.requestorId;
+      final reqName = updated?.requestorName ?? widget.request.requestorName;
+
+      if (reqId != null && reqId.isNotEmpty) {
+        try {
+          final tRes = await Supabase.instance.client
+              .from('teacher_users')
+              .select('position')
+              .eq('user_id', reqId)
+              .maybeSingle();
+          if (tRes != null && tRes['position'] != null && tRes['position'].toString().trim().isNotEmpty) {
+            livePos = tRes['position'].toString().trim();
+          }
+        } catch (_) {}
+
+        if (livePos == null) {
+          try {
+            final uRes = await Supabase.instance.client
+                .from('users')
+                .select('position, role')
+                .eq('id', reqId)
+                .maybeSingle();
+            if (uRes != null) {
+              if (uRes['position'] != null && uRes['position'].toString().trim().isNotEmpty) {
+                livePos = uRes['position'].toString().trim();
+              } else if (uRes['role'] != null) {
+                final role = uRes['role'].toString().toLowerCase().trim();
+                if (role == 'campadmin' || role == 'campus admin') {
+                  livePos = 'Campus Administrator';
+                } else if (role == 'admin') {
+                  livePos = 'System Administrator';
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      // If still not resolved, attempt lookup by requestor name
+      if (livePos == null && reqName.trim().isNotEmpty) {
+        try {
+          final uRes = await Supabase.instance.client
+              .from('users')
+              .select('position, role')
+              .ilike('name', reqName.trim())
+              .maybeSingle();
+          if (uRes != null) {
+            if (uRes['position'] != null && uRes['position'].toString().trim().isNotEmpty) {
+              livePos = uRes['position'].toString().trim();
+            } else if (uRes['role'] != null) {
+              final role = uRes['role'].toString().toLowerCase().trim();
+              if (role == 'campadmin' || role == 'campus admin') {
+                livePos = 'Campus Administrator';
+              } else if (role == 'admin') {
+                livePos = 'System Administrator';
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
       if (mounted) {
         setState(() {
           if (updated != null) {
             _currentRequest = updated;
           }
           _signatures = sigs;
+          _transparentSignatureCache = cleanSigs;
+          _requestorLivePosition = livePos;
           _isLoading = false;
         });
       }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String get _effectiveRequestorPosition {
+    if (_requestorLivePosition != null && _requestorLivePosition!.trim().isNotEmpty) {
+      return _requestorLivePosition!.trim();
+    }
+    final reqPos = _currentRequest.requestorPosition.trim();
+    if (reqPos.isNotEmpty && reqPos != 'Faculty Member / Requestor') {
+      return reqPos;
+    }
+    final reqName = _currentRequest.requestorName.toLowerCase();
+    if (reqName.contains('campus admin') || reqName.contains('campadmin')) {
+      return 'Campus Administrator';
+    }
+    if (reqName.contains('system admin') || reqName.contains('admin')) {
+      return 'Campus Administrator';
+    }
+    return reqPos.isNotEmpty ? reqPos : 'Faculty Member / Requestor';
   }
 
   void _printForm() async {
@@ -132,44 +245,91 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     DateTime? dateVal,
   }) {
     final request = _currentRequest;
+    final isCompleted = request.status.trim().toLowerCase() == 'completed';
     
     ESignature? sig;
     String printName = '';
+    DateTime? effectiveDate;
     
     if (roleKey == 'requestor') {
-      sig = _signatures.where((s) =>
-        s.signerRole.toLowerCase() == 'teacher' ||
-        s.signerRole.toLowerCase() == 'faculty' ||
-        s.signerRole.toLowerCase() == 'requestor' ||
-        s.signatureType.toLowerCase() == 'requestor'
-      ).firstOrNull;
-      printName = sig?.signerName ?? request.requestorName;
-    } else if (roleKey == 'admin') {
-      sig = _signatures.where((s) =>
-        (s.signerRole.toLowerCase() == 'admin' || s.signerRole.toLowerCase() == 'campadmin') &&
-        (s.signatureType.toLowerCase() == 'approval' || s.signatureType.toLowerCase() == 'admin')
-      ).firstOrNull;
-      printName = sig?.signerName ?? request.approvedByName ?? '';
-    } else if (roleKey == 'accomplished') {
       sig = _signatures.where((s) {
         final role = s.signerRole.toLowerCase();
         final type = s.signatureType.toLowerCase();
-        return (role == 'maintenance' || role == 'technician' || role == 'staff') ||
-               (type == 'completion' || type == 'accomplished' || type == 'post_repair' || type == 'pre_inspection');
+        return (role == 'teacher' || role == 'faculty' || role == 'requestor') ||
+               (type == 'requestor' || type == 'request' || type == 'submission');
       }).firstOrNull;
-      printName = sig?.signerName ?? request.acceptedByName ?? '';
+      printName = sig?.signerName ?? request.requestorName;
+      effectiveDate = dateVal ?? sig?.signedAt ?? request.createdAt ?? request.dateSubmitted;
+    } else if (roleKey == 'admin' || roleKey == 'approved' || roleKey == 'admin_approval') {
+      sig = _signatures.where((s) =>
+        (s.signerRole.toLowerCase() == 'admin' || s.signerRole.toLowerCase() == 'campadmin' || s.signerRole.toLowerCase() == 'campus admin') &&
+        (s.signatureType.toLowerCase() == 'approval' || s.signatureType.toLowerCase() == 'admin')
+      ).firstOrNull;
+      final isApproved = sig != null || (request.approvedDate != null) || (request.approvedByName != null && request.approvedByName!.isNotEmpty);
+      if (isApproved) {
+        printName = sig?.signerName ?? request.approvedByName ?? '';
+        effectiveDate = dateVal ?? sig?.signedAt ?? request.approvedDate;
+      } else {
+        printName = '';
+        effectiveDate = null;
+      }
+    } else if (roleKey == 'monitored_evaluated' || roleKey == 'admin_confirmation') {
+      // Final confirmation / evaluation signature on Confirm Form (Form 2)
+      // Must NOT show initial approval! Only show if explicitly confirmed/evaluated by campus admin.
+      sig = _signatures.where((s) {
+        final role = s.signerRole.toLowerCase();
+        final type = s.signatureType.toLowerCase();
+        final isAdmin = role == 'admin' || role == 'campadmin' || role == 'campus admin';
+        final isConfirm = type == 'completion' || type == 'confirmation' || type == 'acceptance' || type == 'evaluation';
+        return isAdmin && isConfirm;
+      }).firstOrNull;
+      
+      if (sig != null) {
+        printName = sig.signerName;
+        effectiveDate = dateVal ?? sig.signedAt;
+      } else if (isCompleted && request.approvedByName != null && request.approvedByName!.isNotEmpty) {
+        printName = request.approvedByName!;
+        effectiveDate = dateVal ?? request.dateCompleted;
+      } else {
+        // Not yet confirmed / evaluated by campus admin -> keep blank!
+        printName = '';
+        effectiveDate = null;
+      }
+    } else if (roleKey == 'accomplished') {
+      // Maintenance work accomplishment on Form 1 and Form 2
+      // Must only match completion / post-repair accomplishment, NOT pre_inspection or task acceptance!
+      sig = _signatures.where((s) {
+        final role = s.signerRole.toLowerCase();
+        final type = s.signatureType.toLowerCase();
+        final isMaint = role == 'maintenance' || role == 'technician' || role == 'staff';
+        final isAccomplished = type == 'completion' || type == 'accomplished' || type == 'post_repair';
+        return isMaint && isAccomplished;
+      }).firstOrNull;
+      
+      if (sig != null) {
+        printName = sig.signerName;
+        effectiveDate = dateVal ?? sig.signedAt;
+      } else if (isCompleted) {
+        printName = request.acceptedByName ?? '';
+        effectiveDate = dateVal ?? request.dateCompleted ?? request.maintenanceEndTime;
+      } else {
+        // Work is still in progress / pre-inspection / not accomplished yet -> keep blank!
+        printName = '';
+        effectiveDate = null;
+      }
     }
 
-    final effectiveDate = dateVal ?? sig?.signedAt ?? (roleKey == 'accomplished' ? (request.dateCompleted ?? request.maintenanceEndTime ?? request.acceptedDate) : null);
-
     Uint8List? bytes;
-    if (sig != null && sig.signatureData.isNotEmpty) {
-      try {
-        final cleanBase64 = sig.signatureData.contains(',')
-            ? sig.signatureData.split(',').last
-            : sig.signatureData;
-        bytes = base64Decode(cleanBase64.trim());
-      } catch (_) {}
+    if (sig != null) {
+      bytes = _transparentSignatureCache[sig.id];
+      if (bytes == null && sig.signatureData.isNotEmpty) {
+        try {
+          final cleanBase64 = sig.signatureData.contains(',')
+              ? sig.signatureData.split(',').last
+              : sig.signatureData;
+          bytes = base64Decode(cleanBase64.trim());
+        } catch (_) {}
+      }
     }
 
     return Padding(
@@ -602,9 +762,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                       'Requestor :',
                       'Signature over Printed Name',
                       extraLabel: 'Position / Designation',
-                      extraVal: request.requestorPosition.trim().isNotEmpty
-                          ? request.requestorPosition
-                          : 'Faculty Member / Requestor',
+                      extraVal: _effectiveRequestorPosition,
                     ),
                   ),
                 ),
@@ -632,7 +790,6 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                     'Work Request Accomplished by:',
                     'Signature over Printed Name',
                     dateLabel: 'Date',
-                    dateVal: request.dateCompleted,
                   ),
                 ),
               ],
@@ -876,7 +1033,6 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                       'Work Request Accomplished by:',
                       'Signature over Printed Name',
                       dateLabel: 'Date',
-                      dateVal: request.dateCompleted,
                     ),
                   ),
                 ),
@@ -891,20 +1047,17 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                       'Requestor:',
                       'Signature over Printed Name',
                       extraLabel: 'Position / Designation',
-                      extraVal: request.requestorPosition.trim().isNotEmpty
-                          ? request.requestorPosition
-                          : 'Faculty Member / Requestor',
+                      extraVal: _effectiveRequestorPosition,
                     ),
                   ),
                 ),
                 Expanded(
                   flex: 6,
                   child: _buildSignatureColumn(
-                    'admin',
+                    'monitored_evaluated',
                     'Monitored and Evaluated by:',
                     'Signature over Printed Name',
                     dateLabel: 'Date',
-                    dateVal: request.approvedDate ?? request.dateCompleted,
                   ),
                 ),
               ],
@@ -915,37 +1068,86 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final request = _currentRequest;
-    final typeLower = (request.typeOfRequest + ' ' + request.title).toLowerCase();
-    bool isOcular = typeLower.contains('ocular') || typeLower.contains('inspection');
-    bool isInstall = typeLower.contains('installation') || typeLower.contains('install');
-    bool isRepair = typeLower.contains('repair') || typeLower.contains('fix');
-    bool isReplace = typeLower.contains('replacement') || typeLower.contains('replace');
+  Map<String, dynamic> _resolveFormChecklist(WorkRequest request) {
+    String primaryType = request.typeDisplay.trim();
+    if (primaryType.isEmpty) {
+      primaryType = request.typeOfRequest.trim();
+    }
+    final rawTitle = request.title.trim();
 
-    if (typeLower.startsWith('ocular') || typeLower.startsWith('inspection')) {
-      isOcular = true; isInstall = false; isRepair = false; isReplace = false;
-    } else if (typeLower.startsWith('installation') || typeLower.startsWith('install')) {
-      isInstall = true; isOcular = false; isRepair = false; isReplace = false;
-    } else if (typeLower.startsWith('repair') || typeLower.startsWith('fix')) {
-      isRepair = true; isOcular = false; isInstall = false; isReplace = false;
-    } else if (typeLower.startsWith('replacement') || typeLower.startsWith('replace')) {
-      isReplace = true; isOcular = false; isInstall = false; isReplace = false;
+    String strippedTitle = rawTitle;
+    if (strippedTitle.toLowerCase().startsWith('maintenance:')) {
+      strippedTitle = strippedTitle.substring('maintenance:'.length).trim();
+    }
+
+    final pLower = primaryType.toLowerCase();
+    final tLower = strippedTitle.toLowerCase();
+
+    bool isOcular = false;
+    bool isInstall = false;
+    bool isRepair = false;
+    bool isReplace = false;
+
+    // Check primaryType first (e.g. "Replacement of", "Installation of", "Repair of", "Ocular inspection of")
+    if (pLower.contains('ocular') || pLower.contains('inspection')) {
+      isOcular = true;
+    } else if (pLower.contains('install')) {
+      isInstall = true;
+    } else if (pLower.contains('repair') || pLower.contains('fix')) {
+      isRepair = true;
+    } else if (pLower.contains('replace')) {
+      isReplace = true;
+    } else if (tLower.startsWith('ocular') || tLower.contains('inspection of')) {
+      isOcular = true;
+    } else if (tLower.startsWith('installation') || tLower.contains('installation of')) {
+      isInstall = true;
+    } else if (tLower.startsWith('repair') || tLower.contains('repair of')) {
+      isRepair = true;
+    } else if (tLower.startsWith('replacement') || tLower.contains('replacement of')) {
+      isReplace = true;
     }
 
     final isOthers = !isOcular && !isInstall && !isRepair && !isReplace;
 
+    // Resolve specifyVal to put on the active line
     String specifyVal = request.specifyText.trim();
+    if (specifyVal.isEmpty && strippedTitle.contains(':')) {
+      specifyVal = strippedTitle.split(':').last.trim();
+    }
     if (specifyVal.isEmpty && request.typeOfRequest.contains(':')) {
       specifyVal = request.typeOfRequest.split(':').last.trim();
+    }
+    if (specifyVal.isEmpty && isOthers) {
+      if (primaryType.isNotEmpty && primaryType.toLowerCase() != 'others') {
+        specifyVal = primaryType;
+      } else {
+        specifyVal = request.description.trim();
+      }
     }
     if (specifyVal.isEmpty) {
       specifyVal = request.description.trim();
     }
-    if (specifyVal.isEmpty) {
-      specifyVal = request.title.trim();
-    }
+
+    return {
+      'isOcular': isOcular,
+      'isInstall': isInstall,
+      'isRepair': isRepair,
+      'isReplace': isReplace,
+      'isOthers': isOthers,
+      'specifyVal': specifyVal,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final request = _currentRequest;
+    final checklist = _resolveFormChecklist(request);
+    final bool isOcular = checklist['isOcular'] as bool;
+    final bool isInstall = checklist['isInstall'] as bool;
+    final bool isRepair = checklist['isRepair'] as bool;
+    final bool isReplace = checklist['isReplace'] as bool;
+    final bool isOthers = checklist['isOthers'] as bool;
+    final String specifyVal = checklist['specifyVal'] as String;
 
     return Dialog(
       backgroundColor: Colors.transparent,

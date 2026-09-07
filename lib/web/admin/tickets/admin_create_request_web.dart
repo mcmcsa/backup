@@ -6,16 +6,20 @@ import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/models/request_type_model.dart';
 import '../../../shared/models/e_signature_model.dart';
+import '../../../shared/services/connectivity_service.dart';
+import '../../../shared/services/offline_sync_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/room_service.dart';
+import '../../../shared/services/duplicate_detection_service.dart';
+import '../../../shared/widgets/duplicate_detection_dialog.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../shared/admin_styles.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
-import '../../teacher/reports/teacher_request_success_web.dart';
 
 class AdminCreateRequestWeb extends StatefulWidget {
   final String? roomId;
@@ -52,7 +56,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
-  String _selectedPriority = 'medium';
+  final String _selectedPriority = 'medium';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
   bool _showDropdownErrors = false;
@@ -65,10 +69,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
   List<String> _requestTypes = [];
   final Map<String, List<String>> _buildingsByDepartment = {};
 
-  bool get _isLocationLocked =>
-      (widget.roomId != null && widget.roomId!.isNotEmpty) ||
-      (widget.buildingName != null && widget.buildingName!.isNotEmpty);
-
+  WorkRequest? _submittedRequest;
   String _lastCheckedRoomCode = '';
 
   @override
@@ -87,7 +88,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
     }
 
     _roomNumberController.addListener(_onRoomCodeChanged);
-    
+
     final user = context.read<AuthService>().currentUser;
     if (user != null) {
       _fullNameController.text = user.name;
@@ -168,7 +169,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
         _floors = floors.where((f) => f.trim().isNotEmpty).toList();
         if (_floors.isEmpty) _floors = ['N/A'];
         _requestTypes = requestTypes;
-        
+
         if (widget.departmentName != null && widget.departmentName!.isNotEmpty && _colleges.contains(widget.departmentName)) {
           _selectedCollege = widget.departmentName!;
         } else if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
@@ -182,8 +183,8 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
 
         if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
           final availableBuildings = _buildingsByDepartment[_selectedCollege] ?? [];
-          _selectedBuilding = availableBuildings.contains(widget.buildingName) 
-              ? widget.buildingName! 
+          _selectedBuilding = availableBuildings.contains(widget.buildingName)
+              ? widget.buildingName!
               : (availableBuildings.isNotEmpty ? availableBuildings.first : widget.buildingName!);
         }
 
@@ -223,7 +224,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
 
   Future<void> _submitRequest() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (_selectedCollege.isEmpty || _selectedBuilding.isEmpty || _selectedFloor.isEmpty) {
       setState(() => _showDropdownErrors = true);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -251,33 +252,91 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
       return;
     }
 
-    final authService = context.read<AuthService>();
     setState(() => _isSubmitting = true);
 
     try {
       final roomCode = _roomNumberController.text.trim();
-      var room = await RoomService.fetchByCode(roomCode);
+      var room = await RoomService.findRoomByScannedCode(roomCode);
 
       if (room == null) {
         throw 'Room not found. Please verify the room code.';
       }
 
-      final hasActive = await WorkRequestService.hasActiveRequestForRoom(room.id);
-      if (hasActive) {
-        throw 'This room already has an active maintenance request.';
-      }
+      // ── Duplicate detection ─────────────────────────────────────────────
+      final typeLabel = _selectedRequestType == 'Others'
+          ? _otherRequestTypeController.text.trim()
+          : '$_selectedRequestType: ${_otherRequestTypeController.text.trim()}';
 
+      final duplicates = await DuplicateDetectionService.detect(
+        roomId: room.id,
+        issueType: typeLabel,
+        description: _issueDetailsController.text.trim(),
+      );
+
+      if (duplicates.isNotEmpty && mounted) {
+        final result = await showDuplicateDetectionDialog(context, duplicates);
+        if (!mounted) return;
+
+        if (result == null) {
+          setState(() => _isSubmitting = false);
+          return; // dialog dismissed
+        }
+
+        if (result.choice == DuplicateDialogChoice.viewExisting) {
+          if (widget.onBack != null) {
+            widget.onBack!();
+          } else {
+            context.go('/admin/dashboard');
+          }
+          return;
+        }
+
+        if (result.choice == DuplicateDialogChoice.joinExisting) {
+          final authService = context.read<AuthService>();
+          final user = authService.currentUser;
+          if (user != null) {
+            await DuplicateDetectionService.joinRequest(
+              workRequestId: result.selectedRequest!.id,
+              reporterId: user.id,
+              reporterName: _fullNameController.text.trim(),
+            );
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('You have been added as a co-reporter to the existing request.'),
+                backgroundColor: Color(0xFF22C55E),
+              ),
+            );
+            if (widget.onBack != null) {
+              widget.onBack!();
+            } else {
+              context.go('/admin/dashboard');
+            }
+          }
+          return;
+        }
+      }
+      // ── End duplicate detection ─────────────────────────────────────────
+
+      if (!mounted) return;
+      final authService = context.read<AuthService>();
       final user = authService.currentUser;
       final helper = DropdownDataHelper();
-      
+
       final building = await helper.getBuildingByName(_selectedBuilding);
       final dept = await helper.getDepartmentByName(_selectedCollege);
-      
-      final typeLabel = _selectedRequestType == 'Others' ? _otherRequestTypeController.text.trim() : _selectedRequestType;
-      var typeRecord = await helper.getRequestTypeByName(typeLabel);
+
+      final baseType = _selectedRequestType == 'Others'
+          ? _otherRequestTypeController.text.trim()
+          : _selectedRequestType.trim();
+
+      var typeRecord = await helper.getRequestTypeByName(baseType);
       if (typeRecord == null) {
-         final res = await Supabase.instance.client.from('request_types').insert({'name': typeLabel}).select().maybeSingle();
-         if (res != null) typeRecord = RequestType.fromMap(res);
+        try {
+          final res = await Supabase.instance.client.from('request_types').insert({'name': baseType}).select().maybeSingle();
+          if (res != null) typeRecord = RequestType.fromMap(res);
+        } catch (_) {}
       }
 
       final request = WorkRequest(
@@ -293,13 +352,51 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
         roomId: room.id,
         roomName: _officeRoomNameController.text.trim().isNotEmpty ? _officeRoomNameController.text.trim() : room.name,
         requestTypeId: typeRecord?.id,
-        typeOfRequest: typeLabel,
+        typeOfRequest: baseType,
         dateSubmitted: DateTime.now(),
         requestorName: _fullNameController.text.trim(),
         requestorPosition: _positionController.text.trim(),
         reportedByName: _fullNameController.text.trim(),
         requestorId: user?.id,
       );
+
+      if (!ConnectivityService().isConnected.value) {
+        List<String> offlineImagePaths = [];
+        for (int i = 0; i < _selectedImages.length; i++) {
+          final file = _selectedImages[i];
+          final bytes = await file.readAsBytes();
+          final ext = file.name.split('.').last;
+          final path = await OfflineSyncService().saveFileOffline(
+            'offline_img_${DateTime.now().millisecondsSinceEpoch}_$i.$ext',
+            bytes,
+          );
+          if (path != null) offlineImagePaths.add(path);
+        }
+
+        final payload = {
+          'request': request.toMap(),
+          'signature': _requesterSignatureBase64,
+          'images': offlineImagePaths,
+        };
+
+        await OfflineSyncService().queueAction('submit_work_request', payload);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Saved offline. Will submit when internet is restored.'),
+              backgroundColor: AdminStyles.warning,
+            ),
+          );
+          if (widget.onBack != null) {
+            widget.onBack!();
+          } else {
+            context.go('/admin/dashboard');
+          }
+        }
+        setState(() => _isSubmitting = false);
+        return;
+      }
 
       final requestId = WorkRequestService.generateId();
 
@@ -336,7 +433,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
           signerId: user.id,
           signerName: _fullNameController.text.trim(),
           signerRole: 'admin',
-          signatureType: 'approval',
+          signatureType: 'requestor',
           signatureData: _requesterSignatureBase64!,
           signedAt: DateTime.now(),
         ));
@@ -350,48 +447,45 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
         workRequestId: inserted.id,
       );
 
-      if (mounted) {
-        TeacherRequestSuccessWeb.showAsDialog(
-          context,
-          trackingNumber: inserted.id,
-          location: '${inserted.roomName} - ${inserted.buildingName}',
-          severity: inserted.priority.toUpperCase(),
-          reportedDate: inserted.dateSubmitted,
-          onViewStatus: () {
-            if (widget.onBack != null) {
-              widget.onBack!();
-            } else {
-              context.go('/admin/dashboard');
-            }
-          },
-          onBackToHome: () {
-            if (widget.onBack != null) {
-              widget.onBack!();
-            } else {
-              context.go('/admin/dashboard');
-            }
-          },
+      if (user != null) {
+        await LoginActivityService.recordAdminAction(
+          user: user,
+          title: 'Submitted Work Request',
+          details: 'Reported issue: ${request.typeOfRequest} in ${request.roomName}',
+          workRequestId: inserted.id,
         );
+      }
+
+      if (mounted) {
+        setState(() {
+          _submittedRequest = inserted;
+          _isSubmitting = false;
+        });
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AdminStyles.error));
-    } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 900;
+    if (_submittedRequest != null) {
+      return _buildSuccessView();
+    }
+
+    final width = MediaQuery.of(context).size.width;
+    final useVerticalLayout = width < 900;
+    final isNarrow = width < 650;
 
     return Scaffold(
       backgroundColor: AdminStyles.bg,
       body: Column(
         children: [
-          _buildHeader(isMobile),
+          _buildHeader(),
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(isMobile ? 16 : 32),
+              padding: EdgeInsets.all(isNarrow ? 12 : 32),
               child: Center(
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 1000),
@@ -400,17 +494,22 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (isMobile) ...[
-                          _buildMainForm(isMobile),
-                          const SizedBox(height: 24),
-                          _buildSidePanel(isMobile),
-                        ] else
+                        if (useVerticalLayout)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildMainForm(),
+                              const SizedBox(height: 32),
+                              _buildSidePanel(),
+                            ],
+                          )
+                        else
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(flex: 6, child: _buildMainForm(isMobile)),
+                              Expanded(flex: 6, child: _buildMainForm()),
                               const SizedBox(width: 32),
-                              Expanded(flex: 4, child: _buildSidePanel(isMobile)),
+                              Expanded(flex: 4, child: _buildSidePanel()),
                             ],
                           ),
                       ],
@@ -425,90 +524,330 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
     );
   }
 
-  Widget _buildHeader(bool isMobile) {
+  Widget _buildSuccessView() {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 650;
+
+    return Scaffold(
+      backgroundColor: AdminStyles.bg,
+      body: Column(
+        children: [
+          _buildHeader(isSuccess: true),
+          Expanded(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(isNarrow ? 16 : 32),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  padding: EdgeInsets.all(isNarrow ? 20 : 48),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(isNarrow ? 20 : 24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AdminStyles.primary.withValues(alpha: 0.08),
+                        blurRadius: 40,
+                        offset: const Offset(0, 20),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: isNarrow ? 72 : 96,
+                        height: isNarrow ? 72 : 96,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.check_circle_rounded,
+                            color: const Color(0xFF10B981),
+                            size: isNarrow ? 36 : 48,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: isNarrow ? 20 : 32),
+                      Text(
+                        'Report Submitted Successfully!',
+                        textAlign: TextAlign.center,
+                        style: AdminStyles.headingStyle(
+                          fontSize: isNarrow ? 22 : 28,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Your maintenance request has been recorded and is being processed by the maintenance team.',
+                        textAlign: TextAlign.center,
+                        style: AdminStyles.bodyStyle(
+                          fontSize: isNarrow ? 14 : 16,
+                          color: const Color(0xFF64748B),
+                          height: 1.5,
+                        ),
+                      ),
+                      SizedBox(height: isNarrow ? 24 : 48),
+                      Container(
+                        padding: EdgeInsets.all(isNarrow ? 16 : 24),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'REQUEST DETAILS',
+                              style: AdminStyles.bodyStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildSuccessDetailRow(
+                              'Tracking Number',
+                              _submittedRequest != null && _submittedRequest!.id.length > 8
+                                  ? _submittedRequest!.id.substring(0, 8)
+                                  : (_submittedRequest?.id ?? 'N/A'),
+                              isCopyable: true,
+                            ),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            _buildSuccessDetailRow('Location', '${_submittedRequest?.roomName ?? "N/A"} - ${_submittedRequest?.buildingName ?? "N/A"}'),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            _buildSuccessDetailRow('Request Type', _submittedRequest?.title.replaceFirst('Maintenance: ', '') ?? 'N/A'),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            _buildSuccessDetailRow('Description', _submittedRequest?.description ?? 'N/A'),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            _buildSuccessDetailRow(
+                              'Reported on',
+                              _submittedRequest != null
+                                  ? '${_submittedRequest!.dateSubmitted.month}/${_submittedRequest!.dateSubmitted.day}/${_submittedRequest!.dateSubmitted.year}'
+                                  : 'Just now',
+                            ),
+                            const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                            _buildSuccessDetailRow('Status', _submittedRequest?.status ?? 'Pending', isTag: true),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: isNarrow ? 24 : 40),
+                      if (isNarrow)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ElevatedButton(
+                              onPressed: () {
+                                if (widget.onBack != null) {
+                                  widget.onBack!();
+                                } else {
+                                  context.go('/admin/dashboard');
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AdminStyles.primary,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: Text('Go to Dashboard', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton(
+                              onPressed: () {
+                                if (widget.onBack != null) {
+                                  widget.onBack!();
+                                } else {
+                                  setState(() {
+                                    _submittedRequest = null;
+                                    _selectedImages.clear();
+                                    _issueDetailsController.clear();
+                                    _otherRequestTypeController.clear();
+                                    _requesterSignatureBase64 = null;
+                                  });
+                                }
+                              },
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.5),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: Text(
+                                'Submit Another',
+                                style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: const Color(0xFF475569)),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  if (widget.onBack != null) {
+                                    widget.onBack!();
+                                  } else {
+                                    setState(() {
+                                      _submittedRequest = null;
+                                      _selectedImages.clear();
+                                      _issueDetailsController.clear();
+                                      _otherRequestTypeController.clear();
+                                      _requesterSignatureBase64 = null;
+                                    });
+                                  }
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  side: const BorderSide(color: Color(0xFFE2E8F0), width: 2),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text('Submit Another', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: const Color(0xFF475569))),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: () {
+                                  if (widget.onBack != null) {
+                                    widget.onBack!();
+                                  } else {
+                                    context.go('/admin/dashboard');
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AdminStyles.primary,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: Text('Go to Dashboard', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, color: Colors.white)),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessDetailRow(String label, String value, {bool isTag = false, bool isCopyable = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AdminStyles.bodyStyle(fontSize: 13, color: const Color(0xFF64748B))),
+        const SizedBox(height: 4),
+        if (isTag)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: AdminStyles.warning.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(value, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AdminStyles.warning)),
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: Text(value, style: AdminStyles.bodyStyle(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xFF1E293B))),
+              ),
+              if (isCopyable)
+                const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF94A3B8)),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildHeader({bool isSuccess = false}) {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 650;
+
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: isMobile ? 16 : 24),
+      padding: EdgeInsets.symmetric(
+        horizontal: isNarrow ? 12 : 32,
+        vertical: isNarrow ? 16 : 24,
+      ),
       decoration: BoxDecoration(
         color: AdminStyles.surface,
         border: Border(bottom: BorderSide(color: AdminStyles.border)),
       ),
-      child: isMobile
-          ? Column(
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
+            onPressed: () {
+              if (widget.onBack != null) {
+                widget.onBack!();
+              } else {
+                context.go('/admin/dashboard');
+              }
+            },
+          ),
+          SizedBox(width: isNarrow ? 8 : 16),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
-                      onPressed: () {
-                        if (widget.onBack != null) {
-                          widget.onBack!();
-                        } else {
-                          context.go('/admin/dashboard');
-                        }
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text('Submit Work Request', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isSubmitting ? null : _submitRequest,
-                    icon: _isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded),
-                    label: const Text('Submit Request'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AdminStyles.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-              ],
-            )
-          : Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
-                  onPressed: () {
-                    if (widget.onBack != null) {
-                      widget.onBack!();
-                    } else {
-                      context.go('/admin/dashboard');
-                    }
-                  },
-                ),
-                const SizedBox(width: 16),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Submit Work Request', style: AdminStyles.headingStyle(fontSize: 24)),
-                    Text('Report maintenance issues within your assigned rooms', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
-                  ],
-                ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  onPressed: _isSubmitting ? null : _submitRequest,
-                  icon: _isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded),
-                  label: const Text('Submit Request'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminStyles.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
+                Text(
+                  isSuccess ? 'Success' : 'Submit Work Request',
+                  style: AdminStyles.headingStyle(fontSize: isNarrow ? 18 : 24),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ],
             ),
+          ),
+          if (!isSuccess) ...[
+            const SizedBox(width: 12),
+            ElevatedButton(
+              onPressed: _isSubmitting ? null : _submitRequest,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminStyles.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: isNarrow ? 14 : 24,
+                  vertical: isNarrow ? 12 : 16,
+                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : isNarrow
+                      ? const Icon(Icons.send_rounded, size: 18)
+                      : const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.send_rounded, size: 16),
+                            SizedBox(width: 8),
+                            Text('Submit Request', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
-  Widget _buildMainForm(bool isMobile) {
+  bool get _isLocationLocked => widget.roomId != null && widget.roomId!.isNotEmpty;
+
+  Widget _buildMainForm() {
     return Column(
       children: [
         _buildCard(
@@ -544,132 +883,80 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                   ],
                 ),
               ),
-            if (isMobile) ...[
-              _buildInputField(
-                label: 'Room Code',
-                controller: _roomNumberController,
-                hint: 'ex. CLR 1',
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-                readOnly: _isLocationLocked,
-              ),
-              const SizedBox(height: 16),
-              _buildInputField(
-                label: 'Room Name (Optional)',
-                controller: _officeRoomNameController,
-                hint: 'ex. Computer Lab 1',
-                readOnly: _isLocationLocked,
-              ),
-            ] else
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildInputField(
-                      label: 'Room Code',
-                      controller: _roomNumberController,
-                      hint: 'ex. CLR 1',
-                      validator: (v) => v!.isEmpty ? 'Required' : null,
-                      readOnly: _isLocationLocked,
-                    ),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildInputField(
+                    label: 'Room Code',
+                    controller: _roomNumberController,
+                    hint: 'ex. CLR 1',
+                    validator: (v) => v!.isEmpty ? 'Required' : null,
+                    readOnly: _isLocationLocked,
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildInputField(
-                      label: 'Room Name (Optional)',
-                      controller: _officeRoomNameController,
-                      hint: 'ex. Computer Lab 1',
-                      readOnly: _isLocationLocked,
-                    ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildInputField(
+                    label: 'Room Name',
+                    controller: _officeRoomNameController,
+                    hint: 'ex. Computer Lab 1',
+                    validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                    readOnly: _isLocationLocked,
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
-            if (isMobile) ...[
-              _buildDropdownField(
-                label: 'Department/College',
-                value: _selectedCollege,
-                hintText: 'Select Department',
-                items: _colleges,
-                enabled: !_isLocationLocked,
-                showError: _showDropdownErrors,
-                onChanged: (v) => setState(() {
-                  _selectedCollege = v ?? '';
-                  _selectedBuilding = '';
-                }),
-              ),
-              const SizedBox(height: 16),
-              _buildDropdownField(
-                label: 'Building',
-                value: _selectedBuilding,
-                hintText: 'Select Building',
-                items: _selectedCollege.isNotEmpty
-                    ? (_buildingsByDepartment[_selectedCollege] ?? [])
-                    : (_colleges.expand((c) => _buildingsByDepartment[c] ?? <String>[]).toSet().toList()),
-                enabled: !_isLocationLocked,
-                showError: _showDropdownErrors,
-                onChanged: (v) => setState(() => _selectedBuilding = v ?? ''),
-              ),
-            ] else
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildDropdownField(
-                      label: 'Department/College',
-                      value: _selectedCollege,
-                      hintText: 'Select Department',
-                      items: _colleges,
-                      enabled: !_isLocationLocked,
-                      showError: _showDropdownErrors,
-                      onChanged: (v) => setState(() {
-                        _selectedCollege = v ?? '';
-                        _selectedBuilding = '';
-                      }),
-                    ),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdownField(
+                    label: 'Department/College',
+                    value: _selectedCollege,
+                    hintText: 'Select Department',
+                    items: _colleges,
+                    enabled: !_isLocationLocked,
+                    showError: _showDropdownErrors,
+                    onChanged: (v) => setState(() {
+                      _selectedCollege = v ?? '';
+                      _selectedBuilding = '';
+                    }),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _buildDropdownField(
-                      label: 'Building',
-                      value: _selectedBuilding,
-                      hintText: 'Select Building',
-                      items: _selectedCollege.isNotEmpty
-                          ? (_buildingsByDepartment[_selectedCollege] ?? [])
-                          : (_colleges.expand((c) => _buildingsByDepartment[c] ?? <String>[]).toSet().toList()),
-                      enabled: !_isLocationLocked,
-                      showError: _showDropdownErrors,
-                      onChanged: (v) => setState(() => _selectedBuilding = v ?? ''),
-                    ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildDropdownField(
+                    label: 'Building',
+                    value: _selectedBuilding,
+                    hintText: 'Select Building',
+                    items: _selectedCollege.isNotEmpty
+                        ? (_buildingsByDepartment[_selectedCollege] ?? [])
+                        : (_colleges.expand((c) => _buildingsByDepartment[c] ?? <String>[]).toSet().toList()),
+                    enabled: !_isLocationLocked,
+                    showError: _showDropdownErrors,
+                    onChanged: (v) => setState(() => _selectedBuilding = v ?? ''),
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
-            if (isMobile)
-              _buildDropdownField(
-                label: 'Floor',
-                value: _selectedFloor,
-                hintText: 'Select Floor',
-                items: _floors,
-                enabled: !_isLocationLocked,
-                showError: _showDropdownErrors,
-                onChanged: (v) => setState(() => _selectedFloor = v ?? ''),
-              )
-            else
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildDropdownField(
-                      label: 'Floor',
-                      value: _selectedFloor,
-                      hintText: 'Select Floor',
-                      items: _floors,
-                      enabled: !_isLocationLocked,
-                      showError: _showDropdownErrors,
-                      onChanged: (v) => setState(() => _selectedFloor = v ?? ''),
-                    ),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildDropdownField(
+                    label: 'Floor',
+                    value: _selectedFloor,
+                    hintText: 'Select Floor',
+                    items: _floors,
+                    enabled: !_isLocationLocked,
+                    showError: _showDropdownErrors,
+                    onChanged: (v) => setState(() => _selectedFloor = v ?? ''),
                   ),
-                  const SizedBox(width: 16),
-                  const Expanded(child: SizedBox()),
-                ],
-              ),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(child: SizedBox()),
+              ],
+            ),
           ],
         ),
         const SizedBox(height: 24),
@@ -687,23 +974,17 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                 _buildChoiceChip('Others'),
               ],
             ),
-            if (_selectedRequestType == 'Others') ...[
+            if (_selectedRequestType.isNotEmpty) ...[
               const SizedBox(height: 16),
               _buildInputField(
-                label: 'Specify Other Type',
+                label: _selectedRequestType == 'Others' ? 'Specify Other Type' : 'Specify Details (what is to be ${_selectedRequestType.split(" ").first.toLowerCase()}?)',
                 controller: _otherRequestTypeController,
-                hint: 'What kind of repair is needed?',
+                hint: _selectedRequestType == 'Others'
+                    ? 'What kind of request is needed?'
+                    : 'e.g. Aircon, Door Lock, Whiteboard, Window Glass',
+                validator: (v) => v!.trim().isEmpty ? 'Required' : null,
               ),
             ],
-            const SizedBox(height: 24),
-            _buildDropdownField(
-              label: 'Priority Level',
-              value: _selectedPriority,
-              hintText: 'Select Priority',
-              items: const ['low', 'medium', 'high'],
-              isRequired: false,
-              onChanged: (v) => setState(() => _selectedPriority = v!),
-            ),
             const SizedBox(height: 24),
             _buildInputField(
               label: 'Description of the Problem',
@@ -799,9 +1080,10 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                           },
                           child: Container(
                             padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               color: AdminStyles.error,
                               shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
                             ),
                             child: const Icon(Icons.close, size: 14, color: Colors.white),
                           ),
@@ -818,7 +1100,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
     );
   }
 
-  Widget _buildSidePanel(bool isMobile) {
+  Widget _buildSidePanel() {
     return Column(
       children: [
         _buildCard(
@@ -830,13 +1112,15 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
               controller: _fullNameController,
               hint: 'Your name',
               validator: (v) => v!.isEmpty ? 'Required' : null,
+              readOnly: true,
             ),
             const SizedBox(height: 16),
             _buildInputField(
               label: 'Position/Title',
               controller: _positionController,
-              hint: 'e.g. Instructor',
+              hint: 'e.g. Campus Administrator',
               validator: (v) => v!.isEmpty ? 'Required' : null,
+              readOnly: true,
             ),
           ],
         ),
@@ -845,11 +1129,11 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
           title: 'Signature',
           icon: Icons.draw_rounded,
           children: [
-             SignaturePadWidget(
-               title: 'E-Signature',
-               subtitle: 'Sign to verify this request',
-               onSignatureComplete: (v) => setState(() => _requesterSignatureBase64 = v),
-             ),
+            SignaturePadWidget(
+              title: 'E-Signature',
+              subtitle: 'Sign to verify this request',
+              onSignatureComplete: (v) => setState(() => _requesterSignatureBase64 = v),
+            ),
           ],
         ),
       ],
@@ -857,8 +1141,11 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
   }
 
   Widget _buildCard({required String title, required IconData icon, required List<Widget> children}) {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 650;
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isNarrow ? 16 : 24),
       decoration: AdminStyles.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -877,14 +1164,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
     );
   }
 
-  Widget _buildInputField({
-    required String label,
-    required TextEditingController controller,
-    String? hint,
-    int maxLines = 1,
-    String? Function(String?)? validator,
-    bool readOnly = false,
-  }) {
+  Widget _buildInputField({required String label, required TextEditingController controller, String? hint, int maxLines = 1, String? Function(String?)? validator, bool readOnly = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -938,7 +1218,6 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
         ),
         const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: enabled ? AdminStyles.bg : Colors.grey.shade200,
             borderRadius: BorderRadius.circular(8),
@@ -946,40 +1225,37 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
               color: hasError
                   ? AdminStyles.error
                   : (enabled ? AdminStyles.border : Colors.grey.shade300),
-              width: hasError ? 1.5 : 1.0,
             ),
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: (value.isNotEmpty && items.contains(value)) ? value : null,
-              hint: Text(
-                hintText,
-                style: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
-              ),
+              value: items.contains(value) ? value : null,
+              hint: Text(hintText, style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
               isExpanded: true,
-              items: items
-                  .map((i) => DropdownMenuItem(
-                        value: i,
-                        child: Text(
-                          i,
-                          style: AdminStyles.bodyStyle(
-                            color: enabled ? AdminStyles.textPrimary : AdminStyles.textMuted,
-                          ),
-                        ),
-                      ))
-                  .toList(),
+              icon: const Icon(Icons.arrow_drop_down, color: AdminStyles.textSecondary),
+              items: items.map((item) {
+                return DropdownMenuItem<String>(
+                  value: item,
+                  child: Text(item, style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary)),
+                );
+              }).toList(),
               onChanged: enabled ? onChanged : null,
             ),
           ),
         ),
         if (hasError) ...[
           const SizedBox(height: 4),
-          Text(
-            'Please select $label',
-            style: const TextStyle(color: AdminStyles.error, fontSize: 12),
-          ),
+          Text('Required', style: AdminStyles.bodyStyle(color: AdminStyles.error, fontSize: 11)),
         ],
       ],
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Text(
+      text,
+      style: AdminStyles.bodyStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AdminStyles.textPrimary),
     );
   }
 
@@ -988,15 +1264,23 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
     return ChoiceChip(
       label: Text(label),
       selected: isSelected,
-      onSelected: (s) => setState(() => _selectedRequestType = label),
-      selectedColor: AdminStyles.primary.withValues(alpha: 0.1),
-      labelStyle: AdminStyles.bodyStyle(color: isSelected ? AdminStyles.primary : AdminStyles.textSecondary, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: isSelected ? AdminStyles.primary : AdminStyles.border)),
-      backgroundColor: AdminStyles.surface,
+      onSelected: (selected) {
+        setState(() {
+          _selectedRequestType = selected ? label : '';
+        });
+      },
+      selectedColor: AdminStyles.primary.withValues(alpha: 0.15),
+      backgroundColor: AdminStyles.bg,
+      labelStyle: TextStyle(
+        color: isSelected ? AdminStyles.primary : AdminStyles.textSecondary,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        fontSize: 13,
+      ),
+      side: BorderSide(
+        color: isSelected ? AdminStyles.primary : AdminStyles.border,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     );
-  }
-
-  Widget _buildLabel(String text) {
-    return Text(text, style: AdminStyles.bodyStyle(fontWeight: FontWeight.bold, color: AdminStyles.textSecondary, fontSize: 13));
   }
 }

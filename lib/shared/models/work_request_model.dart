@@ -213,7 +213,12 @@ class WorkRequest {
               : null) ??
           _nestedText(map['requestor'], 'name') ??
           '',
-      requestorPosition: map['requestor_position'] ?? '',
+      requestorPosition: (map['requestor_position']?.toString().trim().isNotEmpty == true
+              ? map['requestor_position'] as String
+              : null) ??
+          _nestedText(map['requestor'] is Map ? (map['requestor'] as Map)['teacher_users'] : null, 'position') ??
+          _nestedText(map['requestor'], 'position') ??
+          '',
       requestorId: map['requestor_id'],
       approvedById: map['approved_by_id'],
       approvedDate: map['approved_date'] != null

@@ -659,13 +659,8 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Rooms Management',
+          'Rooms',
           style: AdminStyles.pageTitleStyle(),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Manage facilities and room information.',
-          style: AdminStyles.pageSubtitleStyle(),
         ),
       ],
     );

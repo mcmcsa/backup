@@ -313,13 +313,8 @@ class _AdminRoomTypesWebState extends State<AdminRoomTypesWeb> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Room Types Management', style: AdminStyles.pageTitleStyle()),
-            const SizedBox(height: 8),
-            Text(
-              'Manage room categories and classifications.',
-              style: AdminStyles.pageSubtitleStyle(),
-            ),
-            const SizedBox(height: 32),
+            Text('Room Types', style: AdminStyles.pageTitleStyle()),
+            const SizedBox(height: 24),
             _buildSearchAndActions(),
             const SizedBox(height: 14),
             FacilityQuickActionsRow(

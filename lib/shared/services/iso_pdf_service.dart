@@ -4,8 +4,10 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/work_request_model.dart';
 import 'e_signature_service.dart';
+import '../utils/signature_image_helper.dart';
 
 class IsoPdfService {
   // Universal Standard Landscape (11.0" x 8.5")
@@ -28,76 +30,161 @@ class IsoPdfService {
 
     // Fetch signatures
     final signatures = await ESignatureService.fetchByWorkRequest(request.id);
+    final isCompleted = request.status.trim().toLowerCase() == 'completed';
     
     final requesterSig = signatures.where((s) {
       final role = s.signerRole.toLowerCase();
       final type = s.signatureType.toLowerCase();
       return (role == 'teacher' || role == 'faculty' || role == 'requestor') ||
-             (type == 'requestor' || type == 'approval' || type == 'submission');
+             (type == 'requestor' || type == 'request' || type == 'submission');
     }).firstOrNull;
 
-    final adminSig = signatures.where((s) =>
-        (s.signerRole.toLowerCase() == 'admin' || s.signerRole.toLowerCase() == 'campadmin') &&
+    // Form 1: Admin Initial Approval Signature
+    final adminApprovalSig = signatures.where((s) =>
+        (s.signerRole.toLowerCase() == 'admin' || s.signerRole.toLowerCase() == 'campadmin' || s.signerRole.toLowerCase() == 'campus admin') &&
         (s.signatureType.toLowerCase() == 'approval' || s.signatureType.toLowerCase() == 'admin')
     ).firstOrNull;
 
-    final completionSig = signatures.where((s) {
+    // Form 2: Admin Confirmation / Monitored and Evaluated Signature (Must NOT match initial approval!)
+    final adminConfirmationSig = signatures.where((s) {
       final role = s.signerRole.toLowerCase();
       final type = s.signatureType.toLowerCase();
-      return (role == 'maintenance' || role == 'technician' || role == 'staff') ||
-             (type == 'completion' || type == 'accomplished' || type == 'post_repair' || type == 'pre_inspection');
+      final isAdmin = role == 'admin' || role == 'campadmin' || role == 'campus admin';
+      final isConfirm = type == 'completion' || type == 'confirmation' || type == 'acceptance' || type == 'evaluation';
+      return isAdmin && isConfirm;
     }).firstOrNull;
 
-    final reqPosition = (request.requestorPosition.trim().isNotEmpty)
-        ? request.requestorPosition
-        : 'Faculty Member / Requestor';
+    // Form 1 & Form 2: Maintenance Accomplishment Signature (Must NOT match pre_inspection or task acceptance!)
+    final maintAccomplishedSig = signatures.where((s) {
+      final role = s.signerRole.toLowerCase();
+      final type = s.signatureType.toLowerCase();
+      final isMaint = role == 'maintenance' || role == 'technician' || role == 'staff';
+      final isAccomplished = type == 'completion' || type == 'accomplished' || type == 'post_repair';
+      return isMaint && isAccomplished;
+    }).firstOrNull;
 
-    pw.MemoryImage? decodeSignature(String? base64Str) {
+    String reqPosition = request.requestorPosition.trim();
+    if (reqPosition.isEmpty || reqPosition == 'Faculty Member / Requestor') {
+      if (request.requestorId != null && request.requestorId!.isNotEmpty) {
+        try {
+          final tRow = await Supabase.instance.client
+              .from('teacher_users')
+              .select('position')
+              .eq('user_id', request.requestorId!)
+              .maybeSingle();
+          final p = tRow?['position']?.toString().trim();
+          if (p != null && p.isNotEmpty) {
+            reqPosition = p;
+          } else {
+            final uRow = await Supabase.instance.client
+                .from('users')
+                .select('position, role')
+                .eq('id', request.requestorId!)
+                .maybeSingle();
+            final up = uRow?['position']?.toString().trim();
+            if (up != null && up.isNotEmpty) {
+              reqPosition = up;
+            } else if (uRow?['role'] != null) {
+              final r = uRow!['role'].toString().toLowerCase().trim();
+              if (r == 'campadmin' || r == 'campus admin') {
+                reqPosition = 'Campus Administrator';
+              } else if (r == 'admin') {
+                reqPosition = 'System Administrator';
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (reqPosition.isEmpty || reqPosition == 'Faculty Member / Requestor') {
+        final rName = request.requestorName.toLowerCase();
+        if (rName.contains('campus admin') || rName.contains('campadmin')) {
+          reqPosition = 'Campus Administrator';
+        } else if (rName.contains('admin')) {
+          reqPosition = 'Campus Administrator';
+        }
+      }
+    }
+    if (reqPosition.isEmpty) {
+      reqPosition = 'Faculty Member / Requestor';
+    }
+
+    Future<pw.MemoryImage?> decodeSignature(String? base64Str) async {
       if (base64Str == null || base64Str.isEmpty) return null;
       try {
         final cleanBase64 = base64Str.contains(',')
             ? base64Str.split(',').last
             : base64Str;
-        final bytes = base64Decode(cleanBase64.trim());
-        return pw.MemoryImage(bytes);
+        final rawBytes = base64Decode(cleanBase64.trim());
+        final cleanBytes = await SignatureImageHelper.removeBackground(rawBytes);
+        return pw.MemoryImage(cleanBytes);
       } catch (_) {
         return null;
       }
     }
 
-    final requesterSigImage = decodeSignature(requesterSig?.signatureData);
-    final adminSigImage = decodeSignature(adminSig?.signatureData);
-    final completionSigImage = decodeSignature(completionSig?.signatureData);
+    final requesterSigImage = await decodeSignature(requesterSig?.signatureData);
+    final adminApprovalSigImage = await decodeSignature(adminApprovalSig?.signatureData);
+    final adminConfirmationSigImage = await decodeSignature(adminConfirmationSig?.signatureData);
+    final maintAccomplishedSigImage = await decodeSignature(maintAccomplishedSig?.signatureData);
 
     final fontCourierBold = pw.Font.courierBold();
 
-    final typeLower = (request.typeOfRequest + ' ' + request.title).toLowerCase();
-    bool isOcular = typeLower.contains('ocular') || typeLower.contains('inspection');
-    bool isInstall = typeLower.contains('installation') || typeLower.contains('install');
-    bool isRepair = typeLower.contains('repair') || typeLower.contains('fix');
-    bool isReplace = typeLower.contains('replacement') || typeLower.contains('replace');
+    String primaryType = request.typeDisplay.trim();
+    if (primaryType.isEmpty) {
+      primaryType = request.typeOfRequest.trim();
+    }
+    final rawTitle = request.title.trim();
 
-    if (typeLower.startsWith('ocular') || typeLower.startsWith('inspection')) {
-      isOcular = true; isInstall = false; isRepair = false; isReplace = false;
-    } else if (typeLower.startsWith('installation') || typeLower.startsWith('install')) {
-      isInstall = true; isOcular = false; isRepair = false; isReplace = false;
-    } else if (typeLower.startsWith('repair') || typeLower.startsWith('fix')) {
-      isRepair = true; isOcular = false; isInstall = false; isReplace = false;
-    } else if (typeLower.startsWith('replacement') || typeLower.startsWith('replace')) {
-      isReplace = true; isOcular = false; isInstall = false; isRepair = false;
+    String strippedTitle = rawTitle;
+    if (strippedTitle.toLowerCase().startsWith('maintenance:')) {
+      strippedTitle = strippedTitle.substring('maintenance:'.length).trim();
+    }
+
+    final pLower = primaryType.toLowerCase();
+    final tLower = strippedTitle.toLowerCase();
+
+    bool isOcular = false;
+    bool isInstall = false;
+    bool isRepair = false;
+    bool isReplace = false;
+
+    if (pLower.contains('ocular') || pLower.contains('inspection')) {
+      isOcular = true;
+    } else if (pLower.contains('install')) {
+      isInstall = true;
+    } else if (pLower.contains('repair') || pLower.contains('fix')) {
+      isRepair = true;
+    } else if (pLower.contains('replace')) {
+      isReplace = true;
+    } else if (tLower.startsWith('ocular') || tLower.contains('inspection of')) {
+      isOcular = true;
+    } else if (tLower.startsWith('installation') || tLower.contains('installation of')) {
+      isInstall = true;
+    } else if (tLower.startsWith('repair') || tLower.contains('repair of')) {
+      isRepair = true;
+    } else if (tLower.startsWith('replacement') || tLower.contains('replacement of')) {
+      isReplace = true;
     }
 
     final isOthers = !isOcular && !isInstall && !isRepair && !isReplace;
 
     String specifyVal = request.specifyText.trim();
+    if (specifyVal.isEmpty && strippedTitle.contains(':')) {
+      specifyVal = strippedTitle.split(':').last.trim();
+    }
     if (specifyVal.isEmpty && request.typeOfRequest.contains(':')) {
       specifyVal = request.typeOfRequest.split(':').last.trim();
     }
-    if (specifyVal.isEmpty) {
-      specifyVal = request.description.trim();
+    if (specifyVal.isEmpty && isOthers) {
+      if (primaryType.isNotEmpty && primaryType.toLowerCase() != 'others') {
+        specifyVal = primaryType;
+      } else {
+        specifyVal = request.description.trim();
+      }
     }
     if (specifyVal.isEmpty) {
-      specifyVal = request.title.trim();
+      specifyVal = request.description.trim();
     }
 
     pw.Widget buildCheckline(String label, bool isChecked, String underlineText) {
@@ -540,10 +627,12 @@ class IsoPdfService {
                           child: buildSignatureColumn(
                             headerLabel: 'Approved by :',
                             footerLabel: 'Signature over Printed Name',
-                            signerName: adminSig?.signerName ?? request.approvedByName ?? '',
-                            sigImage: adminSigImage,
+                            signerName: (adminApprovalSig != null || request.approvedDate != null)
+                                ? (adminApprovalSig?.signerName ?? request.approvedByName ?? '')
+                                : '',
+                            sigImage: adminApprovalSigImage,
                             dateLabel: 'Date',
-                            dateVal: request.approvedDate,
+                            dateVal: adminApprovalSig?.signedAt ?? request.approvedDate,
                           ),
                         ),
                       ),
@@ -553,10 +642,10 @@ class IsoPdfService {
                         child: buildSignatureColumn(
                           headerLabel: 'Work Request Accomplished by:',
                           footerLabel: 'Signature over Printed Name',
-                          signerName: completionSig?.signerName ?? request.acceptedByName ?? '',
-                          sigImage: completionSigImage,
+                          signerName: maintAccomplishedSig?.signerName ?? (isCompleted ? (request.acceptedByName ?? '') : ''),
+                          sigImage: maintAccomplishedSigImage,
                           dateLabel: 'Date',
-                          dateVal: completionSig?.signedAt ?? request.dateCompleted ?? request.maintenanceEndTime ?? request.acceptedDate,
+                          dateVal: maintAccomplishedSig?.signedAt ?? (isCompleted ? (request.dateCompleted ?? request.maintenanceEndTime) : null),
                         ),
                       ),
                     ],
@@ -791,10 +880,10 @@ class IsoPdfService {
                           child: buildSignatureColumn(
                             headerLabel: 'Work Request Accomplished by:',
                             footerLabel: 'Signature over Printed Name',
-                            signerName: completionSig?.signerName ?? request.acceptedByName ?? '',
-                            sigImage: completionSigImage,
+                            signerName: maintAccomplishedSig?.signerName ?? (isCompleted ? (request.acceptedByName ?? '') : ''),
+                            sigImage: maintAccomplishedSigImage,
                             dateLabel: 'Date',
-                            dateVal: completionSig?.signedAt ?? request.dateCompleted ?? request.maintenanceEndTime ?? request.acceptedDate,
+                            dateVal: maintAccomplishedSig?.signedAt ?? (isCompleted ? (request.dateCompleted ?? request.maintenanceEndTime) : null),
                           ),
                         ),
                       ),
@@ -821,10 +910,12 @@ class IsoPdfService {
                         child: buildSignatureColumn(
                           headerLabel: 'Monitored and Evaluated by:',
                           footerLabel: 'Signature over Printed Name',
-                          signerName: adminSig?.signerName ?? request.approvedByName ?? '',
-                          sigImage: adminSigImage,
+                          signerName: adminConfirmationSig != null
+                              ? adminConfirmationSig.signerName
+                              : (isCompleted ? (request.approvedByName ?? '') : ''),
+                          sigImage: adminConfirmationSigImage,
                           dateLabel: 'Date',
-                          dateVal: request.approvedDate ?? request.dateCompleted,
+                          dateVal: adminConfirmationSig?.signedAt ?? (isCompleted ? request.dateCompleted : null),
                         ),
                       ),
                     ],

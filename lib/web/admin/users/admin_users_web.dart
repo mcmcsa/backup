@@ -118,18 +118,10 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Users Management',
+          'Users',
           style: AdminStyles.headingStyle(
             fontSize: 28,
             fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Manage faculty and staff accounts.',
-          style: AdminStyles.bodyStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
           ),
         ),
       ],

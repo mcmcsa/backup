@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../utils/signature_image_helper.dart';
 
 /// A reusable signature pad widget that captures hand-drawn signatures
 /// or accepts uploaded image signatures, and returns them as Base64-encoded
@@ -82,11 +83,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, widget.height),
-      Paint()..color = Colors.white,
-    );
-
+    // Do NOT fill canvas with white so the drawn signature remains transparent
     for (final stroke in _strokes) {
       if (stroke.length < 2) continue;
       final path = Path();
@@ -108,7 +105,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
     }
   }
 
-  // â”€â”€ Upload mode: pick image â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Upload mode: pick image ───────────────────────────────────────────────
   Future<void> _pickSignatureImage() async {
     setState(() {
       _uploadError = null;
@@ -134,19 +131,20 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
 
     final clarityResult = await _analyzeImageClarity(file.bytes!);
 
-    setState(() {
-      _isAnalyzing = false;
-    });
-
     if (!clarityResult.isAcceptable) {
       setState(() {
+        _isAnalyzing = false;
         _uploadError = clarityResult.reason;
       });
       return;
     }
 
+    // Automatically remove paper/photo background and extract signature ink
+    final transparentBytes = await SignatureImageHelper.removeBackground(file.bytes!);
+
     setState(() {
-      _uploadedBytes = file.bytes;
+      _isAnalyzing = false;
+      _uploadedBytes = transparentBytes;
       _uploadError = null;
     });
   }
@@ -327,7 +325,8 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
     final confirmed = await _showConfirmDialog();
     if (!confirmed) return;
 
-    final base64 = base64Encode(_uploadedBytes!);
+    final transparentBytes = await SignatureImageHelper.removeBackground(_uploadedBytes!);
+    final base64 = base64Encode(transparentBytes);
     setState(() => _isConfirmed = true);
     widget.onSignatureComplete(base64);
   }

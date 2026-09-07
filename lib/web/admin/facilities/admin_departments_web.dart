@@ -291,13 +291,8 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Departments Management', style: AdminStyles.pageTitleStyle()),
-            const SizedBox(height: 8),
-            Text(
-              'Manage academic and administrative departments.',
-              style: AdminStyles.pageSubtitleStyle(),
-            ),
-            const SizedBox(height: 32),
+            Text('Departments', style: AdminStyles.pageTitleStyle()),
+            const SizedBox(height: 24),
             _buildSearchAndActions(),
             const SizedBox(height: 14),
             FacilityQuickActionsRow(

@@ -718,13 +718,8 @@ class _MaintenanceManagementPageWebState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Maintenance User Management',
+                        'Maintenance User',
                         style: AdminStyles.pageTitleStyle(),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Create maintenance accounts and review completed maintenance records.',
-                        style: AdminStyles.pageSubtitleStyle(),
                       ),
                     ],
                   ),
