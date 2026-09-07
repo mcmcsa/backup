@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../router/app_router.dart';
 import '../models/user_model.dart';
 import '../../shared/services/department_service.dart';
+import '../../shared/services/fcm_service.dart';
 import '../../shared/services/login_activity_service.dart';
 import '../../shared/services/maintenance_status_service.dart';
 
@@ -103,6 +104,7 @@ class AuthService extends ChangeNotifier {
     try {
       switch (event) {
         case AuthChangeEvent.signedOut:
+        // ignore: deprecated_member_use
         case AuthChangeEvent.userDeleted:
           _profileRealtimeChannel?.unsubscribe();
           _profileRealtimeChannel = null;
@@ -145,6 +147,17 @@ class AuthService extends ChangeNotifier {
       try {
         await MaintenanceStatusService.setOnlineOnLogin(_currentUser!.id);
       } catch (_) {}
+    }
+    if (_currentUser != null) {
+      try {
+        await FcmService.saveToken(_currentUser!.id);
+        FcmService.startRealtimeNotificationWatcher(
+          _currentUser!.id,
+          _currentUser!.role.name,
+        );
+      } catch (e) {
+        debugPrint('FCM token save on session sync failed: $e');
+      }
     }
   }
 
@@ -277,8 +290,10 @@ class AuthService extends ChangeNotifier {
         if (profile.role == UserRole.maintenance) {
           await MaintenanceStatusService.setOnlineOnLogin(profile.id);
         }
+        // Save FCM device token for push notifications (no-op on web).
+        await FcmService.saveToken(profile.id);
       } catch (e) {
-        // Login should still succeed even if local activity logging fails.
+        // Login should still succeed even if activity logging or FCM token save fails.
         debugPrint('Login activity recording failed: $e');
       }
       notifyListeners();
@@ -350,6 +365,7 @@ class AuthService extends ChangeNotifier {
     _isPostLoginSplashActive = false;
     _pauseLoginRedirectOnce = false;
     _isLoading = false;
+    LoginActivityService.clearDebounce();
     notifyListeners();
 
     // Perform backend activity logging & offline update in background
@@ -357,10 +373,15 @@ class AuthService extends ChangeNotifier {
       unawaited(() async {
         try {
           String title = 'User Logout';
-          if (current.role == UserRole.admin) title = 'Admin Logout';
-          else if (current.role == UserRole.campadmin) title = 'Campus Admin Logout';
-          else if (current.role == UserRole.teacher) title = 'Teacher Logout';
-          else if (current.role == UserRole.maintenance) title = 'Maintenance Logout';
+          if (current.role == UserRole.admin) {
+            title = 'Admin Logout';
+          } else if (current.role == UserRole.campadmin) {
+            title = 'Campus Admin Logout';
+          } else if (current.role == UserRole.teacher) {
+            title = 'Teacher Logout';
+          } else if (current.role == UserRole.maintenance) {
+            title = 'Maintenance Logout';
+          }
 
           await LoginActivityService.recordAction(
             user: current,
@@ -370,6 +391,8 @@ class AuthService extends ChangeNotifier {
           if (current.role == UserRole.maintenance) {
             await MaintenanceStatusService.setOfflineOnLogout(current.id);
           }
+          // Remove FCM device token so user stops receiving notifications after logout.
+          await FcmService.deleteToken(current.id);
         } catch (e) {
           debugPrint('Logout activity logging error: $e');
         }

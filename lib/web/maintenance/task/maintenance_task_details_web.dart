@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../../../shared/widgets/attachment_image_widget.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
@@ -1105,6 +1106,77 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
               style: AdminStyles.bodyStyle(fontSize: 14, height: 1.5, color: AdminStyles.textPrimary),
             ),
           ),
+          if (task.attachmentUrls != null && task.attachmentUrls!.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                const Icon(Icons.photo_library_rounded, size: 16, color: AdminStyles.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Requestor Attached Photo(s) (${task.attachmentUrls!.length})',
+                  style: AdminStyles.headingStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 110,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: task.attachmentUrls!.length,
+                itemBuilder: (context, index) {
+                  final url = task.attachmentUrls![index];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Tooltip(
+                      message: 'Click to view photo',
+                      child: InkWell(
+                        onTap: () => showAttachmentZoomDialog(context, url),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: 110,
+                          height: 110,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              AppAttachmentImage(
+                                url: url,
+                                fit: BoxFit.cover,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              Positioned(
+                                bottom: 4,
+                                right: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           Text('Location & Classification', style: AdminStyles.headingStyle(fontSize: 15)),
           const SizedBox(height: 16),
@@ -1117,38 +1189,42 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
               _buildLocationChip(Icons.category_rounded, task.typeOfRequest),
             ],
           ),
-          if (task.workEvidence != null) ...[
-            const SizedBox(height: 24),
-            Text('Accomplished Work Evidence', style: AdminStyles.headingStyle(fontSize: 15)),
-            const SizedBox(height: 16),
-            Builder(
-              builder: (context) {
-                final urls = _parseEvidenceUrls(task.workEvidence);
-                if (urls.isEmpty) return const SizedBox.shrink();
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 16 / 9,
+          Builder(
+            builder: (context) {
+              final urls = _parseAccomplishedEvidenceUrls(task);
+              if (urls.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 24),
+                  Text('Accomplished Work Evidence', style: AdminStyles.headingStyle(fontSize: 15)),
+                  const SizedBox(height: 16),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 16 / 9,
+                    ),
+                    itemCount: urls.length,
+                    itemBuilder: (context, idx) {
+                      return InkWell(
+                        onTap: () => showAttachmentZoomDialog(context, urls[idx]),
+                        borderRadius: BorderRadius.circular(12),
+                        child: AppAttachmentImage(
+                          url: urls[idx],
+                          fit: BoxFit.cover,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      );
+                    },
                   ),
-                  itemCount: urls.length,
-                  itemBuilder: (context, idx) {
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        urls[idx],
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image)),
-                      ),
-                    );
-                  },
-                );
-              }
-            ),
-          ],
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -1171,6 +1247,13 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
         ],
       ),
     );
+  }
+
+  List<String> _parseAccomplishedEvidenceUrls(WorkRequest task) {
+    if (task.workEvidence == null) return [];
+    final all = _parseEvidenceUrls(task.workEvidence);
+    final requestorSet = (task.attachmentUrls ?? []).toSet();
+    return all.where((u) => !requestorSet.contains(u)).toList();
   }
 
   List<String> _parseEvidenceUrls(String? evidence) {

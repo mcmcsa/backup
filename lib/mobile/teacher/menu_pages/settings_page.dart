@@ -34,7 +34,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _loadPreferences() async {
-    final settings = await AppSettingsService.getNotificationSettings();
+    final userId = context.read<AuthService>().currentUser?.id;
+    final settings = await AppSettingsService.getNotificationSettings(userId: userId);
     if (!mounted) return;
     setState(() {
       _notificationsEnabled = settings['notificationsEnabled'] ?? true;
@@ -45,22 +46,33 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _savePreferences() async {
+    final userId = context.read<AuthService>().currentUser?.id;
     await AppSettingsService.setNotificationSettings(
       notificationsEnabled: _notificationsEnabled,
       emailNotifications: _emailNotifications,
       pushNotifications: _pushNotifications,
+      userId: userId,
     );
   }
 
   Future<void> _toggleMasterNotifications(bool value) async {
     setState(() {
       _notificationsEnabled = value;
-      if (!value) {
-        _emailNotifications = false;
-        _pushNotifications = false;
-      }
     });
     await _savePreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            value
+                ? 'Notifications enabled'
+                : 'Notifications disabled. You will not receive notification alerts.',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
     await AdminAuditLogService.logAction(
       title: value ? 'Enabled Notifications' : 'Disabled Notifications',
       details: 'Settings > Notifications',
@@ -73,6 +85,15 @@ class _SettingsPageState extends State<SettingsPage> {
       _emailNotifications = value;
     });
     await _savePreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'Email notifications enabled' : 'Email notifications disabled'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
     await AdminAuditLogService.logAction(
       title: value ? 'Enabled Email Notifications' : 'Disabled Email Notifications',
       details: 'Settings > Notifications',
@@ -85,6 +106,15 @@ class _SettingsPageState extends State<SettingsPage> {
       _pushNotifications = value;
     });
     await _savePreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'Push notifications enabled' : 'Push notifications disabled'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
     await AdminAuditLogService.logAction(
       title: value ? 'Enabled Push Notifications' : 'Disabled Push Notifications',
       details: 'Settings > Notifications',
@@ -175,7 +205,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   iconColor: Colors.red,
                   title: 'Email Notifications',
                   subtitle: 'Receive email updates',
-                  value: _emailNotifications,
+                  value: _notificationsEnabled ? _emailNotifications : false,
                   onChanged: _toggleEmailNotifications,
                   themeProvider: themeProvider,
                   enabled: !_isLoadingPreferences && _notificationsEnabled,
@@ -186,7 +216,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   iconColor: Colors.green,
                   title: 'Push Notifications',
                   subtitle: 'Receive push notifications',
-                  value: _pushNotifications,
+                  value: _notificationsEnabled ? _pushNotifications : false,
                   onChanged: _togglePushNotifications,
                   themeProvider: themeProvider,
                   enabled: !_isLoadingPreferences && _notificationsEnabled,
@@ -462,7 +492,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               Switch(
-                value: value,
+                value: enabled ? value : false,
                 onChanged: enabled ? onChanged : null,
                 activeThumbColor: themeProvider.primaryColor,
               ),

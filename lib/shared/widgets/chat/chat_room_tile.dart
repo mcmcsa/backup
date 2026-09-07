@@ -6,14 +6,22 @@ class ChatRoomTile extends StatelessWidget {
   final ChatRoom room;
   final String currentUserId;
   final bool isSelected;
+  final bool isArchived;
   final VoidCallback onTap;
+  final VoidCallback? onArchive;
+  final VoidCallback? onUnarchive;
+  final VoidCallback? onDelete;
 
   const ChatRoomTile({
     super.key,
     required this.room,
     required this.currentUserId,
     required this.isSelected,
+    this.isArchived = false,
     required this.onTap,
+    this.onArchive,
+    this.onUnarchive,
+    this.onDelete,
   });
 
   @override
@@ -133,6 +141,79 @@ class ChatRoomTile extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(
+                  Icons.more_vert_rounded,
+                  size: 18,
+                  color: Color(0xFF94A3B8),
+                ),
+                tooltip: 'Options',
+                padding: EdgeInsets.zero,
+                splashRadius: 18,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onSelected: (value) {
+                  if (value == 'archive') {
+                    onArchive?.call();
+                  } else if (value == 'unarchive') {
+                    onUnarchive?.call();
+                  } else if (value == 'delete') {
+                    onDelete?.call();
+                  }
+                },
+                itemBuilder: (context) => [
+                  if (!isArchived)
+                    const PopupMenuItem(
+                      value: 'archive',
+                      height: 38,
+                      child: Row(
+                        children: [
+                          Icon(Icons.archive_outlined, size: 18, color: Color(0xFF0F766E)),
+                          SizedBox(width: 10),
+                          Text(
+                            'Archive Chat',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    const PopupMenuItem(
+                      value: 'unarchive',
+                      height: 38,
+                      child: Row(
+                        children: [
+                          Icon(Icons.unarchive_outlined, size: 18, color: Color(0xFF0F766E)),
+                          SizedBox(width: 10),
+                          Text(
+                            'Unarchive Chat',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const PopupMenuDivider(height: 1),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    height: 38,
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+                        SizedBox(width: 10),
+                        Text(
+                          'Delete Conversation',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFFDC2626),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

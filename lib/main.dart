@@ -1,3 +1,6 @@
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -11,13 +14,22 @@ import 'shared/providers/work_request_provider.dart';
 import 'shared/providers/room_provider.dart';
 import 'shared/providers/user_provider.dart';
 import 'shared/services/connectivity_service.dart';
+import 'shared/services/fcm_service.dart';
 import 'shared/services/offline_sync_service.dart';
 import 'shared/services/offline_handlers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Load environment variables
+
+  // ── Firebase must be initialized before any Firebase service is used ──────
+  // Firebase/FCM is configured for mobile (Android/iOS). On Web, FirebaseOptions
+  // are not provided, so we skip Firebase initialization.
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await Firebase.initializeApp();
+  }
+
+  // ── Load environment variables ────────────────────────────────────────────
   try {
     await dotenv.load(fileName: '.env');
   } catch (e) {
@@ -45,6 +57,9 @@ Future<void> main() async {
   await ConnectivityService().initialize();
   await OfflineSyncService().initialize();
   registerOfflineHandlers();
+
+  // ── Initialize FCM (no-op on web) ─────────────────────────────────────────
+  await FcmService.initialize();
   
   runApp(const MyApp());
 }

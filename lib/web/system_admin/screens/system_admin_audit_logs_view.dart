@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -15,6 +16,7 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
   bool _loading = true;
   String? _error;
   List<LoginActivity> _allLogs = [];
+  StreamSubscription<void>? _changesSub;
 
   // Filters
   final _searchCtrl = TextEditingController();
@@ -34,19 +36,25 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
     super.initState();
     _searchCtrl.addListener(() => setState(() => _page = 0));
     _loadData();
+    _changesSub = LoginActivityService.changes.listen((_) {
+      if (mounted) _loadData(showLoading: false);
+    });
   }
 
   @override
   void dispose() {
+    _changesSub?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _loadData({bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
 
     try {
       final logs = await LoginActivityService.fetchAllLogs();

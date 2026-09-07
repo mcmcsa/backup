@@ -22,6 +22,7 @@ import '../../../shared/models/post_repair_model.dart';
 import '../../../shared/services/post_repair_service.dart';
 import 'post_repair_page.dart';
 import '../../../shared/services/user_service.dart';
+import '../../../shared/widgets/attachment_image_widget.dart';
 
 class TaskDetailsPage extends StatefulWidget {
   final String taskId;
@@ -814,8 +815,81 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                       height: 1.5,
                     ),
                   ),
-                ],
-              ),
+                    Builder(
+                      builder: (context) {
+                        final req = request;
+                        if (req == null) return const SizedBox.shrink();
+                        final attachments = [
+                          if (req.attachmentUrls != null) ...req.attachmentUrls!,
+                          if (req.workEvidence != null &&
+                              req.workEvidence!.trim().isNotEmpty &&
+                              (req.attachmentUrls == null ||
+                                  !req.attachmentUrls!.contains(req.workEvidence!.trim())))
+                            req.workEvidence!.trim(),
+                        ];
+
+                        if (attachments.isEmpty) return const SizedBox.shrink();
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 12),
+                            const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                const Icon(Icons.photo_library_outlined, size: 15, color: Color(0xFF4B5563)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Attached Photos (${attachments.length})',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF374151),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              height: 85,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: attachments.length,
+                                itemBuilder: (context, index) {
+                                  final url = attachments[index];
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 10),
+                                    child: InkWell(
+                                      onTap: () => showAttachmentZoomDialog(context, url),
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Container(
+                                          width: 85,
+                                          height: 85,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                                          ),
+                                          child: AppAttachmentImage(
+                                            url: url,
+                                            fit: BoxFit.cover,
+                                            width: 85,
+                                            height: 85,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ),
               const SizedBox(height: 16),
               _buildDetailCard(
                 title: 'ASSIGNMENT',

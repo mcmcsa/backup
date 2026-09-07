@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/app_settings_service.dart';
 import '../../authentication/services/auth_service.dart';
 import '../../../shared/utils/workflow_guide_dialog.dart';
 import 'dashboard/teacher_dashboard_web.dart';
@@ -50,6 +52,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
 
   int _unreadNotificationCount = 0;
   RealtimeChannel? _notificationsChannel;
+  StreamSubscription<void>? _settingsSubscription;
 
   Future<void> _loadUnreadNotificationCount() async {
     try {
@@ -102,10 +105,14 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
     _selectedIndex = widget.initialIndex;
     _loadUnreadNotificationCount();
     _subscribeNotifications();
+    _settingsSubscription = AppSettingsService.changes.listen((_) {
+      _loadUnreadNotificationCount();
+    });
   }
 
   @override
   void dispose() {
+    _settingsSubscription?.cancel();
     if (_notificationsChannel != null) {
       Supabase.instance.client.removeChannel(_notificationsChannel!);
     }

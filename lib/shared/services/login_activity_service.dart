@@ -27,18 +27,33 @@ class LoginActivity {
     required this.loggedInAt,
   });
 
+  /// Converts any timestamp to Philippine Standard Time (PHT, UTC+8).
+  /// Accurately formats both UTC timestamps and legacy rows stored with local time.
+  static DateTime toPhilippineTime(DateTime dt) {
+    final utc = dt.toUtc();
+    final nowUtc = DateTime.now().toUtc();
+    // If the UTC timestamp is more than 15 minutes in the future, it was stored
+    // with local Philippine time directly into the UTC column.
+    if (utc.isAfter(nowUtc.add(const Duration(minutes: 15)))) {
+      return DateTime(utc.year, utc.month, utc.day, utc.hour, utc.minute, utc.second, utc.millisecond);
+    }
+    // Standard UTC timestamp: add 8 hours for Philippine Standard Time (UTC+8)
+    final pht = utc.add(const Duration(hours: 8));
+    return DateTime(pht.year, pht.month, pht.day, pht.hour, pht.minute, pht.second, pht.millisecond);
+  }
+
   static DateTime _parseDateTime(dynamic raw) {
-    if (raw == null) return DateTime.now();
-    if (raw is DateTime) return raw.isUtc ? raw.toLocal() : raw;
+    if (raw == null) return toPhilippineTime(DateTime.now().toUtc());
+    if (raw is DateTime) return toPhilippineTime(raw);
     final str = raw.toString().trim();
-    if (str.isEmpty) return DateTime.now();
+    if (str.isEmpty) return toPhilippineTime(DateTime.now().toUtc());
 
     final isoStr = str.contains(' ') ? str.replaceFirst(' ', 'T') : str;
     final parsed = DateTime.tryParse(isoStr);
     if (parsed != null) {
-      return parsed.isUtc ? parsed.toLocal() : parsed;
+      return toPhilippineTime(parsed);
     }
-    return DateTime.now();
+    return toPhilippineTime(DateTime.now().toUtc());
   }
 
   factory LoginActivity.fromMap(Map<String, dynamic> map) {
@@ -156,7 +171,22 @@ class LoginActivityService {
 
   static Stream<void> get changes => _changesController.stream;
 
+  static String? _lastLoginUserId;
+  static DateTime? _lastLoginTime;
+  static String? _lastActionKey;
+  static DateTime? _lastActionTime;
+
+  static void clearDebounce() {
+    _lastLoginUserId = null;
+    _lastLoginTime = null;
+    _lastActionKey = null;
+    _lastActionTime = null;
+  }
+
   static Future<void> _append(Map<String, dynamic> entry) async {
+    final nowUtc = DateTime.now().toUtc();
+    final isoUtc = nowUtc.toIso8601String();
+
     try {
       await _db.from(_table).insert({
         'user_id': entry['user_id'],
@@ -166,7 +196,7 @@ class LoginActivityService {
         'title': entry['title'],
         'details': entry['details'],
         'work_request_id': entry['work_request_id'],
-        'logged_at': entry['logged_in_at'],
+        'logged_at': isoUtc,
       });
     } catch (_) {
       // Keep local fallback so logging never blocks business actions.
@@ -181,7 +211,10 @@ class LoginActivityService {
               .map((item) => Map<String, dynamic>.from(item as Map))
               .toList();
 
-    decoded.insert(0, entry);
+    final localEntry = Map<String, dynamic>.from(entry);
+    localEntry['logged_at'] = isoUtc;
+    localEntry['logged_in_at'] = isoUtc;
+    decoded.insert(0, localEntry);
 
     if (decoded.length > 500) {
       decoded.removeRange(500, decoded.length);
@@ -192,6 +225,15 @@ class LoginActivityService {
   }
 
   static Future<void> recordLogin(AppUser user) async {
+    final now = DateTime.now();
+    if (_lastLoginUserId == user.id &&
+        _lastLoginTime != null &&
+        now.difference(_lastLoginTime!).inMinutes < 5) {
+      return;
+    }
+    _lastLoginUserId = user.id;
+    _lastLoginTime = now;
+
     String title = 'User Login';
     if (user.role == UserRole.admin) {
       title = 'Admin Login';
@@ -210,7 +252,6 @@ class LoginActivityService {
       'event_type': 'login',
       'title': title,
       'details': 'Logged in to the system',
-      'logged_in_at': DateTime.now().toIso8601String(),
     });
   }
 
@@ -221,17 +262,12 @@ class LoginActivityService {
     String? workRequestId,
   }) async {
     if (user.role != UserRole.admin && user.role != UserRole.campadmin) return;
-
-    await _append({
-      'user_id': user.id,
-      'user_name': user.name,
-      'role': user.role.name,
-      'event_type': 'action',
-      'title': title,
-      'details': details,
-      'work_request_id': workRequestId,
-      'logged_in_at': DateTime.now().toIso8601String(),
-    });
+    await recordAction(
+      user: user,
+      title: title,
+      details: details,
+      workRequestId: workRequestId,
+    );
   }
 
   static Future<void> recordTeacherAction({
@@ -241,17 +277,12 @@ class LoginActivityService {
     String? workRequestId,
   }) async {
     if (user.role != UserRole.teacher) return;
-
-    await _append({
-      'user_id': user.id,
-      'user_name': user.name,
-      'role': user.role.name,
-      'event_type': 'action',
-      'title': title,
-      'details': details,
-      'work_request_id': workRequestId,
-      'logged_in_at': DateTime.now().toIso8601String(),
-    });
+    await recordAction(
+      user: user,
+      title: title,
+      details: details,
+      workRequestId: workRequestId,
+    );
   }
 
   static Future<void> recordAction({
@@ -260,6 +291,16 @@ class LoginActivityService {
     String? details,
     String? workRequestId,
   }) async {
+    final now = DateTime.now();
+    final actionKey = '${user.id}|$title|${details ?? ''}|${workRequestId ?? ''}';
+    if (_lastActionKey == actionKey &&
+        _lastActionTime != null &&
+        now.difference(_lastActionTime!).inSeconds < 3) {
+      return;
+    }
+    _lastActionKey = actionKey;
+    _lastActionTime = now;
+
     await _append({
       'user_id': user.id,
       'user_name': user.name,
@@ -268,11 +309,11 @@ class LoginActivityService {
       'title': title,
       'details': details,
       'work_request_id': workRequestId,
-      'logged_in_at': DateTime.now().toIso8601String(),
     });
   }
 
   static Future<List<LoginActivity>> fetchAdminLogs({String? userId}) async {
+    initializeRealtime();
     List<LoginActivity> dbLogs = const <LoginActivity>[];
 
     try {
@@ -318,26 +359,66 @@ class LoginActivityService {
     return result;
   }
 
+  static RealtimeChannel? _realtimeChannel;
+
+  static void initializeRealtime() {
+    if (_realtimeChannel != null) return;
+    try {
+      _realtimeChannel = _db
+          .channel('public:admin_activity_logs_feed')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: _table,
+            callback: (payload) {
+              _changesController.add(null);
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+  }
+
   static List<LoginActivity> _mergeAndDeduplicateLogs(
     List<LoginActivity> dbLogs,
     List<LoginActivity> localLogs,
   ) {
-    // DB logs are authoritative persistent records; localLogs are offline fallback
-    final List<LoginActivity> source =
-        dbLogs.isNotEmpty ? dbLogs : localLogs;
+    if (dbLogs.isNotEmpty) {
+      // Purge stale local cache so outdated duplicate records aren't retained
+      SharedPreferences.getInstance().then((prefs) => prefs.remove(_storageKey));
+    }
+
+    final List<LoginActivity> source = dbLogs.isNotEmpty ? dbLogs : localLogs;
 
     final sanitizedLogs = source.map(LoginActivity.sanitize).toList();
     sanitizedLogs.sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
 
     final merged = <LoginActivity>[];
-    final seen = <String>{};
 
     for (final log in sanitizedLogs) {
-      final titleKey = log.title.trim().toLowerCase();
-      final detailsKey = (log.details ?? '').trim().toLowerCase();
-      final window = log.loggedInAt.millisecondsSinceEpoch ~/ 300000;
-      final key = '${log.userId}|$titleKey|$detailsKey|$window';
-      if (seen.add(key)) {
+      final isDuplicate = merged.any((existing) {
+        if (existing.userId != log.userId) return false;
+
+        // Login deduplication: any login for same user within 60 seconds
+        if (existing.eventType == 'login' && log.eventType == 'login') {
+          return existing.loggedInAt.difference(log.loggedInAt).abs().inSeconds <= 60;
+        }
+
+        // Logout deduplication: any logout for same user within 60 seconds
+        final isExistingLogout = existing.title.toLowerCase().contains('logout');
+        final isLogLogout = log.title.toLowerCase().contains('logout');
+        if (isExistingLogout && isLogLogout) {
+          return existing.loggedInAt.difference(log.loggedInAt).abs().inSeconds <= 60;
+        }
+
+        // Action button deduplication: same action title for same user within 60 seconds
+        if (existing.title.trim().toLowerCase() == log.title.trim().toLowerCase()) {
+          return existing.loggedInAt.difference(log.loggedInAt).abs().inSeconds <= 60;
+        }
+
+        return false;
+      });
+
+      if (!isDuplicate) {
         merged.add(log);
       }
     }
@@ -347,6 +428,7 @@ class LoginActivityService {
   }
 
   static Future<List<LoginActivity>> fetchUserLogs(String userId) async {
+    initializeRealtime();
     List<LoginActivity> dbLogs = const <LoginActivity>[];
     try {
       final rows = await _db
@@ -365,31 +447,18 @@ class LoginActivityService {
 
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
-    if (raw == null) {
-      return dbLogs;
-    }
+    final localLogs = raw == null
+        ? <LoginActivity>[]
+        : (jsonDecode(raw) as List)
+            .map((item) => LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)))
+            .where((log) => log.userId == userId)
+            .toList();
 
-    final localLogs = (jsonDecode(raw) as List)
-        .map((item) => LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)))
-        .where((log) => log.userId == userId)
-        .toList();
-
-    final merged = <LoginActivity>[];
-    final seen = <String>{};
-
-    for (final log in [...dbLogs, ...localLogs]) {
-      final minuteKey = log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 60000;
-      final key = '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|$minuteKey';
-      if (seen.add(key)) {
-        merged.add(log);
-      }
-    }
-
-    merged.sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
-    return merged;
+    return _mergeAndDeduplicateLogs(dbLogs, localLogs);
   }
 
   static Future<List<LoginActivity>> fetchAllLogs() async {
+    initializeRealtime();
     List<LoginActivity> dbLogs = const <LoginActivity>[];
 
     try {
@@ -409,29 +478,15 @@ class LoginActivityService {
 
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
-    if (raw == null) {
-      return dbLogs;
-    }
+    final localLogs = raw == null
+        ? <LoginActivity>[]
+        : (jsonDecode(raw) as List)
+            .map(
+              (item) =>
+                  LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)),
+            )
+            .toList();
 
-    final localLogs = (jsonDecode(raw) as List)
-        .map(
-          (item) =>
-              LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)),
-        )
-        .toList();
-
-    final merged = <LoginActivity>[];
-    final seen = <String>{};
-
-    for (final log in [...dbLogs, ...localLogs]) {
-      final minuteKey = log.loggedInAt.toUtc().millisecondsSinceEpoch ~/ 60000;
-      final key = '${log.userId}|${log.eventType}|${log.title}|${log.workRequestId ?? ''}|$minuteKey';
-      if (seen.add(key)) {
-        merged.add(log);
-      }
-    }
-
-    merged.sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
-    return merged;
+    return _mergeAndDeduplicateLogs(dbLogs, localLogs);
   }
 }

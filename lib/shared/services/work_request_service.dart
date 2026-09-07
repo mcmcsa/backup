@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -241,7 +241,44 @@ class WorkRequestService {
     }
     
     if (data == null) return null;
-    final request = WorkRequest.fromMap(data);
+    var request = WorkRequest.fromMap(data);
+
+    // Auto-recover attachments from candidate storage buckets if empty
+    if (request.attachmentUrls == null || request.attachmentUrls!.isEmpty) {
+      const candidateBuckets = [
+        'work-request-attachments',
+        'work-evidence',
+        'work_evidence',
+        'evidence',
+        'images',
+        'chat-attachments',
+      ];
+      for (final bucket in candidateBuckets) {
+        try {
+          final files = await _db.storage.from(bucket).list(path: request.id);
+          if (files.isNotEmpty) {
+            final recoveredUrls = files
+                .where((f) => f.name.isNotEmpty && !f.name.startsWith('.'))
+                .map((f) => _db.storage.from(bucket).getPublicUrl('${request.id}/${f.name}'))
+                .toList();
+            if (recoveredUrls.isNotEmpty) {
+              request = request.copyWith(
+                attachmentUrls: recoveredUrls,
+                workEvidence: recoveredUrls.join(','),
+              );
+              // Opportunistically save to DB so future fetches don't need to re-query storage
+              try {
+                await _updateWithSchemaFallback(request.id, {
+                  'attachment_urls': recoveredUrls,
+                  'work_evidence': recoveredUrls.join(','),
+                });
+              } catch (_) {}
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+    }
 
     // Enrich requestorName if still empty but requestorId is known
     if (request.requestorName.trim().isEmpty && request.requestorId != null) {
@@ -547,6 +584,52 @@ class WorkRequestService {
   /// Get approved count (waiting for maintenance acceptance)
   static Future<int> getApprovedCount() async {
     return getCountByStatus('In Progress');
+  }
+
+  static String generateId() => _generateWorkRequestId();
+
+  /// Robust multi-bucket upload with automatic base64 data-URI fallback
+  static Future<String?> uploadAttachmentBytes({
+    required String workRequestId,
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    final rawExt = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : 'jpg';
+    final ext = rawExt == 'jpg' ? 'jpeg' : rawExt;
+    final path = '$workRequestId/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+
+    // List of buckets to try in priority order
+    final buckets = ['work-request-attachments', 'work-evidence', 'chat-attachments'];
+
+    for (final bucket in buckets) {
+      try {
+        await _db.storage.from(bucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: 'image/$ext',
+            upsert: true,
+          ),
+        );
+        final url = _db.storage.from(bucket).getPublicUrl(path);
+        debugPrint('Successfully uploaded attachment to bucket "$bucket": $url');
+        return url;
+      } catch (e) {
+        debugPrint('Upload to storage bucket "$bucket" failed: $e');
+      }
+    }
+
+    // Ultimate fallback if cloud storage buckets reject: data URI base64
+    try {
+      final base64String = base64Encode(bytes);
+      final dataUri = 'data:image/$ext;base64,$base64String';
+      debugPrint('Attachment saved as resilient data URI (fileName: $fileName)');
+      return dataUri;
+    } catch (e) {
+      debugPrint('Failed base64 data URI conversion: $e');
+    }
+
+    return null;
   }
 
   static Future<WorkRequest> insert(WorkRequest request) async {

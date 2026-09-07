@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../authentication/services/auth_service.dart';
-import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/admin_audit_log_service.dart';
 import '../../../shared/services/app_settings_service.dart';
 import 'admin_styles.dart';
@@ -29,7 +28,8 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
   }
 
   Future<void> _loadPreferences() async {
-    final settings = await AppSettingsService.getNotificationSettings();
+    final userId = context.read<AuthService>().currentUser?.id;
+    final settings = await AppSettingsService.getNotificationSettings(userId: userId);
     if (!mounted) return;
 
     setState(() {
@@ -41,22 +41,34 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
   }
 
   Future<void> _saveNotificationPreferences() async {
+    final userId = context.read<AuthService>().currentUser?.id;
     await AppSettingsService.setNotificationSettings(
       notificationsEnabled: _notificationsEnabled,
       emailNotifications: _emailNotifications,
       pushNotifications: _pushNotifications,
+      userId: userId,
     );
   }
 
   Future<void> _toggleMasterNotifications(bool value) async {
     setState(() {
       _notificationsEnabled = value;
-      if (!value) {
-        _emailNotifications = false;
-        _pushNotifications = false;
-      }
     });
     await _saveNotificationPreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            value
+                ? 'Notifications enabled'
+                : 'Notifications disabled. You will not receive notification alerts.',
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: value ? AdminStyles.primary : const Color(0xFF475569),
+        ),
+      );
+    }
     await AdminAuditLogService.logAction(
       title: value ? 'Enabled Notifications (Web)' : 'Disabled Notifications (Web)',
       details: 'Web Settings > Notifications',
@@ -67,6 +79,15 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
     if (!_notificationsEnabled) return;
     setState(() => _emailNotifications = value);
     await _saveNotificationPreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'Email notifications enabled' : 'Email notifications disabled'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
     await AdminAuditLogService.logAction(
       title: value ? 'Enabled Email Notifications (Web)' : 'Disabled Email Notifications (Web)',
       details: 'Web Settings > Notifications',
@@ -77,6 +98,15 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
     if (!_notificationsEnabled) return;
     setState(() => _pushNotifications = value);
     await _saveNotificationPreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'Push notifications enabled' : 'Push notifications disabled'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
     await AdminAuditLogService.logAction(
       title: value ? 'Enabled Push Notifications (Web)' : 'Disabled Push Notifications (Web)',
       details: 'Web Settings > Notifications',
@@ -298,8 +328,6 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
-
     return Container(
       color: Colors.white,
       child: SingleChildScrollView(
@@ -326,7 +354,7 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
                   _switchTile(
                     icon: Icons.notifications_outlined,
                     title: 'Enable Notifications',
-                    subtitle: 'Receive updates about requests and activity',
+                    subtitle: 'Receive updates about requests and activity.',
                     value: _notificationsEnabled,
                     onChanged: _isLoadingPreferences ? null : _toggleMasterNotifications,
                   ),
@@ -334,8 +362,8 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
                   _switchTile(
                     icon: Icons.email_outlined,
                     title: 'Email Notifications',
-                    subtitle: 'Receive updates via email',
-                    value: _emailNotifications,
+                    subtitle: 'Receive updates via email.',
+                    value: _notificationsEnabled ? _emailNotifications : false,
                     onChanged: (!_isLoadingPreferences && _notificationsEnabled)
                         ? _toggleEmailNotifications
                         : null,
@@ -344,8 +372,8 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
                   _switchTile(
                     icon: Icons.phone_android_outlined,
                     title: 'Push Notifications',
-                    subtitle: 'Receive browser/app push alerts',
-                    value: _pushNotifications,
+                    subtitle: 'Receive browser push alerts.',
+                    value: _notificationsEnabled ? _pushNotifications : false,
                     onChanged: (!_isLoadingPreferences && _notificationsEnabled)
                         ? _togglePushNotifications
                         : null,
@@ -370,26 +398,6 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
                     ),
                     trailing: const Icon(Icons.chevron_right_rounded, color: AdminStyles.textSecondary),
                     onTap: _showChangePasswordDialog,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              _sectionTitle('Appearance'),
-              const SizedBox(height: 12),
-              _settingsCard(
-                children: [
-                  _switchTile(
-                    icon: themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode_outlined,
-                    title: 'Dark Mode',
-                    subtitle: themeProvider.isDarkMode ? 'Dark theme enabled' : 'Light theme enabled',
-                    value: themeProvider.isDarkMode,
-                    onChanged: (value) async {
-                      await themeProvider.setDarkMode(value);
-                      await AdminAuditLogService.logAction(
-                        title: value ? 'Enabled Dark Mode (Web)' : 'Disabled Dark Mode (Web)',
-                        details: 'Web Settings > Appearance',
-                      );
-                    },
                   ),
                 ],
               ),
@@ -447,19 +455,30 @@ class _SettingsPageWebState extends State<SettingsPageWeb> {
     required bool value,
     required ValueChanged<bool>? onChanged,
   }) {
+    final bool isEnabled = onChanged != null;
     return SwitchListTile.adaptive(
-      value: value,
+      value: isEnabled ? value : false,
       onChanged: onChanged,
       activeThumbColor: AdminStyles.primary,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      secondary: Icon(icon, color: AdminStyles.secondary),
+      secondary: Icon(
+        icon,
+        color: isEnabled ? AdminStyles.secondary : AdminStyles.textMuted.withValues(alpha: 0.5),
+      ),
       title: Text(
         title,
-        style: AdminStyles.bodyStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AdminStyles.textPrimary),
+        style: AdminStyles.bodyStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: isEnabled ? AdminStyles.textPrimary : AdminStyles.textMuted,
+        ),
       ),
       subtitle: Text(
         subtitle,
-        style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+        style: AdminStyles.bodyStyle(
+          fontSize: 12,
+          color: isEnabled ? AdminStyles.textSecondary : AdminStyles.textMuted.withValues(alpha: 0.6),
+        ),
       ),
     );
   }

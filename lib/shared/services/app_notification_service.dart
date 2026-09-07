@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_notification_model.dart';
-import 'work_request_service.dart';
+import 'app_settings_service.dart';
 import 'room_service.dart';
 
 class AppNotificationService {
@@ -81,7 +81,14 @@ class AppNotificationService {
   static Future<List<AppNotification>> fetchForUser({
     required String role,
     required String userId,
+    bool ignoreSettings = false,
   }) async {
+    if (!ignoreSettings) {
+      final isEnabled = await AppSettingsService.isNotificationsEnabled(userId: userId);
+      if (!isEnabled) {
+        return [];
+      }
+    }
     final normalizedRole = normalizeRole(role);
     final data = await _db
         .from(_table)
@@ -89,7 +96,57 @@ class AppNotificationService {
         .or(_visibilityFilter(normalizedRole: normalizedRole, userId: userId))
         .order('created_at', ascending: false);
 
-    return (data as List).map((e) => AppNotification.fromMap(e)).toList();
+    final raw = (data as List).map((e) => AppNotification.fromMap(e)).toList();
+    return deduplicateNotifications(raw);
+  }
+
+  /// Deduplicate notifications to prevent duplicate alerts from dual dispatch
+  /// or repeated attachment notifications.
+  static List<AppNotification> deduplicateNotifications(List<AppNotification> list) {
+    final result = <AppNotification>[];
+    for (final notif in list) {
+      final isDuplicate = result.any((existing) {
+        if (existing.targetUserId != notif.targetUserId) return false;
+
+        final isExistingChat = existing.type == 'chat' ||
+            existing.type == 'chat_message' ||
+            existing.type == 'new_chat_message';
+        final isNotifChat = notif.type == 'chat' ||
+            notif.type == 'chat_message' ||
+            notif.type == 'new_chat_message';
+
+        if (isExistingChat && isNotifChat) {
+          final sameRoom = (existing.chatRoomId != null &&
+                  existing.chatRoomId == notif.chatRoomId) ||
+              (existing.targetPage != null &&
+                  existing.targetPage == notif.targetPage);
+          if (sameRoom) {
+            final timeDiff = existing.createdAt.difference(notif.createdAt).abs();
+            if (existing.message == notif.message && timeDiff.inMinutes < 10) {
+              return true;
+            }
+            if (timeDiff.inSeconds <= 5) {
+              return true;
+            }
+          }
+        }
+
+        if (existing.type == notif.type &&
+            existing.title == notif.title &&
+            existing.message == notif.message &&
+            existing.workRequestId == notif.workRequestId &&
+            existing.createdAt.difference(notif.createdAt).abs().inSeconds <= 60) {
+          return true;
+        }
+
+        return false;
+      });
+
+      if (!isDuplicate) {
+        result.add(notif);
+      }
+    }
+    return result;
   }
 
   static Future<void> createForRole({
@@ -140,6 +197,13 @@ class AppNotificationService {
     };
 
     await _db.from(_table).insert(payload);
+
+    try {
+      final canPush = await AppSettingsService.canReceivePush(userId: targetUserId);
+      if (canPush) {
+        await _db.functions.invoke('push-notifications', body: {'record': payload});
+      }
+    } catch (_) {}
   }
 
   static Future<void> createForRoles({
@@ -165,6 +229,12 @@ class AppNotificationService {
         .toList();
 
     await _db.from(_table).insert(payload);
+
+    try {
+      for (final p in payload) {
+        await _db.functions.invoke('push-notifications', body: {'record': p});
+      }
+    } catch (_) {}
   }
 
   /// Notify maintenance when admin approves a work request.
@@ -314,7 +384,44 @@ class AppNotificationService {
   }
 
   static Future<void> markAsRead(String id) async {
-    await _db.from(_table).update({'is_read': true}).eq('id', id);
+    try {
+      final notifData = await _db
+          .from(_table)
+          .select('type, target_page, target_user_id')
+          .eq('id', id)
+          .maybeSingle();
+
+      await _db.from(_table).update({'is_read': true}).eq('id', id);
+
+      if (notifData != null) {
+        final targetPage = notifData['target_page']?.toString() ?? '';
+        final targetUserId = notifData['target_user_id']?.toString();
+        if (targetPage.startsWith('chat_room_id:') && targetUserId != null) {
+          await _db
+              .from(_table)
+              .update({'is_read': true})
+              .eq('target_page', targetPage)
+              .eq('target_user_id', targetUserId)
+              .eq('is_read', false);
+        }
+      }
+    } catch (_) {
+      await _db.from(_table).update({'is_read': true}).eq('id', id);
+    }
+  }
+
+  static Future<void> markChatRoomAsRead({
+    required String roomId,
+    required String userId,
+  }) async {
+    try {
+      await _db
+          .from(_table)
+          .update({'is_read': true})
+          .eq('target_page', 'chat_room_id:$roomId')
+          .eq('target_user_id', userId)
+          .eq('is_read', false);
+    } catch (_) {}
   }
 
   static Future<String?> _getRequestorId(String workRequestId) async {
@@ -516,14 +623,17 @@ class AppNotificationService {
       }
     } catch (_) {}
 
-    final roomStr = workRequestId != null ? await _getRoomStr(workRequestId) : 'Chat';
+    final preview = messageContent.length > 80
+        ? '${messageContent.substring(0, 80)}…'
+        : messageContent;
+
     await createForUser(
       targetUserId: targetUserId,
-      title: 'New Message ($roomStr)',
-      message: '$senderName: $messageContent',
-      type: 'new_chat_message',
+      title: '💬 $senderName',
+      message: preview,
+      type: 'chat_message',
       workRequestId: workRequestId,
-      targetPage: '/collaboration',
+      targetPage: 'chat_room_id:$chatRoomId',
     );
   }
 
@@ -556,13 +666,12 @@ class AppNotificationService {
     required String role,
     required String userId,
   }) async {
-    final normalizedRole = normalizeRole(role);
-    final data = await _db
-        .from(_table)
-        .select('id')
-        .eq('is_read', false)
-        .or(_visibilityFilter(normalizedRole: normalizedRole, userId: userId));
-    return (data as List?)?.length ?? 0;
+    final isEnabled = await AppSettingsService.isNotificationsEnabled(userId: userId);
+    if (!isEnabled) {
+      return 0;
+    }
+    final list = await fetchForUser(role: role, userId: userId);
+    return list.where((n) => !n.isRead).length;
   }
 }
 

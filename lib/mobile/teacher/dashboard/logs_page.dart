@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -18,7 +19,8 @@ class LogsPage extends StatefulWidget {
 
 class _LogsPageState extends State<LogsPage> {
   final TextEditingController _searchController = TextEditingController();
-  String _selectedTab = 'All';
+  StreamSubscription<void>? _changesSub;
+  String _selectedFilter = 'ALL';
   List<LoginActivity> _logs = [];
   bool _isLoading = true;
 
@@ -27,6 +29,9 @@ class _LogsPageState extends State<LogsPage> {
     super.initState();
     _searchController.addListener(() => setState(() {}));
     _loadLogs();
+    _changesSub = LoginActivityService.changes.listen((_) {
+      if (mounted) _loadLogs();
+    });
   }
 
   Future<void> _loadLogs() async {
@@ -50,15 +55,38 @@ class _LogsPageState extends State<LogsPage> {
     }
   }
 
-  List<LoginActivity> get _filteredLogs {
-    List<LoginActivity> filtered = _logs;
+  bool _isLogout(LoginActivity log) {
+    final eventType = log.eventType.toLowerCase();
+    final title = log.title.toLowerCase();
+    final details = (log.details ?? '').toLowerCase();
+    return eventType == 'logout' ||
+        title.contains('logout') ||
+        details.contains('logged out');
+  }
 
-    if (_selectedTab == 'Account') {
-      filtered = filtered.where((l) => l.eventType == 'login' || l.eventType == 'logout').toList();
-    } else if (_selectedTab == 'Reports') {
-      filtered = filtered.where((l) => l.title.toLowerCase().contains('request') || l.title.toLowerCase().contains('report')).toList();
-    } else if (_selectedTab == 'Settings') {
-      filtered = filtered.where((l) => l.title.toLowerCase().contains('setting') || l.title.toLowerCase().contains('profile')).toList();
+  bool _isLogin(LoginActivity log) {
+    if (_isLogout(log)) return false;
+    final eventType = log.eventType.toLowerCase();
+    final title = log.title.toLowerCase();
+    final details = (log.details ?? '').toLowerCase();
+    return eventType == 'login' ||
+        (title.contains('login') && !title.contains('logout')) ||
+        (details.contains('logged in') && !details.contains('logged out'));
+  }
+
+  bool _isAction(LoginActivity log) {
+    return !_isLogin(log) && !_isLogout(log);
+  }
+
+  List<LoginActivity> get _filteredLogs {
+    List<LoginActivity> filtered = List<LoginActivity>.from(_logs);
+
+    if (_selectedFilter == 'Login') {
+      filtered = filtered.where(_isLogin).toList();
+    } else if (_selectedFilter == 'Logout') {
+      filtered = filtered.where(_isLogout).toList();
+    } else if (_selectedFilter == 'Actions') {
+      filtered = filtered.where(_isAction).toList();
     }
 
     final query = _searchController.text.trim().toLowerCase();
@@ -73,7 +101,8 @@ class _LogsPageState extends State<LogsPage> {
   }
 
   IconData _iconForLog(LoginActivity log) {
-    if (log.eventType == 'login') return Icons.login_rounded;
+    if (_isLogout(log)) return Icons.logout_rounded;
+    if (_isLogin(log)) return Icons.login_rounded;
     final title = log.title.toLowerCase();
     if (title.contains('approve')) return Icons.check_circle_rounded;
     if (title.contains('reject') || title.contains('declin')) return Icons.cancel_rounded;
@@ -83,7 +112,8 @@ class _LogsPageState extends State<LogsPage> {
   }
 
   Color _colorForLog(LoginActivity log) {
-    if (log.eventType == 'login') return const Color(0xFF4169E1);
+    if (_isLogout(log)) return const Color(0xFFEF4444);
+    if (_isLogin(log)) return const Color(0xFF4169E1);
     final title = log.title.toLowerCase();
     if (title.contains('approve')) return const Color(0xFF059669);
     if (title.contains('reject') || title.contains('declin')) return const Color(0xFFDC2626);
@@ -93,6 +123,7 @@ class _LogsPageState extends State<LogsPage> {
 
   @override
   void dispose() {
+    _changesSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -118,89 +149,133 @@ class _LogsPageState extends State<LogsPage> {
       ),
       body: Column(
         children: [
-          // Search Bar
           Container(
             color: themeProvider.cardColor,
             padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              style: TextStyle(color: themeProvider.textColor),
-              decoration: InputDecoration(
-                hintText: 'Search activity logs...',
-                hintStyle: TextStyle(
-                  color: Colors.grey.shade400,
-                  fontSize: 14,
-                ),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
-                ),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 44,
-                  minHeight: 44,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(999)),
-                  borderSide: BorderSide(color: Color(0xFF4169E1)),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-              ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 600;
+                final searchBar = TextField(
+                  controller: _searchController,
+                  style: TextStyle(color: themeProvider.textColor, fontSize: 13.5),
+                  decoration: InputDecoration(
+                    hintText: 'Search logs...',
+                    hintStyle: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontSize: 13.5,
+                    ),
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.only(left: 12, right: 8),
+                      child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            color: Colors.grey.shade400,
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: themeProvider.primaryColor),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                  ),
+                );
+
+                final filterGroup = Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: themeProvider.borderColor),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildTabChip('ALL', themeProvider),
+                      const SizedBox(width: 4),
+                      _buildTabChip('Login', themeProvider),
+                      const SizedBox(width: 4),
+                      _buildTabChip('Logout', themeProvider),
+                      const SizedBox(width: 4),
+                      _buildTabChip('Actions', themeProvider),
+                    ],
+                  ),
+                );
+
+                if (isWide) {
+                  return Row(
+                    children: [
+                      Expanded(child: searchBar),
+                      const SizedBox(width: 14),
+                      filterGroup,
+                    ],
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    searchBar,
+                    const SizedBox(height: 12),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: filterGroup,
+                    ),
+                  ],
+                );
+              },
             ),
           ),
 
-          // Tab Filters
           Container(
-            color: themeProvider.cardColor,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildTabChip('All', themeProvider),
-                  const SizedBox(width: 8),
-                  _buildTabChip('Account', themeProvider),
-                  const SizedBox(width: 8),
-                  _buildTabChip('Reports', themeProvider),
-                  const SizedBox(width: 8),
-                  _buildTabChip('Settings', themeProvider),
-                ],
-              ),
-            ),
-          ),
-
-          // Logs Header
-          Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Row(
               children: [
                 Icon(Icons.schedule, size: 20, color: themeProvider.primaryColor),
                 const SizedBox(width: 8),
                 Text(
-                  'Logs',
+                  'Activity Logs',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
                     color: themeProvider.textColor,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${_filteredLogs.length} entries',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: themeProvider.subtitleColor,
                   ),
                 ),
               ],
             ),
           ),
 
-          // Logs List
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -213,15 +288,20 @@ class _LogsPageState extends State<LogsPage> {
                                 child: Padding(
                                   padding: const EdgeInsets.all(32),
                                   child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.history, size: 48, color: themeProvider.subtitleColor),
-                                      const SizedBox(height: 12),
+                                      Icon(
+                                        Icons.history_toggle_off,
+                                        size: 48,
+                                        color: Colors.grey.shade400,
+                                      ),
+                                      const SizedBox(height: 16),
                                       Text(
-                                        'No activity logs yet',
+                                        'No activity logs found',
                                         style: TextStyle(
-                                          fontSize: 15,
+                                          fontSize: 16,
                                           fontWeight: FontWeight.w600,
-                                          color: themeProvider.subtitleColor,
+                                          color: themeProvider.textColor,
                                         ),
                                       ),
                                     ],
@@ -231,14 +311,26 @@ class _LogsPageState extends State<LogsPage> {
                             ],
                           )
                         : ListView.separated(
-                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                             itemCount: _filteredLogs.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
                             itemBuilder: (context, index) {
                               final log = _filteredLogs[index];
+                              final isLogin = _isLogin(log);
+                              final isLogout = _isLogout(log);
                               final color = _colorForLog(log);
                               final icon = _iconForLog(log);
                               final timeStr = DateFormat('MMM dd, yyyy • hh:mm a').format(log.loggedInAt);
+
+                              final badgeLabel = isLogin ? 'Login' : (isLogout ? 'Logout' : 'Action');
+                              final badgeColor = isLogin
+                                  ? const Color(0xFF2563EB)
+                                  : (isLogout ? const Color(0xFFDC2626) : const Color(0xFF475569));
+                              final badgeBg = isLogin
+                                  ? const Color(0xFF3B82F6).withValues(alpha: 0.1)
+                                  : (isLogout
+                                      ? const Color(0xFFEF4444).withValues(alpha: 0.1)
+                                      : const Color(0xFF64748B).withValues(alpha: 0.1));
 
                               return Container(
                                 padding: const EdgeInsets.all(14),
@@ -263,17 +355,39 @@ class _LogsPageState extends State<LogsPage> {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text(
-                                            log.title,
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w700,
-                                              color: themeProvider.textColor,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  log.title,
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: themeProvider.textColor,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: badgeBg,
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  badgeLabel,
+                                                  style: TextStyle(
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: badgeColor,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                          const SizedBox(height: 2),
+                                          const SizedBox(height: 3),
                                           Text(
                                             log.details ?? log.eventType,
                                             style: TextStyle(
@@ -309,53 +423,39 @@ class _LogsPageState extends State<LogsPage> {
   }
 
   Widget _buildTabChip(String label, ThemeProvider themeProvider) {
-    final isSelected = _selectedTab == label;
-    return FilterChip(
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (label == 'Account') ...[
-            Icon(
-              Icons.person_outline,
-              size: 16,
-              color: isSelected ? Colors.white : themeProvider.textColor,
+    final isSelected = _selectedFilter == label;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _selectedFilter = label),
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected ? themeProvider.primaryColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: themeProvider.primaryColor.withValues(alpha: 0.28),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+              letterSpacing: -0.1,
             ),
-            const SizedBox(width: 6),
-          ] else if (label == 'Reports') ...[
-            Icon(
-              Icons.description_outlined,
-              size: 16,
-              color: isSelected ? Colors.white : themeProvider.textColor,
-            ),
-            const SizedBox(width: 6),
-          ] else if (label == 'Settings') ...[
-            Icon(
-              Icons.settings_outlined,
-              size: 16,
-              color: isSelected ? Colors.white : themeProvider.textColor,
-            ),
-            const SizedBox(width: 6),
-          ],
-          Text(label),
-        ],
+          ),
+        ),
       ),
-      selected: isSelected,
-      onSelected: (selected) {
-        setState(() {
-          _selectedTab = label;
-        });
-      },
-      backgroundColor: themeProvider.cardColor,
-      selectedColor: themeProvider.primaryColor,
-      labelStyle: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-        color: isSelected ? Colors.white : themeProvider.textColor,
-      ),
-      side: BorderSide(
-        color: isSelected ? themeProvider.primaryColor : themeProvider.borderColor,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
     );
   }
 }

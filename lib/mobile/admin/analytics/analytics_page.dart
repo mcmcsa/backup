@@ -24,6 +24,9 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   static const Color _successGreen = AdminStyles.success;
   static const Color _warningYellow = AdminStyles.warning;
   static const Color _dangerRed = AdminStyles.error;
+  static const Color _infoBlue = AdminStyles.info;
+  static const Color _indigoMaint = Color(0xFF6366F1);
+  static const Color _reworkOrange = Color(0xFFEA580C);
   static const Color _darkText = AdminStyles.textPrimary;
   static const Color _subtleText = AdminStyles.textSecondary;
   static const Color _pageBg = AdminStyles.bg;
@@ -55,16 +58,40 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   int get _totalRequests => _requests.length;
   int get _completedRequests =>
       _requests.where((r) => r.status.toLowerCase() == 'completed').length;
-  int get _pendingRequests =>
-      _requests.where((r) => r.status.toLowerCase() == 'pending').length;
-  int get _activeRequests => _requests
-      .where(
-        (r) =>
-            r.status.toLowerCase() == 'in_progress' ||
-            r.status.toLowerCase() == 'approved' ||
-            r.status.toLowerCase() == 'under_maintenance',
-      )
-      .length;
+  int get _pendingRequests => _requests.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'pending' || s == 'pending assignment';
+      }).length;
+  int get _inProgressRequests => _requests.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'in progress' ||
+            s == 'in_progress' ||
+            s == 'assigned' ||
+            s == 'accepted by maintenance' ||
+            s == 'pre-inspection submitted';
+      }).length;
+  int get _underMaintenanceRequests => _requests.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'confirmed' ||
+            s == 'pre-inspection approved' ||
+            s == 'post-repair submitted' ||
+            s == 'in progress (post-repair)' ||
+            s == 'under_maintenance';
+      }).length;
+  int get _reworkRequests => _requests.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'rework' ||
+            s == 'for rework' ||
+            s == 'rework needed' ||
+            s == 'under evaluation';
+      }).length;
+  int get _declinedRequests => _requests.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'declined' ||
+            s == 'cancelled' ||
+            s == 'declined/cancelled' ||
+            s == 'pre-inspection declined';
+      }).length;
   int get _highPriority =>
       _requests.where((r) => r.priority.toLowerCase() == 'high').length;
   double get _completionRate =>
@@ -415,6 +442,39 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Widget _buildStatusDistributionCard() {
+    final segments = [
+      _StatusChartSegment(
+        label: 'Completed',
+        value: _completedRequests,
+        color: _successGreen,
+      ),
+      _StatusChartSegment(
+        label: 'In Progress',
+        value: _inProgressRequests,
+        color: _infoBlue,
+      ),
+      _StatusChartSegment(
+        label: 'Under Maintenance',
+        value: _underMaintenanceRequests,
+        color: _indigoMaint,
+      ),
+      _StatusChartSegment(
+        label: 'Pending',
+        value: _pendingRequests,
+        color: _warningYellow,
+      ),
+      _StatusChartSegment(
+        label: 'Rework',
+        value: _reworkRequests,
+        color: _reworkOrange,
+      ),
+      _StatusChartSegment(
+        label: 'Declined',
+        value: _declinedRequests,
+        color: _dangerRed,
+      ),
+    ];
+
     return _Card(
       title: 'Request Status',
       icon: Icons.pie_chart_rounded,
@@ -424,12 +484,35 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           SizedBox(
             width: 160,
             height: 160,
-            child: CustomPaint(
-              painter: _DonutChartPainter(
-                completed: _completedRequests.toDouble(),
-                active: _activeRequests.toDouble(),
-                pending: _pendingRequests.toDouble(),
-              ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(
+                  size: const Size(160, 160),
+                  painter: _DonutChartPainter(segments: segments),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$_totalRequests',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1E293B),
+                      ),
+                    ),
+                    const Text(
+                      'Total',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
@@ -437,25 +520,16 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _LegendItem(
-                  color: _successGreen,
-                  label: 'Completed',
-                  value: _completedRequests,
-                ),
-                const SizedBox(height: 12),
+              for (int i = 0; i < segments.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
                 _LegendItem(
-                  color: _primaryBlue,
-                  label: 'Active',
-                  value: _activeRequests,
-                ),
-                const SizedBox(height: 12),
-                _LegendItem(
-                  color: _warningYellow,
-                  label: 'Pending',
-                  value: _pendingRequests,
+                  color: segments[i].color,
+                  label: segments[i].label,
+                  value: segments[i].value,
                 ),
               ],
-            ),
+            ],
+          ),
         ],
       ),
     );
@@ -946,25 +1020,28 @@ class _LineChartPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-class _DonutChartPainter extends CustomPainter {
-  final double completed;
-  final double active;
-  final double pending;
+class _StatusChartSegment {
+  final String label;
+  final int value;
+  final Color color;
 
-  _DonutChartPainter({
-    required this.completed,
-    required this.active,
-    required this.pending,
+  const _StatusChartSegment({
+    required this.label,
+    required this.value,
+    required this.color,
   });
+}
+
+class _DonutChartPainter extends CustomPainter {
+  final List<_StatusChartSegment> segments;
+
+  _DonutChartPainter({required this.segments});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final total = completed + active + pending;
-    if (total == 0) return;
-
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) / 2 - 10;
-    final strokeWidth = 24.0;
+    const strokeWidth = 22.0;
 
     final bgPaint = Paint()
       ..color = const Color(0xFFF1F5F9)
@@ -973,68 +1050,57 @@ class _DonutChartPainter extends CustomPainter {
 
     canvas.drawCircle(center, radius, bgPaint);
 
+    final total = segments.fold<int>(0, (sum, s) => sum + s.value);
+    if (total <= 0) return;
+
+    final nonZeroSegments = segments.where((s) => s.value > 0).toList();
+    if (nonZeroSegments.isEmpty) return;
+
+    if (nonZeroSegments.length == 1) {
+      final single = nonZeroSegments.first;
+      final paint = Paint()
+        ..color = single.color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth;
+      canvas.drawCircle(center, radius, paint);
+      return;
+    }
+
     double startAngle = -math.pi / 2;
+    const double gap = 0.05;
 
-    // Completed (green)
-    _drawArc(
-      canvas,
-      center,
-      radius,
-      strokeWidth,
-      startAngle,
-      completed / total,
-      const Color(0xFF22C55E),
-    );
-    startAngle += (completed / total) * 2 * math.pi;
+    for (final segment in nonZeroSegments) {
+      final sweepFraction = segment.value / total;
+      final totalSweep = sweepFraction * 2 * math.pi;
+      final sweep = (totalSweep - gap).clamp(0.01, totalSweep);
 
-    // Active (blue)
-    _drawArc(
-      canvas,
-      center,
-      radius,
-      strokeWidth,
-      startAngle,
-      active / total,
-      const Color(0xFF3B82F6),
-    );
-    startAngle += (active / total) * 2 * math.pi;
+      final paint = Paint()
+        ..color = segment.color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
 
-    // Pending (yellow)
-    _drawArc(
-      canvas,
-      center,
-      radius,
-      strokeWidth,
-      startAngle,
-      pending / total,
-      const Color(0xFFFBBF24),
-    );
-  }
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle + (gap / 2),
+        sweep,
+        false,
+        paint,
+      );
 
-  void _drawArc(
-    Canvas canvas,
-    Offset center,
-    double radius,
-    double strokeWidth,
-    double startAngle,
-    double fraction,
-    Color color,
-  ) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      fraction * 2 * math.pi,
-      false,
-      paint,
-    );
+      startAngle += totalSweep;
+    }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant _DonutChartPainter oldDelegate) {
+    if (oldDelegate.segments.length != segments.length) return true;
+    for (int i = 0; i < segments.length; i++) {
+      if (oldDelegate.segments[i].value != segments[i].value ||
+          oldDelegate.segments[i].color != segments[i].color) {
+        return true;
+      }
+    }
+    return false;
+  }
 }

@@ -13,7 +13,7 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
       GuideActionItem(
         icon: Icons.qr_code_scanner_rounded,
         title: 'Create Work Request',
-        description: 'Scan a Room QR code, or manually select rooms. Describe the issue, select a category, and upload photos.',
+        description: 'Scan a Room QR code, or manually verify rooms. Select Request Type, Specify the work, Describe the issue, and upload photos.',
       ),
       GuideActionItem(
         icon: Icons.receipt_long_rounded,
@@ -22,8 +22,8 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
       ),
       GuideActionItem(
         icon: Icons.chat_bubble_outline_rounded,
-        title: 'Chat & Collaboration',
-        description: 'Open any request details to chat directly with the Campus Administrator (chatting with technicians is restricted).',
+        title: 'Messages',
+        description: 'Open any request details to chat directly with the Campus Administrator.',
       ),
       GuideActionItem(
         icon: Icons.rate_review_rounded,
@@ -33,7 +33,7 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
       GuideActionItem(
         icon: Icons.manage_accounts_rounded,
         title: 'Account Settings',
-        description: 'Edit your profile name, change password, or switch light/dark mode under "Settings".',
+        description: 'Edit your profile name, change password, in "Settings".',
       ),
     ];
   } else if (cleanRole == 'maintenance' || cleanRole == 'technician') {

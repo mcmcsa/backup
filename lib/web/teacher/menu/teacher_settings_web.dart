@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
-import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/app_settings_service.dart';
-import '../../../shared/services/admin_audit_log_service.dart';
 import '../../admin/shared/admin_styles.dart';
 import '../teacher_nav_controller.dart';
 
@@ -27,7 +25,8 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
   }
 
   Future<void> _loadPreferences() async {
-    final settings = await AppSettingsService.getNotificationSettings();
+    final userId = context.read<AuthService>().currentUser?.id;
+    final settings = await AppSettingsService.getNotificationSettings(userId: userId);
     if (!mounted) return;
     setState(() {
       _notificationsEnabled = settings['notificationsEnabled'] ?? true;
@@ -38,34 +37,64 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
   }
 
   Future<void> _saveNotificationPreferences() async {
+    final userId = context.read<AuthService>().currentUser?.id;
     await AppSettingsService.setNotificationSettings(
       notificationsEnabled: _notificationsEnabled,
       emailNotifications: _emailNotifications,
       pushNotifications: _pushNotifications,
+      userId: userId,
     );
   }
 
   Future<void> _toggleMasterNotifications(bool value) async {
     setState(() {
       _notificationsEnabled = value;
-      if (!value) {
-        _emailNotifications = false;
-        _pushNotifications = false;
-      }
     });
     await _saveNotificationPreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            value
+                ? 'Notifications enabled'
+                : 'Notifications disabled. You will not receive notification alerts.',
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: value ? const Color(0xFF00BFA5) : const Color(0xFF475569),
+        ),
+      );
+    }
   }
 
   Future<void> _toggleEmailNotifications(bool value) async {
     if (!_notificationsEnabled) return;
     setState(() => _emailNotifications = value);
     await _saveNotificationPreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'Email notifications enabled' : 'Email notifications disabled'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _togglePushNotifications(bool value) async {
     if (!_notificationsEnabled) return;
     setState(() => _pushNotifications = value);
     await _saveNotificationPreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'Push notifications enabled' : 'Push notifications disabled'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _showChangePasswordDialog() {
@@ -287,8 +316,6 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = context.watch<ThemeProvider>();
-
     return Scaffold(
       body: Container(
         color: AdminStyles.bg,
@@ -318,7 +345,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                       title: 'Email Notifications',
                       description: 'Receive updates via email.',
                       color: AdminStyles.primary,
-                      value: _emailNotifications,
+                      value: _notificationsEnabled ? _emailNotifications : false,
                       onChanged: (!_isLoadingPreferences && _notificationsEnabled) ? _toggleEmailNotifications : null,
                     ),
                     _buildSwitchTile(
@@ -326,25 +353,8 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                       title: 'Push Notifications',
                       description: 'Receive browser push alerts.',
                       color: AdminStyles.success,
-                      value: _pushNotifications,
+                      value: _notificationsEnabled ? _pushNotifications : false,
                       onChanged: (!_isLoadingPreferences && _notificationsEnabled) ? _togglePushNotifications : null,
-                    ),
-                  ]),
-                  const SizedBox(height: 32),
-                  _buildSettingsCategory('Appearance', [
-                    _buildSwitchTile(
-                      icon: themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode_outlined,
-                      title: 'Dark Mode',
-                      description: themeProvider.isDarkMode ? 'Dark theme enabled' : 'Light theme enabled',
-                      color: AdminStyles.warning,
-                      value: themeProvider.isDarkMode,
-                      onChanged: (value) async {
-                        await themeProvider.setDarkMode(value);
-                        await AdminAuditLogService.logAction(
-                          title: value ? 'Enabled Dark Mode (Web)' : 'Disabled Dark Mode (Web)',
-                          details: 'Web Settings > Appearance',
-                        );
-                      },
                     ),
                   ]),
                   const SizedBox(height: 32),
@@ -413,21 +423,37 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
     required bool value,
     required ValueChanged<bool>? onChanged,
   }) {
+    final bool isEnabled = onChanged != null;
     return Column(
       children: [
         SwitchListTile.adaptive(
-          value: value,
+          value: isEnabled ? value : false,
           onChanged: onChanged,
           activeThumbColor: AdminStyles.primary,
           contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           secondary: Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 20),
+            decoration: BoxDecoration(
+              color: isEnabled ? color.withValues(alpha: 0.1) : AdminStyles.textMuted.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: isEnabled ? color : AdminStyles.textMuted.withValues(alpha: 0.5), size: 20),
           ),
-          title: Text(title, style: AdminStyles.headingStyle(fontSize: 15)),
-          subtitle: Text(description, style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
+          title: Text(
+            title,
+            style: AdminStyles.headingStyle(
+              fontSize: 15,
+              color: isEnabled ? AdminStyles.textPrimary : AdminStyles.textMuted,
+            ),
+          ),
+          subtitle: Text(
+            description,
+            style: AdminStyles.bodyStyle(
+              fontSize: 13,
+              color: isEnabled ? AdminStyles.textSecondary : AdminStyles.textMuted.withValues(alpha: 0.6),
+            ),
+          ),
         ),
         Divider(height: 1, color: AdminStyles.border),
       ],

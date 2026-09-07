@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "585308210831",
+    "project_id": "psu-maintsystem",
+    "storage_bucket": "psu-maintsystem.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:585308210831:android:700f9e7f93c6b34e2ed2fa",
+        "android_client_info": {
+          "package_name": "com.example.psu_maintsystem"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCjT6UUru4OCnbKDIvUP5uWf_WjW9iYbyk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

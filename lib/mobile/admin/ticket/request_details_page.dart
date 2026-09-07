@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/attachment_image_widget.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/e_signature_model.dart';
@@ -1093,6 +1094,56 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                         height: 1.5,
                       ),
                     ),
+                    if (request.attachmentUrls != null && request.attachmentUrls!.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Icon(Icons.photo_library_outlined, size: 16, color: Color(0xFF4B5563)),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Attached Photos (${request.attachmentUrls!.length})',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF374151),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        height: 90,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: request.attachmentUrls!.length,
+                          itemBuilder: (context, index) {
+                            final url = request.attachmentUrls![index];
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 10),
+                              child: InkWell(
+                                onTap: () => showAttachmentZoomDialog(context, url),
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  width: 90,
+                                  height: 90,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                                  ),
+                                  child: AppAttachmentImage(
+                                    url: url,
+                                    fit: BoxFit.cover,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

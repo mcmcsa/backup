@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/chat_model.dart';
 import '../../services/chat_service.dart';
-import '../../services/app_notification_service.dart';
 import 'chat_bubble.dart';
 import 'chat_composer.dart';
 
@@ -217,7 +216,10 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
 
     try {
       // 1. Send all attachments first
-      for (final attach in attachments) {
+      for (int i = 0; i < attachments.length; i++) {
+        final attach = attachments[i];
+        // Only trigger notification on the last attachment if there is NO text message following
+        final shouldNotify = text.isEmpty && (i == attachments.length - 1);
         await ChatService.sendAttachmentMessageBytes(
           roomId: widget.room.id,
           senderId: widget.currentUserId,
@@ -227,10 +229,11 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
           fileName: attach.name,
           messageType: attach.type,
           replyToId: _replyTo?.id,
+          notify: shouldNotify,
         );
       }
 
-      // 2. Send the text message if present
+      // 2. Send the text message if present (with notification)
       if (text.isNotEmpty) {
         await ChatService.sendTextMessage(
           roomId: widget.room.id,
@@ -241,13 +244,8 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
           replyToId: _replyTo?.id,
           replyToContent: _replyTo?.previewText,
           replyToSenderName: _replyTo?.senderName,
+          notify: true,
         );
-        _notifyOtherParticipants(text);
-      } else if (attachments.isNotEmpty) {
-        final preview = attachments.length == 1
-            ? (attachments.first.type == MessageType.image ? '📷 Image' : '📎 ${attachments.first.name}')
-            : '📷 Sent ${attachments.length} attachments';
-        _notifyOtherParticipants(preview);
       }
 
       setState(() => _replyTo = null);
@@ -257,20 +255,6 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
       if (attachments.isNotEmpty && mounted) {
         Navigator.of(context).pop(); // dismiss loading indicator
       }
-    }
-  }
-
-  void _notifyOtherParticipants(String preview) {
-    final others = widget.room.participants
-        .where((p) => p.userId != widget.currentUserId);
-    for (final p in others) {
-      AppNotificationService.createForUser(
-        targetUserId: p.userId,
-        title: '💬 ${widget.currentUserName}',
-        message: preview.length > 80 ? '${preview.substring(0, 80)}…' : preview,
-        type: 'chat_message',
-        targetPage: 'chat_room_id:${widget.room.id}',
-      );
     }
   }
 

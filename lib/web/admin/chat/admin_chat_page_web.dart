@@ -57,6 +57,9 @@ class _AdminChatPageWebState extends State<AdminChatPageWeb> {
           currentUserRole: user.role.name,
           selectedRoomId: _selectedRoom?.id,
           onRoomSelected: (room) => setState(() => _selectedRoom = room),
+          onRoomDeleted: (roomId) {
+            if (_selectedRoom?.id == roomId) setState(() => _selectedRoom = null);
+          },
         );
       }
     } else {
@@ -77,6 +80,9 @@ class _AdminChatPageWebState extends State<AdminChatPageWeb> {
               currentUserRole: user.role.name,
               selectedRoomId: _selectedRoom?.id,
               onRoomSelected: (room) => setState(() => _selectedRoom = room),
+              onRoomDeleted: (roomId) {
+                if (_selectedRoom?.id == roomId) setState(() => _selectedRoom = null);
+              },
             ),
           ),
           // Right panel: Messages

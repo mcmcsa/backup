@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/app_settings_service.dart';
 import '../../shared/widgets/announcements/global_announcement_listener.dart';
 import '../../authentication/services/auth_service.dart';
 import '../../../shared/utils/workflow_guide_dialog.dart';
@@ -43,6 +45,7 @@ import 'admin_nav_controller.dart';
 class AdminMainNavigationWeb extends StatefulWidget {
   static const int aboutIndex = 17;
   static const int chatIndex = 20;
+  static const int settingsIndex = 16;
   final int initialIndex;
   final bool showCreateRequest;
   final String? createRoomId;
@@ -79,7 +82,8 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   static const int _historyIndex = 13;
   static const int _maintenanceIndex = 14;
   static const int _requestTypesIndex = 15;
-  static const int _settingsIndex = 16;
+  static const int settingsIndex = 16;
+  static const int _settingsIndex = settingsIndex;
   static const int _qrHistoryIndex = 18;
   static const int _costTrackingIndex = 19;
   static const int _chatIndex = 20;
@@ -105,7 +109,6 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   String _userName = 'Administrator';
   int _hoveredIndex = -1;
   bool _isUserMenuHovered = false;
-  bool _isMenuExpanded = true;
   int _roomsSubview = _roomsSubviewList;
   Room? _selectedRoom;
   int _ticketsSubview = _ticketsSubviewList;
@@ -117,6 +120,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
 
   int _unreadNotificationCount = 0;
   RealtimeChannel? _notificationsChannel;
+  StreamSubscription<void>? _settingsSubscription;
 
   Future<void> _loadUnreadNotificationCount() async {
     try {
@@ -178,6 +182,9 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
     _loadUserInfo();
     _loadUnreadNotificationCount();
     _subscribeNotifications();
+    _settingsSubscription = AppSettingsService.changes.listen((_) {
+      _loadUnreadNotificationCount();
+    });
   }
 
   @override
@@ -512,6 +519,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
 
   @override
   void dispose() {
+    _settingsSubscription?.cancel();
     if (_notificationsChannel != null) {
       Supabase.instance.client.removeChannel(_notificationsChannel!);
     }

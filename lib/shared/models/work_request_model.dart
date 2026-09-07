@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class WorkRequest {
   final String id;
   final String title;
@@ -231,9 +233,32 @@ class WorkRequest {
       assignedToId: map['assigned_to_id'],
       workEvidence: map['work_evidence'],
       maintenanceNotes: map['maintenance_notes'],
-      attachmentUrls: map['attachment_urls'] != null 
-          ? List<String>.from(map['attachment_urls'])
-          : null,
+      attachmentUrls: () {
+        if (map['attachment_urls'] != null) {
+          final raw = map['attachment_urls'];
+          if (raw is List) {
+            final list = raw.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+            if (list.isNotEmpty) return list;
+          }
+        }
+        if (map['work_evidence'] != null) {
+          final ev = map['work_evidence'].toString().trim();
+          if (ev.isNotEmpty) {
+            if (ev.startsWith('[') && ev.endsWith(']')) {
+              try {
+                final decoded = jsonDecode(ev);
+                if (decoded is List) {
+                  final list = decoded.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+                  if (list.isNotEmpty) return list;
+                }
+              } catch (_) {}
+            }
+            final list = ev.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+            if (list.isNotEmpty) return list;
+          }
+        }
+        return null;
+      }(),
       voiceNotes: map['voice_notes'] != null 
           ? List<String>.from(map['voice_notes'])
           : null,
@@ -298,6 +323,8 @@ class WorkRequest {
       'maintenance_start_time': maintenanceStartTime?.toIso8601String(),
       'maintenance_end_time': maintenanceEndTime?.toIso8601String(),
       'attachment_urls': attachmentUrls,
+      if (workEvidence != null || (attachmentUrls != null && attachmentUrls!.isNotEmpty))
+        'work_evidence': workEvidence ?? attachmentUrls!.join(','),
       'rework_count': reworkCount,
       'rework_notes': reworkNotes,
       'duplicate_of_id': duplicateOfId,

@@ -1,12 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/app_settings_service.dart';
 import '../../../shared/services/chat_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../teacher_nav_controller.dart';
 import '../../../shared/widgets/room_comparison_dialog.dart';
+import '../../../shared/widgets/notification_filter_bar.dart';
 
 class TeacherNotificationsWeb extends StatefulWidget {
   const TeacherNotificationsWeb({super.key});
@@ -19,9 +22,12 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
   List<AppNotification> _notifications = [];
   bool _isLoading = true;
   bool _showAll = false;
+  bool _notificationsEnabled = true;
+  StreamSubscription<void>? _settingsSub;
+  NotificationTypeFilter _selectedType = NotificationTypeFilter.all;
+  NotificationDateFilter _selectedDate = NotificationDateFilter.all;
 
   static const Color _primaryTeal = Color(0xFF00BFA5);
-  static const Color _warningOrange = Color(0xFFF59E0B);
   static const Color _darkText = Color(0xFF0F172A);
   static const Color _subtleText = Color(0xFF64748B);
   static const Color _pageBg = Color(0xFFF1F5F9);
@@ -31,7 +37,16 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
   @override
   void initState() {
     super.initState();
+    _settingsSub = AppSettingsService.changes.listen((_) {
+      _loadNotifications();
+    });
     _loadNotifications();
+  }
+
+  @override
+  void dispose() {
+    _settingsSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadNotifications() async {
@@ -47,6 +62,17 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
         return;
       }
 
+      final isEnabled = await AppSettingsService.isNotificationsEnabled(userId: user.id);
+      if (!isEnabled) {
+        if (!mounted) return;
+        setState(() {
+          _notificationsEnabled = false;
+          _notifications = [];
+          _isLoading = false;
+        });
+        return;
+      }
+
       final data = await AppNotificationService.fetchForUser(
         role: user.role.name,
         userId: user.id,
@@ -54,6 +80,7 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
 
       if (!mounted) return;
       setState(() {
+        _notificationsEnabled = true;
         _notifications = data;
         _isLoading = false;
       });
@@ -120,6 +147,10 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
         return Icons.assignment_turned_in_rounded;
       case 'work_request_completion_ready_for_requestor':
         return Icons.fact_check_rounded;
+      case 'chat':
+      case 'chat_message':
+      case 'new_chat_message':
+        return Icons.chat_bubble_rounded;
       default:
         return Icons.notifications_active_rounded;
     }
@@ -139,6 +170,10 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
         return const Color(0xFF7C3AED);
       case 'work_request_completion_ready_for_requestor':
         return _primaryTeal;
+      case 'chat':
+      case 'chat_message':
+      case 'new_chat_message':
+        return const Color(0xFF0F766E);
       default:
         return _primaryTeal;
     }
@@ -153,8 +188,18 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
     return '${dt.month}/${dt.day}/${dt.year}';
   }
 
+  List<AppNotification> get _filteredNotifications {
+    return NotificationFilterHelper.filterNotifications(
+      _notifications,
+      typeFilter: _selectedType,
+      dateFilter: _selectedDate,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filtered = _filteredNotifications;
+
     return Container(
       color: _pageBg,
       child: SingleChildScrollView(
@@ -163,11 +208,91 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildPageHeader(),
-            const SizedBox(height: 24),
-            _buildActionBar(),
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
+            NotificationFilterBar(
+              selectedType: _selectedType,
+              onTypeChanged: (type) => setState(() => _selectedType = type),
+              selectedDate: _selectedDate,
+              onDateChanged: (date) => setState(() => _selectedDate = date),
+              primaryColor: _primaryTeal,
+              unreadCount: _unreadCount,
+              onMarkAllAsRead: _markAllAsRead,
+              padding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 20),
             if (_isLoading)
               const Center(child: CircularProgressIndicator(color: _primaryTeal))
+            else if (!_notificationsEnabled)
+              Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 540),
+                  margin: const EdgeInsets.symmetric(vertical: 32),
+                  padding: const EdgeInsets.all(36),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF1F5F9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.notifications_off_outlined,
+                          color: Color(0xFF64748B),
+                          size: 36,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'Notifications are Disabled',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: _darkText,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'You have turned off notifications in your account settings. Turn on "Enable Notifications" in Settings to receive updates about requests and activity.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _subtleText,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          TeacherNavController.of(context)?.navigateTo(9);
+                        },
+                        icon: const Icon(Icons.settings_outlined, size: 18),
+                        label: const Text('Go to Settings'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0F172A),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
             else if (_notifications.isEmpty)
               Center(
                 child: Padding(
@@ -196,6 +321,53 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
                       Text(
                         "You're all caught up!",
                         style: TextStyle(fontSize: 13, color: _subtleText),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (filtered.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 48),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(Icons.filter_list_off_rounded, color: Colors.grey.shade500, size: 32),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No matching notifications',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: _darkText,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Try changing your filter selection above.',
+                        style: TextStyle(fontSize: 13, color: _subtleText),
+                      ),
+                      const SizedBox(height: 16),
+                      OutlinedButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedType = NotificationTypeFilter.all;
+                            _selectedDate = NotificationDateFilter.all;
+                          });
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _primaryTeal,
+                          side: const BorderSide(color: _primaryTeal),
+                        ),
+                        child: const Text('Reset filters'),
                       ),
                     ],
                   ),
@@ -235,44 +407,10 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
     );
   }
 
-  Widget _buildActionBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        if (_unreadCount > 0)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: _warningOrange.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              '$_unreadCount unread',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: _warningOrange,
-              ),
-            ),
-          )
-        else
-          const SizedBox(),
-        if (_unreadCount > 0)
-          TextButton.icon(
-            onPressed: _markAllAsRead,
-            icon: const Icon(Icons.done_all_rounded, size: 18),
-            label: const Text('Mark all as read'),
-            style: TextButton.styleFrom(foregroundColor: _primaryTeal),
-          )
-        else
-          const SizedBox(),
-      ],
-    );
-  }
-
   Widget _buildNotificationsList() {
-    final hasMoreThan20 = _notifications.length > 20;
-    final displayCount = _showAll ? _notifications.length : (hasMoreThan20 ? 20 : _notifications.length);
+    final list = _filteredNotifications;
+    final hasMoreThan20 = list.length > 20;
+    final displayCount = _showAll ? list.length : (hasMoreThan20 ? 20 : list.length);
 
     return Column(
       children: [
@@ -282,7 +420,7 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
           itemCount: displayCount,
           separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
-            final notification = _notifications[index];
+            final notification = list[index];
             final color = _colorForType(notification.type);
 
             return GestureDetector(
@@ -303,7 +441,10 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
                   }
                   return;
                 }
-                 if ((notification.type == 'chat' || notification.type == 'chat_message') && notification.chatRoomId != null && notification.chatRoomId!.isNotEmpty) {
+                 final isChat = notification.type == 'chat' ||
+                     notification.type == 'chat_message' ||
+                     notification.type == 'new_chat_message';
+                 if (isChat && notification.chatRoomId != null && notification.chatRoomId!.isNotEmpty) {
                   if (mounted) {
                     showDialog(
                       context: context,

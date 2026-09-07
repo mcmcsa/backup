@@ -63,6 +63,9 @@ class _MaintenanceChatPageWebState extends State<MaintenanceChatPageWeb> {
           currentUserRole: user.role.name,
           selectedRoomId: _selectedRoom?.id,
           onRoomSelected: (room) => setState(() => _selectedRoom = room),
+          onRoomDeleted: (roomId) {
+            if (_selectedRoom?.id == roomId) setState(() => _selectedRoom = null);
+          },
         );
       }
     } else {
@@ -81,6 +84,9 @@ class _MaintenanceChatPageWebState extends State<MaintenanceChatPageWeb> {
               currentUserRole: user.role.name,
               selectedRoomId: _selectedRoom?.id,
               onRoomSelected: (room) => setState(() => _selectedRoom = room),
+              onRoomDeleted: (roomId) {
+                if (_selectedRoom?.id == roomId) setState(() => _selectedRoom = null);
+              },
             ),
           ),
           // Right: Messages

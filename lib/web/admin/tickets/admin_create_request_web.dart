@@ -301,31 +301,33 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
         requestorId: user?.id,
       );
 
-      final inserted = await WorkRequestService.insert(request);
+      final requestId = WorkRequestService.generateId();
 
       List<String> uploadedUrls = [];
       for (var i = 0; i < _selectedImages.length; i++) {
         final file = _selectedImages[i];
-        final extension = file.name.split('.').last;
-        final fileName = '${inserted.id}/image_$i.$extension';
         try {
           final bytes = await file.readAsBytes();
-          await Supabase.instance.client.storage
-              .from('work-request-attachments')
-              .uploadBinary(fileName, bytes);
-          final url = Supabase.instance.client.storage
-              .from('work-request-attachments')
-              .getPublicUrl(fileName);
-          uploadedUrls.add(url);
+          final url = await WorkRequestService.uploadAttachmentBytes(
+            workRequestId: requestId,
+            fileName: file.name,
+            bytes: bytes,
+          );
+          if (url != null && url.isNotEmpty) {
+            uploadedUrls.add(url);
+          }
         } catch (e) {
-          // ignore upload errors
+          debugPrint('Error uploading image $i: $e');
         }
       }
 
-      if (uploadedUrls.isNotEmpty) {
-        final updatedRequest = inserted.copyWith(attachmentUrls: uploadedUrls);
-        await WorkRequestService.update(updatedRequest);
-      }
+      final requestToInsert = request.copyWith(
+        id: requestId,
+        attachmentUrls: uploadedUrls.isNotEmpty ? uploadedUrls : null,
+        workEvidence: uploadedUrls.isNotEmpty ? uploadedUrls.join(',') : null,
+      );
+
+      final inserted = await WorkRequestService.insert(requestToInsert);
 
       if (user != null) {
         await ESignatureService.insert(ESignature(

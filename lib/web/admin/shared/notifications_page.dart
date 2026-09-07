@@ -16,8 +16,8 @@ class NotificationsPage extends StatefulWidget {
 
 class _NotificationsPageState extends State<NotificationsPage> {
   final TextEditingController _searchController = TextEditingController();
-  String _selectedCategory = 'ALL';
-  String _selectedTimeFilter = 'Today';
+  String _selectedCategory = 'All';
+  String _selectedTimeFilter = 'All';
   List<NotificationItem> _notifications = [];
   bool _isLoading = true;
   bool _showAll = false;
@@ -73,26 +73,28 @@ class _NotificationsPageState extends State<NotificationsPage> {
     List<NotificationItem> filtered = _notifications;
 
     // Filter by category
-    if (_selectedCategory != 'ALL') {
-      filtered = filtered
-          .where((n) => n.category == _selectedCategory)
-          .toList();
+    if (_selectedCategory == 'Message') {
+      filtered = filtered.where((n) => n.category == 'Message').toList();
+    } else if (_selectedCategory == 'Work Request') {
+      filtered = filtered.where((n) => n.category == 'Work Request').toList();
     }
 
     // Filter by time
-    DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day);
-    DateTime weekStart = today.subtract(Duration(days: now.weekday - 1));
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekStart = today.subtract(Duration(days: now.weekday - 1));
 
     if (_selectedTimeFilter == 'Today') {
       filtered = filtered
-          .where((n) => n.date.isAfter(today.subtract(const Duration(days: 1))))
+          .where((n) => n.date.isAfter(today) || n.date.isAtSameMomentAs(today))
           .toList();
     } else if (_selectedTimeFilter == 'This Week') {
       filtered = filtered
-          .where(
-            (n) => n.date.isAfter(weekStart.subtract(const Duration(days: 1))),
-          )
+          .where((n) => n.date.isAfter(weekStart) || n.date.isAtSameMomentAs(weekStart))
+          .toList();
+    } else if (_selectedTimeFilter == 'Earlier') {
+      filtered = filtered
+          .where((n) => n.date.isBefore(weekStart))
           .toList();
     }
 
@@ -142,49 +144,57 @@ class _NotificationsPageState extends State<NotificationsPage> {
         icon = Icons.assignment_rounded;
         iconColor = const Color(0xFF4169E1);
         type = NotificationType.workOrder;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
         break;
       case 'work_request_approved':
         icon = Icons.check_circle_rounded;
         iconColor = const Color(0xFF059669);
         type = NotificationType.success;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
         break;
       case 'work_request_accepted':
         icon = Icons.handshake_rounded;
         iconColor = const Color(0xFF0D9488);
         type = NotificationType.success;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
         break;
       case 'work_request_completed':
         icon = Icons.task_alt_rounded;
         iconColor = const Color(0xFF059669);
         type = NotificationType.success;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
         break;
       case 'pre_inspection_submitted':
         icon = Icons.search_rounded;
         iconColor = const Color(0xFFF59E0B);
         type = NotificationType.info;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
         break;
       case 'post_repair_submitted':
         icon = Icons.build_circle_rounded;
         iconColor = const Color(0xFF3B82F6);
         type = NotificationType.info;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
         break;
       case 'work_request_declined':
         icon = Icons.cancel_rounded;
         iconColor = const Color(0xFFDC2626);
         type = NotificationType.urgent;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
+        break;
+      case 'chat':
+      case 'chat_message':
+      case 'new_chat_message':
+        icon = Icons.chat_bubble_rounded;
+        iconColor = const Color(0xFF0F766E);
+        type = NotificationType.info;
+        category = 'Message';
         break;
       default:
         icon = Icons.notifications_active_rounded;
         iconColor = const Color(0xFF6B7280);
         type = NotificationType.info;
-        category = 'ALL';
+        category = 'Work Request';
         break;
     }
 
@@ -326,14 +336,17 @@ class _NotificationsPageState extends State<NotificationsPage> {
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Row(
-              children: [
-                _buildCategoryChip('ALL'),
-                const SizedBox(width: 8),
-                _buildCategoryChip('URGENT'),
-                const SizedBox(width: 8),
-                _buildCategoryChip('WORK ORDERS'),
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildCategoryChip('All'),
+                  const SizedBox(width: 8),
+                  _buildCategoryChip('Message'),
+                  const SizedBox(width: 8),
+                  _buildCategoryChip('Work Request'),
+                ],
+              ),
             ),
           ),
 
@@ -341,14 +354,19 @@ class _NotificationsPageState extends State<NotificationsPage> {
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              children: [
-                _buildTimeFilterChip('Today'),
-                const SizedBox(width: 8),
-                _buildTimeFilterChip('This Week'),
-                const SizedBox(width: 8),
-                _buildTimeFilterChip('Earlier'),
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildTimeFilterChip('All'),
+                  const SizedBox(width: 8),
+                  _buildTimeFilterChip('Today'),
+                  const SizedBox(width: 8),
+                  _buildTimeFilterChip('This Week'),
+                  const SizedBox(width: 8),
+                  _buildTimeFilterChip('Earlier'),
+                ],
+              ),
             ),
           ),
 

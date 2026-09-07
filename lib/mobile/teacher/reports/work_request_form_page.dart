@@ -404,31 +404,34 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           requestorId: authUser?.id,
         );
 
-        var insertedRequest = await WorkRequestService.insert(request);
+        final requestId = WorkRequestService.generateId();
 
         List<String> uploadedUrls = [];
         for (var i = 0; i < _selectedImages.length; i++) {
           final file = _selectedImages[i];
-          final extension = file.path.split('.').last;
-          final fileName = '${insertedRequest.id}/image_$i.$extension';
           try {
-            await Supabase.instance.client.storage
-                .from('work-request-attachments')
-                .upload(fileName, file);
-            final url = Supabase.instance.client.storage
-                .from('work-request-attachments')
-                .getPublicUrl(fileName);
-            uploadedUrls.add(url);
+            final bytes = await file.readAsBytes();
+            final fileName = file.path.split(RegExp(r'[\\/]')).last;
+            final url = await WorkRequestService.uploadAttachmentBytes(
+              workRequestId: requestId,
+              fileName: fileName,
+              bytes: bytes,
+            );
+            if (url != null && url.isNotEmpty) {
+              uploadedUrls.add(url);
+            }
           } catch (e) {
-            // ignore upload errors
+            debugPrint('Error uploading image $i: $e');
           }
         }
 
-        if (uploadedUrls.isNotEmpty) {
-          final updatedRequest = insertedRequest.copyWith(attachmentUrls: uploadedUrls);
-          await WorkRequestService.update(updatedRequest);
-          insertedRequest = updatedRequest;
-        }
+        final requestToInsert = request.copyWith(
+          id: requestId,
+          attachmentUrls: uploadedUrls.isNotEmpty ? uploadedUrls : null,
+          workEvidence: uploadedUrls.isNotEmpty ? uploadedUrls.join(',') : null,
+        );
+
+        var insertedRequest = await WorkRequestService.insert(requestToInsert);
 
         if (_recordedVoiceBytes != null) {
           try {

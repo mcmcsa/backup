@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../models/chat_model.dart';
@@ -14,6 +15,7 @@ class ChatService {
 
   /// Fetch all rooms the current user participates in.
   static Future<List<ChatRoom>> fetchRooms(String userId) async {
+    final deletedIds = await getDeletedRoomIds(userId);
     final response = await _db
         .from('chat_rooms')
         .select('''
@@ -27,10 +29,90 @@ class ChatService {
 
     final rooms = (response as List)
         .map((e) => ChatRoom.fromJson(e as Map<String, dynamic>))
-        .where((r) => r.participants.any((p) => p.userId == userId))
+        .where((r) => r.participants.any((p) => p.userId == userId) && !deletedIds.contains(r.id))
         .toList();
 
     return rooms;
+  }
+
+  // ──────────────────────────────────────────────────
+  // ARCHIVE & DELETE CONVERSATIONS
+  // ──────────────────────────────────────────────────
+
+  static String _archivedKey(String userId) => 'chat_archived_rooms_$userId';
+  static String _deletedKey(String userId) => 'chat_deleted_rooms_$userId';
+
+  /// Get list of archived room IDs for user
+  static Future<Set<String>> getArchivedRoomIds(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_archivedKey(userId)) ?? [];
+      return list.toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Check if room is archived
+  static Future<bool> isRoomArchived(String userId, String roomId) async {
+    final set = await getArchivedRoomIds(userId);
+    return set.contains(roomId);
+  }
+
+  /// Archive or Unarchive a room for user
+  static Future<void> setRoomArchived(String userId, String roomId, bool archive) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final set = (prefs.getStringList(_archivedKey(userId)) ?? []).toSet();
+      if (archive) {
+        set.add(roomId);
+      } else {
+        set.remove(roomId);
+      }
+      await prefs.setStringList(_archivedKey(userId), set.toList());
+    } catch (_) {}
+  }
+
+  /// Get list of deleted room IDs for user
+  static Future<Set<String>> getDeletedRoomIds(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_deletedKey(userId)) ?? [];
+      return list.toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Delete a conversation
+  static Future<bool> deleteConversation(String userId, String roomId) async {
+    // 1. Mark as deleted in local preferences so it disappears immediately
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final set = (prefs.getStringList(_deletedKey(userId)) ?? []).toSet();
+      set.add(roomId);
+      await prefs.setStringList(_deletedKey(userId), set.toList());
+
+      // Also remove from archived if it was archived
+      final archSet = (prefs.getStringList(_archivedKey(userId)) ?? []).toSet();
+      if (archSet.contains(roomId)) {
+        archSet.remove(roomId);
+        await prefs.setStringList(_archivedKey(userId), archSet.toList());
+      }
+    } catch (_) {}
+
+    // 2. Attempt server-side delete if permitted (CASCADE will delete messages and participants)
+    try {
+      await _db.from('chat_rooms').delete().eq('id', roomId);
+    } catch (e) {
+      debugPrint('Server-side room delete error (handled via local hide): $e');
+      // If full room delete is restricted by RLS, remove current user participant
+      try {
+        await _db.from('chat_participants').delete().eq('room_id', roomId).eq('user_id', userId);
+      } catch (_) {}
+    }
+
+    return true;
   }
 
   /// Fetch a single room by id.
@@ -135,6 +217,7 @@ class ChatService {
     String? replyToId,
     String? replyToContent,
     String? replyToSenderName,
+    bool notify = true,
   }) async {
     final payload = {
       'room_id': roomId,
@@ -150,7 +233,9 @@ class ChatService {
 
     final response = await _db.from('chat_messages').insert(payload).select().single();
     await _updateRoomLastMessage(roomId, content, response['created_at'] as String);
-    _sendNewMessageNotification(roomId, senderId, senderName, content);
+    if (notify) {
+      _sendNewMessageNotification(roomId, senderId, senderName, content);
+    }
     return ChatMessage.fromJson(response);
   }
 
@@ -164,6 +249,7 @@ class ChatService {
     required MessageType messageType,
     String? content,
     String? replyToId,
+    bool notify = true,
   }) async {
     final url = await uploadAttachment(filePath, roomId);
     final fileName = filePath.split(RegExp(r'[/\\]')).last;
@@ -188,7 +274,9 @@ class ChatService {
       preview,
       response['created_at'] as String,
     );
-    _sendNewMessageNotification(roomId, senderId, senderName, preview);
+    if (notify) {
+      _sendNewMessageNotification(roomId, senderId, senderName, preview);
+    }
     return ChatMessage.fromJson(response);
   }
 
@@ -203,6 +291,7 @@ class ChatService {
     required MessageType messageType,
     String? content,
     String? replyToId,
+    bool notify = true,
   }) async {
     final parts = fileName.split('.');
     final ext = parts.length > 1 ? parts.last : '';
@@ -228,7 +317,9 @@ class ChatService {
       preview,
       response['created_at'] as String,
     );
-    _sendNewMessageNotification(roomId, senderId, senderName, preview);
+    if (notify) {
+      _sendNewMessageNotification(roomId, senderId, senderName, preview);
+    }
     return ChatMessage.fromJson(response);
   }
 
@@ -324,6 +415,10 @@ class ChatService {
         .update({'last_read_at': DateTime.now().toIso8601String()})
         .eq('room_id', roomId)
         .eq('user_id', userId);
+    await AppNotificationService.markChatRoomAsRead(
+      roomId: roomId,
+      userId: userId,
+    );
   }
 
   /// Get unread message count for a user in a room.
@@ -650,14 +745,17 @@ class ChatService {
           .select('user_id')
           .eq('room_id', roomId)
           .neq('user_id', senderId);
-      if ((participants as List).isNotEmpty) {
-        final recipientId = participants.first['user_id'] as String;
-        await AppNotificationService.notifyNewChatMessage(
-          targetUserId: recipientId,
-          senderName: senderName,
-          messageContent: messageContent,
-          chatRoomId: roomId,
-        );
+      final list = participants as List;
+      for (final item in list) {
+        final recipientId = item['user_id'] as String?;
+        if (recipientId != null && recipientId.isNotEmpty) {
+          await AppNotificationService.notifyNewChatMessage(
+            targetUserId: recipientId,
+            senderName: senderName,
+            messageContent: messageContent,
+            chatRoomId: roomId,
+          );
+        }
       }
     } catch (_) {
       // Do not block primary operations if notification fails

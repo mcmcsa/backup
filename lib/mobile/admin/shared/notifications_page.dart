@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/app_settings_service.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -13,14 +15,19 @@ class NotificationsPage extends StatefulWidget {
 
 class _NotificationsPageState extends State<NotificationsPage> {
   final TextEditingController _searchController = TextEditingController();
-  String _selectedCategory = 'ALL';
-  String _selectedTimeFilter = 'Today';
+  String _selectedCategory = 'All';
+  String _selectedTimeFilter = 'All';
   List<NotificationItem> _notifications = [];
   bool _isLoading = true;
+  bool _notificationsEnabled = true;
+  StreamSubscription<void>? _settingsSub;
 
   @override
   void initState() {
     super.initState();
+    _settingsSub = AppSettingsService.changes.listen((_) {
+      _loadNotifications();
+    });
     _loadNotifications();
   }
 
@@ -38,6 +45,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
         return;
       }
 
+      final isEnabled = await AppSettingsService.isNotificationsEnabled(userId: user.id);
+      if (!isEnabled) {
+        if (mounted) {
+          setState(() {
+            _notificationsEnabled = false;
+            _notifications = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
       final data = await AppNotificationService.fetchForUser(
         role: user.role.name,
         userId: user.id,
@@ -45,6 +64,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
       if (mounted) {
         setState(() {
+          _notificationsEnabled = true;
           _notifications = data.map(_toNotificationItem).toList();
           _isLoading = false;
         });
@@ -61,6 +81,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   @override
   void dispose() {
+    _settingsSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -69,26 +90,28 @@ class _NotificationsPageState extends State<NotificationsPage> {
     List<NotificationItem> filtered = _notifications;
 
     // Filter by category
-    if (_selectedCategory != 'ALL') {
-      filtered = filtered
-          .where((n) => n.category == _selectedCategory)
-          .toList();
+    if (_selectedCategory == 'Message') {
+      filtered = filtered.where((n) => n.category == 'Message').toList();
+    } else if (_selectedCategory == 'Work Request') {
+      filtered = filtered.where((n) => n.category == 'Work Request').toList();
     }
 
     // Filter by time
-    DateTime now = DateTime.now();
-    DateTime today = DateTime(now.year, now.month, now.day);
-    DateTime weekStart = today.subtract(Duration(days: now.weekday - 1));
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekStart = today.subtract(Duration(days: now.weekday - 1));
 
     if (_selectedTimeFilter == 'Today') {
       filtered = filtered
-          .where((n) => n.date.isAfter(today.subtract(const Duration(days: 1))))
+          .where((n) => n.date.isAfter(today) || n.date.isAtSameMomentAs(today))
           .toList();
     } else if (_selectedTimeFilter == 'This Week') {
       filtered = filtered
-          .where(
-            (n) => n.date.isAfter(weekStart.subtract(const Duration(days: 1))),
-          )
+          .where((n) => n.date.isAfter(weekStart) || n.date.isAtSameMomentAs(weekStart))
+          .toList();
+    } else if (_selectedTimeFilter == 'Earlier') {
+      filtered = filtered
+          .where((n) => n.date.isBefore(weekStart))
           .toList();
     }
 
@@ -114,17 +137,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
       userId: user.id,
     );
 
-    setState(() {
-      for (final notification in _notifications) {
-        notification.isRead = true;
-      }
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('All notifications marked as read'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    if (mounted) {
+      setState(() {
+        for (final notification in _notifications) {
+          notification.isRead = true;
+        }
+      });
+    }
   }
 
   NotificationItem _toNotificationItem(AppNotification notification) {
@@ -138,37 +157,45 @@ class _NotificationsPageState extends State<NotificationsPage> {
         icon = Icons.assignment_rounded;
         iconColor = const Color(0xFF4169E1);
         type = NotificationType.workOrder;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
         break;
       case 'work_request_approved':
         icon = Icons.check_circle_rounded;
         iconColor = const Color(0xFF059669);
         type = NotificationType.success;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
         break;
       case 'work_request_accepted':
         icon = Icons.handshake_rounded;
         iconColor = const Color(0xFF0D9488);
         type = NotificationType.success;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
         break;
       case 'work_request_completed':
         icon = Icons.task_alt_rounded;
         iconColor = const Color(0xFF059669);
         type = NotificationType.success;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
         break;
       case 'work_request_declined':
         icon = Icons.cancel_rounded;
         iconColor = const Color(0xFFDC2626);
         type = NotificationType.urgent;
-        category = 'WORK ORDERS';
+        category = 'Work Request';
+        break;
+      case 'chat':
+      case 'chat_message':
+      case 'new_chat_message':
+        icon = Icons.chat_bubble_rounded;
+        iconColor = const Color(0xFF0F766E);
+        type = NotificationType.info;
+        category = 'Message';
         break;
       default:
         icon = Icons.notifications_active_rounded;
         iconColor = const Color(0xFF6B7280);
         type = NotificationType.info;
-        category = 'ALL';
+        category = 'Work Request';
         break;
     }
 
@@ -307,14 +334,17 @@ class _NotificationsPageState extends State<NotificationsPage> {
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Row(
-              children: [
-                _buildCategoryChip('ALL'),
-                const SizedBox(width: 8),
-                _buildCategoryChip('URGENT'),
-                const SizedBox(width: 8),
-                _buildCategoryChip('WORK ORDERS'),
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildCategoryChip('All'),
+                  const SizedBox(width: 8),
+                  _buildCategoryChip('Message'),
+                  const SizedBox(width: 8),
+                  _buildCategoryChip('Work Request'),
+                ],
+              ),
             ),
           ),
 
@@ -322,14 +352,19 @@ class _NotificationsPageState extends State<NotificationsPage> {
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Row(
-              children: [
-                _buildTimeFilterChip('Today'),
-                const SizedBox(width: 8),
-                _buildTimeFilterChip('This Week'),
-                const SizedBox(width: 8),
-                _buildTimeFilterChip('Earlier'),
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildTimeFilterChip('All'),
+                  const SizedBox(width: 8),
+                  _buildTimeFilterChip('Today'),
+                  const SizedBox(width: 8),
+                  _buildTimeFilterChip('This Week'),
+                  const SizedBox(width: 8),
+                  _buildTimeFilterChip('Earlier'),
+                ],
+              ),
             ),
           ),
 
@@ -337,16 +372,63 @@ class _NotificationsPageState extends State<NotificationsPage> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : filteredNotifications.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.notifications_none,
-                          size: 64,
-                          color: Colors.grey.shade300,
+                : !_notificationsEnabled
+                    ? Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(24),
+                          margin: const EdgeInsets.symmetric(horizontal: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.notifications_off_outlined,
+                                size: 56,
+                                color: Color(0xFF64748B),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'Notifications are Disabled',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1E293B),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Turn on "Enable Notifications" in Settings to receive updates about requests and activity.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                      )
+                    : filteredNotifications.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.notifications_none,
+                                  size: 64,
+                                  color: Colors.grey.shade300,
+                                ),
                         const SizedBox(height: 16),
                         Text(
                           'No notifications',

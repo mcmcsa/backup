@@ -1,8 +1,7 @@
-import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:async';
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/attachment_image_widget.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/services/chat_service.dart';
@@ -1430,15 +1429,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   }
 
   Widget _buildSignatureItemRow({required ESignature sig}) {
-    final currentUser = context.read<AuthService>().currentUser;
-    Uint8List? imageBytes;
-    if (sig.signatureData.isNotEmpty) {
-      try {
-        final clean = sig.signatureData.contains(',') ? sig.signatureData.split(',').last : sig.signatureData;
-        imageBytes = base64Decode(clean.trim());
-      } catch (_) {}
-    }
-
     final roleColor = sig.signerRole == 'admin'
         ? AdminStyles.primary
         : sig.signerRole == 'maintenance'
@@ -1522,6 +1512,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           ],
         ]),
         const SizedBox(height: 20),
+        _buildIssueDetailsCard(),
+        const SizedBox(height: 20),
         _buildInfoCard('Location', [
           _buildSummaryRow('Building', _request!.buildingName ?? 'N/A'),
           _buildSummaryRow('Room', _request!.officeRoom ?? _request!.roomName ?? 'N/A'),
@@ -1534,6 +1526,169 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
         const SizedBox(height: 20),
         _buildActionCard(),
       ],
+    );
+  }
+
+  Widget _buildIssueDetailsCard() {
+    final attachments = _request!.attachmentUrls ?? [];
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: AdminStyles.cardDecoration(borderRadius: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AdminStyles.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.image_outlined, size: 18, color: AdminStyles.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'ISSUE & ATTACHMENTS',
+                      style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Requestor Problem Details',
+                      style: AdminStyles.headingStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+              if (attachments.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${attachments.length} photo${attachments.length > 1 ? 's' : ''}',
+                    style: AdminStyles.bodyStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AdminStyles.primary),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Problem Description',
+            style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminStyles.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Text(
+              _request!.description.isNotEmpty ? _request!.description : 'No description provided.',
+              style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary, height: 1.6),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              const Icon(Icons.photo_library_outlined, size: 15, color: AdminStyles.textMuted),
+              const SizedBox(width: 8),
+              Text(
+                'Attached Photo Evidence (${attachments.length})',
+                style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AdminStyles.textSecondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (attachments.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.hide_image_outlined, size: 28, color: AdminStyles.textMuted),
+                  const SizedBox(height: 10),
+                  Text(
+                    'No photos attached by requestor.',
+                    style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textMuted),
+                  ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: 110,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: attachments.length,
+                itemBuilder: (context, index) {
+                  final url = attachments[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: Tooltip(
+                      message: 'Click to enlarge photo',
+                      child: InkWell(
+                        onTap: () => showAttachmentZoomDialog(context, url),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: 110,
+                          height: 110,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              AppAttachmentImage(
+                                url: url,
+                                fit: BoxFit.cover,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              Positioned(
+                                bottom: 6,
+                                right: 6,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.55),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
     );
   }
 

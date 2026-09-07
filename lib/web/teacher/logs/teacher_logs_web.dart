@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -15,10 +16,11 @@ class TeacherLogsWeb extends StatefulWidget {
 
 class _TeacherLogsWebState extends State<TeacherLogsWeb> {
   final TextEditingController _searchController = TextEditingController();
+  StreamSubscription<void>? _changesSub;
   
   List<LoginActivity> _logs = <LoginActivity>[];
   bool _isLoading = true;
-  String _selectedFilter = 'All';
+  String _selectedFilter = 'ALL';
 
   // Mapping local colors to AdminStyles
   static const Color _primaryBlue = AdminStyles.primary;
@@ -32,6 +34,9 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
   void initState() {
     super.initState();
     _loadLogs();
+    _changesSub = LoginActivityService.changes.listen((_) {
+      if (mounted) _loadLogs();
+    });
   }
 
   Future<void> _loadLogs() async {
@@ -61,12 +66,37 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
 
   @override
   void dispose() {
+    _changesSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
+  bool _isLogout(LoginActivity log) {
+    final eventType = log.eventType.toLowerCase();
+    final title = log.title.toLowerCase();
+    final details = (log.details ?? '').toLowerCase();
+    return eventType == 'logout' ||
+        title.contains('logout') ||
+        details.contains('logged out');
+  }
+
+  bool _isLogin(LoginActivity log) {
+    if (_isLogout(log)) return false;
+    final eventType = log.eventType.toLowerCase();
+    final title = log.title.toLowerCase();
+    final details = (log.details ?? '').toLowerCase();
+    return eventType == 'login' ||
+        (title.contains('login') && !title.contains('logout')) ||
+        (details.contains('logged in') && !details.contains('logged out'));
+  }
+
+  bool _isAction(LoginActivity log) {
+    return !_isLogin(log) && !_isLogout(log);
+  }
+
   IconData _iconForLog(LoginActivity log) {
-    if (log.eventType == 'login') return Icons.login_rounded;
+    if (_isLogout(log)) return Icons.logout_rounded;
+    if (_isLogin(log)) return Icons.login_rounded;
 
     final title = log.title.toLowerCase();
     if (title.contains('approve')) return Icons.check_circle_rounded;
@@ -87,7 +117,8 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
   }
 
   Color _colorForLog(LoginActivity log) {
-    if (log.eventType == 'login') return const Color(0xFF4169E1);
+    if (_isLogout(log)) return const Color(0xFFEF4444);
+    if (_isLogin(log)) return const Color(0xFF4169E1);
 
     final title = log.title.toLowerCase();
     if (title.contains('approve')) return const Color(0xFF059669);
@@ -109,9 +140,11 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
     var filtered = List<LoginActivity>.from(_logs);
 
     if (_selectedFilter == 'Login') {
-      filtered = filtered.where((log) => log.eventType == 'login').toList();
+      filtered = filtered.where(_isLogin).toList();
+    } else if (_selectedFilter == 'Logout') {
+      filtered = filtered.where(_isLogout).toList();
     } else if (_selectedFilter == 'Actions') {
-      filtered = filtered.where((log) => log.eventType != 'login').toList();
+      filtered = filtered.where(_isAction).toList();
     }
 
     final query = _searchController.text.trim().toLowerCase();
@@ -153,9 +186,9 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 32),
-            _buildSearchAndFilter(),
             const SizedBox(height: 24),
+            _buildSearchAndFilter(),
+            const SizedBox(height: 20),
             if (_isLoading)
               const Center(child: CircularProgressIndicator(color: _primaryBlue))
             else if (filtered.isEmpty)
@@ -169,58 +202,128 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
   }
 
   Widget _buildSearchAndFilter() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          decoration: AdminStyles.cardDecoration(hasShadow: false),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 720;
+        final searchBar = Container(
+          height: 46,
+          decoration: BoxDecoration(
+            color: _cardBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _borderColor),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x060F172A),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
           child: TextField(
             controller: _searchController,
             onChanged: (_) => setState(() {}),
+            style: AdminStyles.bodyStyle(fontSize: 14, color: _darkText),
             decoration: InputDecoration(
-              hintText: 'Search logs...',
-              hintStyle: AdminStyles.bodyStyle(color: Colors.grey.shade400, fontSize: 14),
-              prefixIcon: Padding(
-                padding: const EdgeInsets.only(left: 12, right: 8),
-                child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+              hintText: 'Search logs by action, user, or details...',
+              hintStyle: AdminStyles.bodyStyle(color: const Color(0xFF94A3B8), fontSize: 13.5),
+              prefixIcon: const Padding(
+                padding: EdgeInsets.only(left: 12, right: 8),
+                child: Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 20),
               ),
+              prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF94A3B8)),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                    )
+                  : null,
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Row(
+        );
+
+        final filterGroup = Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _borderColor),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildFilterChip('ALL'),
+              const SizedBox(width: 4),
+              _buildFilterChip('Login'),
+              const SizedBox(width: 4),
+              _buildFilterChip('Logout'),
+              const SizedBox(width: 4),
+              _buildFilterChip('Actions'),
+            ],
+          ),
+        );
+
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: searchBar),
+              const SizedBox(width: 16),
+              filterGroup,
+            ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildFilterChip('All'),
-            const SizedBox(width: 12),
-            _buildFilterChip('Login'),
-            const SizedBox(width: 12),
-            _buildFilterChip('Actions'),
+            searchBar,
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: filterGroup,
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 
   Widget _buildFilterChip(String label) {
     final isSelected = _selectedFilter == label;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedFilter = label),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? _primaryBlue : _cardBg,
-          border: Border.all(color: isSelected ? _primaryBlue : _borderColor),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          style: AdminStyles.bodyStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: isSelected ? Colors.white : _darkText,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _selectedFilter = label),
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? _primaryBlue : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: _primaryBlue.withValues(alpha: 0.28),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+              letterSpacing: -0.1,
+            ),
           ),
         ),
       ),
@@ -246,9 +349,6 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
   }
 
   Widget _buildLogsList(List<LoginActivity> logs) {
-    final width = MediaQuery.of(context).size.width;
-    final isNarrow = width < 700;
-
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -256,21 +356,44 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final log = logs[index];
+        final isLogin = _isLogin(log);
+        final isLogout = _isLogout(log);
         final color = _colorForLog(log);
         final icon = _iconForLog(log);
 
+        final badgeLabel = isLogin ? 'Login' : (isLogout ? 'Logout' : 'Action');
+        final badgeColor = isLogin
+            ? const Color(0xFF2563EB)
+            : (isLogout ? const Color(0xFFDC2626) : const Color(0xFF475569));
+        final badgeBg = isLogin
+            ? const Color(0xFF3B82F6).withValues(alpha: 0.1)
+            : (isLogout
+                ? const Color(0xFFEF4444).withValues(alpha: 0.1)
+                : const Color(0xFF64748B).withValues(alpha: 0.1));
+
         return Container(
-          decoration: AdminStyles.cardDecoration(hasShadow: false),
+          decoration: BoxDecoration(
+            color: _cardBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _borderColor),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x050F172A),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
           padding: const EdgeInsets.all(16),
           child: Row(
-            crossAxisAlignment: isNarrow ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: color, size: 22),
               ),
@@ -282,66 +405,77 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
                     Text(
                       log.title,
                       style: AdminStyles.bodyStyle(
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: _darkText,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     Row(
                       children: [
                         Flexible(
                           child: Text(
                             log.userName,
-                            style: const TextStyle(fontSize: 12, color: _subtleText),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF334155),
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          width: 4,
-                          height: 4,
-                          decoration: const BoxDecoration(shape: BoxShape.circle, color: _borderColor),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          log.eventType == 'login' ? 'Login' : 'Action',
-                          style: const TextStyle(fontSize: 12, color: _subtleText),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: badgeBg,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            badgeLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: badgeColor,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                     if (log.details != null && log.details!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 5),
                       Text(
                         log.details!,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                        style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)),
                       ),
                     ],
                     if (log.workRequestId != null && log.workRequestId!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Request: ${log.workRequestId}',
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF334155)),
-                      ),
-                    ],
-                    if (isNarrow) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        DateFormat('MMM dd, yyyy hh:mm a').format(log.loggedInAt),
-                        style: AdminStyles.dataStyle(fontSize: 11, color: _subtleText),
+                      const SizedBox(height: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'Request: ${log.workRequestId}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF475569),
+                          ),
+                        ),
                       ),
                     ],
                   ],
                 ),
               ),
-              if (!isNarrow) ...[
-                const SizedBox(width: 8),
-                Text(
-                  DateFormat('MMM dd, yyyy hh:mm a').format(log.loggedInAt),
-                  style: AdminStyles.dataStyle(fontSize: 11, color: _subtleText),
-                ),
-              ],
+              const SizedBox(width: 12),
+              Text(
+                DateFormat('MMM dd, yyyy  hh:mm a').format(log.loggedInAt),
+                style: AdminStyles.dataStyle(fontSize: 11, color: _subtleText),
+              ),
             ],
           ),
         );

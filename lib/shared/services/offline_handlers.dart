@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'work_request_service.dart';
 import 'e_signature_service.dart';
@@ -26,17 +25,15 @@ void registerOfflineHandlers() {
           final file = File(path);
           if (await file.exists()) {
             final bytes = await file.readAsBytes();
-            final ext = path.split('.').last;
-            final fileName = '${inserted.id}/image_$i.$ext';
-            
-            await Supabase.instance.client.storage
-                .from('work-request-attachments')
-                .uploadBinary(fileName, bytes);
-            
-            final url = Supabase.instance.client.storage
-                .from('work-request-attachments')
-                .getPublicUrl(fileName);
-            uploadedUrls.add(url);
+            final fileName = path.split(RegExp(r'[\\/]')).last;
+            final url = await WorkRequestService.uploadAttachmentBytes(
+              workRequestId: inserted.id,
+              fileName: fileName,
+              bytes: bytes,
+            );
+            if (url != null && url.isNotEmpty) {
+              uploadedUrls.add(url);
+            }
             
             // Cleanup local file
             await file.delete();

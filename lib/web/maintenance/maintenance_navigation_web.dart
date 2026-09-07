@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/models/work_request_model.dart';
 import '../../shared/models/chat_model.dart';
 import '../../shared/widgets/lazy_indexed_stack.dart';
@@ -6,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
 import '../admin/shared/admin_styles.dart';
 import '../../shared/services/app_notification_service.dart';
+import '../../shared/services/app_settings_service.dart';
 import '../../shared/utils/workflow_guide_dialog.dart';
 import 'dashboard/maintenance_dashboard_web.dart';
 import 'profile/maintenance_profile_web.dart';
@@ -38,6 +41,8 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
 
   static const int _notificationsIndex = 7;
   int _unreadNotificationCount = 0;
+  RealtimeChannel? _notificationsChannel;
+  StreamSubscription<void>? _settingsSubscription;
 
   // ─── Design Tokens ────────────────────────────────────────────────────────
   static const _sidebarBg = Color(0xFF0F172A);       // Slate-900 (deeper)
@@ -55,6 +60,33 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
     _selectedIndex = widget.initialIndex;
     _loadUserInfo();
     _loadUnreadNotificationCount();
+    _subscribeNotifications();
+    _settingsSubscription = AppSettingsService.changes.listen((_) {
+      _loadUnreadNotificationCount();
+    });
+  }
+
+  void _subscribeNotifications() {
+    _notificationsChannel = Supabase.instance.client
+        .channel('maintenance_notifications_realtime')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'app_notifications',
+          callback: (payload) {
+            _loadUnreadNotificationCount();
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    _settingsSubscription?.cancel();
+    if (_notificationsChannel != null) {
+      Supabase.instance.client.removeChannel(_notificationsChannel!);
+    }
+    super.dispose();
   }
 
   Future<void> _loadUnreadNotificationCount() async {
