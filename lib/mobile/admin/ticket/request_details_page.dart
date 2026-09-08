@@ -717,7 +717,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
               await Printing.layoutPdf(
                 onLayout: (_) => pdfBytes,
                 name: 'Work_Request_Form_${request.formattedId}',
-                format: IsoPdfService.longLandscapeFormat,
+                format: IsoPdfService.standardPortraitFormat,
               );
             },
           ),

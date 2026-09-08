@@ -7,6 +7,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../config/supabase_config.dart';
 import '../models/work_request_model.dart';
 import '../models/pre_inspection_model.dart';
 import '../models/post_repair_model.dart';
@@ -15,7 +17,7 @@ import 'e_signature_service.dart';
 import '../utils/signature_image_helper.dart';
 
 class _PdfEvidenceImage {
-  final pw.MemoryImage image;
+  final pw.ImageProvider image;
   final String label;
   final String? caption;
   final PdfColor? tagColor;
@@ -60,45 +62,155 @@ class InspectionPdfService {
   static List<String> _extractUrls(dynamic raw) {
     if (raw == null) return [];
     if (raw is List) {
-      return raw.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+      final list = <String>[];
+      for (final item in raw) {
+        list.addAll(_extractUrls(item));
+      }
+      return list;
     }
-    final str = raw.toString().trim();
-    if (str.isEmpty) return [];
+    String str = raw.toString().trim();
+    if (str.isEmpty || str == '[]' || str == 'null') return [];
+
+    // Strip wrapping quotes if double-encoded
+    if ((str.startsWith('"') && str.endsWith('"')) ||
+        (str.startsWith("'") && str.endsWith("'"))) {
+      str = str.substring(1, str.length - 1).trim();
+    }
+
     try {
       if (str.startsWith('[') && str.endsWith(']')) {
         final decoded = jsonDecode(str);
         if (decoded is List) {
-          return decoded.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+          final list = <String>[];
+          for (final item in decoded) {
+            list.addAll(_extractUrls(item));
+          }
+          return list;
         }
       }
     } catch (_) {}
-    if (str.contains(',')) {
-      return str.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+
+    // Check if comma-separated list of URLs
+    if (str.contains(',') && !str.startsWith('data:image')) {
+      final parts = str.split(',');
+      final list = <String>[];
+      for (final p in parts) {
+        final trimmed = p.trim();
+        if (trimmed.isNotEmpty) list.add(trimmed);
+      }
+      if (list.isNotEmpty) return list;
     }
+
+    // Extract any embedded http/https links via regex
+    if (str.contains('http://') || str.contains('https://')) {
+      final regExp = RegExp(r'https?://[^\s",\]\[]+');
+      final matches = regExp.allMatches(str).map((m) => m.group(0)!).toList();
+      if (matches.isNotEmpty) return matches;
+    }
+
     return [str];
   }
 
-  /// Helper to fetch image from network URL or decode base64
-  static Future<pw.MemoryImage?> _fetchImage(String url) async {
+  /// Parse Supabase storage URL to extract bucket and file path
+  static Map<String, String>? _parseSupabaseStorageUrl(String url) {
+    try {
+      final uri = Uri.parse(url);
+      final segments = uri.pathSegments;
+      final objIdx = segments.indexOf('object');
+      if (objIdx != -1 && segments.length > objIdx + 1) {
+        int bucketIdx = objIdx + 1;
+        if (bucketIdx < segments.length &&
+            ['public', 'authenticated', 'sign'].contains(segments[bucketIdx])) {
+          bucketIdx++;
+        }
+        if (bucketIdx < segments.length && segments.length > bucketIdx + 1) {
+          final bucket = segments[bucketIdx];
+          final path = segments.sublist(bucketIdx + 1).join('/');
+          if (bucket.isNotEmpty && path.isNotEmpty) {
+            return {'bucket': bucket, 'path': path};
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+
+  /// Helper to fetch image from network URL or decode base64 across Web & Mobile
+  static Future<pw.ImageProvider?> _fetchImage(String url) async {
     final cleanUrl = url.trim();
     if (cleanUrl.isEmpty) return null;
-    try {
-      if (cleanUrl.startsWith('data:image')) {
-        final cleanBase64 = cleanUrl.contains(',')
-            ? cleanUrl.split(',').last.trim()
-            : cleanUrl.trim();
-        final bytes = base64Decode(cleanBase64);
-        return pw.MemoryImage(bytes);
+
+    // 1. Check if Base64 data URL
+    if (cleanUrl.startsWith('data:image') || cleanUrl.startsWith('data:')) {
+      try {
+        final commaIdx = cleanUrl.indexOf(',');
+        if (commaIdx != -1) {
+          final b64 = cleanUrl.substring(commaIdx + 1).trim();
+          final bytes = base64Decode(b64);
+          if (bytes.isNotEmpty) return pw.MemoryImage(bytes);
+        }
+      } catch (e) {
+        debugPrint('InspectionPdfService: Error decoding base64 image: $e');
       }
-      final uri = Uri.tryParse(cleanUrl);
-      if (uri == null || !uri.hasScheme || !uri.hasAuthority) return null;
-      final response = await http.get(uri).timeout(const Duration(seconds: 12));
-      if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-        return pw.MemoryImage(response.bodyBytes);
-      }
-    } catch (e) {
-      debugPrint('InspectionPdfService: Error fetching image for PDF: $e');
     }
+
+    // 2. Try Supabase Storage Client download (Fastest & direct on Web/Mobile)
+    if (cleanUrl.contains('/storage/v1/object/')) {
+      final parsed = _parseSupabaseStorageUrl(cleanUrl);
+      if (parsed != null) {
+        final bucket = parsed['bucket']!;
+        final path = parsed['path']!;
+
+        try {
+          final bytes = await Supabase.instance.client.storage
+              .from(bucket)
+              .download(path)
+              .timeout(const Duration(seconds: 4));
+          if (bytes.isNotEmpty) {
+            return pw.MemoryImage(bytes);
+          }
+        } catch (_) {
+          // If encoded, try URL-decoded path
+          try {
+            final decodedPath = Uri.decodeComponent(path);
+            if (decodedPath != path) {
+              final bytes = await Supabase.instance.client.storage
+                  .from(bucket)
+                  .download(decodedPath)
+                  .timeout(const Duration(seconds: 3));
+              if (bytes.isNotEmpty) {
+                return pw.MemoryImage(bytes);
+              }
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
+    // 3. Try networkImage from printing package
+    try {
+      final img = await networkImage(cleanUrl).timeout(const Duration(seconds: 3));
+      return img;
+    } catch (_) {}
+
+    // 4. Try standard http.get with Supabase auth headers
+    try {
+      final uri = Uri.tryParse(cleanUrl);
+      if (uri != null && uri.hasScheme && uri.hasAuthority) {
+        final res = await http.get(
+          uri,
+          headers: {
+            'apikey': supabaseAnonKey,
+            'Authorization': 'Bearer $supabaseAnonKey',
+          },
+        ).timeout(const Duration(seconds: 3));
+        if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+          return pw.MemoryImage(res.bodyBytes);
+        }
+      }
+    } catch (_) {}
+
     return null;
   }
 
@@ -140,6 +252,45 @@ class InspectionPdfService {
     final textDark = PdfColor.fromHex('0F172A');
     final textMuted = PdfColor.fromHex('64748B');
 
+    // ── 0. EVIDENCE GATHERING & PHOTO RETRIEVAL ──────────────────────────────
+    // ONLY collect images specifically submitted for this Pre-Inspection report:
+    List<String> targetUrls = _extractUrls(report.photoEvidence);
+
+    // Fallback only if report.photoEvidence is completely empty
+    if (targetUrls.isEmpty && report.notes != null) {
+      targetUrls = _extractUrls(report.notes);
+    }
+
+    final List<_PdfEvidenceImage> evidenceList = [];
+
+    if (targetUrls.isNotEmpty) {
+      final downloadedImages = await Future.wait(
+        targetUrls.map((u) => _fetchImage(u)),
+      );
+
+      for (int i = 0; i < downloadedImages.length; i++) {
+        final img = downloadedImages[i];
+        if (img != null) {
+          evidenceList.add(_PdfEvidenceImage(
+            image: img,
+            label: targetUrls.length == 1
+                ? 'PRE-INSPECTION EVIDENCE'
+                : 'Pre-Inspection Evidence #${evidenceList.length + 1}',
+            caption: report.conditionFound.isNotEmpty ? report.conditionFound : 'Site assessment defect/condition',
+            tagColor: primaryColor,
+          ));
+        }
+      }
+    }
+
+    // Calculate annex chunks
+    final annexChunks = <List<_PdfEvidenceImage>>[];
+    for (var i = 0; i < evidenceList.length; i += 4) {
+      annexChunks.add(evidenceList.sublist(i, i + 4 > evidenceList.length ? evidenceList.length : i + 4));
+    }
+    final totalReportPages = 1 + annexChunks.length;
+
+    // ── PAGE 1: PRE-INSPECTION ASSESSMENT CERTIFICATE ────────────────────────
     pdf.addPage(
       pw.Page(
         pageFormat: pageFormat,
@@ -198,6 +349,8 @@ class InspectionPdfService {
                           pw.Text('DOC CODE: FM-AD-ENG-02A', style: pw.TextStyle(font: fontBold, fontSize: 7, color: textMuted)),
                           pw.Text('TRACKING NO: ${request.formattedId}', style: pw.TextStyle(font: fontBold, fontSize: 8, color: primaryColor)),
                           pw.Text('DATE: ${DateFormat('MM/dd/yyyy').format(DateTime.now())}', style: pw.TextStyle(font: fontRegular, fontSize: 7.5, color: textMuted)),
+                          if (evidenceList.isNotEmpty)
+                            pw.Text('PAGES: 1 OF $totalReportPages (${annexChunks.length} ANNEX PAGE${annexChunks.length > 1 ? 'S' : ''})', style: pw.TextStyle(font: fontBold, fontSize: 6.5, color: PdfColor.fromHex('15803D'))),
                         ],
                       ),
                     ),
@@ -250,6 +403,7 @@ class InspectionPdfService {
                   children: [
                     _buildTableRow('Inspecting Technician', report.inspectorName, 'Inspection Date', DateFormat('MMM dd, yyyy - hh:mm a').format(report.inspectionDate), fontBold, fontRegular, headerBg, borderColor),
                     _buildTableRow('Severity Level', report.severityLevel.toUpperCase(), 'Estimated Duration', report.estimatedTime?.isNotEmpty == true ? report.estimatedTime! : 'N/A', fontBold, fontRegular, null, borderColor),
+                    _buildTableRow('Photo Documentation', evidenceList.isNotEmpty ? '${evidenceList.length} Photographic Record(s) Attached' : 'No Photographs Attached', 'Photographic Annex', evidenceList.isNotEmpty ? 'See Annex (Pages 2-$totalReportPages)' : 'None', fontBold, fontRegular, headerBg, borderColor),
                   ],
                 ),
               ),
@@ -313,18 +467,24 @@ class InspectionPdfService {
                       children: [
                         pw.Row(
                           children: [
-                            pw.Text('DECISION: ', style: pw.TextStyle(font: fontBold, fontSize: 9.5, color: textDark)),
+                            pw.Text('DECISION:  ', style: pw.TextStyle(font: fontBold, fontSize: 9.5, color: textDark)),
                             pw.Container(
                               padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: pw.BoxDecoration(
                                 color: report.status == 'Approved'
                                     ? PdfColor.fromHex('16A34A')
-                                    : (report.status == 'Declined' ? PdfColor.fromHex('DC2626') : PdfColor.fromHex('D97706')),
+                                    : (report.status == 'Declined' ? PdfColor.fromHex('DC2626') : PdfColor.fromHex('E2E8F0')),
                                 borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
                               ),
                               child: pw.Text(
-                                report.status == 'Approved' ? 'APPROVED / CONFIRMED' : report.status.toUpperCase(),
-                                style: pw.TextStyle(font: fontBold, fontSize: 8.5, color: PdfColors.white),
+                                report.status == 'Approved'
+                                    ? 'APPROVED / CONFIRMED'
+                                    : (report.status == 'Declined' ? 'DECLINED / REJECTED' : 'PENDING REVIEW'),
+                                style: pw.TextStyle(
+                                  font: fontBold,
+                                  fontSize: 8,
+                                  color: report.status == 'Approved' || report.status == 'Declined' ? PdfColors.white : textDark,
+                                ),
                               ),
                             ),
                           ],
@@ -386,7 +546,7 @@ class InspectionPdfService {
               // System watermark
               pw.Center(
                 child: pw.Text(
-                  'System-generated Official Pre-Inspection Document • PSU Maintenance Management Portal',
+                  'System-generated Official Pre-Inspection Document | PSU Maintenance Management Portal',
                   style: pw.TextStyle(font: fontRegular, fontSize: 6.5, color: textMuted),
                 ),
               ),
@@ -397,47 +557,13 @@ class InspectionPdfService {
     );
 
     // ── 6. ANNEX: WORK EVIDENCE & PHOTO DOCUMENTATION ────────────────────────
-    final preInspectionUrls = _extractUrls(report.photoEvidence);
-    final requestUrls = request.attachmentUrls ?? _extractUrls(request.workEvidence);
-
-    final List<_PdfEvidenceImage> evidenceList = [];
-
-    for (int i = 0; i < preInspectionUrls.length; i++) {
-      final img = await _fetchImage(preInspectionUrls[i]);
-      if (img != null) {
-        evidenceList.add(_PdfEvidenceImage(
-          image: img,
-          label: 'Pre-Inspection Evidence #${i + 1}',
-          caption: report.conditionFound.isNotEmpty ? report.conditionFound : 'Site assessment defect/condition',
-          tagColor: primaryColor,
-        ));
-      }
-    }
-
-    for (int i = 0; i < requestUrls.length; i++) {
-      final img = await _fetchImage(requestUrls[i]);
-      if (img != null) {
-        evidenceList.add(_PdfEvidenceImage(
-          image: img,
-          label: 'Initial Request Photo #${i + 1}',
-          caption: request.title.isNotEmpty ? request.title : 'Requester issue documentation',
-          tagColor: PdfColor.fromHex('475569'),
-        ));
-      }
-    }
-
-    if (evidenceList.isNotEmpty) {
-      final chunks = <List<_PdfEvidenceImage>>[];
-      for (var i = 0; i < evidenceList.length; i += 4) {
-        chunks.add(evidenceList.sublist(i, i + 4 > evidenceList.length ? evidenceList.length : i + 4));
-      }
-
-      for (int pIdx = 0; pIdx < chunks.length; pIdx++) {
+    if (annexChunks.isNotEmpty) {
+      for (int pIdx = 0; pIdx < annexChunks.length; pIdx++) {
         pdf.addPage(
           _buildEvidencePage(
-            images: chunks[pIdx],
+            images: annexChunks[pIdx],
             pageIndex: pIdx,
-            totalPages: chunks.length,
+            totalPages: annexChunks.length,
             documentTitle: 'PRE-INSPECTION ASSESSMENT & WORK EVIDENCE',
             trackingNo: request.formattedId,
             psuLogo: psuLogo,
@@ -479,8 +605,6 @@ class InspectionPdfService {
     final adminEvalSig = sigList.where((s) =>
         (s.signatureType == 'completion' || s.signatureType == 'post_repair_evaluation' || s.signatureType == 'evaluation') &&
         (s.signerRole.toLowerCase() == 'admin' || s.signerRole.toLowerCase() == 'campadmin' || s.signerRole.toLowerCase() == 'campus admin')
-    ).firstOrNull ?? sigList.where((s) =>
-        s.signerRole.toLowerCase() == 'admin' || s.signerRole.toLowerCase() == 'campadmin' || s.signerRole.toLowerCase() == 'campus admin'
     ).firstOrNull;
 
     final techSigImage = await _decodeSignature(techSig?.signatureData);
@@ -489,15 +613,74 @@ class InspectionPdfService {
     final fontBold = pw.Font.helveticaBold();
     final fontRegular = pw.Font.helvetica();
 
-    final primaryColor = PdfColor.fromHex('047857'); // Emerald Green
+    final primaryColor = PdfColor.fromHex('1E3A8A'); // Navy
     final borderColor = PdfColor.fromHex('CBD5E1'); // Slate 300
     final headerBg = PdfColor.fromHex('F8FAFC'); // Slate 50
     final textDark = PdfColor.fromHex('0F172A');
     final textMuted = PdfColor.fromHex('64748B');
 
-    final isSatisfied = report.adminEvaluation == 'satisfied';
-    final isRework = report.adminEvaluation == 'rework';
+    final isSatisfied = report.adminEvaluation == 'satisfied' || report.status == 'Completed';
+    final isRework = report.adminEvaluation == 'rework' || report.status == 'Rework';
 
+    // ── 0. EVIDENCE GATHERING & BEFORE/AFTER PHOTO RETRIEVAL ──────────────────
+    // ONLY collect images specifically submitted for Post-Repair:
+    final beforeUrls = _extractUrls(report.photoBefore);
+    final afterUrls = _extractUrls(report.photoAfter);
+
+    final List<_PdfEvidenceImage> evidenceList = [];
+
+    // Parallel fetch for before and after photos
+    final beforeImages = await Future.wait(beforeUrls.map((u) => _fetchImage(u)));
+    final afterImages = await Future.wait(afterUrls.map((u) => _fetchImage(u)));
+
+    for (int i = 0; i < beforeImages.length; i++) {
+      final img = beforeImages[i];
+      if (img != null) {
+        evidenceList.add(_PdfEvidenceImage(
+          image: img,
+          label: beforeImages.length == 1 ? 'BEFORE REPAIR' : 'BEFORE REPAIR #${i + 1}',
+          caption: 'Defect / problem state prior to maintenance repair',
+          tagColor: PdfColor.fromHex('D97706'),
+        ));
+      }
+    }
+
+    for (int i = 0; i < afterImages.length; i++) {
+      final img = afterImages[i];
+      if (img != null) {
+        evidenceList.add(_PdfEvidenceImage(
+          image: img,
+          label: afterImages.length == 1 ? 'AFTER REPAIR' : 'AFTER REPAIR #${i + 1}',
+          caption: report.workPerformed.isNotEmpty ? report.workPerformed : 'Completed repair work accomplishment',
+          tagColor: PdfColor.fromHex('16A34A'),
+        ));
+      }
+    }
+
+    // Fallback only if both before and after photos are completely empty
+    if (evidenceList.isEmpty && report.materialsUsed != null) {
+      final matUrls = _extractUrls(report.materialsUsed);
+      final matImages = await Future.wait(matUrls.map((u) => _fetchImage(u)));
+      for (final img in matImages) {
+        if (img != null) {
+          evidenceList.add(_PdfEvidenceImage(
+            image: img,
+            label: 'PARTS & MATERIALS #${evidenceList.length + 1}',
+            caption: 'Parts or materials documentation',
+            tagColor: primaryColor,
+          ));
+        }
+      }
+    }
+
+    // Calculate annex chunks
+    final annexChunks = <List<_PdfEvidenceImage>>[];
+    for (var i = 0; i < evidenceList.length; i += 4) {
+      annexChunks.add(evidenceList.sublist(i, i + 4 > evidenceList.length ? evidenceList.length : i + 4));
+    }
+    final totalReportPages = 1 + annexChunks.length;
+
+    // ── PAGE 1: POST-REPAIR EVALUATION CERTIFICATE ───────────────────────────
     pdf.addPage(
       pw.Page(
         pageFormat: pageFormat,
@@ -555,7 +738,9 @@ class InspectionPdfService {
                         children: [
                           pw.Text('DOC CODE: FM-AD-ENG-03A', style: pw.TextStyle(font: fontBold, fontSize: 7, color: textMuted)),
                           pw.Text('TRACKING NO: ${request.formattedId}', style: pw.TextStyle(font: fontBold, fontSize: 8, color: primaryColor)),
-                          pw.Text('ATTEMPT: #${report.attemptNumber}', style: pw.TextStyle(font: fontBold, fontSize: 7.5, color: textDark)),
+                          pw.Text('ATTEMPT: #${report.attemptNumber}', style: pw.TextStyle(font: fontBold, fontSize: 7, color: textDark)),
+                          if (evidenceList.isNotEmpty)
+                            pw.Text('PAGES: 1 OF $totalReportPages (${annexChunks.length} ANNEX PAGE${annexChunks.length > 1 ? 'S' : ''})', style: pw.TextStyle(font: fontBold, fontSize: 6.5, color: PdfColor.fromHex('15803D'))),
                         ],
                       ),
                     ),
@@ -590,7 +775,7 @@ class InspectionPdfService {
 
               pw.SizedBox(height: 12),
 
-              // ── 3. ACCOMPLISHMENT DETAILS ──────────────────────────────
+              // ── 3. MAINTENANCE ACCOMPLISHMENT DETAILS ──────────────────
               _buildSectionHeader('MAINTENANCE ACCOMPLISHMENT DETAILS', primaryColor, fontBold),
               pw.SizedBox(height: 4),
               pw.Container(
@@ -608,6 +793,7 @@ class InspectionPdfService {
                   children: [
                     _buildTableRow('Technician', report.technicianName, 'Completion Date', DateFormat('MMM dd, yyyy - hh:mm a').format(report.repairDate), fontBold, fontRegular, headerBg, borderColor),
                     _buildTableRow('Repair Duration', report.repairDuration?.isNotEmpty == true ? report.repairDuration! : 'N/A', 'Execution Status', report.repairStatus.toUpperCase(), fontBold, fontRegular, null, borderColor),
+                    _buildTableRow('Photo Documentation', evidenceList.isNotEmpty ? '${evidenceList.length} Photo Evidence Record(s) Attached' : 'No Photographs Attached', 'Photographic Annex', evidenceList.isNotEmpty ? 'See Annex (Pages 2-$totalReportPages)' : 'None', fontBold, fontRegular, headerBg, borderColor),
                   ],
                 ),
               ),
@@ -663,7 +849,7 @@ class InspectionPdfService {
                       children: [
                         pw.Row(
                           children: [
-                            pw.Text('EVALUATION: ', style: pw.TextStyle(font: fontBold, fontSize: 9.5, color: textDark)),
+                            pw.Text('EVALUATION:  ', style: pw.TextStyle(font: fontBold, fontSize: 9.5, color: textDark)),
                             pw.Container(
                               padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: pw.BoxDecoration(
@@ -673,8 +859,10 @@ class InspectionPdfService {
                                 borderRadius: const pw.BorderRadius.all(pw.Radius.circular(3)),
                               ),
                               child: pw.Text(
-                                isSatisfied ? 'SATISFIED (COMPLETED)' : (isRework ? 'REWORK REQUIRED' : 'PENDING EVALUATION'),
-                                style: pw.TextStyle(font: fontBold, fontSize: 8.5, color: PdfColors.white),
+                                isSatisfied
+                                    ? 'SATISFIED (COMPLETED)'
+                                    : (isRework ? 'REWORK REQUIRED' : 'EVALUATION PENDING'),
+                                style: pw.TextStyle(font: fontBold, fontSize: 8, color: PdfColors.white),
                               ),
                             ),
                           ],
@@ -687,7 +875,7 @@ class InspectionPdfService {
                     ),
                     if (report.adminEvaluationNotes?.isNotEmpty == true) ...[
                       pw.SizedBox(height: 6),
-                      pw.Text('Evaluation Notes:', style: pw.TextStyle(font: fontBold, fontSize: 8, color: textDark)),
+                      pw.Text('Campus Admin Evaluation Notes:', style: pw.TextStyle(font: fontBold, fontSize: 8, color: textDark)),
                       pw.SizedBox(height: 2),
                       pw.Text(report.adminEvaluationNotes!, style: pw.TextStyle(font: fontRegular, fontSize: 8.5, color: textDark)),
                     ],
@@ -736,7 +924,7 @@ class InspectionPdfService {
               // System watermark
               pw.Center(
                 child: pw.Text(
-                  'System-generated Official Post-Repair Document • PSU Maintenance Management Portal',
+                  'System-generated Official Post-Repair Document | PSU Maintenance Management Portal',
                   style: pw.TextStyle(font: fontRegular, fontSize: 6.5, color: textMuted),
                 ),
               ),
@@ -747,62 +935,13 @@ class InspectionPdfService {
     );
 
     // ── 6. ANNEX: WORK EVIDENCE & BEFORE/AFTER PHOTO DOCUMENTATION ─────────
-    final beforeUrls = _extractUrls(report.photoBefore);
-    final afterUrls = _extractUrls(report.photoAfter);
-
-    final List<_PdfEvidenceImage> evidenceList = [];
-
-    for (int i = 0; i < beforeUrls.length; i++) {
-      final img = await _fetchImage(beforeUrls[i]);
-      if (img != null) {
-        evidenceList.add(_PdfEvidenceImage(
-          image: img,
-          label: 'BEFORE REPAIR #${i + 1}',
-          caption: 'Defect / problem state prior to maintenance repair',
-          tagColor: PdfColor.fromHex('D97706'), // Amber / Warning
-        ));
-      }
-    }
-
-    for (int i = 0; i < afterUrls.length; i++) {
-      final img = await _fetchImage(afterUrls[i]);
-      if (img != null) {
-        evidenceList.add(_PdfEvidenceImage(
-          image: img,
-          label: 'AFTER REPAIR #${i + 1}',
-          caption: report.workPerformed.isNotEmpty ? report.workPerformed : 'Completed repair work accomplishment',
-          tagColor: PdfColor.fromHex('16A34A'), // Green / Success
-        ));
-      }
-    }
-
-    if (evidenceList.isEmpty) {
-      final requestUrls = request.attachmentUrls ?? _extractUrls(request.workEvidence);
-      for (int i = 0; i < requestUrls.length; i++) {
-        final img = await _fetchImage(requestUrls[i]);
-        if (img != null) {
-          evidenceList.add(_PdfEvidenceImage(
-            image: img,
-            label: 'WORK EVIDENCE #${i + 1}',
-            caption: request.title.isNotEmpty ? request.title : 'Requester problem evidence',
-            tagColor: primaryColor,
-          ));
-        }
-      }
-    }
-
-    if (evidenceList.isNotEmpty) {
-      final chunks = <List<_PdfEvidenceImage>>[];
-      for (var i = 0; i < evidenceList.length; i += 4) {
-        chunks.add(evidenceList.sublist(i, i + 4 > evidenceList.length ? evidenceList.length : i + 4));
-      }
-
-      for (int pIdx = 0; pIdx < chunks.length; pIdx++) {
+    if (annexChunks.isNotEmpty) {
+      for (int pIdx = 0; pIdx < annexChunks.length; pIdx++) {
         pdf.addPage(
           _buildEvidencePage(
-            images: chunks[pIdx],
+            images: annexChunks[pIdx],
             pageIndex: pIdx,
-            totalPages: chunks.length,
+            totalPages: annexChunks.length,
             documentTitle: 'POST-REPAIR ACCOMPLISHMENT & WORK EVIDENCE',
             trackingNo: request.formattedId,
             psuLogo: psuLogo,
@@ -831,20 +970,77 @@ class InspectionPdfService {
     required PreInspectionReport report,
     List<ESignature>? signatures,
   }) async {
-    try {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Preparing Pre-Inspection report with work evidence...'),
-            duration: Duration(seconds: 2),
+    // Show smooth modern loading overlay
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (dialogCtx) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.14),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.8,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1E3A8A)),
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Preparing Pre-Inspection Report...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Compiling assessment & photographic evidence',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        );
-      }
+        ),
+      ),
+    );
+
+    try {
       final pdfBytes = await generatePreInspectionPdf(
         request: request,
         report: report,
         signatures: signatures,
       );
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
       await Printing.layoutPdf(
         onLayout: (_) => pdfBytes,
         name: 'Pre_Inspection_Report_${request.formattedId}',
@@ -852,6 +1048,7 @@ class InspectionPdfService {
       );
     } catch (e) {
       if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error printing pre-inspection report: $e'), backgroundColor: Colors.red),
         );
@@ -865,20 +1062,77 @@ class InspectionPdfService {
     required PostRepairReport report,
     List<ESignature>? signatures,
   }) async {
-    try {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Preparing Post-Repair report with work evidence...'),
-            duration: Duration(seconds: 2),
+    // Show smooth modern loading overlay
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (dialogCtx) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.14),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.8,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF1E3A8A)),
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      'Preparing Post-Repair Report...',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Compiling accomplishment & before/after evidence',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        );
-      }
+        ),
+      ),
+    );
+
+    try {
       final pdfBytes = await generatePostRepairPdf(
         request: request,
         report: report,
         signatures: signatures,
       );
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
       await Printing.layoutPdf(
         onLayout: (_) => pdfBytes,
         name: 'Post_Repair_Report_${request.formattedId}_Attempt_${report.attemptNumber}',
@@ -886,6 +1140,7 @@ class InspectionPdfService {
       );
     } catch (e) {
       if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error printing post-repair report: $e'), backgroundColor: Colors.red),
         );
@@ -1002,11 +1257,11 @@ class InspectionPdfService {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text(
-                    'Official Photographic Record • PSU Physical Plant & Facilities Management',
+                    'Official Photographic Record | PSU Physical Plant & Facilities Management',
                     style: pw.TextStyle(font: fontRegular, fontSize: 6.5, color: textMuted),
                   ),
                   pw.Text(
-                    'Doc Ref: $trackingNo • Verified Evidence',
+                    'Doc Ref: $trackingNo | Verified Evidence',
                     style: pw.TextStyle(font: fontRegular, fontSize: 6.5, color: textMuted),
                   ),
                 ],
@@ -1144,10 +1399,6 @@ class InspectionPdfService {
             decoration: pw.BoxDecoration(
               color: headerBg,
               border: pw.Border(bottom: pw.BorderSide(color: borderColor, width: 0.8)),
-              borderRadius: const pw.BorderRadius.only(
-                topLeft: pw.Radius.circular(5),
-                topRight: pw.Radius.circular(5),
-              ),
             ),
             child: pw.Row(
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -1189,10 +1440,6 @@ class InspectionPdfService {
               decoration: pw.BoxDecoration(
                 color: PdfColors.white,
                 border: pw.Border(top: pw.BorderSide(color: borderColor, width: 0.8)),
-                borderRadius: const pw.BorderRadius.only(
-                  bottomLeft: pw.Radius.circular(5),
-                  bottomRight: pw.Radius.circular(5),
-                ),
               ),
               child: pw.Text(
                 item.caption!.trim(),

@@ -168,9 +168,10 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
         signerId: user.id,
         signerName: user.name,
         signerRole: 'admin',
-        signatureType: 'approval',
+        signatureType: 'pre_inspection_approval',
         signatureData: _adminSignatureBase64!,
         signedAt: DateTime.now(),
+        notes: 'Pre-inspection admin review signature',
       );
       await ESignatureService.insert(signature);
       

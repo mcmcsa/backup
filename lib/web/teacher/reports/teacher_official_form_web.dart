@@ -40,6 +40,17 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
   }
 
   @override
+  void didUpdateWidget(covariant TeacherOfficialFormWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.request.id != widget.request.id) {
+      _realtimeChannel?.unsubscribe();
+      _currentRequest = widget.request;
+      _loadData();
+      _setupRealtime();
+    }
+  }
+
+  @override
   void dispose() {
     _realtimeChannel?.unsubscribe();
     super.dispose();
@@ -48,7 +59,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
   void _setupRealtime() {
     final reqId = widget.request.id;
     _realtimeChannel = Supabase.instance.client
-        .channel('public:official_form_$reqId')
+        .channel('public:official_form_${reqId}_${DateTime.now().millisecondsSinceEpoch}')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
           schema: 'public',
@@ -64,6 +75,28 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'e_signatures',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'work_request_id',
+            value: reqId,
+          ),
+          callback: (_) => _loadData(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'pre_inspection_reports',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'work_request_id',
+            value: reqId,
+          ),
+          callback: (_) => _loadData(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'post_repair_reports',
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'work_request_id',
@@ -208,7 +241,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
       await Printing.layoutPdf(
         onLayout: (_) => pdfBytes,
         name: 'Work_Request_Forms_${_currentRequest.formattedId}',
-        format: IsoPdfService.longLandscapeFormat,
+        format: IsoPdfService.standardPortraitFormat,
       );
     } catch (e) {
       if (mounted) {
@@ -274,46 +307,111 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
         effectiveDate = null;
       }
     } else if (roleKey == 'monitored_evaluated' || roleKey == 'admin_confirmation') {
-      // Final confirmation / evaluation signature on Confirm Form (Form 2)
-      // Must NOT show initial approval! Only show if explicitly confirmed/evaluated by campus admin.
+      // Campus admin pre-inspection review & evaluation signature on Confirm Form (Form 2)
+      // 1. Check for explicit pre-inspection approval / review signature by admin
       sig = _signatures.where((s) {
         final role = s.signerRole.toLowerCase();
         final type = s.signatureType.toLowerCase();
         final isAdmin = role == 'admin' || role == 'campadmin' || role == 'campus admin';
-        final isConfirm = type == 'completion' || type == 'confirmation' || type == 'acceptance' || type == 'evaluation';
+        final isPreAdmin = type == 'pre_inspection_approval' ||
+            type == 'pre_inspection_admin' ||
+            type == 'pre_inspection_review' ||
+            (type == 'pre_inspection' && isAdmin);
+        final hasPreNotes = s.notes?.toLowerCase().contains('pre') == true &&
+            s.notes?.toLowerCase().contains('inspect') == true;
+        return isAdmin && (isPreAdmin || hasPreNotes);
+      }).firstOrNull;
+
+      // 2. Check for completion / confirmation / evaluation signature
+      sig ??= _signatures.where((s) {
+        final role = s.signerRole.toLowerCase();
+        final type = s.signatureType.toLowerCase();
+        final isAdmin = role == 'admin' || role == 'campadmin' || role == 'campus admin';
+        final isConfirm = type == 'completion' || type == 'confirmation' || type == 'evaluation';
         return isAdmin && isConfirm;
       }).firstOrNull;
-      
+
+      // 3. If pre-inspection review approval was saved as 'approval' by admin
+      if (sig == null) {
+        final adminApprovals = _signatures.where((s) {
+          final role = s.signerRole.toLowerCase();
+          final type = s.signatureType.toLowerCase();
+          final isAdmin = role == 'admin' || role == 'campadmin' || role == 'campus admin';
+          return isAdmin && (type == 'approval' || type == 'admin');
+        }).toList();
+
+        if (adminApprovals.length > 1) {
+          // Later approval is from pre-inspection review
+          sig = adminApprovals.last;
+        } else if (adminApprovals.length == 1) {
+          // If 1 approval exists, check if request is in maintenance / pre-inspection reviewed / completed
+          final statusLower = request.status.trim().toLowerCase();
+          final hasPreInspection = request.preInspectionId != null;
+          final isPastApproval = statusLower != 'pending' && statusLower != 'approved';
+          if (hasPreInspection || isPastApproval || isCompleted) {
+            sig = adminApprovals.first;
+          }
+        }
+      }
+
       if (sig != null) {
         printName = sig.signerName;
         effectiveDate = dateVal ?? sig.signedAt;
-      } else if (isCompleted && request.approvedByName != null && request.approvedByName!.isNotEmpty) {
+      } else if (request.approvedByName != null && request.approvedByName!.isNotEmpty) {
         printName = request.approvedByName!;
-        effectiveDate = dateVal ?? request.dateCompleted;
+        effectiveDate = dateVal ?? request.dateCompleted ?? request.approvedDate;
       } else {
-        // Not yet confirmed / evaluated by campus admin -> keep blank!
         printName = '';
         effectiveDate = null;
       }
-    } else if (roleKey == 'accomplished') {
-      // Maintenance work accomplishment on Form 1 and Form 2
-      // Must only match completion / post-repair accomplishment, NOT pre_inspection or task acceptance!
+    } else if (roleKey == 'form1_maintenance' || roleKey == 'acceptance' || (roleKey == 'accomplished' && _selectedPage == 0)) {
+      // Form 1 (Work Request Form): Maintenance task acceptance signature
+      // Displayed when the maintenance technician accepts the work request
       sig = _signatures.where((s) {
+        final role = s.signerRole.toLowerCase();
+        final type = s.signatureType.toLowerCase();
+        final isMaint = role == 'maintenance' || role == 'technician' || role == 'staff';
+        final isAccept = type == 'acceptance' || type == 'task_acceptance';
+        return isAccept && (isMaint || role.isNotEmpty);
+      }).firstOrNull;
+
+      if (sig != null) {
+        printName = sig.signerName;
+        effectiveDate = dateVal ?? sig.signedAt;
+      } else if (request.acceptedByName != null && request.acceptedByName!.trim().isNotEmpty) {
+        printName = request.acceptedByName!.trim();
+        effectiveDate = dateVal ?? request.acceptedDate;
+      } else {
+        printName = '';
+        effectiveDate = null;
+      }
+    } else if (roleKey == 'form2_maintenance' || roleKey == 'pre_inspection' || (roleKey == 'accomplished' && _selectedPage == 1)) {
+      // Form 2 (Confirm Form): Maintenance pre-inspection signature
+      // Displayed when the maintenance technician submits the pre-inspection report
+      sig = _signatures.where((s) {
+        final role = s.signerRole.toLowerCase();
+        final type = s.signatureType.toLowerCase();
+        final isMaint = role == 'maintenance' || role == 'technician' || role == 'staff';
+        final isPre = type == 'pre_inspection';
+        return isPre && (isMaint || role.isNotEmpty);
+      }).firstOrNull;
+
+      // Fallback: If pre-inspection signature not found, check post-repair / completion accomplishment
+      sig ??= _signatures.where((s) {
         final role = s.signerRole.toLowerCase();
         final type = s.signatureType.toLowerCase();
         final isMaint = role == 'maintenance' || role == 'technician' || role == 'staff';
         final isAccomplished = type == 'completion' || type == 'accomplished' || type == 'post_repair';
         return isMaint && isAccomplished;
       }).firstOrNull;
-      
+
       if (sig != null) {
         printName = sig.signerName;
         effectiveDate = dateVal ?? sig.signedAt;
-      } else if (isCompleted) {
-        printName = request.acceptedByName ?? '';
-        effectiveDate = dateVal ?? request.dateCompleted ?? request.maintenanceEndTime;
+      } else if (request.acceptedByName != null && request.acceptedByName!.trim().isNotEmpty) {
+        printName = request.acceptedByName!.trim();
+        effectiveDate = dateVal ?? (isCompleted ? (request.dateCompleted ?? request.maintenanceEndTime) : request.acceptedDate);
       } else {
-        // Work is still in progress / pre-inspection / not accomplished yet -> keep blank!
         printName = '';
         effectiveDate = null;
       }
@@ -786,10 +884,11 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                 Expanded(
                   flex: 5,
                   child: _buildSignatureColumn(
-                    'accomplished',
+                    'form1_maintenance',
                     'Work Request Accomplished by:',
                     'Signature over Printed Name',
                     dateLabel: 'Date',
+                    dateVal: request.acceptedDate,
                   ),
                 ),
               ],
@@ -1029,7 +1128,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                       border: Border(right: BorderSide(color: Colors.black, width: 2)),
                     ),
                     child: _buildSignatureColumn(
-                      'accomplished',
+                      'form2_maintenance',
                       'Work Request Accomplished by:',
                       'Signature over Printed Name',
                       dateLabel: 'Date',
