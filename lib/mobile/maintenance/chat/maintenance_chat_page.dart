@@ -35,6 +35,7 @@ class _MaintenanceChatPageState extends State<MaintenanceChatPage> {
           currentUserRole: user.role.name,
           selectedRoomId: null,
           onRoomSelected: (room) => setState(() => _selectedRoom = room),
+          onRoomDeleted: (_) => setState(() => _selectedRoom = null),
         ),
       );
     }
@@ -48,6 +49,7 @@ class _MaintenanceChatPageState extends State<MaintenanceChatPage> {
         currentUserName: user.name,
         currentUserRole: user.role.name,
         onBack: () => setState(() => _selectedRoom = null),
+        onRoomDeleted: () => setState(() => _selectedRoom = null),
       ),
     );
   }

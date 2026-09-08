@@ -13,6 +13,7 @@ class ChatMessagesPanel extends StatefulWidget {
   final String currentUserName;
   final String currentUserRole;
   final VoidCallback? onBack;  // for mobile full-screen back
+  final VoidCallback? onRoomDeleted;
 
   const ChatMessagesPanel({
     super.key,
@@ -21,6 +22,7 @@ class ChatMessagesPanel extends StatefulWidget {
     required this.currentUserName,
     required this.currentUserRole,
     this.onBack,
+    this.onRoomDeleted,
   });
 
   @override
@@ -39,6 +41,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
   bool _showSearch = false;
   String _searchQuery = '';
   List<ChatMessage> _searchResults = [];
+  DateTime? _clearedAt;
 
   ChatMessage? _replyTo;
   ChatMessage? _editingMessage;
@@ -91,7 +94,14 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
   void _subscribeRealtime() {
     _msgChannel = ChatService.subscribeToMessages(widget.room.id, (msg) {
       if (mounted) {
-        setState(() => _messages.add(msg));
+        if (_clearedAt != null && !msg.createdAt.isAfter(_clearedAt!)) {
+          return;
+        }
+        setState(() {
+          if (!_messages.any((m) => m.id == msg.id)) {
+            _messages.add(msg);
+          }
+        });
         _scrollToBottom();
         if (msg.senderId != widget.currentUserId) {
           ChatService.markRead(widget.room.id, widget.currentUserId);
@@ -132,8 +142,15 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
 
   Future<void> _load() async {
     try {
-      final msgs = await ChatService.fetchMessages(widget.room.id);
-      final pinned = await ChatService.fetchPinnedMessages(widget.room.id);
+      _clearedAt = await ChatService.getClearedAt(widget.currentUserId, widget.room.id);
+      final msgs = await ChatService.fetchMessages(
+        widget.room.id,
+        currentUserId: widget.currentUserId,
+      );
+      final pinned = await ChatService.fetchPinnedMessages(
+        widget.room.id,
+        currentUserId: widget.currentUserId,
+      );
       if (mounted) {
         setState(() {
           _messages = msgs;
@@ -159,6 +176,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
     try {
       final older = await ChatService.fetchMessages(
         widget.room.id,
+        currentUserId: widget.currentUserId,
         before: _messages.first.createdAt.toIso8601String(),
       );
       if (mounted && older.isNotEmpty) {
@@ -293,8 +311,79 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
       return;
     }
     setState(() => _searchQuery = query);
-    final results = await ChatService.searchMessages(widget.room.id, query);
+    final results = await ChatService.searchMessages(
+      widget.room.id,
+      query,
+      currentUserId: widget.currentUserId,
+    );
     if (mounted) setState(() => _searchResults = results);
+  }
+
+  Future<void> _handleDeleteConversation() async {
+    final roomName = widget.room.displayName(widget.currentUserId);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFEE2E2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626), size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Text('Delete Conversation', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete your conversation with $roomName? All messages will be deleted for you. (The other participant will still keep their chat history.)',
+          style: const TextStyle(fontSize: 13, color: Color(0xFF475569), height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    await ChatService.deleteConversation(widget.currentUserId, widget.room.id);
+    _clearedAt = DateTime.now();
+
+    if (mounted) {
+      setState(() {
+        _messages.clear();
+        _pinnedMessages.clear();
+      });
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Deleted conversation with $roomName'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: const Color(0xFFDC2626),
+        ),
+      );
+    }
+
+    widget.onRoomDeleted?.call();
+    widget.onBack?.call();
   }
 
   void _showError(String msg) {
@@ -429,6 +518,37 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
             }),
             color: const Color(0xFF0F766E),
             tooltip: 'Search messages',
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded, size: 20, color: Color(0xFF0F766E)),
+            tooltip: 'Options',
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            onSelected: (val) {
+              if (val == 'delete_conversation') {
+                _handleDeleteConversation();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'delete_conversation',
+                height: 38,
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline_rounded, size: 18, color: Color(0xFFDC2626)),
+                    SizedBox(width: 10),
+                    Text(
+                      'Delete Conversation',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFFDC2626),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -706,7 +826,7 @@ class _TypingDotsState extends State<_TypingDots>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) {
+      builder: (context, child) {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(3, (i) {

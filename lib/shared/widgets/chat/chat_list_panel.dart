@@ -388,7 +388,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
           ],
         ),
         content: Text(
-          'Are you sure you want to delete your conversation with $name? This conversation and its messages will be removed.',
+          'Are you sure you want to delete your conversation with $name? All messages will be deleted for you. (The other participant will still keep their chat history.)',
           style: const TextStyle(fontSize: 13, color: Color(0xFF475569), height: 1.5),
         ),
         actions: [

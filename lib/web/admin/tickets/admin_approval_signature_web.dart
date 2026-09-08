@@ -116,14 +116,21 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
         setState(() {
           _signatures = results[0] as List<ESignature>;
           _maintenanceStaff = results[1] as List<MaintenanceAccount>;
-          if (_pendingSignatureBase64 == null) {
+          // Only load approval signature if this work request has already been approved.
+          // For pending / new requests, each request requires a fresh signature from the administrator.
+          if (_isApproved) {
             final adminSig = _signatures.cast<ESignature?>().firstWhere(
-              (s) => s != null && (s.signerRole == 'admin' || s.signatureType == 'approval') && s.signatureData.isNotEmpty,
+              (s) =>
+                  s != null &&
+                  (s.signatureType == 'approval' || s.signatureType == 'admin_approval') &&
+                  s.signatureData.isNotEmpty,
               orElse: () => null,
             );
             if (adminSig != null) {
               _pendingSignatureBase64 = adminSig.signatureData;
             }
+          } else {
+            _pendingSignatureBase64 = null;
           }
           _isLoading = false;
         });
@@ -450,7 +457,11 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
         ? widget.request.requestorName
         : (widget.request.reportedByName ?? '');
 
-    final hasReqSig = _signatures.any((s) => s.signerRole == 'requestor' || s.signerRole == 'teacher' || s.signatureType == 'request');
+    final hasReqSig = _signatures.any((s) =>
+        s.signatureType == 'request' ||
+        s.signatureType == 'requestor' ||
+        s.signerRole == 'requestor' ||
+        s.signerRole == 'teacher');
 
     if (!hasReqSig && reqName.isNotEmpty) {
       list.add(
@@ -465,7 +476,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
     final displaySignatures = List<ESignature>.from(_signatures);
 
     if (_pendingSignatureBase64 != null &&
-        !displaySignatures.any((s) => s.signerRole == 'admin' || s.signatureType == 'approval')) {
+        !displaySignatures.any((s) => s.signatureType == 'approval' || s.signatureType == 'admin_approval')) {
       displaySignatures.add(
         ESignature(
           id: 'temp',
@@ -482,12 +493,18 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
 
     for (final sig in displaySignatures) {
       String label = sig.signatureTypeLabel;
-      if (sig.signerRole == 'requestor' || sig.signerRole == 'teacher' || sig.signatureType == 'request') {
+      if (sig.signatureType == 'request' || sig.signatureType == 'requestor') {
         label = 'Requestor';
-      } else if (sig.signerRole == 'admin' || sig.signatureType == 'approval') {
+      } else if (sig.signatureType == 'approval' || sig.signatureType == 'admin_approval') {
         label = 'Admin Approval';
-      } else if (sig.signerRole == 'maintenance' || sig.signatureType == 'post_repair' || sig.signatureType == 'acceptance') {
+      } else if (sig.signatureType == 'pre_inspection') {
+        label = 'Pre-Inspection';
+      } else if (sig.signatureType == 'post_repair' || sig.signatureType == 'acceptance') {
         label = 'Maintenance';
+      } else if (sig.signerRole == 'requestor' || sig.signerRole == 'teacher') {
+        label = 'Requestor';
+      } else if (sig.signerRole == 'admin') {
+        label = 'Admin Approval';
       }
 
       list.add(
@@ -956,8 +973,8 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                   children: [
                     ElevatedButton.icon(
                       onPressed: _openSignatureDialog,
-                      icon: const Icon(Icons.draw_rounded, size: 20),
-                      label: Text(_pendingSignatureBase64 != null ? 'View / Change Signature' : 'Signature'),
+                      icon: Icon(_pendingSignatureBase64 != null ? Icons.edit_note_rounded : Icons.draw_rounded, size: 20),
+                      label: Text(_pendingSignatureBase64 != null ? 'View / Change Signature' : 'Sign Approval'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _pendingSignatureBase64 != null ? AdminStyles.primary.withValues(alpha: 0.1) : AdminStyles.primary,
                         foregroundColor: _pendingSignatureBase64 != null ? AdminStyles.primary : Colors.white,
@@ -966,7 +983,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                         elevation: 0,
                       ),
                     ),
-                    if (_pendingSignatureBase64 != null) ...[
+                    if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(

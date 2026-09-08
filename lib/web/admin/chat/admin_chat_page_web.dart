@@ -49,6 +49,7 @@ class _AdminChatPageWebState extends State<AdminChatPageWeb> {
           currentUserName: user.name,
           currentUserRole: user.role.name,
           onBack: () => setState(() => _selectedRoom = null),
+          onRoomDeleted: () => setState(() => _selectedRoom = null),
         );
       } else {
         mainContent = ChatListPanel(
@@ -95,6 +96,7 @@ class _AdminChatPageWebState extends State<AdminChatPageWeb> {
                     currentUserId: user.id,
                     currentUserName: user.name,
                     currentUserRole: user.role.name,
+                    onRoomDeleted: () => setState(() => _selectedRoom = null),
                   ),
           ),
         ],

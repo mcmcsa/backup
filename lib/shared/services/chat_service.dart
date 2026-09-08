@@ -27,12 +27,53 @@ class ChatService {
         ''')
         .order('updated_at', ascending: false);
 
-    final rooms = (response as List)
+    final rawRooms = (response as List)
         .map((e) => ChatRoom.fromJson(e as Map<String, dynamic>))
-        .where((r) => r.participants.any((p) => p.userId == userId) && !deletedIds.contains(r.id))
+        .where((r) => r.participants.any((p) => p.userId == userId))
         .toList();
 
-    return rooms;
+    final List<ChatRoom> visibleRooms = [];
+    for (final r in rawRooms) {
+      final clearedAt = await getClearedAt(userId, r.id);
+      final isMarkedDeleted = deletedIds.contains(r.id);
+
+      if (clearedAt != null) {
+        final hasNewMessageAfterClear =
+            r.lastMessageAt != null && r.lastMessageAt!.isAfter(clearedAt);
+
+        if (isMarkedDeleted && !hasNewMessageAfterClear) {
+          continue; // Room remains deleted/hidden for this user
+        }
+
+        if (isMarkedDeleted && hasNewMessageAfterClear) {
+          // A new message arrived after deletion! Restore room so user can see it
+          await restoreDeletedRoom(userId, r.id);
+        }
+
+        if (!hasNewMessageAfterClear) {
+          // Room is opened/visible, but past messages are deleted: hide old preview
+          visibleRooms.add(ChatRoom(
+            id: r.id,
+            name: r.name,
+            type: r.type,
+            workRequestId: r.workRequestId,
+            createdBy: r.createdBy,
+            lastMessage: null,
+            lastMessageAt: null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+            participants: r.participants,
+          ));
+          continue;
+        }
+      } else if (isMarkedDeleted) {
+        continue;
+      }
+
+      visibleRooms.add(r);
+    }
+
+    return visibleRooms;
   }
 
   // ──────────────────────────────────────────────────
@@ -41,6 +82,8 @@ class ChatService {
 
   static String _archivedKey(String userId) => 'chat_archived_rooms_$userId';
   static String _deletedKey(String userId) => 'chat_deleted_rooms_$userId';
+  static String _clearedKey(String userId, String roomId) =>
+      'chat_cleared_at_${userId}_$roomId';
 
   /// Get list of archived room IDs for user
   static Future<Set<String>> getArchivedRoomIds(String userId) async {
@@ -84,9 +127,77 @@ class ChatService {
     }
   }
 
-  /// Delete a conversation
+  /// Restore room from deleted set
+  static Future<void> restoreDeletedRoom(String userId, String roomId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final set = (prefs.getStringList(_deletedKey(userId)) ?? []).toSet();
+      if (set.contains(roomId)) {
+        set.remove(roomId);
+        await prefs.setStringList(_deletedKey(userId), set.toList());
+      }
+    } catch (_) {}
+  }
+
+  /// Get the timestamp at which user deleted/cleared their chat history in this room
+  static Future<DateTime?> getClearedAt(String userId, String roomId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final str = prefs.getString(_clearedKey(userId, roomId));
+      if (str != null && str.isNotEmpty) {
+        return DateTime.tryParse(str);
+      }
+      // Check Supabase user_metadata as fallback
+      final meta = Supabase.instance.client.auth.currentUser?.userMetadata;
+      if (meta != null && meta['chat_cleared_rooms'] is Map) {
+        final map = meta['chat_cleared_rooms'] as Map;
+        final iso = map[roomId] as String?;
+        if (iso != null) {
+          final dt = DateTime.tryParse(iso);
+          if (dt != null) {
+            await prefs.setString(_clearedKey(userId, roomId), iso);
+            return dt;
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Set the timestamp at which user deleted/cleared their chat history in this room
+  static Future<void> setClearedAt(
+      String userId, String roomId, DateTime timestamp) async {
+    final iso = timestamp.toUtc().toIso8601String();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_clearedKey(userId, roomId), iso);
+    } catch (_) {}
+
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null && user.id == userId) {
+        final currentMeta = Map<String, dynamic>.from(user.userMetadata ?? {});
+        final clearedMap =
+            Map<String, dynamic>.from(currentMeta['chat_cleared_rooms'] as Map? ?? {});
+        clearedMap[roomId] = iso;
+        currentMeta['chat_cleared_rooms'] = clearedMap;
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(data: currentMeta),
+        );
+      }
+    } catch (_) {}
+  }
+
+  /// Delete a conversation for the current user.
+  /// NOTE: Clears all messages ("usapan") ONLY for this [userId].
+  /// The other participant keeps their messages and conversation intact.
   static Future<bool> deleteConversation(String userId, String roomId) async {
-    // 1. Mark as deleted in local preferences so it disappears immediately
+    final now = DateTime.now();
+
+    // 1. Record cleared timestamp so all existing messages are hidden for this user
+    await setClearedAt(userId, roomId, now);
+
+    // 2. Mark as deleted in local preferences so it disappears from the list
     try {
       final prefs = await SharedPreferences.getInstance();
       final set = (prefs.getStringList(_deletedKey(userId)) ?? []).toSet();
@@ -101,16 +212,10 @@ class ChatService {
       }
     } catch (_) {}
 
-    // 2. Attempt server-side delete if permitted (CASCADE will delete messages and participants)
+    // 3. Mark read to clear notifications and badges
     try {
-      await _db.from('chat_rooms').delete().eq('id', roomId);
-    } catch (e) {
-      debugPrint('Server-side room delete error (handled via local hide): $e');
-      // If full room delete is restricted by RLS, remove current user participant
-      try {
-        await _db.from('chat_participants').delete().eq('room_id', roomId).eq('user_id', userId);
-      } catch (_) {}
-    }
+      await markRead(roomId, userId);
+    } catch (_) {}
 
     return true;
   }
@@ -151,7 +256,10 @@ class ChatService {
 
     if (response != null && (response as List).isNotEmpty) {
       final existing = response.first as Map<String, dynamic>;
-      final room = await fetchRoom(existing['id'] as String);
+      final roomId = existing['id'] as String;
+      // If user previously deleted this conversation, restore it to room list
+      await restoreDeletedRoom(currentUserId, roomId);
+      final room = await fetchRoom(roomId);
       if (room != null) return room;
     }
 
@@ -187,24 +295,38 @@ class ChatService {
   // MESSAGES
   // ──────────────────────────────────────────────────
 
-  /// Fetch the latest 50 messages in a room (paginated).
+  /// Fetch the latest 50 messages in a room (paginated), respecting user's cleared history.
   static Future<List<ChatMessage>> fetchMessages(
     String roomId, {
+    String? currentUserId,
     int limit = 50,
     String? before, // cursor: created_at ISO string
   }) async {
+    DateTime? clearedAt;
+    if (currentUserId != null) {
+      clearedAt = await getClearedAt(currentUserId, roomId);
+    }
+
     var query = _db.from('chat_messages').select().eq('room_id', roomId);
+
+    if (clearedAt != null) {
+      query = query.gt('created_at', clearedAt.toIso8601String());
+    }
 
     if (before != null) {
       query = query.lt('created_at', before);
     }
 
     final response = await query.order('created_at', ascending: false).limit(limit);
-    return (response as List)
+    var list = (response as List)
         .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
-        .toList()
-        .reversed
         .toList();
+
+    if (clearedAt != null) {
+      list = list.where((m) => m.createdAt.isAfter(clearedAt!)).toList();
+    }
+
+    return list.reversed.toList();
   }
 
   /// Send a text message.
@@ -233,6 +355,7 @@ class ChatService {
 
     final response = await _db.from('chat_messages').insert(payload).select().single();
     await _updateRoomLastMessage(roomId, content, response['created_at'] as String);
+    await restoreDeletedRoom(senderId, roomId);
     if (notify) {
       _sendNewMessageNotification(roomId, senderId, senderName, content);
     }
@@ -274,6 +397,7 @@ class ChatService {
       preview,
       response['created_at'] as String,
     );
+    await restoreDeletedRoom(senderId, roomId);
     if (notify) {
       _sendNewMessageNotification(roomId, senderId, senderName, preview);
     }
@@ -317,6 +441,7 @@ class ChatService {
       preview,
       response['created_at'] as String,
     );
+    await restoreDeletedRoom(senderId, roomId);
     if (notify) {
       _sendNewMessageNotification(roomId, senderId, senderName, preview);
     }
@@ -374,34 +499,75 @@ class ChatService {
   }
 
   /// Search messages in a room by keyword.
-  static Future<List<ChatMessage>> searchMessages(String roomId, String query) async {
-    final response = await _db
+  static Future<List<ChatMessage>> searchMessages(
+    String roomId,
+    String query, {
+    String? currentUserId,
+  }) async {
+    DateTime? clearedAt;
+    if (currentUserId != null) {
+      clearedAt = await getClearedAt(currentUserId, roomId);
+    }
+
+    var dbQuery = _db
         .from('chat_messages')
         .select()
         .eq('room_id', roomId)
         .eq('is_deleted', false)
-        .ilike('content', '%$query%')
+        .ilike('content', '%$query%');
+
+    if (clearedAt != null) {
+      dbQuery = dbQuery.gt('created_at', clearedAt.toIso8601String());
+    }
+
+    final response = await dbQuery
         .order('created_at', ascending: false)
         .limit(30);
 
-    return (response as List)
+    var list = (response as List)
         .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
         .toList();
+
+    if (clearedAt != null) {
+      list = list.where((m) => m.createdAt.isAfter(clearedAt!)).toList();
+    }
+
+    return list;
   }
 
   /// Fetch pinned messages in a room.
-  static Future<List<ChatMessage>> fetchPinnedMessages(String roomId) async {
-    final response = await _db
+  static Future<List<ChatMessage>> fetchPinnedMessages(
+    String roomId, {
+    String? currentUserId,
+  }) async {
+    DateTime? clearedAt;
+    if (currentUserId != null) {
+      clearedAt = await getClearedAt(currentUserId, roomId);
+    }
+
+    var dbQuery = _db
         .from('chat_messages')
         .select()
         .eq('room_id', roomId)
         .eq('is_pinned', true)
-        .eq('is_deleted', false)
+        .eq('is_deleted', false);
+
+    if (clearedAt != null) {
+      dbQuery = dbQuery.gt('created_at', clearedAt.toIso8601String());
+    }
+
+    final response = await dbQuery
         .order('created_at', ascending: false);
 
-    return (response as List)
+    var list = (response as List)
         .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
         .toList();
+
+    if (clearedAt != null) {
+      list = list.where((m) => m.createdAt.isAfter(clearedAt!)).toList();
+    }
+
+    return list;
   }
 
   // ──────────────────────────────────────────────────
@@ -441,6 +607,11 @@ class ChatService {
 
     if (lastRead != null) {
       query = query.gt('created_at', lastRead);
+    }
+
+    final clearedAt = await getClearedAt(userId, roomId);
+    if (clearedAt != null) {
+      query = query.gt('created_at', clearedAt.toIso8601String());
     }
 
     final response = await query.count(CountOption.exact);
