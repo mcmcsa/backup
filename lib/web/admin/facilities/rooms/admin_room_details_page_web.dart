@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../shared/models/room_model.dart';
 import '../../../../shared/services/room_service.dart';
+import '../../../../shared/services/work_request_service.dart';
+import '../../../../shared/widgets/attachment_image_widget.dart';
 import '../../shared/admin_styles.dart';
 
 class AdminRoomDetailsPageWeb extends StatefulWidget {
@@ -43,6 +45,7 @@ class _AdminRoomDetailsPageWebState extends State<AdminRoomDetailsPageWeb> {
   Future<void> _fetchFreshRoom() async {
     try {
       if (widget.room.id.isEmpty) return;
+      await WorkRequestService.updateRoomStatusFromRequests(widget.room.id);
       final fresh = await RoomService.fetchById(widget.room.id);
       if (fresh != null && mounted) {
         setState(() {
@@ -126,11 +129,22 @@ class _AdminRoomDetailsPageWebState extends State<AdminRoomDetailsPageWeb> {
                                       color: AdminStyles.primary.withValues(alpha: 0.2),
                                     ),
                                   ),
-                                  child: const Icon(
-                                    Icons.meeting_room_rounded,
-                                    color: AdminStyles.primary,
-                                    size: 28,
-                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: (_room.imageUrl != null && _room.imageUrl!.trim().isNotEmpty)
+                                      ? GestureDetector(
+                                          onTap: () => showAttachmentZoomDialog(context, _room.imageUrl!.trim()),
+                                          child: AppAttachmentImage(
+                                            url: _room.imageUrl!.trim(),
+                                            fit: BoxFit.cover,
+                                            width: 56,
+                                            height: 56,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.meeting_room_rounded,
+                                          color: AdminStyles.primary,
+                                          size: 28,
+                                        ),
                                 ),
                                 const SizedBox(width: 14),
                                 Expanded(
@@ -352,6 +366,47 @@ class _AdminRoomDetailsPageWebState extends State<AdminRoomDetailsPageWeb> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_room.imageUrl != null && _room.imageUrl!.trim().isNotEmpty) ...[
+            GestureDetector(
+              onTap: () => showAttachmentZoomDialog(context, _room.imageUrl!.trim()),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 180,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      AppAttachmentImage(
+                        url: _room.imageUrl!.trim(),
+                        fit: BoxFit.cover,
+                      ),
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white),
+                              SizedBox(width: 4),
+                              Text('Enlarge', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
           Text(
             'Location & Status',
             style: AdminStyles.headingStyle(

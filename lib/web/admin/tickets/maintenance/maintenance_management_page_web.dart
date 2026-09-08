@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../shared/models/work_request_model.dart';
 import '../../../../shared/services/maintenance_account_service.dart';
+import '../../../../shared/services/maintenance_status_service.dart';
 import '../../../../shared/services/work_request_service.dart';
 import '../../shared/admin_styles.dart';
 import '../../../../shared/widgets/availability_status_badge.dart';
@@ -29,12 +31,16 @@ class _MaintenanceManagementPageWebState
   bool _isLoading = true;
   bool _showArchivedAccounts = false;
   String _historyFilter = 'All';
+  String _statusFilter = 'All';
 
   List<MaintenanceAccount> _activeAccounts = [];
   List<MaintenanceAccount> _archivedAccounts = [];
   List<WorkRequest> _historyItems = [];
   String? _startingChatUserId;
-  RealtimeChannel? _realtimeChannel;
+  RealtimeChannel? _maintUsersChannel;
+  RealtimeChannel? _workRequestsChannel;
+  RealtimeChannel? _usersChannel;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
@@ -44,48 +50,52 @@ class _MaintenanceManagementPageWebState
   }
 
   void _setupRealtime() {
-    _realtimeChannel = Supabase.instance.client
-        .channel('public:maintenance_users_management')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.update,
-          schema: 'public',
-          table: 'maintenance_users',
-          callback: (payload) {
-            final updatedRecord = payload.newRecord;
-            final userId = updatedRecord['user_id'] as String?;
-            final newStatus = updatedRecord['availability_status'] as String?;
-            if (userId != null && newStatus != null) {
-              if (mounted) {
-                setState(() {
-                  final index = _activeAccounts.indexWhere((m) => m.userId == userId);
-                  if (index != -1) {
-                    final old = _activeAccounts[index];
-                    _activeAccounts[index] = MaintenanceAccount(
-                      userId: old.userId,
-                      email: old.email,
-                      fullName: old.fullName,
-                      employeeId: old.employeeId,
-                      specialization: old.specialization,
-                      contactNo: old.contactNo,
-                      isActive: old.isActive,
-                      archivedAt: old.archivedAt,
-                      createdAt: old.createdAt,
-                      availabilityStatus: newStatus,
-                      currentLocation: old.currentLocation,
-                      currentAssignmentId: old.currentAssignmentId,
-                      estimatedCompletionTime: old.estimatedCompletionTime,
-                      lastActiveAt: old.lastActiveAt,
-                      workingHoursStart: old.workingHoursStart,
-                      workingHoursEnd: old.workingHoursEnd,
-                      statusUpdatedAt: old.statusUpdatedAt,
-                    );
-                  }
-                });
-              }
-            }
-          },
-        )
-        .subscribe();
+    try {
+      _maintUsersChannel = Supabase.instance.client
+          .channel('public:maintenance_users_realtime')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'maintenance_users',
+            callback: (_) {
+              if (mounted) _loadData(showLoading: false);
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+
+    try {
+      _workRequestsChannel = Supabase.instance.client
+          .channel('public:work_requests_maint_status')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'work_requests',
+            callback: (_) {
+              if (mounted) _loadData(showLoading: false);
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+
+    try {
+      _usersChannel = Supabase.instance.client
+          .channel('public:users_maint_status')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'users',
+            callback: (_) {
+              if (mounted) _loadData(showLoading: false);
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+
+    // Auto-refresh timer to ensure real-time status consistency even if websocket reconnects
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) _loadData(showLoading: false);
+    });
   }
 
   Future<void> _startChat(MaintenanceAccount account) async {
@@ -123,14 +133,21 @@ class _MaintenanceManagementPageWebState
   @override
   void dispose() {
     _searchController.dispose();
-    if (_realtimeChannel != null) {
-      Supabase.instance.client.removeChannel(_realtimeChannel!);
+    _autoRefreshTimer?.cancel();
+    if (_maintUsersChannel != null) {
+      Supabase.instance.client.removeChannel(_maintUsersChannel!);
+    }
+    if (_workRequestsChannel != null) {
+      Supabase.instance.client.removeChannel(_workRequestsChannel!);
+    }
+    if (_usersChannel != null) {
+      Supabase.instance.client.removeChannel(_usersChannel!);
     }
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+  Future<void> _loadData({bool showLoading = true}) async {
+    if (showLoading) setState(() => _isLoading = true);
     try {
       final results = await Future.wait([
         // Show ALL maintenance accounts, not just admin-created ones
@@ -139,9 +156,85 @@ class _MaintenanceManagementPageWebState
         WorkRequestService.fetchAll(),
       ]);
 
-      final activeAccounts = results[0] as List<MaintenanceAccount>;
+      final rawActive = results[0] as List<MaintenanceAccount>;
       final archivedAccounts = results[1] as List<MaintenanceAccount>;
-      final history = (results[2] as List<WorkRequest>).where((item) {
+      final allRequests = results[2] as List<WorkRequest>;
+
+      // Track active assignments to accurately detect busy technicians
+      final activeBusyUserIds = <String>{};
+      for (final req in allRequests) {
+        final s = req.status.toLowerCase();
+        final isOngoing = s == 'in progress' ||
+            s == 'in_progress' ||
+            s == 'accepted' ||
+            s == 'accepted by maintenance' ||
+            s == 'rework needed' ||
+            s == 'pre-inspection submitted' ||
+            s == 'under evaluation';
+        if (isOngoing && req.assignedToId != null && req.assignedToId!.isNotEmpty) {
+          activeBusyUserIds.add(req.assignedToId!);
+        }
+      }
+
+      final now = DateTime.now();
+
+      // Re-map active accounts with accurate dynamic status
+      final activeAccounts = rawActive.map((account) {
+        final lastActive = account.lastActiveAt;
+        final statusUpdated = account.statusUpdatedAt;
+
+        // Account is actively open if a heartbeat was received within the last 35 seconds,
+        // or if status was explicitly updated within the last 45 seconds.
+        final bool isHeartbeatActive = lastActive != null && now.difference(lastActive).inSeconds <= 35;
+        final bool isRecentlyUpdated = statusUpdated != null && now.difference(statusUpdated).inSeconds <= 45;
+        final bool isAccountOpen = isHeartbeatActive || isRecentlyUpdated;
+
+        String computedStatus;
+
+        if (account.availabilityStatus.toLowerCase().trim() == 'offline') {
+          computedStatus = 'offline';
+        } else if (isAccountOpen) {
+          // Account is actively open: detect if currently has ongoing work
+          if (activeBusyUserIds.contains(account.userId)) {
+            computedStatus = 'busy';
+          } else {
+            computedStatus = 'online';
+          }
+        } else {
+          // Account is not currently open (browser closed / app killed / no heartbeat)
+          computedStatus = 'offline';
+
+          // Sync database if it was stale
+          if (account.availabilityStatus.toLowerCase().trim() != 'offline') {
+            MaintenanceStatusService.updateStatus(account.userId, 'offline').catchError((_) {});
+          }
+        }
+
+        if (computedStatus != account.availabilityStatus.toLowerCase()) {
+          return MaintenanceAccount(
+            userId: account.userId,
+            email: account.email,
+            fullName: account.fullName,
+            employeeId: account.employeeId,
+            specialization: account.specialization,
+            contactNo: account.contactNo,
+            isActive: account.isActive,
+            archivedAt: account.archivedAt,
+            createdAt: account.createdAt,
+            availabilityStatus: computedStatus,
+            currentLocation: account.currentLocation,
+            currentAssignmentId: account.currentAssignmentId,
+            estimatedCompletionTime: account.estimatedCompletionTime,
+            lastActiveAt: account.lastActiveAt,
+            workingHoursStart: account.workingHoursStart,
+            workingHoursEnd: account.workingHoursEnd,
+            statusUpdatedAt: account.statusUpdatedAt,
+          );
+        }
+        return account;
+      }).toList();
+
+      final history = allRequests.where((item) {
         final status = item.status.toLowerCase();
         return status == 'completed' || status == 'declined';
       }).toList()..sort((a, b) => b.dateSubmitted.compareTo(a.dateSubmitted));
@@ -154,24 +247,142 @@ class _MaintenanceManagementPageWebState
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _activeAccounts = [];
-        _archivedAccounts = [];
-        _historyItems = [];
-      });
+      if (showLoading) {
+        setState(() {
+          _activeAccounts = [];
+          _archivedAccounts = [];
+          _historyItems = [];
+        });
+      }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && showLoading) setState(() => _isLoading = false);
     }
   }
 
+  Future<void> _showChangeStatusDialog(MaintenanceAccount account) async {
+    final current = account.availabilityStatus.toLowerCase();
+    final options = [
+      {'key': 'online', 'label': 'Online', 'desc': 'Available for task assignment', 'color': const Color(0xFF10B981)},
+      {'key': 'busy', 'label': 'Busy', 'desc': 'Occupied with maintenance tasks', 'color': const Color(0xFFF59E0B)},
+      {'key': 'offline', 'label': 'Offline', 'desc': 'Off-duty / not active', 'color': const Color(0xFF64748B)},
+    ];
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.tune_rounded, color: AdminStyles.primary, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Set Status: ${account.fullName}',
+                style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((opt) {
+            final key = opt['key'] as String;
+            final isSelected = current == key || (key == 'online' && current == 'available');
+            final color = opt['color'] as Color;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: isSelected ? color.withValues(alpha: 0.1) : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isSelected ? color : AdminStyles.border,
+                  width: isSelected ? 1.5 : 1,
+                ),
+              ),
+              child: ListTile(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                leading: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                ),
+                title: Text(
+                  opt['label'] as String,
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    color: isSelected ? color : AdminStyles.textPrimary,
+                  ),
+                ),
+                subtitle: Text(
+                  opt['desc'] as String,
+                  style: const TextStyle(fontSize: 12, color: AdminStyles.textMuted),
+                ),
+                trailing: isSelected ? Icon(Icons.check_circle_rounded, color: color, size: 20) : null,
+                onTap: () async {
+                  Navigator.pop(context);
+                  try {
+                    await MaintenanceStatusService.updateStatus(account.userId, key);
+                    if (mounted) {
+                      _loadData(showLoading: false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Status of ${account.fullName} updated to ${opt['label']}'),
+                          backgroundColor: color,
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to update status: $e'), backgroundColor: AdminStyles.error),
+                      );
+                    }
+                  }
+                },
+              ),
+            );
+          }).toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<MaintenanceAccount> get _filteredAccounts {
-    final source = _activeAccounts;
+    var source = _activeAccounts;
+
+    if (_statusFilter == 'Online') {
+      source = source.where((a) {
+        final s = a.availabilityStatus.toLowerCase();
+        return s == 'online' || s == 'available';
+      }).toList();
+    } else if (_statusFilter == 'Busy') {
+      source = source.where((a) {
+        final s = a.availabilityStatus.toLowerCase();
+        return s == 'busy' || s == 'working';
+      }).toList();
+    } else if (_statusFilter == 'Offline') {
+      source = source.where((a) {
+        final s = a.availabilityStatus.toLowerCase();
+        return s == 'offline' || s == 'break' || s == 'on_leave';
+      }).toList();
+    }
+
     final query = _searchController.text.trim().toLowerCase();
     if (query.isEmpty) return source;
 
     return source.where((account) {
       final haystack =
-          '${account.fullName} ${account.email} ${account.employeeId ?? ''} ${account.specialization ?? ''} ${account.contactNo ?? ''}'
+          '${account.fullName} ${account.email} ${account.employeeId ?? ''} ${account.specialization ?? ''} ${account.contactNo ?? ''} ${account.availabilityStatus}'
               .toLowerCase();
       return haystack.contains(query);
     }).toList();
@@ -769,6 +980,78 @@ class _MaintenanceManagementPageWebState
     );
   }
 
+  Widget _buildLiveStatusPills() {
+    final onlineCount = _activeAccounts.where((a) {
+      final s = a.availabilityStatus.toLowerCase();
+      return s == 'online' || s == 'available';
+    }).length;
+
+    final busyCount = _activeAccounts.where((a) {
+      final s = a.availabilityStatus.toLowerCase();
+      return s == 'busy' || s == 'working';
+    }).length;
+
+    final offlineCount = _activeAccounts.where((a) {
+      final s = a.availabilityStatus.toLowerCase();
+      return s == 'offline' || s == 'break' || s == 'on_leave';
+    }).length;
+
+    Widget pill(String label, int count, Color color) {
+      final isSelected = _statusFilter == label;
+      return InkWell(
+        onTap: () => setState(() => _statusFilter = label),
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withValues(alpha: 0.12) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? color : AdminStyles.border,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '$label ($count)',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected ? color : AdminStyles.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          pill('All', _activeAccounts.length, AdminStyles.primary),
+          const SizedBox(width: 8),
+          pill('Online', onlineCount, const Color(0xFF10B981)),
+          const SizedBox(width: 8),
+          pill('Busy', busyCount, const Color(0xFFF59E0B)),
+          const SizedBox(width: 8),
+          pill('Offline', offlineCount, const Color(0xFF64748B)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAccountsSection(List<MaintenanceAccount> accounts) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 600;
@@ -776,19 +1059,34 @@ class _MaintenanceManagementPageWebState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Active Accounts',
-                style: AdminStyles.headingStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
+        isCompact
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Active Accounts',
+                    style: AdminStyles.headingStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildLiveStatusPills(),
+                ],
+              )
+            : Row(
+                children: [
+                  Text(
+                    'Active Accounts',
+                    style: AdminStyles.headingStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildLiveStatusPills()),
+                ],
               ),
-            ),
-          ],
-        ),
         const SizedBox(height: 14),
         Container(
           decoration: AdminStyles.cardDecoration(borderRadius: 18),
@@ -797,7 +1095,7 @@ class _MaintenanceManagementPageWebState
                   padding: const EdgeInsets.all(32),
                   child: Center(
                     child: Text(
-                      'No maintenance accounts created yet.',
+                      'No maintenance accounts found.',
                       style: AdminStyles.bodyStyle(
                         color: AdminStyles.textSecondary,
                       ),
@@ -847,6 +1145,8 @@ class _MaintenanceManagementPageWebState
                           AvailabilityStatusBadge(
                             status: account.availabilityStatus,
                             size: BadgeSize.small,
+                            isInteractive: true,
+                            onTap: () => _showChangeStatusDialog(account),
                           ),
                         ],
                       ),

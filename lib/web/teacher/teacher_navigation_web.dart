@@ -411,11 +411,11 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
               child: ListView(
                 children: [
                   _buildNavItem(index: 0, icon: Icons.dashboard_rounded, title: 'Home', closeDrawerOnTap: closeDrawerOnTap),
-                  _buildNavItem(index: 1, icon: Icons.history_rounded, title: 'Logs', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 1, icon: Icons.receipt_long_rounded, title: 'Logs', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 2, icon: Icons.qr_code_2_rounded, title: 'Scanner', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 3, icon: Icons.assessment_rounded, title: 'Reports', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 4, icon: Icons.message_rounded, title: 'Messages', closeDrawerOnTap: closeDrawerOnTap),
-                  _buildNavItem(index: 5, icon: Icons.archive_rounded, title: 'Archives', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 5, icon: Icons.history_rounded, title: 'History', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 6, icon: Icons.person_rounded, title: 'Profile', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 9, icon: Icons.settings_rounded, title: 'Settings', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 7, icon: Icons.info_rounded, title: 'About us', closeDrawerOnTap: closeDrawerOnTap),

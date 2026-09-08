@@ -95,6 +95,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
           .from('profile-images')
           .getPublicUrl(path);
 
+      if (!mounted) return;
       // Save to teacher profile database
       final auth = context.read<AuthService>();
       final success = await auth.updateProfileImage(
@@ -163,7 +164,8 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
           ),
         );
       } else {
-        throw Exception('Update returned false');
+        final err = auth.lastError ?? 'Failed to update profile. Please try again.';
+        throw Exception(err);
       }
     } catch (e) {
       if (!mounted) return;

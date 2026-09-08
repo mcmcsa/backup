@@ -77,8 +77,8 @@ class StudentDrawer extends StatelessWidget {
                   child: Column(
                     children: [
                       _buildDrawerItem(
-                        icon: Icons.archive_outlined,
-                        label: 'Archives',
+                        icon: Icons.history_rounded,
+                        label: 'History',
                         onTap: () {
                           Navigator.pop(context);
                           context.push(teacherArchivesRoute);

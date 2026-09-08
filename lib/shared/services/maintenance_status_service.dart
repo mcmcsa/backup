@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'maintenance_account_service.dart';
@@ -5,6 +6,58 @@ import 'maintenance_account_service.dart';
 class MaintenanceStatusService {
   static SupabaseClient get _db => Supabase.instance.client;
   static const String _table = 'maintenance_users';
+  static Timer? _heartbeatTimer;
+
+  /// Start real-time heartbeat for an active maintenance session
+  static void startHeartbeat(String userId) {
+    _heartbeatTimer?.cancel();
+    if (userId.trim().isEmpty) return;
+    
+    // Immediate heartbeat
+    sendHeartbeat(userId);
+    
+    // Periodic heartbeat every 10 seconds while the app is active
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      sendHeartbeat(userId);
+    });
+  }
+
+  /// Stop heartbeat when user logs out or app unmounts
+  static void stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+  }
+
+  /// Heartbeat ping to mark user as active and detect online vs busy
+  static Future<void> sendHeartbeat(String userId) async {
+    try {
+      final activeRequests = await _db
+          .from('work_requests')
+          .select('id')
+          .eq('assigned_to_id', userId)
+          .inFilter('status', [
+            'Accepted', 
+            'Confirmed', 
+            'Rework Needed', 
+            'Pre-Inspection Submitted', 
+            'Under Evaluation', 
+            'In Progress', 
+            'in_progress', 
+            'accepted by maintenance'
+          ]);
+
+      final String nextStatus = activeRequests.isNotEmpty ? 'busy' : 'online';
+
+      await _db.from(_table).update({
+        'availability_status': nextStatus,
+        'last_active_at': DateTime.now().toIso8601String(),
+        'status_updated_at': DateTime.now().toIso8601String(),
+        if (activeRequests.isNotEmpty) 'current_assignment_id': activeRequests.first['id'],
+      }).eq('user_id', userId);
+    } catch (e) {
+      debugPrint('Heartbeat error: $e');
+    }
+  }
 
   /// Fetch all active maintenance staff along with their live availability status
   static Future<List<MaintenanceAccount>> fetchAllWithStatus() async {
@@ -15,6 +68,7 @@ class MaintenanceStatusService {
   static Future<void> updateStatus(String userId, String status) async {
     await _db.from(_table).update({
       'availability_status': status,
+      'last_active_at': status.toLowerCase() == 'offline' ? null : DateTime.now().toIso8601String(),
       'status_updated_at': DateTime.now().toIso8601String(),
     }).eq('user_id', userId);
   }

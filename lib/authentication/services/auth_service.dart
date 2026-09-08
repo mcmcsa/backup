@@ -58,6 +58,8 @@ class AuthService extends ChangeNotifier {
   AppUser? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _currentUser != null;
+  String? _lastError;
+  String? get lastError => _lastError;
   bool get isSessionInitialized => _isSessionInitialized;
   bool get pauseLoginRedirectOnce => _pauseLoginRedirectOnce;
   bool get isPostLoginSplashActive => _isPostLoginSplashActive;
@@ -621,9 +623,12 @@ class AuthService extends ChangeNotifier {
   // ---------------------------------------------------------------
   Future<bool> updateProfile(AppUser updatedUser) async {
     _isLoading = true;
+    _lastError = null;
     notifyListeners();
 
     try {
+      // 1. Update core users table (name, role, phone, profile_image)
+      // Note: 'position' does not exist in users table; it belongs to role tables.
       await _auth
           .from('users')
           .update({
@@ -631,32 +636,63 @@ class AuthService extends ChangeNotifier {
             'role': updatedUser.role.name,
             'phone': updatedUser.phone,
             'profile_image': updatedUser.profileImage,
-            'position': updatedUser.position,
           })
           .eq('id', updatedUser.id);
 
+      // 2. Update role-specific table
       if (updatedUser.role == UserRole.teacher) {
         String? departmentId;
         final normalizedDepartment = updatedUser.department?.trim() ?? '';
         if (normalizedDepartment.isNotEmpty) {
-          final dept = await DepartmentService.findOrCreateByName(
-            normalizedDepartment,
-          );
-          departmentId = dept.id;
+          try {
+            final dept = await DepartmentService.findOrCreateByName(
+              normalizedDepartment,
+            );
+            departmentId = dept.id;
+          } catch (e) {
+            debugPrint('Department resolution error: $e');
+          }
         }
 
-        await _auth.from('teacher_users').upsert({
+        final teacherData = <String, dynamic>{
           'user_id': updatedUser.id,
-          'department_id': departmentId,
           'employee_id': updatedUser.employeeId,
           'position': updatedUser.position,
-        }, onConflict: 'user_id');
+        };
+        if (departmentId != null) {
+          teacherData['department_id'] = departmentId;
+        }
+        if (normalizedDepartment.isNotEmpty) {
+          teacherData['department'] = normalizedDepartment;
+        }
+
+        await _auth.from('teacher_users').upsert(
+          teacherData,
+          onConflict: 'user_id',
+        );
       } else if (updatedUser.role == UserRole.maintenance) {
         await _auth.from('maintenance_users').upsert({
           'user_id': updatedUser.id,
           'employee_id': updatedUser.employeeId,
           'specialization': updatedUser.position,
         }, onConflict: 'user_id');
+      }
+
+      // 3. Keep auth.users userMetadata in sync
+      try {
+        await _auth.auth.updateUser(
+          UserAttributes(
+            data: {
+              'name': updatedUser.name,
+              'phone': updatedUser.phone,
+              'department': updatedUser.department,
+              'position': updatedUser.position,
+              'employee_id': updatedUser.employeeId,
+            },
+          ),
+        );
+      } catch (e) {
+        debugPrint('auth.updateUser error: $e');
       }
 
       _currentUser = await _fetchProfile(updatedUser.id) ?? updatedUser;
@@ -672,6 +708,7 @@ class AuthService extends ChangeNotifier {
       return true;
     } catch (e) {
       debugPrint('Profile update error: $e');
+      _lastError = e.toString();
       return false;
     } finally {
       _isLoading = false;

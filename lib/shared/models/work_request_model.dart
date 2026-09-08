@@ -258,6 +258,15 @@ class WorkRequest {
                 }
               } catch (_) {}
             }
+            if (ev.contains('data:image/')) {
+              final List<String> extracted = [];
+              final regex = RegExp(r'data:image\/[^;]+;base64,[A-Za-z0-9+/=]+');
+              final matches = regex.allMatches(ev);
+              for (final m in matches) {
+                extracted.add(m.group(0)!);
+              }
+              if (extracted.isNotEmpty) return extracted;
+            }
             final list = ev.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
             if (list.isNotEmpty) return list;
           }
@@ -329,7 +338,12 @@ class WorkRequest {
       'maintenance_end_time': maintenanceEndTime?.toIso8601String(),
       'attachment_urls': attachmentUrls,
       if (workEvidence != null || (attachmentUrls != null && attachmentUrls!.isNotEmpty))
-        'work_evidence': workEvidence ?? attachmentUrls!.join(','),
+        'work_evidence': () {
+          if (attachmentUrls != null && attachmentUrls!.isNotEmpty) {
+            return jsonEncode(attachmentUrls);
+          }
+          return workEvidence;
+        }(),
       'rework_count': reworkCount,
       'rework_notes': reworkNotes,
       'duplicate_of_id': duplicateOfId,

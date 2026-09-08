@@ -8,8 +8,10 @@ import '../../../shared/services/pre_inspection_service.dart';
 import '../../../shared/services/post_repair_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/user_service.dart';
+import '../../../shared/widgets/attachment_image_widget.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../admin/shared/admin_styles.dart';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -43,9 +45,85 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
   late final Animation<double> _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
 
   late WorkRequest _currentRequest;
+  List<String> _recoveredAttachments = [];
 
   WorkRequest get _req => _currentRequest;
   String get _status => _req.status.toLowerCase();
+
+  List<String> get _attachments {
+    final list = <String>[];
+    if (_req.attachmentUrls != null && _req.attachmentUrls!.isNotEmpty) {
+      for (final u in _req.attachmentUrls!) {
+        final trimmed = u.trim();
+        if (trimmed.isNotEmpty && !list.contains(trimmed)) {
+          list.add(trimmed);
+        }
+      }
+    }
+    if (_req.workEvidence != null && _req.workEvidence!.trim().isNotEmpty) {
+      final ev = _req.workEvidence!.trim();
+      try {
+        final decoded = jsonDecode(ev);
+        if (decoded is List) {
+          for (final item in decoded) {
+            final s = item?.toString().trim() ?? '';
+            if (s.isNotEmpty && !list.contains(s)) {
+              list.add(s);
+            }
+          }
+        }
+      } catch (_) {
+        if (ev.startsWith('data:image')) {
+          if (!list.contains(ev)) list.add(ev);
+        } else {
+          for (final part in ev.split(',')) {
+            final s = part.trim();
+            if (s.isNotEmpty && !list.contains(s)) {
+              list.add(s);
+            }
+          }
+        }
+      }
+    }
+    for (final r in _recoveredAttachments) {
+      final trimmed = r.trim();
+      if (trimmed.isNotEmpty && !list.contains(trimmed)) {
+        list.add(trimmed);
+      }
+    }
+    return list;
+  }
+
+  Future<List<String>> _recoverStorageAttachments(String requestId) async {
+    final results = <String>[];
+    try {
+      final client = Supabase.instance.client;
+      final candidateBuckets = ['work-evidence', 'evidence', 'work_evidence', 'attachments'];
+      for (final b in candidateBuckets) {
+        try {
+          final files = await client.storage.from(b).list(path: requestId);
+          for (final f in files) {
+            if (f.name.isNotEmpty && !f.name.startsWith('.')) {
+              final pubUrl = client.storage.from(b).getPublicUrl('$requestId/${f.name}');
+              if (!results.contains(pubUrl)) {
+                results.add(pubUrl);
+              }
+            }
+          }
+          final subFiles = await client.storage.from(b).list(path: 'work-evidence/$requestId');
+          for (final f in subFiles) {
+            if (f.name.isNotEmpty && !f.name.startsWith('.')) {
+              final pubUrl = client.storage.from(b).getPublicUrl('work-evidence/$requestId/${f.name}');
+              if (!results.contains(pubUrl)) {
+                results.add(pubUrl);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    return results;
+  }
 
   @override
   void initState() {
@@ -85,6 +163,15 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
       final preInsp = await PreInspectionService.fetchLatestByWorkRequest(_req.id);
       final postRepairs = await PostRepairService.fetchByWorkRequest(_req.id);
       
+      List<String> recoveredAttachments = _recoveredAttachments;
+      if ((request.attachmentUrls == null || request.attachmentUrls!.isEmpty) &&
+          (request.workEvidence == null || request.workEvidence!.trim().isEmpty)) {
+        final found = await _recoverStorageAttachments(request.id);
+        if (found.isNotEmpty) {
+          recoveredAttachments = found;
+        }
+      }
+
       final userIds = <String>{};
       if (preInsp?.adminApprovedBy != null) userIds.add(preInsp!.adminApprovedBy!);
       for (final report in postRepairs) {
@@ -104,6 +191,7 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
           _signatures = sigs;
           _preInspectionReport = preInsp;
           _postRepairReports = postRepairs;
+          _recoveredAttachments = recoveredAttachments;
           if (_isLoading) {
             _isLoading = false;
             _animController.forward();
@@ -266,10 +354,13 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
     final task = _req;
 
     // 1. Request Submitted
+    final photoCount = _attachments.length;
     steps.add(_TimelineStep(
       icon: Icons.assignment_turned_in_rounded,
       title: 'Request Submitted',
-      desc: 'Initial request submitted by ${task.displayRequestorName}.',
+      desc: photoCount > 0
+          ? 'Initial request submitted by ${task.displayRequestorName} with $photoCount photo${photoCount > 1 ? "s" : ""}.'
+          : 'Initial request submitted by ${task.displayRequestorName}.',
       date: task.dateSubmitted,
       isCompleted: true,
       color: AdminStyles.primary,
@@ -1177,103 +1268,110 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
               style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary, height: 1.7),
             ),
           ),
-          if (_req.attachmentUrls != null && _req.attachmentUrls!.isNotEmpty) ...[
-            const Divider(height: 32, color: Color(0xFFE2E8F0)),
-            Row(
-              children: [
-                const Icon(Icons.image_rounded, size: 16, color: AdminStyles.textMuted),
+          const Divider(height: 32, color: Color(0xFFE2E8F0)),
+          Row(
+            children: [
+              const Icon(Icons.image_rounded, size: 16, color: AdminStyles.textMuted),
+              const SizedBox(width: 8),
+              Text(
+                'Attached Photos',
+                style: AdminStyles.headingStyle(fontSize: 13, color: AdminStyles.textSecondary),
+              ),
+              if (_attachments.isNotEmpty) ...[
                 const SizedBox(width: 8),
-                Text('Attachments', style: AdminStyles.headingStyle(fontSize: 13, color: AdminStyles.textSecondary)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_attachments.length}',
+                    style: AdminStyles.bodyStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AdminStyles.primary,
+                    ),
+                  ),
+                ),
               ],
-            ),
-            const SizedBox(height: 12),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_attachments.isNotEmpty)
             SizedBox(
-              height: 100,
+              height: 110,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: _req.attachmentUrls!.length,
+                itemCount: _attachments.length,
                 itemBuilder: (context, index) {
-                  final url = _req.attachmentUrls![index];
+                  final url = _attachments[index];
                   return Padding(
                     padding: const EdgeInsets.only(right: 12),
-                    child: ClipRRect(
+                    child: InkWell(
                       borderRadius: BorderRadius.circular(10),
+                      onTap: () => showAttachmentZoomDialog(context, url),
                       child: Container(
-                        width: 100,
-                        height: 100,
+                        width: 110,
+                        height: 110,
                         decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
+                          color: const Color(0xFFF8FAFC),
                         ),
-                        child: GestureDetector(
-                          onTap: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => Dialog(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                clipBehavior: Clip.antiAlias,
-                                child: Container(
-                                  constraints: BoxConstraints(
-                                    maxWidth: MediaQuery.of(context).size.width * 0.85,
-                                    maxHeight: MediaQuery.of(context).size.height * 0.75,
-                                  ),
-                                  color: Colors.black,
-                                  child: Stack(
-                                    alignment: Alignment.center,
-                                    children: [
-                                      InteractiveViewer(
-                                        maxScale: 3.0,
-                                        child: Image.network(
-                                          url,
-                                          fit: BoxFit.contain,
-                                          loadingBuilder: (context, child, loadingProgress) {
-                                            if (loadingProgress == null) return child;
-                                            return const Center(
-                                              child: CircularProgressIndicator(
-                                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: 12,
-                                        right: 12,
-                                        child: CircleAvatar(
-                                          backgroundColor: Colors.black.withValues(alpha: 0.5),
-                                          child: IconButton(
-                                            icon: const Icon(Icons.close_rounded, color: Colors.white),
-                                            onPressed: () => Navigator.of(context).pop(),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: AppAttachmentImage(
+                                url: url,
+                                fit: BoxFit.cover,
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 6,
+                              right: 6,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.6),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.zoom_in_rounded,
+                                  size: 14,
+                                  color: Colors.white,
                                 ),
                               ),
-                            );
-                          },
-                          child: Image.network(
-                            url,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return const Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: AdminStyles.primary),
-                                ),
-                              );
-                            },
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   );
                 },
               ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 16, color: AdminStyles.textMuted),
+                  const SizedBox(width: 8),
+                  Text(
+                    'No photos attached to this request.',
+                    style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+                  ),
+                ],
+              ),
             ),
-          ],
         ],
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
+import '../../shared/services/maintenance_status_service.dart';
 import 'dashboard/maintenance_dashboard.dart';
 import 'task/maintenance_reports_page.dart';
 import 'history/maintenance_staff_history_page.dart';
@@ -23,6 +24,20 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    final currentUser = context.read<AuthService>().currentUser;
+    if (currentUser != null && currentUser.role.name == 'maintenance') {
+      MaintenanceStatusService.startHeartbeat(currentUser.id);
+    }
+  }
+
+  @override
+  void dispose() {
+    final currentUser = context.read<AuthService>().currentUser;
+    if (currentUser != null) {
+      MaintenanceStatusService.stopHeartbeat();
+      MaintenanceStatusService.setOfflineOnLogout(currentUser.id);
+    }
+    super.dispose();
   }
 
   void _onNavItemTapped(int index) {

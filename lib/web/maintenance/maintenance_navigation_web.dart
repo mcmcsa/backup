@@ -9,6 +9,7 @@ import '../../authentication/services/auth_service.dart';
 import '../admin/shared/admin_styles.dart';
 import '../../shared/services/app_notification_service.dart';
 import '../../shared/services/app_settings_service.dart';
+import '../../shared/services/maintenance_status_service.dart';
 import '../../shared/utils/workflow_guide_dialog.dart';
 import 'dashboard/maintenance_dashboard_web.dart';
 import 'profile/maintenance_profile_web.dart';
@@ -64,6 +65,11 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
     _settingsSubscription = AppSettingsService.changes.listen((_) {
       _loadUnreadNotificationCount();
     });
+
+    final currentUser = context.read<AuthService>().currentUser;
+    if (currentUser != null && currentUser.role.name == 'maintenance') {
+      MaintenanceStatusService.startHeartbeat(currentUser.id);
+    }
   }
 
   void _subscribeNotifications() {
@@ -82,6 +88,11 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
 
   @override
   void dispose() {
+    final currentUser = context.read<AuthService>().currentUser;
+    if (currentUser != null) {
+      MaintenanceStatusService.stopHeartbeat();
+      MaintenanceStatusService.setOfflineOnLogout(currentUser.id);
+    }
     _settingsSubscription?.cancel();
     if (_notificationsChannel != null) {
       Supabase.instance.client.removeChannel(_notificationsChannel!);

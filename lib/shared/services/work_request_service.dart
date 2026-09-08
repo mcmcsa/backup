@@ -155,7 +155,9 @@ class WorkRequestService {
     return requests.any((request) {
       final status = request.status.toLowerCase();
       return status != 'completed' &&
-          status != 'declined';
+          status != 'declined' &&
+          status != 'cancelled' &&
+          status != 'declined/cancelled';
     });
   }
 
@@ -224,20 +226,39 @@ class WorkRequestService {
   }
 
   static Future<WorkRequest?> fetchById(String id) async {
-    // Try to fetch by UUID first (new format)
-    var data = await _db
-        .from(_table)
-        .select(_selectWithRelations)
-        .eq('id', id)
-        .maybeSingle();
-    
-    // If not found and id looks like the old TEXT format, try legacy_id
-    if (data == null && id.startsWith('WR-')) {
+    Map<String, dynamic>? data;
+    try {
+      // Try to fetch by UUID first with relations
       data = await _db
           .from(_table)
           .select(_selectWithRelations)
-          .eq('legacy_id', id)
+          .eq('id', id)
           .maybeSingle();
+      
+      // If not found and id looks like the old TEXT format, try legacy_id
+      if (data == null && id.startsWith('WR-')) {
+        data = await _db
+            .from(_table)
+            .select(_selectWithRelations)
+            .eq('legacy_id', id)
+            .maybeSingle();
+      }
+    } catch (_) {
+      // If relations join fails due to RLS permissions on related tables, fall back to simple query
+      try {
+        data = await _db
+            .from(_table)
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+        if (data == null && id.startsWith('WR-')) {
+          data = await _db
+              .from(_table)
+              .select('*')
+              .eq('legacy_id', id)
+              .maybeSingle();
+        }
+      } catch (_) {}
     }
     
     if (data == null) return null;
@@ -246,37 +267,48 @@ class WorkRequestService {
     // Auto-recover attachments from candidate storage buckets if empty
     if (request.attachmentUrls == null || request.attachmentUrls!.isEmpty) {
       const candidateBuckets = [
-        'work-request-attachments',
         'work-evidence',
+        'work-request-attachments',
         'work_evidence',
         'evidence',
         'images',
         'chat-attachments',
       ];
+      final candidatePaths = [
+        request.id,
+        'work-evidence/${request.id}',
+        'attachments/${request.id}',
+        'work-requests/${request.id}',
+      ];
+
       for (final bucket in candidateBuckets) {
-        try {
-          final files = await _db.storage.from(bucket).list(path: request.id);
-          if (files.isNotEmpty) {
-            final recoveredUrls = files
-                .where((f) => f.name.isNotEmpty && !f.name.startsWith('.'))
-                .map((f) => _db.storage.from(bucket).getPublicUrl('${request.id}/${f.name}'))
-                .toList();
-            if (recoveredUrls.isNotEmpty) {
-              request = request.copyWith(
-                attachmentUrls: recoveredUrls,
-                workEvidence: recoveredUrls.join(','),
-              );
-              // Opportunistically save to DB so future fetches don't need to re-query storage
-              try {
-                await _updateWithSchemaFallback(request.id, {
-                  'attachment_urls': recoveredUrls,
-                  'work_evidence': recoveredUrls.join(','),
-                });
-              } catch (_) {}
-              break;
+        bool found = false;
+        for (final path in candidatePaths) {
+          try {
+            final files = await _db.storage.from(bucket).list(path: path);
+            if (files.isNotEmpty) {
+              final recoveredUrls = files
+                  .where((f) => f.name.isNotEmpty && !f.name.startsWith('.'))
+                  .map((f) => _db.storage.from(bucket).getPublicUrl('$path/${f.name}'))
+                  .toList();
+              if (recoveredUrls.isNotEmpty) {
+                request = request.copyWith(
+                  attachmentUrls: recoveredUrls,
+                  workEvidence: jsonEncode(recoveredUrls),
+                );
+                // Opportunistically save to DB so future fetches don't need to re-query storage
+                try {
+                  await _updateWithSchemaFallback(request.id, {
+                    'work_evidence': jsonEncode(recoveredUrls),
+                  });
+                } catch (_) {}
+                found = true;
+                break;
+              }
             }
-          }
-        } catch (_) {}
+          } catch (_) {}
+        }
+        if (found) break;
       }
     }
 
@@ -599,7 +631,7 @@ class WorkRequestService {
     final path = '$workRequestId/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
     // List of buckets to try in priority order
-    final buckets = ['work-request-attachments', 'work-evidence', 'chat-attachments'];
+    final buckets = ['work-evidence', 'work-request-attachments', 'chat-attachments'];
 
     for (final bucket in buckets) {
       try {

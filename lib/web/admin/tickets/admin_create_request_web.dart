@@ -20,6 +20,7 @@ import '../../../shared/widgets/signature_pad_widget.dart';
 import '../shared/admin_styles.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import 'dart:convert';
 
 class AdminCreateRequestWeb extends StatefulWidget {
   final String? roomId;
@@ -421,7 +422,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
       final requestToInsert = request.copyWith(
         id: requestId,
         attachmentUrls: uploadedUrls.isNotEmpty ? uploadedUrls : null,
-        workEvidence: uploadedUrls.isNotEmpty ? uploadedUrls.join(',') : null,
+        workEvidence: uploadedUrls.isNotEmpty ? jsonEncode(uploadedUrls) : null,
       );
 
       final inserted = await WorkRequestService.insert(requestToInsert);

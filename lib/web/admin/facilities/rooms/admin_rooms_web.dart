@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../shared/models/room_model.dart';
 import '../../../../shared/services/room_service.dart';
+import '../../../../shared/widgets/attachment_image_widget.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../shared/admin_styles.dart';
 import 'add_room_page.dart';
@@ -39,6 +41,8 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
   bool _isLoading = true;
   bool _isGridView = false;
   RealtimeChannel? _roomsSubscription;
+  RealtimeChannel? _requestsSubscription;
+  Timer? _autoRefreshTimer;
 
   static const Color _primaryBlue = AdminStyles.primary;
   static const Color _successGreen = AdminStyles.success;
@@ -61,7 +65,26 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
     super.initState();
     _loadRooms();
     _roomsSubscription = RoomService.listenToAllRooms((_) {
-      _loadRooms();
+      if (mounted) _loadRooms();
+    });
+
+    try {
+      _requestsSubscription = Supabase.instance.client
+          .channel('public:work_requests:admin_rooms')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'work_requests',
+            callback: (_) {
+              if (mounted) _loadRooms();
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+
+    // Auto-refresh timer to ensure real-time status consistency even if websocket reconnects
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) _loadRooms();
     });
   }
 
@@ -81,17 +104,66 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
 
   Future<void> _loadRooms() async {
     try {
-      final rooms = await RoomService.fetchAll();
+      final roomsFuture = RoomService.fetchAll();
+      final requestsFuture = Supabase.instance.client
+          .from('work_requests')
+          .select('id, room_id, room, room_name, status');
+
+      final results = await Future.wait([
+        roomsFuture,
+        requestsFuture.catchError((_) => <dynamic>[]),
+      ]);
+
+      final rooms = results[0] as List<Room>;
+      final rawRequests = (results[1] as List).cast<Map<String, dynamic>>();
+
+      final activeRoomIds = <String>{};
+      final activeRoomNames = <String>{};
+
+      for (final req in rawRequests) {
+        final status = _lower(req['status']);
+        final isClosed = status == 'completed' ||
+            status == 'declined' ||
+            status == 'cancelled' ||
+            status == 'declined/cancelled';
+        if (isClosed) continue;
+
+        final roomId = (req['room_id'] ?? '').toString().trim().toLowerCase();
+        if (roomId.isNotEmpty) {
+          activeRoomIds.add(roomId);
+        }
+
+        final roomCodeOrName = (req['room'] ?? '').toString().trim().toLowerCase();
+        if (roomCodeOrName.isNotEmpty) {
+          activeRoomNames.add(roomCodeOrName);
+        }
+
+        final roomName = (req['room_name'] ?? '').toString().trim().toLowerCase();
+        if (roomName.isNotEmpty) {
+          activeRoomNames.add(roomName);
+        }
+      }
 
       if (!mounted) return;
 
       final mapped = rooms.map((room) {
-        final rawStatus = _lower(room.status);
-        final statusLabel = rawStatus == 'available'
-            ? 'Available'
-            : rawStatus == 'maintenance' || rawStatus == 'under maintenance' || rawStatus == 'under_maintenance'
-                ? 'Unavailable'
-                : _text(room.status, fallback: 'Unknown');
+        final roomIdLower = room.id.trim().toLowerCase();
+        final roomCodeLower = room.code.trim().toLowerCase();
+        final roomNameLower = room.name.trim().toLowerCase();
+
+        // A room is considered reported if there is an unresolved active work request
+        final isReported = activeRoomIds.contains(roomIdLower) ||
+            (roomCodeLower.isNotEmpty && activeRoomIds.contains(roomCodeLower)) ||
+            (roomCodeLower.isNotEmpty && activeRoomNames.contains(roomCodeLower)) ||
+            (roomNameLower.isNotEmpty && activeRoomNames.contains(roomNameLower));
+
+        final statusLabel = isReported ? 'Unavailable' : 'Available';
+
+        // Keep database status column in sync with active work request presence
+        final expectedDbStatus = isReported ? 'maintenance' : 'available';
+        if (room.status.toLowerCase() != expectedDbStatus) {
+          RoomService.updateStatus(room.id, expectedDbStatus).catchError((_) {});
+        }
 
         return {
           'room': room,
@@ -101,6 +173,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
           'building': _text(room.building),
           'roomType': _text(room.roomType),
           'status': statusLabel,
+          'imageUrl': room.imageUrl,
         };
       }).toList();
 
@@ -197,7 +270,9 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _roomsSubscription?.unsubscribe();
+    _requestsSubscription?.unsubscribe();
     _searchController.dispose();
     super.dispose();
   }
@@ -235,14 +310,6 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
   Widget _buildMainCard({required bool isMobile, required bool isTablet}) {
     final filteredRooms = _filteredRooms;
     final shouldStackHeaderActions = isMobile || isTablet;
-    final dropdownWidth = isMobile
-      ? double.infinity
-      : isTablet
-        ? 180.0
-        : 120.0;
-    const desktopSearchWidth = 280.0;
-    const desktopAddButtonWidth = 132.0;
-    const desktopRefreshButtonWidth = 40.0;
 
     return Container(
       decoration: AdminStyles.cardDecoration(),
@@ -435,10 +502,12 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                       child: LayoutBuilder(
                         builder: (context, constraints) {
                           final crossAxisCount = constraints.maxWidth > 1400
-                              ? 3
-                              : constraints.maxWidth > 600
-                                  ? 2
-                                  : 1;
+                              ? 4
+                              : constraints.maxWidth > 920
+                                  ? 3
+                                  : constraints.maxWidth > 580
+                                      ? 2
+                                      : 1;
 
                           return GridView.builder(
                             shrinkWrap: true,
@@ -447,7 +516,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                               crossAxisCount: crossAxisCount,
                               crossAxisSpacing: 20,
                               mainAxisSpacing: 20,
-                              mainAxisExtent: constraints.maxWidth < 600 ? 174 : (isMobile ? 196 : 174),
+                              mainAxisExtent: 290,
                             ),
                             itemCount: filteredRooms.length,
                             itemBuilder: (context, index) {
@@ -472,7 +541,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                             separatorBuilder: (context, index) => const SizedBox(height: 16),
                             itemBuilder: (context, index) {
                               return SizedBox(
-                                height: 174,
+                                height: 290,
                                 child: _RoomCard(
                                   room: filteredRooms[index],
                                   onViewRoom: widget.onViewRoom,
@@ -1100,191 +1169,339 @@ class _RoomCardState extends State<_RoomCard> {
   @override
   Widget build(BuildContext context) {
     final isAvailable = _lower(widget.room['status']) == 'available';
-    final statusColor = isAvailable ? AdminStyles.success : AdminStyles.error;
+    final selectedRoom = widget.room['room'] as Room;
+    final rawImageUrl = widget.room['imageUrl'] ?? selectedRoom.imageUrl;
+    final hasImage = rawImageUrl != null && rawImageUrl.toString().trim().isNotEmpty;
+    final imageUrl = hasImage ? rawImageUrl.toString().trim() : '';
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
-      decoration: AdminStyles.cardDecoration(
-        borderRadius: 24,
-      ),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isHovered ? AdminStyles.primary.withValues(alpha: 0.5) : AdminStyles.border,
+            width: _isHovered ? 1.5 : 1.0,
+          ),
+          boxShadow: _isHovered
+              ? [
+                  BoxShadow(
+                    color: AdminStyles.primary.withValues(alpha: 0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AdminStyles.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _text(widget.room['code'], fallback: 'N/A'),
-                    style: AdminStyles.headingStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AdminStyles.primary,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: AdminStyles.pillDecoration(color: statusColor, isSecondary: true),
-                  child: Text(
-                    _text(widget.room['status'], fallback: 'Unknown').toUpperCase(),
-                    style: AdminStyles.headingStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      color: statusColor,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            LayoutBuilder(
-              builder: (context, cardConstraints) {
-                final isNarrow = cardConstraints.maxWidth < 300;
-
-                if (isNarrow) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _text(widget.room['name'], fallback: 'Unnamed Room'),
-                        style: AdminStyles.headingStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+            // Top Image or Fallback Banner (only visible in Grid View)
+            SizedBox(
+              height: 136,
+              width: double.infinity,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (hasImage)
+                    GestureDetector(
+                      onTap: () => showAttachmentZoomDialog(context, imageUrl),
+                      child: AppAttachmentImage(
+                        url: imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        height: 136,
                       ),
-                      const SizedBox(height: 6),
-                      Row(
+                    )
+                  else
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFF1F5F9), Color(0xFFE2E8F0)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.meeting_room_outlined,
+                              size: 34,
+                              color: AdminStyles.primary.withValues(alpha: 0.35),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'No room photo',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AdminStyles.textMuted.withValues(alpha: 0.8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // Subtle gradient overlay on top of image for badge legibility
+                  if (hasImage)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.45),
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.25),
+                              ],
+                              stops: const [0.0, 0.5, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Room Code Badge (Top-Left)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: hasImage ? Colors.white.withValues(alpha: 0.95) : AdminStyles.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: hasImage
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.12),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Text(
+                        _text(widget.room['code'], fallback: 'N/A'),
+                        style: AdminStyles.headingStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AdminStyles.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Status Badge (Top-Right)
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isAvailable ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.15),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.apartment_outlined, size: 12, color: AdminStyles.textMuted),
-                          const SizedBox(width: 4),
-                          Expanded(
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            _text(widget.room['status'], fallback: 'Unknown').toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Zoom Hint Button (Bottom-Right if has image)
+                  if (hasImage)
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: Tooltip(
+                        message: 'Click to view photo',
+                        child: InkWell(
+                          onTap: () => showAttachmentZoomDialog(context, imageUrl),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.5),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.zoom_in_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // Card Body Details
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _text(widget.room['name'], fallback: 'Unnamed Room'),
+                          style: AdminStyles.headingStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AdminStyles.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            const Icon(Icons.apartment_outlined, size: 13, color: AdminStyles.textMuted),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                _text(widget.room['building']),
+                                style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            const Icon(Icons.school_outlined, size: 13, color: AdminStyles.textMuted),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                _text(widget.room['department']),
+                                style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+
+                    // Bottom Row: Room Type Badge & Action Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(5),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
                             child: Text(
-                              _text(widget.room['building']),
-                              style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                              _text(widget.room['roomType'], fallback: 'Room'),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF475569),
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          _ActionIconButton(
-                            tooltip: 'View room',
-                            icon: Icons.visibility_outlined,
-                            onTap: () {
-                              final selectedRoom = widget.room['room'] as Room;
-                              if (widget.onViewRoom != null) {
-                                widget.onViewRoom!(selectedRoom);
-                                return;
-                              }
+                        ),
+                        const SizedBox(width: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _ActionIconButton(
+                              tooltip: 'View room',
+                              icon: Icons.visibility_outlined,
+                              onTap: () {
+                                final selectedRoom = widget.room['room'] as Room;
+                                if (widget.onViewRoom != null) {
+                                  widget.onViewRoom!(selectedRoom);
+                                  return;
+                                }
 
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => AdminRoomDetailsPageWeb(room: selectedRoom),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                }
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _text(widget.room['name'], fallback: 'Unnamed Room'),
-                            style: AdminStyles.headingStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AdminRoomDetailsPageWeb(room: selectedRoom),
+                                  ),
+                                );
+                              },
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              const Icon(Icons.apartment_outlined, size: 14, color: AdminStyles.textMuted),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  _text(widget.room['building']),
-                                  style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                            if (widget.showAddEdit && widget.onEditRoom != null) ...[
+                              const SizedBox(width: 6),
+                              _ActionIconButton(
+                                tooltip: 'Edit room',
+                                icon: Icons.edit_outlined,
+                                onTap: () {
+                                  final selectedRoom = widget.room['room'] as Room;
+                                  widget.onEditRoom!(selectedRoom);
+                                },
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              const Icon(Icons.badge_outlined, size: 14, color: AdminStyles.textMuted),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  _text(widget.room['department']),
-                                  style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _ActionIconButton(
-                          tooltip: 'View room',
-                          icon: Icons.visibility_outlined,
-                          onTap: () {
-                            final selectedRoom = widget.room['room'] as Room;
-                            if (widget.onViewRoom != null) {
-                              widget.onViewRoom!(selectedRoom);
-                              return;
-                            }
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AdminRoomDetailsPageWeb(room: selectedRoom),
-                              ),
-                            );
-                          },
+                          ],
                         ),
                       ],
                     ),
                   ],
-                );
-              },
+                ),
+              ),
             ),
           ],
         ),
-      );
+      ),
+    );
   }
 }
 
