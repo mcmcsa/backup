@@ -1173,11 +1173,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       return DateFormat('MMM dd, HH:mm').format(date.toLocal());
     }
 
-    String formatDate(DateTime? date) {
-      if (date == null) return '';
-      return DateFormat('MMM dd, yyyy').format(date.toLocal());
-    }
-
     // 1. Request Submitted
     steps.add(_TimelineStep(
       title: 'Request Submitted',
@@ -1234,91 +1229,119 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     ));
 
     // 5. Pre-Inspection Review Decision
-    if (hasPreInsp) {
-      final isReviewed = _preInspection!.status == 'Approved' || _preInspection!.status == 'Declined';
-      final isPreInspDeclined = _preInspection!.status == 'Declined';
-      final approvedByName = _preInspection!.adminApprovedBy != null
-          ? (_userNames[_preInspection!.adminApprovedBy] ?? _preInspection!.adminApprovedBy)
-          : "Admin";
-      
-      steps.add(_TimelineStep(
-        title: isPreInspDeclined ? 'Pre-Inspection Declined' : 'Pre-Inspection Approved',
-        subtitle: isReviewed
-            ? '${_preInspection!.status} by $approvedByName'
-            : 'Awaiting pre-inspection review.',
-        time: formatTime(_preInspection?.adminApprovedDate),
-        isCompleted: isReviewed && !isPreInspDeclined,
-        isActive: !isReviewed,
-        isWarning: isPreInspDeclined,
-      ));
+    final isReviewed = hasPreInsp && (_preInspection!.status == 'Approved' || _preInspection!.status == 'Declined');
+    final isPreInspDeclined = hasPreInsp && _preInspection!.status == 'Declined';
+    final isPreInspApproved = hasPreInsp && _preInspection!.status == 'Approved';
+    final approvedByName = _preInspection?.adminApprovedBy != null
+        ? (_userNames[_preInspection!.adminApprovedBy] ?? _preInspection!.adminApprovedBy)
+        : "Campus Admin";
+    
+    steps.add(_TimelineStep(
+      title: isPreInspDeclined
+          ? 'Pre-Inspection Declined'
+          : (isPreInspApproved ? 'Pre-Inspection Approved' : 'Pre-Inspection Review'),
+      subtitle: isReviewed
+          ? '${_preInspection!.status} by $approvedByName'
+          : (hasPreInsp ? 'Awaiting Campus Admin review.' : 'Pending pre-inspection submission.'),
+      time: formatTime(_preInspection?.adminApprovedDate),
+      isCompleted: isPreInspApproved,
+      isActive: hasPreInsp && !isReviewed,
+      isWarning: isPreInspDeclined,
+    ));
 
-      if (isPreInspDeclined) {
-        return steps.asMap().entries.map((e) => _buildTimelineItem(e.value, isLast: e.key == steps.length - 1)).toList();
-      }
+    if (isPreInspDeclined) {
+      return steps.asMap().entries.map((e) => _buildTimelineItem(e.value, isLast: e.key == steps.length - 1)).toList();
     }
 
-    // 6. Post-Repair Attempts
     final sortedAttempts = List<PostRepairReport>.from(_postRepairs)
       ..sort((a, b) {
         int cmp = a.repairDate.compareTo(b.repairDate);
         if (cmp != 0) return cmp;
         return a.attemptNumber.compareTo(b.attemptNumber);
       });
+    final hasPostRepair = sortedAttempts.isNotEmpty;
+    final isCompleted = task.status.toLowerCase() == 'completed';
 
-    for (int i = 0; i < sortedAttempts.length; i++) {
-      final report = sortedAttempts[i];
-      steps.add(_TimelineStep(
-        title: 'Post-Repair Report Submitted',
-        subtitle: 'Submitted by ${report.technicianName}',
-        time: formatTime(report.repairDate),
-        isCompleted: true,
-        isActive: false,
-      ));
-
-      final isEvaluated = report.adminEvaluation != null;
-      final isRework = report.adminEvaluation == 'rework';
-      final evaluatedByName = report.adminEvaluatedBy != null
-          ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
-          : "Admin";
-      
-      final isLatestReport = i == sortedAttempts.length - 1;
-      if (isEvaluated || isLatestReport) {
+    // 6. Post-Repair Attempts & Evaluations
+    if (hasPostRepair) {
+      for (int i = 0; i < sortedAttempts.length; i++) {
+        final report = sortedAttempts[i];
+        final attemptSuffix = sortedAttempts.length > 1 ? ' (Attempt #${report.attemptNumber})' : '';
         steps.add(_TimelineStep(
-          title: isRework ? 'Post-Repair Evaluation Completed - Rework' : 'Post-Repair Evaluation',
-          subtitle: isEvaluated
-              ? (isRework
-                  ? 'Rework required by $evaluatedByName'
-                  : 'Approved by $evaluatedByName')
-              : 'Awaiting evaluation.',
-          time: formatTime(report.adminEvaluatedDate),
-          isCompleted: isEvaluated,
-          isActive: !isEvaluated,
-          isWarning: isRework,
+          title: 'Post-Repair Report$attemptSuffix',
+          subtitle: 'Submitted by ${report.technicianName}',
+          time: formatTime(report.repairDate),
+          isCompleted: true,
+          isActive: false,
+        ));
+
+        final isEvaluated = report.adminEvaluation != null;
+        final isRework = report.adminEvaluation == 'rework';
+        final evaluatedByName = report.adminEvaluatedBy != null
+            ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
+            : "Campus Admin";
+        
+        final isLatestReport = i == sortedAttempts.length - 1;
+        if (isEvaluated || isLatestReport) {
+          steps.add(_TimelineStep(
+            title: isRework ? 'Post-Repair Evaluation - Rework Required' : 'Post-Repair Evaluation',
+            subtitle: isEvaluated
+                ? (isRework
+                    ? 'Rework required by $evaluatedByName'
+                    : 'Approved by $evaluatedByName')
+                : 'Awaiting Campus Admin evaluation.',
+            time: formatTime(report.adminEvaluatedDate),
+            isCompleted: isEvaluated && !isRework,
+            isActive: !isEvaluated,
+            isWarning: isRework,
+          ));
+        }
+      }
+
+      // If the latest evaluation was rework, append a pending Post-Repair Report step
+      if (sortedAttempts.last.adminEvaluation == 'rework') {
+        final nextAttempt = sortedAttempts.length + 1;
+        steps.add(_TimelineStep(
+          title: 'Post-Repair Report (Attempt #$nextAttempt)',
+          subtitle: 'Awaiting post-repair submission (Rework).',
+          time: null,
+          isCompleted: false,
+          isActive: true,
         ));
       }
-    }
-
-    // If the latest evaluation was rework, append a pending Post-Repair Report step
-    if (sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'rework') {
+    } else {
+      // Keep Post-Repair Report and Post-Repair Evaluation visible even before first report submission!
       steps.add(_TimelineStep(
         title: 'Post-Repair Report',
-        subtitle: 'Awaiting post-repair report (Rework).',
+        subtitle: isPreInspApproved
+            ? 'Awaiting post-repair submission from technician.'
+            : 'Pending repair completion.',
         time: null,
         isCompleted: false,
-        isActive: true,
+        isActive: isPreInspApproved && !isCompleted,
+      ));
+
+      steps.add(_TimelineStep(
+        title: 'Post-Repair Evaluation',
+        subtitle: 'Pending post-repair report submission.',
+        time: null,
+        isCompleted: false,
+        isActive: false,
       ));
     }
 
-    // 7. Final Completion
-    final isCompleted = task.status.toLowerCase() == 'completed';
+    // 8. Final Completion
+    final hasSatisfiedEval = hasPostRepair && sortedAttempts.last.adminEvaluation == 'satisfied';
     steps.add(_TimelineStep(
       title: 'Completed & Verified',
       subtitle: isCompleted
           ? 'Work request fully verified and completed.'
-          : 'Awaiting final verification and close out.',
+          : (hasSatisfiedEval
+              ? 'Awaiting final verification and close out.'
+              : 'Pending work completion and evaluation.'),
       time: formatTime(task.dateCompleted),
       isCompleted: isCompleted,
-      isActive: !isCompleted && sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'satisfied',
+      isActive: !isCompleted && hasSatisfiedEval,
     ));
 
     return steps.asMap().entries.map((e) => _buildTimelineItem(e.value, isLast: e.key == steps.length - 1)).toList();
@@ -1326,14 +1349,15 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
 
   Widget _buildTimelineItem(_TimelineStep step, {bool isLast = false}) {
     Color color = AdminStyles.primary;
-    if (step.isCompleted)
+    if (step.isCompleted) {
       color = AdminStyles.success;
-    else if (step.isActive)
+    } else if (step.isActive) {
       color = AdminStyles.primary;
-    else if (step.isWarning)
+    } else if (step.isWarning) {
       color = AdminStyles.error;
-    else
+    } else {
       color = AdminStyles.textMuted.withValues(alpha: 0.3);
+    }
 
     return IntrinsicHeight(
       child: Row(
@@ -1371,8 +1395,11 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                           ),
                         ),
                       ),
-                      if (step.time != null) ...[
+                      if (step.action != null) ...[
+                        step.action!,
                         const SizedBox(width: 8),
+                      ],
+                      if (step.time != null) ...[
                         Text(step.time!, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
                       ],
                     ],
@@ -1743,9 +1770,11 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   Widget _buildActionCard() {
     final status = _request!.status;
     final hasMaintenanceCompletionSignature = _signatures.any((sig) =>
-        sig.signatureType == 'completion' && sig.signerRole == 'maintenance');
+        (sig.signatureType == 'completion' || sig.signatureType == 'post_repair') && sig.signerRole == 'maintenance') ||
+        (_postRepair != null && (_postRepair!.status == 'Completed' || _postRepair!.adminEvaluation == 'satisfied'));
     final hasAdminCompletionSignature = _signatures.any((sig) =>
-        sig.signatureType == 'completion' && sig.signerRole == 'admin');
+        sig.signatureType == 'completion' && sig.signerRole == 'admin') ||
+        status == 'Completed';
 
     return Container(
       key: _actionsKey,
@@ -1766,20 +1795,22 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
               _buildActionButton('Review Pre-Inspection', Icons.fact_check_rounded, AdminStyles.warning, () {
                 setState(() => _activeSubView = 'preInspection');
               })
-            else
+            else ...[
               _buildActionButton('View Pre-Inspection', Icons.visibility_rounded, AdminStyles.primary.withValues(alpha: 0.8), () {
                 setState(() => _activeSubView = 'preInspection');
               }),
+            ],
           ],
           if (_postRepair != null) ...[
             if (_postRepair!.status == 'Pending')
               _buildActionButton('Review Post-Repair Inspection', Icons.rate_review_rounded, AdminStyles.success, () {
                 setState(() => _activeSubView = 'postRepair');
               })
-            else
+            else ...[
               _buildActionButton('View Post-Repair', Icons.visibility_rounded, AdminStyles.primary.withValues(alpha: 0.8), () {
                 setState(() => _activeSubView = 'postRepair');
               }),
+            ],
           ],
           if (hasMaintenanceCompletionSignature && !hasAdminCompletionSignature && status != 'Completed') ...[
             _buildActionButton('Confirm Work Request', Icons.verified_rounded, AdminStyles.success, () {
@@ -2002,8 +2033,17 @@ class _TimelineStep {
   final bool isCompleted;
   final bool isActive;
   final bool isWarning;
+  final Widget? action;
 
-  _TimelineStep({required this.title, required this.subtitle, this.time, required this.isCompleted, required this.isActive, this.isWarning = false});
+  _TimelineStep({
+    required this.title,
+    required this.subtitle,
+    this.time,
+    required this.isCompleted,
+    required this.isActive,
+    this.isWarning = false,
+    this.action,
+  });
 }
 
 /// Header icon button with professional styling and badge support

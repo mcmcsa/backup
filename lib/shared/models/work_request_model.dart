@@ -212,6 +212,8 @@ class WorkRequest {
               ? map['requestor_name'] as String
               : null) ??
           _nestedText(map['requestor'], 'name') ??
+          _nestedText(map['reported_by'], 'name') ??
+          _nestedText(map['users'], 'name') ??
           '',
       requestorPosition: (map['requestor_position']?.toString().trim().isNotEmpty == true
               ? map['requestor_position'] as String
@@ -231,6 +233,8 @@ class WorkRequest {
               ? map['reported_by_name'] as String
               : null) ??
           _nestedText(map['requestor'], 'name') ??
+          _nestedText(map['reported_by'], 'name') ??
+          _nestedText(map['users'], 'name') ??
           (map['requestor_name']?.toString().trim().isNotEmpty == true
               ? map['requestor_name'] as String
               : null) ??

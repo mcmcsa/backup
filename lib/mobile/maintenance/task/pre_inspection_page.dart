@@ -161,12 +161,17 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
         'In Progress',
       );
 
-      // 4. Notify Campus Admin
-      await AppNotificationService.notifyPreInspectionSubmittedToAdmin(
-        workRequestId: widget.request.id,
-        maintenanceName: user.name,
-        adminId: widget.request.approvedById,
-      );
+      // 4. Notify Campus Admin and Requestor for transparency
+      try {
+        await AppNotificationService.notifyPreInspectionSubmittedToAdmin(
+          workRequestId: widget.request.id,
+          maintenanceName: user.name,
+          adminId: widget.request.approvedById,
+          requestorId: widget.request.requestorId,
+        );
+      } catch (e) {
+        debugPrint('Pre-inspection notification error: $e');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -1487,56 +1487,64 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
               ],
 
               if (_preInspectionReport != null) ...[
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => AdminPreInspectionReviewPage(request: _request),
-                      ),
-                    ).then((_) => _loadWorkflowData());
-                  },
-                  icon: const Icon(Icons.assignment_outlined, size: 20),
-                  label: const Text(
-                    'View Pre-Inspection Report',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4169E1),
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AdminPreInspectionReviewPage(request: _request),
+                        ),
+                      ).then((_) => _loadWorkflowData());
+                    },
+                    icon: const Icon(Icons.fact_check, size: 18),
+                    label: Text(
+                      _preInspectionReport!.status == 'Pending' ? 'Review Pre-Inspection' : 'View Pre-Inspection',
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                     ),
-                    elevation: 0,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _preInspectionReport!.status == 'Pending'
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFF4169E1),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 0,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
               ],
 
               if (_postRepairReports.isNotEmpty) ...[
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PostRepairPage(request: _request),
-                      ),
-                    ).then((_) => _loadWorkflowData());
-                  },
-                  icon: const Icon(Icons.history, size: 20),
-                  label: const Text(
-                    'View Post-Repair Reports',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4169E1),
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PostRepairPage(request: _request),
+                        ),
+                      ).then((_) => _loadWorkflowData());
+                    },
+                    icon: const Icon(Icons.history, size: 18),
+                    label: const Text(
+                      'View Post-Repair Reports',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                     ),
-                    elevation: 0,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4169E1),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      elevation: 0,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -2012,114 +2020,148 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     );
     final isPreInspectionReviewed = preInspection != null &&
         (preInspection.status == 'Approved' || preInspection.status == 'Declined');
+    final isPreInspApproved = preInspection?.status == 'Approved';
     final approvedByName = preInspection?.adminApprovedBy != null
         ? (_userNames[preInspection!.adminApprovedBy] ?? preInspection.adminApprovedBy)
         : "Admin";
     items.add(
       _buildTimelineItem(
-        title: 'Pre-Inspection Review Decision',
+        title: preInspection?.status == 'Approved'
+            ? 'Pre-Inspection Approved'
+            : (preInspection?.status == 'Declined' ? 'Pre-Inspection Declined' : 'Pre-Inspection Review'),
         isDone: isPreInspectionReviewed,
         subtitle: isPreInspectionReviewed
             ? '${preInspection.status} by $approvedByName'
-            : 'Awaiting admin pre-inspection decision',
+            : (preInspection != null ? 'Awaiting admin pre-inspection decision' : 'Pending pre-inspection submission'),
         signature: preInspApprovalSig.signatureData.isNotEmpty ? preInspApprovalSig : null,
         details: null,
       ),
     );
 
-    // 6. Post-Repair Attempts
     final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
       ..sort((a, b) {
         int cmp = a.repairDate.compareTo(b.repairDate);
         if (cmp != 0) return cmp;
         return a.attemptNumber.compareTo(b.attemptNumber);
       });
+    final hasPostRepair = sortedAttempts.isNotEmpty;
+    final isCompleted = request.status.toLowerCase() == 'completed';
 
-    for (int i = 0; i < sortedAttempts.length; i++) {
-      final report = sortedAttempts[i];
-      final attemptTechSig = _signatures.firstWhere(
-        (s) => s.signatureType == 'post_repair' && s.signerId == report.technicianId,
-        orElse: () => ESignature(
-          id: '',
-          workRequestId: '',
-          signerId: '',
-          signerName: '',
-          signerRole: '',
-          signatureType: '',
-          signatureData: '',
-          signedAt: DateTime.now(),
-        ),
-      );
-      items.add(
-        _buildTimelineItem(
-          title: 'Post-Repair Report Submitted',
-          isDone: true,
-          subtitle: 'Submitted by ${report.technicianName}',
-          signature: attemptTechSig.signatureData.isNotEmpty ? attemptTechSig : null,
-          details: null,
-        ),
-      );
-
-      final isEvaluated = report.adminEvaluation != null;
-      final isRework = report.adminEvaluation == 'rework';
-      final attemptAdminSig = _signatures.firstWhere(
-        (s) => s.signatureType == 'completion' && s.signerId == report.adminEvaluatedBy,
-        orElse: () => ESignature(
-          id: '',
-          workRequestId: '',
-          signerId: '',
-          signerName: '',
-          signerRole: '',
-          signatureType: '',
-          signatureData: '',
-          signedAt: DateTime.now(),
-        ),
-      );
-      final evaluatedByName = report.adminEvaluatedBy != null
-          ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
-          : "Admin";
-      
-      final isLatestReport = i == sortedAttempts.length - 1;
-      if (isEvaluated || isLatestReport) {
+    // 6. Post-Repair Attempts & Evaluations
+    if (hasPostRepair) {
+      for (int i = 0; i < sortedAttempts.length; i++) {
+        final report = sortedAttempts[i];
+        final attemptTechSig = _signatures.firstWhere(
+          (s) => s.signatureType == 'post_repair' && s.signerId == report.technicianId,
+          orElse: () => ESignature(
+            id: '',
+            workRequestId: '',
+            signerId: '',
+            signerName: '',
+            signerRole: '',
+            signatureType: '',
+            signatureData: '',
+            signedAt: DateTime.now(),
+          ),
+        );
+        final attemptSuffix = sortedAttempts.length > 1 ? ' (Attempt #${report.attemptNumber})' : '';
         items.add(
           _buildTimelineItem(
-            title: isRework
-                ? 'Post-Repair Evaluation Completed - Rework'
-                : 'Post-Repair Evaluation',
-            isDone: isEvaluated && !isRework,
-            isRework: isRework,
-            subtitle: isEvaluated
-                ? '${report.adminEvaluation == "satisfied" ? "SATISFIED (Approved)" : "REWORK REQUIRED"} by $evaluatedByName'
-                : 'Awaiting admin post-repair evaluation',
-            signature: attemptAdminSig.signatureData.isNotEmpty ? attemptAdminSig : null,
+            title: 'Post-Repair Report$attemptSuffix',
+            isDone: true,
+            subtitle: 'Submitted by ${report.technicianName}',
+            signature: attemptTechSig.signatureData.isNotEmpty ? attemptTechSig : null,
+            details: null,
+          ),
+        );
+
+        final isEvaluated = report.adminEvaluation != null;
+        final isRework = report.adminEvaluation == 'rework';
+        final attemptAdminSig = _signatures.firstWhere(
+          (s) => s.signatureType == 'completion' && s.signerId == report.adminEvaluatedBy,
+          orElse: () => ESignature(
+            id: '',
+            workRequestId: '',
+            signerId: '',
+            signerName: '',
+            signerRole: '',
+            signatureType: '',
+            signatureData: '',
+            signedAt: DateTime.now(),
+          ),
+        );
+        final evaluatedByName = report.adminEvaluatedBy != null
+            ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
+            : "Admin";
+        
+        final isLatestReport = i == sortedAttempts.length - 1;
+        if (isEvaluated || isLatestReport) {
+          items.add(
+            _buildTimelineItem(
+              title: isRework
+                  ? 'Post-Repair Evaluation - Rework Required'
+                  : 'Post-Repair Evaluation',
+              isDone: isEvaluated && !isRework,
+              isRework: isRework,
+              subtitle: isEvaluated
+                  ? '${isRework ? "REWORK REQUIRED" : "SATISFIED (Approved)"} by $evaluatedByName'
+                  : 'Awaiting admin post-repair evaluation',
+              signature: attemptAdminSig.signatureData.isNotEmpty ? attemptAdminSig : null,
+              details: null,
+            ),
+          );
+        }
+      }
+
+      // If the latest evaluation was rework, append a pending Post-Repair Report step
+      if (sortedAttempts.last.adminEvaluation == 'rework') {
+        final nextAttempt = sortedAttempts.length + 1;
+        items.add(
+          _buildTimelineItem(
+            title: 'Post-Repair Report (Attempt #$nextAttempt)',
+            isDone: false,
+            subtitle: 'Awaiting post-repair submission (Rework).',
+            signature: null,
             details: null,
           ),
         );
       }
-    }
-
-    // If the latest evaluation was rework, append a pending Post-Repair Report step
-    if (sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'rework') {
+    } else {
+      // Keep Post-Repair Report and Post-Repair Evaluation visible even before first report submission!
       items.add(
         _buildTimelineItem(
           title: 'Post-Repair Report',
           isDone: false,
-          subtitle: 'Awaiting post-repair report (Rework).',
+          subtitle: isPreInspApproved
+              ? 'Awaiting post-repair submission from technician.'
+              : 'Pending repair completion.',
+          signature: null,
+          details: null,
+        ),
+      );
+
+      items.add(
+        _buildTimelineItem(
+          title: 'Post-Repair Evaluation',
+          isDone: false,
+          subtitle: 'Pending post-repair report submission.',
           signature: null,
           details: null,
         ),
       );
     }
 
-    // 7. Final Completion
-    final isCompleted = request.status.toLowerCase() == 'completed';
+    // 8. Final Completion
+    final hasSatisfiedEval = hasPostRepair && sortedAttempts.last.adminEvaluation == 'satisfied';
     items.add(
       _buildTimelineItem(
-        title: 'Work Completed & Closed',
+        title: 'Completed & Verified',
         isDone: isCompleted,
         subtitle: isCompleted
             ? 'Completed on ${_formatDateTime(request.updatedAt)}'
-            : 'Awaiting final completion approval',
+            : (hasSatisfiedEval
+                ? 'Awaiting final verification and close out.'
+                : 'Pending work completion and evaluation.'),
         isLast: true,
       ),
     );

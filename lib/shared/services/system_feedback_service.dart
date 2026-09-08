@@ -48,10 +48,11 @@ class SystemFeedbackService {
     String? reply,
   }) async {
     try {
-      await _db.from(_table).update({
-        'status': status,
-        'admin_reply': ?reply,
-      }).eq('id', id);
+      final updateData = <String, dynamic>{'status': status};
+      if (reply != null && reply.trim().isNotEmpty) {
+        updateData['admin_reply'] = reply.trim();
+      }
+      await _db.from(_table).update(updateData).eq('id', id);
 
       await AdminAuditLogService.logAction(
         title: 'Resolved User Feedback',

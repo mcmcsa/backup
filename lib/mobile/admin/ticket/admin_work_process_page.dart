@@ -209,82 +209,104 @@ class _AdminWorkProcessPageState extends State<AdminWorkProcessPage> {
   }
 
   Widget _buildWorkflowTimeline() {
+    final hasPreInsp = _preInspection != null;
+    final isPreInspApproved = _preInspection?.status == 'Approved';
+    final isPreInspDeclined = _preInspection?.status == 'Declined';
+    final hasPostRepair = _postRepair != null;
+    final isCompleted = _request!.status == 'Completed';
+    final isPostRepairEvaluated = _postRepair?.adminEvaluation != null;
+    final isRework = _postRepair?.adminEvaluation == 'rework' || _request!.status == 'Rework';
+
     final steps = <_TimelineStep>[
       _TimelineStep(
-        title: 'Report Submitted',
+        title: 'Request Submitted',
         subtitle: 'By ${_request!.requestorName}',
-        time: DateFormat('MMM dd HH:mm').format(_request!.dateSubmitted),
+        time: DateFormat('MMM dd, HH:mm').format(_request!.dateSubmitted),
         isCompleted: true,
-        isActive: _request!.status == 'Pending',
+        isActive: false,
       ),
       _TimelineStep(
-        title: 'Admin Approval',
-        subtitle: _request!.approvedBy != null ? 'Signed by ${_request!.approvedBy}' : 'Awaiting admin e-signature',
-        time: _request!.approvedDate != null ? DateFormat('MMM dd HH:mm').format(_request!.approvedDate!) : null,
+        title: 'Admin Review & Approval',
+        subtitle: _request!.approvedDate != null
+            ? 'Approved by ${_request!.approvedByName ?? "Campus Admin"}'
+            : 'Awaiting admin review & approval',
+        time: _request!.approvedDate != null ? DateFormat('MMM dd, HH:mm').format(_request!.approvedDate!) : null,
         isCompleted: _request!.approvedDate != null,
-        isActive: _request!.status == 'Pending',
+        isActive: _request!.approvedDate == null && _request!.status == 'Pending',
       ),
       _TimelineStep(
-        title: 'Maintenance Acceptance',
-        subtitle: _request!.acceptedByName != null ? 'Accepted by ${_request!.acceptedByName}' : 'Awaiting maintenance',
-        time: _request!.acceptedDate != null ? DateFormat('MMM dd HH:mm').format(_request!.acceptedDate!) : null,
+        title: 'Maintenance Assignment',
+        subtitle: _request!.acceptedDate != null
+            ? 'Accepted by ${_request!.acceptedByName ?? "Technician"}'
+            : (_request!.assignedToId != null
+                ? 'Assigned. Awaiting technician acceptance'
+                : 'Pending technician assignment'),
+        time: _request!.acceptedDate != null ? DateFormat('MMM dd, HH:mm').format(_request!.acceptedDate!) : null,
         isCompleted: _request!.acceptedDate != null,
-        isActive: _request!.status == 'In Progress' && _request!.acceptedDate == null,
+        isActive: _request!.acceptedDate == null && _request!.assignedToId != null,
       ),
       _TimelineStep(
         title: 'Pre-Inspection',
-        subtitle: _preInspection != null ? 'Report: ${_preInspection!.statusLabel}' : 'Pending inspection',
-        time: _preInspection != null ? DateFormat('MMM dd HH:mm').format(_preInspection!.inspectionDate) : null,
-        isCompleted: _preInspection?.status == 'Approved',
-        isActive: _request!.status == 'In Progress',
+        subtitle: hasPreInsp
+            ? 'Submitted by ${_preInspection!.inspectorName}'
+            : 'Awaiting pre-inspection',
+        time: hasPreInsp ? DateFormat('MMM dd, HH:mm').format(_preInspection!.inspectionDate) : null,
+        isCompleted: hasPreInsp,
+        isActive: !hasPreInsp && _request!.acceptedDate != null,
       ),
       _TimelineStep(
-        title: 'Pre-Inspection Review',
-        subtitle: _request!.status == 'Confirmed' || _request!.status == 'Rework' || _request!.status == 'Completed'
-            ? 'Confirmed Work Request'
-            : _request!.status == 'Declined'
-                ? 'Declined Work Request'
-                : 'Awaiting review',
-        time: _request!.status == 'Confirmed' || _request!.status == 'Declined' ? DateFormat('MMM dd HH:mm').format(DateTime.now()) : null,
-        isCompleted: ['Confirmed', 'Rework', 'Completed', 'Declined'].contains(_request!.status),
-        isActive: _request!.status == 'In Progress' && _preInspection != null,
+        title: isPreInspApproved
+            ? 'Pre-Inspection Approved'
+            : (isPreInspDeclined ? 'Pre-Inspection Declined' : 'Pre-Inspection Review'),
+        subtitle: hasPreInsp
+            ? (_preInspection!.status == 'Approved' || _preInspection!.status == 'Declined'
+                ? '${_preInspection!.status} by Campus Admin'
+                : 'Awaiting Campus Admin decision')
+            : 'Pending pre-inspection submission',
+        time: _preInspection?.adminApprovedDate != null
+            ? DateFormat('MMM dd, HH:mm').format(_preInspection!.adminApprovedDate!)
+            : null,
+        isCompleted: isPreInspApproved,
+        isActive: hasPreInsp && _preInspection!.status == 'Pending',
       ),
-      if (_request!.status != 'Declined') ...[
-        _TimelineStep(
-          title: 'Under Maintenance',
-          subtitle: _request!.status == 'Confirmed' || _request!.status == 'Rework' || _request!.status == 'Completed'
-              ? 'Work in progress' : 'Waiting for pre-inspection approval',
-          time: _request!.maintenanceStartTime != null
-              ? DateFormat('MMM dd HH:mm').format(_request!.maintenanceStartTime!)
-              : null,
-          isCompleted: _request!.status == 'Completed' || _postRepair != null,
-          isActive: _request!.status == 'Confirmed' || _request!.status == 'Rework',
-        ),
+      if (!isPreInspDeclined && _request!.status != 'Declined') ...[
         _TimelineStep(
           title: 'Post-Repair Report',
-          subtitle: _postRepair != null ? 'Status: ${_postRepair!.statusLabel}' : 'Awaiting completion',
-          time: _postRepair != null ? DateFormat('MMM dd HH:mm').format(_postRepair!.repairDate) : null,
-          isCompleted: _postRepair?.status == 'Completed',
-          isActive: _postRepair?.status == 'Pending',
+          subtitle: hasPostRepair
+              ? 'Submitted by ${_postRepair!.technicianName}'
+              : (isPreInspApproved
+                  ? 'Awaiting post-repair submission from technician'
+                  : 'Pending repair completion'),
+          time: hasPostRepair ? DateFormat('MMM dd, HH:mm').format(_postRepair!.repairDate) : null,
+          isCompleted: hasPostRepair,
+          isActive: isPreInspApproved && !hasPostRepair && !isCompleted,
+        ),
+        _TimelineStep(
+          title: isRework ? 'Post-Repair Evaluation - Rework' : 'Post-Repair Evaluation',
+          subtitle: isPostRepairEvaluated
+              ? (isRework ? 'REWORK REQUIRED by Campus Admin' : 'SATISFIED (Approved) by Campus Admin')
+              : (hasPostRepair
+                  ? 'Awaiting Campus Admin post-repair evaluation'
+                  : 'Pending post-repair report submission'),
+          time: _postRepair?.adminEvaluatedDate != null
+              ? DateFormat('MMM dd, HH:mm').format(_postRepair!.adminEvaluatedDate!)
+              : null,
+          isCompleted: isPostRepairEvaluated && !isRework,
+          isActive: hasPostRepair && !isPostRepairEvaluated,
         ),
       ],
       _TimelineStep(
-        title: _request!.status == 'Declined' ? 'Declined / Closed' : 'Completed',
-        subtitle: _request!.status == 'Declined' ? 'Request was declined' : (_request!.status == 'Completed' ? 'Work finished' : 'Not yet completed'),
-        time: _request!.dateCompleted != null ? DateFormat('MMM dd HH:mm').format(_request!.dateCompleted!) : null,
-        isCompleted: _request!.status == 'Completed' || _request!.status == 'Declined',
-        isActive: false,
+        title: _request!.status == 'Declined' ? 'Declined / Closed' : 'Completed & Verified',
+        subtitle: _request!.status == 'Declined'
+            ? 'Request was declined'
+            : (isCompleted
+                ? 'Work request fully verified and completed'
+                : 'Awaiting final completion and verification'),
+        time: _request!.dateCompleted != null ? DateFormat('MMM dd, HH:mm').format(_request!.dateCompleted!) : null,
+        isCompleted: isCompleted || _request!.status == 'Declined',
+        isActive: !isCompleted && isPostRepairEvaluated && !isRework,
       ),
     ];
-
-    if (_request!.reworkCount > 0 && _request!.status != 'Declined') {
-      steps.insert(6, _TimelineStep(
-        title: 'Rework (${_request!.reworkCount}x)',
-        subtitle: _request!.reworkNotes ?? 'Rework requested',
-        isCompleted: _request!.status != 'Rework',
-        isActive: _request!.status == 'Rework',
-      ));
-    }
 
     return Container(
       padding: const EdgeInsets.all(16),

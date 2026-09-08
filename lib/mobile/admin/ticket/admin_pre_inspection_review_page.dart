@@ -328,14 +328,11 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
       );
 
       // 4. Notify Maintenance User & Requestor
-      final maintId = widget.request.assignedToId;
-      if (maintId != null && maintId.trim().isNotEmpty && maintId.trim() != 'null') {
-        await AppNotificationService.notifyPreInspectionApproved(
-          workRequestId: widget.request.id,
-          maintenanceId: maintId,
-          adminName: user.name,
-        );
-      }
+      await AppNotificationService.notifyPreInspectionApproved(
+        workRequestId: widget.request.id,
+        maintenanceId: widget.request.assignedToId ?? _report?.inspectorId,
+        adminName: user.name,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -392,15 +389,12 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
       );
 
       // Notify Maintenance User & Requestor
-      final maintId = widget.request.assignedToId;
-      if (maintId != null && maintId.trim().isNotEmpty && maintId.trim() != 'null') {
-        await AppNotificationService.notifyPreInspectionDeclined(
-          workRequestId: widget.request.id,
-          maintenanceId: maintId,
-          adminName: user.name,
-          notes: notes,
-        );
-      }
+      await AppNotificationService.notifyPreInspectionDeclined(
+        workRequestId: widget.request.id,
+        maintenanceId: widget.request.assignedToId ?? _report?.inspectorId,
+        adminName: user.name,
+        notes: notes,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

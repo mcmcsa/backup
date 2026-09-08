@@ -179,12 +179,17 @@ class _PostRepairPageState extends State<PostRepairPage> {
         widget.request.status,
       );
 
-      // 4. Notify Campus Admin
-      await AppNotificationService.notifyPostRepairSubmittedToAdmin(
-        workRequestId: widget.request.id,
-        maintenanceName: user.name,
-        adminId: widget.request.approvedById,
-      );
+      // 4. Notify Campus Admin and Requestor for transparency
+      try {
+        await AppNotificationService.notifyPostRepairSubmittedToAdmin(
+          workRequestId: widget.request.id,
+          maintenanceName: user.name,
+          adminId: widget.request.approvedById,
+          requestorId: widget.request.requestorId,
+        );
+      } catch (e) {
+        debugPrint('Post-repair notification error: $e');
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

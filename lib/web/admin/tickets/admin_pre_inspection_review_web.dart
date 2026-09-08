@@ -13,6 +13,8 @@ import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/widgets/attachment_image_widget.dart';
+import '../../../shared/services/inspection_pdf_service.dart';
 import '../shared/admin_styles.dart';
 
 class AdminPreInspectionReviewWeb extends StatefulWidget {
@@ -175,10 +177,10 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
       await WorkRequestService.setUnderMaintenance(widget.request.id);
       
       await AppNotificationService.notifyPreInspectionApproved(
-          workRequestId: widget.request.id,
-          maintenanceId: widget.request.assignedToId!,
-          adminName: user.name,
-        );
+        workRequestId: widget.request.id,
+        maintenanceId: widget.request.assignedToId ?? _report?.inspectorId,
+        adminName: user.name,
+      );
       
       await LoginActivityService.recordAdminAction(
         user: user,
@@ -213,14 +215,12 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
     try {
        await PreInspectionService.reject(_report!.id, notes, reviewNotes: _reviewNotesController.text);
       await WorkRequestService.updateStatus(widget.request.id, 'Declined');
-      if (widget.request.assignedToId != null) {
-        await AppNotificationService.notifyPreInspectionDeclined(
-          workRequestId: widget.request.id,
-          maintenanceId: widget.request.assignedToId!,
-          adminName: user.name,
-          notes: notes,
-        );
-      }
+      await AppNotificationService.notifyPreInspectionDeclined(
+        workRequestId: widget.request.id,
+        maintenanceId: widget.request.assignedToId ?? _report?.inspectorId,
+        adminName: user.name,
+        notes: notes,
+      );
       await LoginActivityService.recordAdminAction(
         user: user,
         title: 'Pre-Inspection Rejected',
@@ -308,10 +308,10 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
                                  children: [
                                    // Left Column: Sticky Context
                                    SizedBox(
-                                     width: 400,
+                                     width: 320,
                                      child: _buildContextColumn(),
                                    ),
-                                   const SizedBox(width: 40),
+                                   const SizedBox(width: 28),
                                    // Right Column: Professional Flow
                                    Expanded(
                                      child: Column(
@@ -385,6 +385,26 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
             ],
           ),
           const Spacer(),
+          if (_report != null && (_report!.status == 'Approved' || _report!.adminApproved)) ...[
+            ElevatedButton.icon(
+              onPressed: () {
+                InspectionPdfService.printPreInspection(
+                  context: context,
+                  request: widget.request,
+                  report: _report!,
+                );
+              },
+              icon: const Icon(Icons.print_rounded, size: 16),
+              label: const Text('Print Report'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminStyles.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            const SizedBox(width: 14),
+          ],
           _buildStatusBadge(),
         ],
       ),
@@ -607,6 +627,53 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
                         ),
                       ],
                     ),
+                ] else ...[
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: report.status == 'Approved'
+                          ? AdminStyles.success.withValues(alpha: 0.08)
+                          : AdminStyles.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: report.status == 'Approved'
+                            ? AdminStyles.success.withValues(alpha: 0.3)
+                            : AdminStyles.error.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          report.status == 'Approved' ? Icons.verified_rounded : Icons.cancel_rounded,
+                          color: report.status == 'Approved' ? AdminStyles.success : AdminStyles.error,
+                          size: 28,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                report.status == 'Approved' ? 'Pre-Inspection Approved' : 'Pre-Inspection Declined',
+                                style: AdminStyles.headingStyle(
+                                  fontSize: 15,
+                                  color: report.status == 'Approved' ? AdminStyles.success : AdminStyles.error,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                report.status == 'Approved'
+                                    ? 'This pre-inspection report has been officially approved.'
+                                    : 'This pre-inspection report was declined by Campus Admin.',
+                                style: AdminStyles.bodyStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ],
             ],
@@ -687,84 +754,182 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
             decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AdminStyles.border, style: BorderStyle.solid), borderRadius: BorderRadius.circular(12)),
             child: _uploadedPhotoEvidenceUrl == null 
               ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.cloud_upload_outlined, color: AdminStyles.textMuted), const SizedBox(height: 8), Text(_isUploadingPhotoEvidence ? 'Uploading...' : 'Click to Upload Photo', style: AdminStyles.bodyStyle(fontSize: 12))]))
-              : ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(_uploadedPhotoEvidenceUrl!, fit: BoxFit.cover)),
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AppAttachmentImage(url: _uploadedPhotoEvidenceUrl!, fit: BoxFit.contain),
+                ),
           ),
         ),
       ],
     );
   }
 
-  void _showImageDialog(BuildContext context, String url) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            InteractiveViewer(
-              child: Image.network(url, fit: BoxFit.contain),
-            ),
-            Positioned(
-              top: 16,
-              right: 16,
-              child: IconButton(
-                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 32),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _buildPhotoPreview(String urlData) {
     List<String> urls = [];
     try {
-      if (urlData.startsWith('[')) {
-        final List<dynamic> decoded = jsonDecode(urlData);
-        urls = decoded.map((e) => e.toString()).toList();
-      } else {
-        urls = [urlData];
+      final clean = urlData.trim();
+      if (clean.startsWith('[') && clean.endsWith(']')) {
+        final List<dynamic> decoded = jsonDecode(clean);
+        urls = decoded.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+      } else if (clean.contains(',')) {
+        urls = clean.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      } else if (clean.isNotEmpty) {
+        urls = [clean];
       }
     } catch (e) {
-      urls = [urlData];
+      if (urlData.trim().isNotEmpty) urls = [urlData.trim()];
     }
+
+    if (urls.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Photo Evidence', style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        if (urls.length == 1)
-          InkWell(
-            onTap: () => _showImageDialog(context, urls.first),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Image.network(urls.first, height: 300, width: double.infinity, fit: BoxFit.cover),
+        Row(
+          children: [
+            const Icon(Icons.photo_library_outlined, size: 16, color: AdminStyles.primary),
+            const SizedBox(width: 8),
+            Text(
+              'Photo Evidence (${urls.length})',
+              style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
             ),
-          )
-        else
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: urls.map((url) {
-              return InkWell(
-                onTap: () => _showImageDialog(context, url),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    url,
-                    width: 150,
-                    height: 150,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              );
-            }).toList(),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: AdminStyles.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                'Click to enlarge',
+                style: AdminStyles.bodyStyle(fontSize: 10, color: AdminStyles.primary, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AdminStyles.border),
           ),
+          child: urls.length == 1
+              ? Align(
+                  alignment: Alignment.centerLeft,
+                  child: Tooltip(
+                    message: 'Click to enlarge photo',
+                    child: InkWell(
+                      onTap: () => showAttachmentZoomDialog(context, urls.first),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          maxWidth: 360,
+                          maxHeight: 260,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AdminStyles.border),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: AppAttachmentImage(
+                                url: urls.first,
+                                fit: BoxFit.contain,
+                                width: double.infinity,
+                                height: 240,
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.65),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white),
+                                    SizedBox(width: 4),
+                                    Text('View full', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: urls.map((url) {
+                    return Tooltip(
+                      message: 'Click to enlarge photo',
+                      child: InkWell(
+                        onTap: () => showAttachmentZoomDialog(context, url),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: 130,
+                          height: 130,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AdminStyles.border),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.04),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              AppAttachmentImage(
+                                url: url,
+                                fit: BoxFit.cover,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              Positioned(
+                                bottom: 6,
+                                right: 6,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+        ),
       ],
     );
   }

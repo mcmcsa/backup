@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/widgets/attachment_image_widget.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/models/work_request_model.dart';
-import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../admin/shared/admin_styles.dart';
@@ -74,7 +71,35 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
               _userNames[sig.signerId] = isAdm ? 'Campus Admin - ${sig.signerName}' : sig.signerName;
             }
           }
-          _currentTask = task ?? widget.task;
+          var current = task ?? widget.task;
+          if (current.requestorName.trim().isEmpty) {
+            ESignature? reqSig;
+            for (final s in sigs) {
+              final type = s.signatureType.toLowerCase();
+              final role = s.signerRole.toLowerCase();
+              if (type == 'requestor' ||
+                  type == 'request' ||
+                  role == 'teacher' ||
+                  (current.requestorId != null && s.signerId == current.requestorId)) {
+                reqSig = s;
+                break;
+              }
+            }
+            if (reqSig != null && reqSig.signerName.trim().isNotEmpty) {
+              final sName = reqSig.signerName.trim();
+              current = current.copyWith(
+                requestorName: sName,
+                reportedByName: sName,
+              );
+            } else if (current.requestorId != null && _userNames.containsKey(current.requestorId)) {
+              final sName = _userNames[current.requestorId]!;
+              current = current.copyWith(
+                requestorName: sName,
+                reportedByName: sName,
+              );
+            }
+          }
+          _currentTask = current;
           _signatures = sigs;
           _preInspectionReport = preInsp;
           _postRepairReports = postRepairs;
@@ -130,6 +155,35 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     }
   }
 
+  String get _resolvedRequestorName {
+    final task = _currentTask;
+    if (task == null) return 'Unknown Requestor';
+    if (task.requestorName.trim().isNotEmpty) return task.requestorName.trim();
+    if (task.reportedByName != null && task.reportedByName!.trim().isNotEmpty) {
+      return task.reportedByName!.trim();
+    }
+    if (task.displayRequestorName.trim().isNotEmpty && task.displayRequestorName != 'Unknown Requestor') {
+      return task.displayRequestorName.trim();
+    }
+    for (final s in _signatures) {
+      final type = s.signatureType.toLowerCase();
+      final role = s.signerRole.toLowerCase();
+      if (type == 'requestor' ||
+          type == 'request' ||
+          role == 'teacher' ||
+          (task.requestorId != null && s.signerId == task.requestorId)) {
+        if (s.signerName.trim().isNotEmpty) {
+          return s.signerName.trim();
+        }
+      }
+    }
+    if (task.requestorId != null && _userNames.containsKey(task.requestorId)) {
+      final cached = _userNames[task.requestorId]!;
+      if (cached.trim().isNotEmpty) return cached.trim();
+    }
+    return 'Unknown Requestor';
+  }
+
   List<_TimelineStep> get _steps {
     if (_currentTask == null) return [];
     final task = _currentTask!;
@@ -139,7 +193,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     steps.add(_TimelineStep(
       icon: Icons.assignment_turned_in_rounded,
       title: 'Request Submitted',
-      desc: 'Initial request submitted by ${task.displayRequestorName}.',
+      desc: 'Initial request submitted by $_resolvedRequestorName.',
       date: task.dateSubmitted,
       isCompleted: true,
       color: AdminStyles.primary,
@@ -192,92 +246,119 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     ));
 
     // 5. Pre-Inspection Review Decision
-    if (hasPreInsp) {
-      final isReviewed = _preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined';
-      final isPreInspDeclined = _preInspectionReport!.status == 'Declined';
-      final approvedByName = _preInspectionReport!.adminApprovedBy != null
-          ? (_userNames[_preInspectionReport!.adminApprovedBy] ?? _preInspectionReport!.adminApprovedBy)
-          : "Admin";
-      
-      steps.add(_TimelineStep(
-        icon: isPreInspDeclined ? Icons.cancel_rounded : Icons.fact_check_rounded,
-        title: isPreInspDeclined ? 'Pre-Inspection Declined' : 'Pre-Inspection Approved',
-        desc: isReviewed
-            ? '${_preInspectionReport!.status} by $approvedByName'
-            : 'Awaiting pre-inspection review.',
-        date: _preInspectionReport?.adminApprovedDate,
-        isCompleted: isReviewed && !isPreInspDeclined,
-        color: isPreInspDeclined ? AdminStyles.error : AdminStyles.success,
-      ));
+    final isReviewed = hasPreInsp && (_preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined');
+    final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
+    final isPreInspApproved = hasPreInsp && _preInspectionReport!.status == 'Approved';
+    final approvedByName = _preInspectionReport?.adminApprovedBy != null
+        ? (_userNames[_preInspectionReport!.adminApprovedBy] ?? _preInspectionReport!.adminApprovedBy)
+        : "Campus Admin";
+    
+    steps.add(_TimelineStep(
+      icon: isPreInspDeclined ? Icons.cancel_rounded : Icons.fact_check_rounded,
+      title: isPreInspDeclined
+          ? 'Pre-Inspection Declined'
+          : (isPreInspApproved ? 'Pre-Inspection Approved' : 'Pre-Inspection Review'),
+      desc: isReviewed
+          ? '${_preInspectionReport!.status} by $approvedByName'
+          : (hasPreInsp ? 'Awaiting Campus Admin pre-inspection review.' : 'Pending pre-inspection submission.'),
+      date: _preInspectionReport?.adminApprovedDate,
+      isCompleted: isPreInspApproved,
+      color: isPreInspDeclined ? AdminStyles.error : AdminStyles.success,
+    ));
 
-      if (isPreInspDeclined) return steps;
-    }
+    if (isPreInspDeclined) return steps;
 
-    // 6. Post-Repair Attempts
     final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
       ..sort((a, b) {
         int cmp = a.repairDate.compareTo(b.repairDate);
         if (cmp != 0) return cmp;
         return a.attemptNumber.compareTo(b.attemptNumber);
       });
+    final hasPostRepair = sortedAttempts.isNotEmpty;
+    final isCompleted = task.status.toLowerCase() == 'completed';
 
-    for (int i = 0; i < sortedAttempts.length; i++) {
-      final report = sortedAttempts[i];
-      steps.add(_TimelineStep(
-        icon: Icons.build_circle_rounded,
-        title: 'Post-Repair Report Submitted',
-        desc: 'Submitted by ${report.technicianName}',
-        date: report.repairDate,
-        isCompleted: true,
-        color: AdminStyles.primary,
-      ));
-
-      final isEvaluated = report.adminEvaluation != null;
-      final isRework = report.adminEvaluation == 'rework';
-      final evaluatedByName = report.adminEvaluatedBy != null
-          ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
-          : "Admin";
-      
-      final isLatestReport = i == sortedAttempts.length - 1;
-      if (isEvaluated || isLatestReport) {
+    // 6. Post-Repair Attempts & Evaluations
+    if (hasPostRepair) {
+      for (int i = 0; i < sortedAttempts.length; i++) {
+        final report = sortedAttempts[i];
+        final attemptSuffix = sortedAttempts.length > 1 ? ' (Attempt #${report.attemptNumber})' : '';
         steps.add(_TimelineStep(
-          icon: isRework ? Icons.refresh_rounded : Icons.check_circle_rounded,
-          title: isRework ? 'Post-Repair Evaluation Completed - Rework' : 'Post-Repair Evaluation',
-          desc: isEvaluated
-              ? (isRework
-                  ? 'Rework required by $evaluatedByName'
-                  : 'Approved by $evaluatedByName')
-              : 'Awaiting evaluation.',
-          date: report.adminEvaluatedDate,
-          isCompleted: isEvaluated,
-          color: isRework ? AdminStyles.warning : AdminStyles.success,
-          customBadge: isRework ? 'Rework' : null,
+          icon: Icons.build_circle_rounded,
+          title: 'Post-Repair Report$attemptSuffix',
+          desc: 'Submitted by ${report.technicianName}',
+          date: report.repairDate,
+          isCompleted: true,
+          color: AdminStyles.primary,
+        ));
+
+        final isEvaluated = report.adminEvaluation != null;
+        final isRework = report.adminEvaluation == 'rework';
+        final evaluatedByName = report.adminEvaluatedBy != null
+            ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
+            : "Campus Admin";
+        
+        final isLatestReport = i == sortedAttempts.length - 1;
+        if (isEvaluated || isLatestReport) {
+          steps.add(_TimelineStep(
+            icon: isRework ? Icons.refresh_rounded : Icons.check_circle_rounded,
+            title: isRework ? 'Post-Repair Evaluation - Rework Required' : 'Post-Repair Evaluation',
+            desc: isEvaluated
+                ? (isRework
+                    ? 'Rework required by $evaluatedByName'
+                    : 'Approved by $evaluatedByName')
+                : 'Awaiting evaluation.',
+            date: report.adminEvaluatedDate,
+            isCompleted: isEvaluated && !isRework,
+            color: isRework ? AdminStyles.warning : AdminStyles.success,
+            customBadge: isRework ? 'Rework' : null,
+          ));
+        }
+      }
+
+      // If the latest evaluation was rework, append a pending Post-Repair Report step
+      if (sortedAttempts.last.adminEvaluation == 'rework') {
+        final nextAttempt = sortedAttempts.length + 1;
+        steps.add(_TimelineStep(
+          icon: Icons.build_circle_rounded,
+          title: 'Post-Repair Report (Attempt #$nextAttempt)',
+          desc: 'Awaiting post-repair report (Rework).',
+          isCompleted: false,
+          color: AdminStyles.warning,
         ));
       }
-    }
-
-    // If the latest evaluation was rework, append a pending Post-Repair Report step
-    if (sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'rework') {
-      steps.add(const _TimelineStep(
+    } else {
+      steps.add(_TimelineStep(
         icon: Icons.build_circle_rounded,
         title: 'Post-Repair Report',
-        desc: 'Awaiting post-repair report (Rework).',
+        desc: isPreInspApproved
+            ? 'Awaiting post-repair report submission.'
+            : 'Pending repair completion.',
+        isCompleted: false,
+        color: isPreInspApproved ? AdminStyles.primary : Colors.grey,
+      ));
+
+      steps.add(const _TimelineStep(
+        icon: Icons.rate_review_rounded,
+        title: 'Post-Repair Evaluation',
+        desc: 'Pending post-repair report submission.',
         isCompleted: false,
         color: Colors.grey,
       ));
     }
 
-    // 7. Final Completion
-    final isCompleted = task.status.toLowerCase() == 'completed';
+    // 8. Final Completion
+    final hasSatisfiedEval = hasPostRepair && sortedAttempts.last.adminEvaluation == 'satisfied';
     steps.add(_TimelineStep(
       icon: Icons.verified_rounded,
       title: 'Completed & Verified',
       desc: isCompleted
           ? 'Work request fully verified and completed.'
-          : 'Awaiting final verification and close out.',
+          : (hasSatisfiedEval
+              ? 'Awaiting final verification and close out.'
+              : 'Pending work completion and evaluation.'),
       date: task.dateCompleted,
       isCompleted: isCompleted,
-      color: AdminStyles.success,
+      color: isCompleted ? AdminStyles.success : Colors.grey,
       isLast: true,
     ));
 
@@ -1286,7 +1367,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
         children: [
           Text('Reference Data', style: AdminStyles.headingStyle(fontSize: 15, color: AdminStyles.textSecondary)),
           const SizedBox(height: 20),
-          _buildSummaryRow('Requestor', task.requestorName.isNotEmpty ? task.requestorName : 'Unknown Requestor'),
+          _buildSummaryRow('Requestor', _resolvedRequestorName),
           _buildSummaryRow('Submitted', DateFormat('MMM dd, yyyy').format(task.dateSubmitted)),
           if (task.acceptedDate != null) _buildSummaryRow('Started', DateFormat('MMM dd, yyyy hh:mm a').format(task.acceptedDate!)),
           if (task.dateCompleted != null) _buildSummaryRow('Completed', DateFormat('MMM dd, yyyy hh:mm a').format(task.dateCompleted!)),
@@ -1336,22 +1417,6 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     );
   }
 
-  Widget _buildWebTextField(TextEditingController controller, String label, String hint, {int maxLines = 1}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary)),
-        const SizedBox(height: 8),
-        TextFormField(
-          controller: controller,
-          maxLines: maxLines,
-          style: AdminStyles.bodyStyle(fontSize: 14),
-          decoration: InputDecoration(hintText: hint, filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AdminStyles.border))),
-        ),
-      ],
-    );
-  }
-
   Widget _buildSummaryRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1364,10 +1429,6 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
       ),
     );
   }
-
-  void _showSuccess(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.success));
-  void _showError(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.error));
-  void _showWarning(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: AdminStyles.warning));
 }
 
 class _TimelineStep {

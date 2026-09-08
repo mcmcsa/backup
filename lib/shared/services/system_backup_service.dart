@@ -23,13 +23,15 @@ class SystemBackupService {
       final size = 1024 * 1024 * 15 + Random().nextInt(1024 * 1024 * 50); // Random size between 15MB and 65MB
       
       final authUser = _db.auth.currentUser;
-      final map = {
+      final map = <String, dynamic>{
         'filename': 'psu_db_backup_${now.millisecondsSinceEpoch}.sql.gz',
         'size_bytes': size,
         'status': 'completed',
         'created_at': now.toIso8601String(),
-        'created_by': authUser?.id ?? 'system',
       };
+      if (authUser?.id != null) {
+        map['created_by'] = authUser!.id;
+      }
 
       final result = await _db.from(_table).insert(map).select().single();
       

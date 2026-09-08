@@ -193,15 +193,16 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
       //    can evaluate the newly submitted post-repair report
       await WorkRequestService.updateStatus(widget.request.id, 'Confirmed');
 
-      // 4. Notify Campus Admin (best-effort – RLS may block non-admin inserts)
+      // 4. Notify Campus Admin and Requestor for transparency
       try {
         await AppNotificationService.notifyPostRepairSubmittedToAdmin(
           workRequestId: widget.request.id,
           maintenanceName: user.name,
           adminId: widget.request.approvedById,
+          requestorId: widget.request.requestorId,
         );
-      } catch (_) {
-        // Notification failure should not block the submission success
+      } catch (e) {
+        debugPrint('Post-repair notification error: $e');
       }
 
       if (mounted) {

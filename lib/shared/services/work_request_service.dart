@@ -41,16 +41,17 @@ class WorkRequestService {
           .order('date_submitted', ascending: false);
       
       final results = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+      final enrichedResults = await enrichMissingRequestorNames(results);
       
       try {
         final prefs = await SharedPreferences.getInstance();
-        final jsonList = results.map((r) => r.toMap()).toList();
+        final jsonList = enrichedResults.map((r) => r.toMap()).toList();
         await prefs.setString(_cacheKey, json.encode(jsonList));
       } catch (e) {
         // Ignore cache save errors
       }
       
-      return results;
+      return enrichedResults;
     } catch (e) {
       try {
         final prefs = await SharedPreferences.getInstance();
@@ -72,7 +73,8 @@ class WorkRequestService {
         .select(_selectWithRelations)
         .eq('status', status)
         .order('date_submitted', ascending: false);
-    return (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+    final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+    return await enrichMissingRequestorNames(requests);
   }
 
   static Future<List<WorkRequest>> fetchAwaitingPreInspection() async {
@@ -186,6 +188,106 @@ class WorkRequestService {
     return (data as List).map((e) => WorkRequest.fromMap(e)).toList();
   }
 
+  /// Enriches any requests where requestorName is empty by querying `users` table
+  /// and `e_signatures` table (to bypass RLS limitations for non-admin roles).
+  static Future<List<WorkRequest>> enrichMissingRequestorNames(
+    List<WorkRequest> requests,
+  ) async {
+    if (requests.isEmpty) return requests;
+
+    final missing = requests
+        .where((r) => r.requestorName.trim().isEmpty)
+        .toList();
+    if (missing.isEmpty) return requests;
+
+    var updatedList = List<WorkRequest>.from(requests);
+
+    // 1. Try resolving via `users` table for requests that have requestorId
+    final withReqId = missing
+        .where((r) => r.requestorId != null && r.requestorId!.trim().isNotEmpty)
+        .toList();
+    if (withReqId.isNotEmpty) {
+      final userIds = withReqId
+          .map((r) => r.requestorId!.trim())
+          .toSet()
+          .toList();
+      try {
+        final users = await _db
+            .from('users')
+            .select('id, name')
+            .inFilter('id', userIds);
+        final nameMap = <String, String>{
+          for (final u in (users as List))
+            if (u['id'] != null &&
+                u['name'] != null &&
+                u['name'].toString().trim().isNotEmpty)
+              u['id'].toString(): u['name'].toString().trim(),
+        };
+        if (nameMap.isNotEmpty) {
+          updatedList = updatedList.map((r) {
+            if (r.requestorName.trim().isEmpty &&
+                r.requestorId != null &&
+                nameMap.containsKey(r.requestorId)) {
+              final name = nameMap[r.requestorId]!;
+              return r.copyWith(
+                requestorName: name,
+                reportedByName: name,
+              );
+            }
+            return r;
+          }).toList();
+        }
+      } catch (_) {}
+    }
+
+    // 2. For any requests still missing requestorName, resolve via `e_signatures` table
+    final stillMissing = updatedList
+        .where((r) => r.requestorName.trim().isEmpty)
+        .toList();
+    if (stillMissing.isNotEmpty) {
+      final reqIds = stillMissing.map((r) => r.id).toList();
+      try {
+        final sigs = await _db
+            .from('e_signatures')
+            .select('work_request_id, signer_name, signature_type, signer_role, signer_id')
+            .inFilter('work_request_id', reqIds)
+            .order('signed_at', ascending: true);
+        if (sigs.isNotEmpty) {
+          final sigNameMap = <String, String>{};
+          for (final s in sigs) {
+            final wId = s['work_request_id']?.toString() ?? '';
+            final sName = s['signer_name']?.toString().trim() ?? '';
+            final type = (s['signature_type'] ?? '').toString().toLowerCase();
+            final role = (s['signer_role'] ?? '').toString().toLowerCase();
+            if (wId.isNotEmpty && sName.isNotEmpty) {
+              if (type == 'requestor' ||
+                  type == 'request' ||
+                  role == 'teacher' ||
+                  !sigNameMap.containsKey(wId)) {
+                sigNameMap[wId] = sName;
+              }
+            }
+          }
+          if (sigNameMap.isNotEmpty) {
+            updatedList = updatedList.map((r) {
+              if (r.requestorName.trim().isEmpty &&
+                  sigNameMap.containsKey(r.id)) {
+                final name = sigNameMap[r.id]!;
+                return r.copyWith(
+                  requestorName: name,
+                  reportedByName: name,
+                );
+              }
+              return r;
+            }).toList();
+          }
+        }
+      } catch (_) {}
+    }
+
+    return updatedList;
+  }
+
   static Future<List<WorkRequest>> fetchAssignedTo(String userId) async {
     final data = await _db
         .from(_table)
@@ -193,36 +295,7 @@ class WorkRequestService {
         .eq('assigned_to_id', userId)
         .order('date_submitted', ascending: false);
     final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
-
-    // Enrich any requests where requestorName is still empty but requestorId is known
-    final missing = requests
-        .where((r) => r.requestorName.trim().isEmpty && r.requestorId != null)
-        .toList();
-
-    if (missing.isNotEmpty) {
-      final ids = missing.map((r) => r.requestorId!).toSet().toList();
-      try {
-        final users = await _db
-            .from('users')
-            .select('id, name')
-            .inFilter('id', ids);
-        final nameMap = <String, String>{
-          for (final u in (users as List))
-            if (u['id'] != null && u['name'] != null)
-              u['id'].toString(): u['name'].toString(),
-        };
-        return requests.map((r) {
-          if (r.requestorName.trim().isEmpty &&
-              r.requestorId != null &&
-              nameMap.containsKey(r.requestorId)) {
-            return r.copyWith(requestorName: nameMap[r.requestorId]);
-          }
-          return r;
-        }).toList();
-      } catch (_) {}
-    }
-
-    return requests;
+    return await enrichMissingRequestorNames(requests);
   }
 
   static Future<WorkRequest?> fetchById(String id) async {
@@ -312,18 +385,12 @@ class WorkRequestService {
       }
     }
 
-    // Enrich requestorName if still empty but requestorId is known
-    if (request.requestorName.trim().isEmpty && request.requestorId != null) {
-      try {
-        final userData = await _db
-            .from('users')
-            .select('name')
-            .eq('id', request.requestorId!)
-            .maybeSingle();
-        if (userData != null && userData['name'] != null) {
-          return request.copyWith(requestorName: userData['name'].toString());
-        }
-      } catch (_) {}
+    // Enrich requestorName if still empty
+    if (request.requestorName.trim().isEmpty) {
+      final enriched = await enrichMissingRequestorNames([request]);
+      if (enriched.isNotEmpty) {
+        request = enriched.first;
+      }
     }
 
     return request;

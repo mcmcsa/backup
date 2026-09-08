@@ -31,7 +31,7 @@ class SystemSettings {
 
   factory SystemSettings.fromMap(Map<String, dynamic> map) {
     return SystemSettings(
-      id: map['id']?.toString() ?? '1',
+      id: map['id']?.toString() ?? '',
       systemName: map['system_name'] ?? 'PSU MMS',
       campusName: map['campus_name'] ?? 'Main Campus',
       schoolLogo: map['school_logo'],

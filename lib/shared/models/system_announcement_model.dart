@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class SystemAnnouncement {
   final String id;
   final String title;
@@ -29,21 +31,64 @@ class SystemAnnouncement {
     this.displayType = 'notification',
   });
 
+  /// Encodes UI metadata (isPinned, targetAudience, displayType) into content prefix
+  /// so that tables without these specific columns can store and retrieve them seamlessly.
+  static String encodeContent(
+    String rawText, {
+    bool isPinned = false,
+    List<String> targetAudience = const ['all'],
+    String displayType = 'notification',
+  }) {
+    final trimmed = rawText.trim();
+    final bool isDefaultAudience = targetAudience.isEmpty ||
+        (targetAudience.length == 1 && targetAudience.first.toLowerCase() == 'all');
+
+    if (!isPinned && isDefaultAudience && displayType == 'notification') {
+      return trimmed;
+    }
+
+    final meta = <String, dynamic>{};
+    if (isPinned) meta['p'] = true;
+    if (!isDefaultAudience) meta['a'] = targetAudience;
+    if (displayType != 'notification') meta['t'] = displayType;
+
+    return '<!--meta:${jsonEncode(meta)}-->\n$trimmed';
+  }
+
   factory SystemAnnouncement.fromMap(Map<String, dynamic> map) {
+    String content = (map['content'] ?? '').toString();
+    bool parsedPinned = false;
+    List<String> parsedAudience = const ['all'];
+    String parsedDisplayType = 'notification';
+
+    if (content.startsWith('<!--meta:') && content.contains('-->')) {
+      try {
+        final endIdx = content.indexOf('-->');
+        final jsonStr = content.substring('<!--meta:'.length, endIdx);
+        final meta = jsonDecode(jsonStr) as Map<String, dynamic>;
+        content = content.substring(endIdx + 3).replaceFirst(RegExp(r'^\r?\n'), '');
+        if (meta['p'] == true) parsedPinned = true;
+        if (meta['a'] != null) parsedAudience = List<String>.from(meta['a']);
+        if (meta['t'] != null) parsedDisplayType = meta['t'].toString();
+      } catch (_) {}
+    }
+
     return SystemAnnouncement(
       id: map['id']?.toString() ?? '',
       title: map['title'] ?? '',
-      content: map['content'] ?? '',
+      content: content,
       priority: map['priority'] ?? 'normal',
       status: map['status'] ?? 'draft',
-      scheduledFor: map['scheduled_for'] != null ? DateTime.parse(map['scheduled_for']) : null,
-      expiresAt: map['expires_at'] != null ? DateTime.parse(map['expires_at']) : null,
-      createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
+      scheduledFor: map['scheduled_for'] != null ? DateTime.tryParse(map['scheduled_for'].toString()) : null,
+      expiresAt: map['expires_at'] != null ? DateTime.tryParse(map['expires_at'].toString()) : null,
+      createdAt: DateTime.tryParse(map['created_at']?.toString() ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(map['updated_at']?.toString() ?? '') ?? DateTime.now(),
       createdBy: map['created_by'] ?? '',
-      isPinned: map['is_pinned'] == true,
-      targetAudience: map['target_audience'] != null ? List<String>.from(map['target_audience']) : ['all'],
-      displayType: map['display_type'] ?? 'notification',
+      isPinned: map['is_pinned'] == true || parsedPinned,
+      targetAudience: map['target_audience'] != null
+          ? List<String>.from(map['target_audience'])
+          : parsedAudience,
+      displayType: map['display_type'] ?? parsedDisplayType,
     );
   }
 

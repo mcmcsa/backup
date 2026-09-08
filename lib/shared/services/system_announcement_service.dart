@@ -11,7 +11,7 @@ class SystemAnnouncementService {
       final data = await _db.from(_table).select().order('created_at', ascending: false);
       return (data as List).map((e) => SystemAnnouncement.fromMap(e)).toList();
     } catch (e) {
-      // Return empty gracefully if table is not yet created
+      // Return empty gracefully if query fails
       return [];
     }
   }
@@ -19,24 +19,31 @@ class SystemAnnouncementService {
   static Future<List<SystemAnnouncement>> fetchActive({String? userRole}) async {
     try {
       final now = DateTime.now().toIso8601String();
-      dynamic query = _db
+      final data = await _db
           .from(_table)
           .select()
-          .eq('status', 'published');
-          
-      if (userRole != null) {
-        query = query.overlaps('target_audience', ['all', userRole]);
-      }
-      
-      query = query
+          .eq('status', 'published')
           .lte('scheduled_for', now)
           .or('expires_at.is.null,expires_at.gt.$now')
-          .order('is_pinned', ascending: false)
-          .order('priority', ascending: false) // Might need custom logic for priority sorting
           .order('created_at', ascending: false);
-          
-      final data = await query;
-      return (data as List).map((e) => SystemAnnouncement.fromMap(e)).toList();
+
+      final list = (data as List).map((e) => SystemAnnouncement.fromMap(e)).toList();
+
+      // Filter in-memory for role audience
+      final filtered = list.where((a) {
+        if (userRole == null) return true;
+        final aud = a.targetAudience.map((e) => e.trim().toLowerCase()).toList();
+        return aud.contains('all') || aud.contains(userRole.trim().toLowerCase());
+      }).toList();
+
+      // Order by pinned first, then newest
+      filtered.sort((a, b) {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        return b.createdAt.compareTo(a.createdAt);
+      });
+
+      return filtered;
     } catch (e) {
       return [];
     }
@@ -56,21 +63,29 @@ class SystemAnnouncementService {
     try {
       final now = DateTime.now().toIso8601String();
       final authUser = _db.auth.currentUser;
+      final encodedContent = SystemAnnouncement.encodeContent(
+        content,
+        isPinned: isPinned,
+        targetAudience: targetAudience,
+        displayType: displayType,
+      );
 
-      await _db.from(_table).insert({
+      final payload = <String, dynamic>{
         'title': title.trim(),
-        'content': content.trim(),
+        'content': encodedContent,
         'priority': priority,
         'status': status,
         'scheduled_for': scheduledFor?.toIso8601String(),
         'expires_at': expiresAt?.toIso8601String(),
         'created_at': now,
         'updated_at': now,
-        'created_by': authUser?.id ?? 'system',
-        'is_pinned': isPinned,
-        'target_audience': targetAudience,
-        'display_type': displayType,
-      });
+      };
+
+      if (authUser?.id != null) {
+        payload['created_by'] = authUser!.id;
+      }
+
+      await _db.from(_table).insert(payload);
 
       await AdminAuditLogService.logAction(
         title: 'Created Announcement',
@@ -95,17 +110,21 @@ class SystemAnnouncementService {
     String? displayType,
   }) async {
     try {
+      final encodedContent = SystemAnnouncement.encodeContent(
+        content,
+        isPinned: isPinned ?? false,
+        targetAudience: targetAudience ?? const ['all'],
+        displayType: displayType ?? 'notification',
+      );
+
       await _db.from(_table).update({
         'title': title.trim(),
-        'content': content.trim(),
+        'content': encodedContent,
         'priority': priority,
         'status': status,
         'scheduled_for': scheduledFor?.toIso8601String(),
         'expires_at': expiresAt?.toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
-        'is_pinned': ?isPinned,
-        'target_audience': ?targetAudience,
-        'display_type': ?displayType,
       }).eq('id', id);
 
       await AdminAuditLogService.logAction(

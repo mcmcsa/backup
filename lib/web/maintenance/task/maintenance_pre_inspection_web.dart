@@ -167,15 +167,31 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
       // 3. Update Work Request Status
       await WorkRequestService.updateStatus(widget.request.id, 'In Progress');
 
-      _showSuccess('Pre-inspection report submitted successfully.');
-      if (widget.onBack != null) {
-        widget.onBack!();
-      } else {
-        Navigator.pop(context, true);
+      // 4. Notify Campus Admin and Requestor for transparency
+      try {
+        await AppNotificationService.notifyPreInspectionSubmittedToAdmin(
+          workRequestId: widget.request.id,
+          maintenanceName: user.name,
+          adminId: widget.request.approvedById,
+          requestorId: widget.request.requestorId,
+        );
+      } catch (notifErr) {
+        debugPrint('Pre-inspection notification dispatch error: $notifErr');
+      }
+
+      if (mounted) {
+        _showSuccess('Pre-inspection report submitted successfully.');
+        if (widget.onBack != null) {
+          widget.onBack!();
+        } else {
+          Navigator.pop(context, true);
+        }
       }
     } catch (e) {
-      setState(() => _isLoading = false);
-      _showError('Failed to submit pre-inspection: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showError('Failed to submit pre-inspection: $e');
+      }
     }
   }
 
@@ -186,16 +202,31 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
     for (int i = 0; i < imageFiles.length; i++) {
       final file = imageFiles[i];
       final bytes = await file.readAsBytes();
-      final extension = file.path.split('.').last.toLowerCase();
-      final path = 'work-evidence/$requestId/pre_${DateTime.now().millisecondsSinceEpoch}_$i.$extension';
-      
-      await client.storage.from('work-evidence').uploadBinary(
-        path, 
-        bytes, 
-        fileOptions: FileOptions(contentType: 'image/$extension'),
-      );
-      
-      final url = client.storage.from('work-evidence').getPublicUrl(path);
+      final rawExt = file.name.contains('.')
+          ? file.name.split('.').last.toLowerCase()
+          : 'jpg';
+      final extension = rawExt == 'jpg' ? 'jpeg' : rawExt;
+      final mimeType = 'image/$extension';
+      final fileName = 'pre_${DateTime.now().millisecondsSinceEpoch}_$i.$rawExt';
+      final path = 'work-evidence/$requestId/$fileName';
+
+      String? url;
+      for (final bucket in ['work-evidence', 'work-request-attachments']) {
+        try {
+          await client.storage.from(bucket).uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: mimeType,
+              upsert: true,
+            ),
+          );
+          url = client.storage.from(bucket).getPublicUrl(path);
+          if (url.isNotEmpty) break;
+        } catch (_) {}
+      }
+
+      url ??= 'data:$mimeType;base64,${base64Encode(bytes)}';
       urls.add(url);
     }
     return jsonEncode(urls);

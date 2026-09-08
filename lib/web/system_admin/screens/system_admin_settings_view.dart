@@ -122,6 +122,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
+        _loadData();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

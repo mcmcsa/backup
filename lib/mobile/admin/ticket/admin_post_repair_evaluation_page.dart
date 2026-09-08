@@ -132,14 +132,11 @@ class _AdminPostRepairEvaluationPageState
       );
 
       // 5. Notify maintenance user & Requestor
-      final maintId = widget.request.assignedToId;
-      if (maintId != null && maintId.trim().isNotEmpty && maintId.trim() != 'null') {
-        await AppNotificationService.notifyPostRepairCompleted(
-          workRequestId: widget.request.id,
-          maintenanceId: maintId,
-          adminName: user.name,
-        );
-      }
+      await AppNotificationService.notifyPostRepairCompleted(
+        workRequestId: widget.request.id,
+        maintenanceId: widget.request.assignedToId ?? _report?.technicianId,
+        adminName: user.name,
+      );
 
       await LoginActivityService.recordAdminAction(
         user: user,
@@ -192,15 +189,12 @@ class _AdminPostRepairEvaluationPageState
       await PostRepairService.markRework(_report!.id, user.id, notes);
       await WorkRequestService.setRework(widget.request.id, notes);
 
-      // Notify maintenance user of rework
-      final maintId = widget.request.assignedToId;
-      if (maintId != null && maintId.trim().isNotEmpty && maintId.trim() != 'null') {
-        await AppNotificationService.notifyPostRepairRework(
-          workRequestId: widget.request.id,
-          maintenanceId: maintId,
-          adminName: user.name,
-        );
-      }
+      // Notify maintenance user & Requestor of rework
+      await AppNotificationService.notifyPostRepairRework(
+        workRequestId: widget.request.id,
+        maintenanceId: widget.request.assignedToId ?? _report?.technicianId,
+        adminName: user.name,
+      );
 
       await LoginActivityService.recordAdminAction(
         user: user,

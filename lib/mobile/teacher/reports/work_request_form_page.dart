@@ -472,6 +472,18 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           workRequestId: insertedRequest.id,
         );
 
+        if (authUser != null) {
+          await AppNotificationService.createForUser(
+            targetUserId: authUser.id,
+            title: 'Work Request Submitted',
+            message:
+                'Your request for $_selectedBuilding • ${_officeRoomNameController.text.trim()} has been submitted and is pending admin review.',
+            type: 'work_request_submitted',
+            workRequestId: insertedRequest.id,
+            targetPage: '/reports',
+          );
+        }
+
         if (!mounted) return;
         final trackingNumber =
             'PSU-SC-MR-${DateTime.now().year}-${DateTime.now().millisecondsSinceEpoch % 10000}';

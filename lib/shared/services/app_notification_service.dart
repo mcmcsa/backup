@@ -237,11 +237,12 @@ class AppNotificationService {
     } catch (_) {}
   }
 
-  /// Notify maintenance when admin approves a work request.
+  /// Notify maintenance and requestor when admin approves a work request.
   static Future<void> notifyApprovedToMaintenance({
     required String workRequestId,
     required String adminName,
     String? assignedMaintenanceId,
+    String? requestorId,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
     final targetMaintenanceId = assignedMaintenanceId?.trim();
@@ -253,18 +254,36 @@ class AppNotificationService {
             'Work request for $roomStr was approved by $adminName and assigned to you.',
         type: 'work_request_approved',
         workRequestId: workRequestId,
+        targetPage: '/tasks',
       );
-      return;
+    } else {
+      await createForRole(
+        targetRole: 'maintenance',
+        title: 'Work Request Approved',
+        message:
+            'Work request for $roomStr was approved by $adminName. Please check pending assignments.',
+        type: 'work_request_approved',
+        workRequestId: workRequestId,
+        targetPage: '/tasks',
+      );
     }
 
-    await createForRole(
-      targetRole: 'maintenance',
-      title: 'Work Request Approved',
-      message:
-          'Work request for $roomStr was approved by $adminName. Please check pending assignments.',
-      type: 'work_request_approved',
-      workRequestId: workRequestId,
-    );
+    // Notify Requestor for transparency
+    var targetReqId = requestorId?.trim();
+    if (targetReqId == null || targetReqId.isEmpty) {
+      targetReqId = await _getRequestorId(workRequestId);
+    }
+    if (targetReqId != null && targetReqId.isNotEmpty) {
+      await createForUser(
+        targetUserId: targetReqId,
+        title: 'Work Request Approved',
+        message:
+            'Your work request for $roomStr was approved by $adminName and assigned to maintenance.',
+        type: 'work_request_approved',
+        workRequestId: workRequestId,
+        targetPage: '/reports',
+      );
+    }
   }
 
   /// Notify admin and requestor after maintenance accepts the request.
@@ -276,8 +295,24 @@ class AppNotificationService {
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
     final normalizedAdminId = adminId?.trim();
-    final normalizedRequestorId = requestorId?.trim();
+    var normalizedRequestorId = requestorId?.trim();
+    if (normalizedRequestorId == null || normalizedRequestorId.isEmpty) {
+      normalizedRequestorId = await _getRequestorId(workRequestId);
+    }
     final futures = <Future<void>>[];
+
+    // Always broadcast to admin role so all campus admins see the update
+    futures.add(
+      createForRole(
+        targetRole: 'admin',
+        title: 'Work Request Accepted by Maintenance',
+        message:
+            '$maintenanceName accepted work request in $roomStr. Status is now Under Maintenance.',
+        type: 'work_request_accepted',
+        workRequestId: workRequestId,
+        targetPage: '/tickets',
+      ),
+    );
 
     if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
       futures.add(
@@ -288,17 +323,7 @@ class AppNotificationService {
               '$maintenanceName accepted work request in $roomStr. Status is now Under Maintenance.',
           type: 'work_request_accepted',
           workRequestId: workRequestId,
-        ),
-      );
-    } else {
-      futures.add(
-        createForRole(
-          targetRole: 'admin',
-          title: 'Work Request Accepted by Maintenance',
-          message:
-              '$maintenanceName accepted work request in $roomStr. Status is now Under Maintenance.',
-          type: 'work_request_accepted',
-          workRequestId: workRequestId,
+          targetPage: '/tickets',
         ),
       );
     }
@@ -312,6 +337,7 @@ class AppNotificationService {
               'Your request for $roomStr has been accepted by $maintenanceName and is now under maintenance.',
           type: 'work_request_accepted',
           workRequestId: workRequestId,
+          targetPage: '/reports',
         ),
       );
     }
@@ -321,66 +347,129 @@ class AppNotificationService {
     }
   }
 
-  /// Notify admin when maintenance submits a completion confirmation signature.
+  /// Notify admin and requestor when maintenance submits a completion confirmation signature.
   static Future<void> notifyCompletionSubmittedToAdmin({
     required String workRequestId,
     required String maintenanceName,
     String? adminId,
+    String? requestorId,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
     final normalizedAdminId = adminId?.trim();
+    var normalizedRequestorId = requestorId?.trim();
+    if (normalizedRequestorId == null || normalizedRequestorId.isEmpty) {
+      normalizedRequestorId = await _getRequestorId(workRequestId);
+    }
 
-    if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
-      await createForUser(
-        targetUserId: normalizedAdminId,
+    final futures = <Future<void>>[];
+
+    // Always broadcast to role admin for full transparency across all admins
+    futures.add(
+      createForRole(
+        targetRole: 'admin',
         title: 'Work Request Completion Submitted',
         message:
             '$maintenanceName submitted completion confirmation for $roomStr.',
         type: 'work_request_completion_submitted',
         workRequestId: workRequestId,
+        targetPage: '/tickets',
+      ),
+    );
+
+    if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: normalizedAdminId,
+          title: 'Work Request Completion Submitted',
+          message:
+              '$maintenanceName submitted completion confirmation for $roomStr.',
+          type: 'work_request_completion_submitted',
+          workRequestId: workRequestId,
+          targetPage: '/tickets',
+        ),
       );
-      return;
     }
 
-    await createForRole(
-      targetRole: 'admin',
-      title: 'Work Request Completion Submitted',
-      message:
-          '$maintenanceName submitted completion confirmation for $roomStr.',
-      type: 'work_request_completion_submitted',
-      workRequestId: workRequestId,
-    );
+    if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: normalizedRequestorId,
+          title: 'Repair Completed by Maintenance',
+          message:
+              '$maintenanceName has finished the repair work for $roomStr and submitted completion confirmation.',
+          type: 'work_request_completion_submitted',
+          workRequestId: workRequestId,
+          targetPage: '/reports',
+        ),
+      );
+    }
+
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
+    }
   }
 
-  /// Notify the reporting user when admin submits completion confirmation signature.
+  /// Notify the reporting user and maintenance when admin submits completion confirmation signature.
   static Future<void> notifyAdminCompletionSubmittedToRequestor({
     required String workRequestId,
     required String adminName,
     String? requestorId,
+    String? maintenanceId,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
-    final normalizedRequestorId = requestorId?.trim();
-
-    if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
-      await createForUser(
-        targetUserId: normalizedRequestorId,
-        title: 'Work Request Ready for Your Confirmation',
-        message:
-            '$adminName signed completion confirmation for $roomStr. You can now review and sign the confirm work request form.',
-        type: 'work_request_completion_ready_for_requestor',
-        workRequestId: workRequestId,
-      );
-      return;
+    var normalizedRequestorId = requestorId?.trim();
+    if (normalizedRequestorId == null || normalizedRequestorId.isEmpty) {
+      normalizedRequestorId = await _getRequestorId(workRequestId);
     }
 
-    await createForRole(
-      targetRole: 'teacher',
-      title: 'Work Request Ready for Your Confirmation',
-      message:
-          '$adminName signed completion confirmation for $roomStr. Please review and sign the confirm work request form.',
-      type: 'work_request_completion_ready_for_requestor',
-      workRequestId: workRequestId,
-    );
+    final futures = <Future<void>>[];
+
+    if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: normalizedRequestorId,
+          title: 'Work Request Ready for Your Confirmation',
+          message:
+              '$adminName signed completion confirmation for $roomStr. You can now review and sign the confirm work request form.',
+          type: 'work_request_completion_ready_for_requestor',
+          workRequestId: workRequestId,
+          targetPage: '/reports',
+        ),
+      );
+    } else {
+      futures.add(
+        createForRole(
+          targetRole: 'teacher',
+          title: 'Work Request Ready for Your Confirmation',
+          message:
+              '$adminName signed completion confirmation for $roomStr. Please review and sign the confirm work request form.',
+          type: 'work_request_completion_ready_for_requestor',
+          workRequestId: workRequestId,
+          targetPage: '/reports',
+        ),
+      );
+    }
+
+    var targetMaintId = maintenanceId?.trim();
+    if (targetMaintId == null || targetMaintId.isEmpty) {
+      targetMaintId = await _getMaintenanceId(workRequestId);
+    }
+    if (targetMaintId != null && targetMaintId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: targetMaintId,
+          title: 'Work Request Completed by Admin',
+          message: '$adminName signed completion confirmation for $roomStr.',
+          type: 'work_request_completed',
+          workRequestId: workRequestId,
+          targetPage: '/tasks',
+        ),
+      );
+    }
+
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
+    }
   }
 
   static Future<void> markAsRead(String id) async {
@@ -428,11 +517,31 @@ class AppNotificationService {
     try {
       final response = await _db
           .from('work_requests')
-          .select('requestor_id')
+          .select('requestor_id, reported_by_id')
           .eq('id', workRequestId)
           .maybeSingle();
       if (response != null) {
-        return response['requestor_id'] as String?;
+        final rId = response['requestor_id']?.toString().trim();
+        if (rId != null && rId.isNotEmpty && rId != 'null') return rId;
+        final repId = response['reported_by_id']?.toString().trim();
+        if (repId != null && repId.isNotEmpty && repId != 'null') return repId;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<String?> _getMaintenanceId(String workRequestId) async {
+    try {
+      final response = await _db
+          .from('work_requests')
+          .select('assigned_to_id, accepted_by_id')
+          .eq('id', workRequestId)
+          .maybeSingle();
+      if (response != null) {
+        final aId = response['assigned_to_id']?.toString().trim();
+        if (aId != null && aId.isNotEmpty && aId != 'null') return aId;
+        final accId = response['accepted_by_id']?.toString().trim();
+        if (accId != null && accId.isNotEmpty && accId != 'null') return accId;
       }
     } catch (_) {}
     return null;
@@ -440,110 +549,182 @@ class AppNotificationService {
 
   static Future<void> notifyPreInspectionApproved({
     required String workRequestId,
-    required String maintenanceId,
+    String? maintenanceId,
     required String adminName,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
-    await createForUser(
-      targetUserId: maintenanceId,
-      title: 'Pre-Inspection Approved',
-      message: '$adminName has approved your pre-inspection report for $roomStr. You can now start the repair.',
-      type: 'work_request_approved',
-      workRequestId: workRequestId,
-      targetPage: '/tasks',
-    );
-    final requestorId = await _getRequestorId(workRequestId);
-    if (requestorId != null) {
-      await createForUser(
-        targetUserId: requestorId,
-        title: 'Pre-Inspection Approved',
-        message: 'The pre-inspection report for $roomStr was approved by $adminName. Work will proceed.',
-        type: 'work_request_approved',
-        workRequestId: workRequestId,
-        targetPage: '/reports',
+    var targetMaintId = maintenanceId?.trim();
+    if (targetMaintId == null || targetMaintId.isEmpty) {
+      targetMaintId = await _getMaintenanceId(workRequestId);
+    }
+
+    final futures = <Future<void>>[];
+
+    if (targetMaintId != null && targetMaintId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: targetMaintId,
+          title: 'Pre-Inspection Approved',
+          message: '$adminName has approved your pre-inspection report for $roomStr. You can now start the repair.',
+          type: 'work_request_approved',
+          workRequestId: workRequestId,
+          targetPage: '/tasks',
+        ),
       );
+    }
+
+    final requestorId = await _getRequestorId(workRequestId);
+    if (requestorId != null && requestorId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: requestorId,
+          title: 'Pre-Inspection Approved',
+          message: 'The pre-inspection report for $roomStr was approved by $adminName. Work will proceed.',
+          type: 'work_request_approved',
+          workRequestId: workRequestId,
+          targetPage: '/reports',
+        ),
+      );
+    }
+
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
     }
   }
 
   static Future<void> notifyPreInspectionDeclined({
     required String workRequestId,
-    required String maintenanceId,
+    String? maintenanceId,
     required String adminName,
     required String notes,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
-    await createForUser(
-      targetUserId: maintenanceId,
-      title: 'Pre-Inspection Declined',
-      message: '$adminName has declined your pre-inspection report for $roomStr. Reason: $notes.',
-      type: 'work_request_declined',
-      workRequestId: workRequestId,
-      targetPage: '/tasks',
-    );
-    final requestorId = await _getRequestorId(workRequestId);
-    if (requestorId != null) {
-      await createForUser(
-        targetUserId: requestorId,
-        title: 'Work Request Declined',
-        message: 'The work request for $roomStr was declined during pre-inspection by $adminName. Reason: $notes.',
-        type: 'work_request_declined',
-        workRequestId: workRequestId,
-        targetPage: '/reports',
+    var targetMaintId = maintenanceId?.trim();
+    if (targetMaintId == null || targetMaintId.isEmpty) {
+      targetMaintId = await _getMaintenanceId(workRequestId);
+    }
+
+    final futures = <Future<void>>[];
+
+    if (targetMaintId != null && targetMaintId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: targetMaintId,
+          title: 'Pre-Inspection Declined',
+          message: '$adminName has declined your pre-inspection report for $roomStr. Reason: $notes.',
+          type: 'work_request_declined',
+          workRequestId: workRequestId,
+          targetPage: '/tasks',
+        ),
       );
+    }
+
+    final requestorId = await _getRequestorId(workRequestId);
+    if (requestorId != null && requestorId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: requestorId,
+          title: 'Work Request Declined',
+          message: 'The work request for $roomStr was declined during pre-inspection by $adminName. Reason: $notes.',
+          type: 'work_request_declined',
+          workRequestId: workRequestId,
+          targetPage: '/reports',
+        ),
+      );
+    }
+
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
     }
   }
 
   static Future<void> notifyPostRepairRework({
     required String workRequestId,
-    required String maintenanceId,
+    String? maintenanceId,
     required String adminName,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
-    await createForUser(
-      targetUserId: maintenanceId,
-      title: 'Post-Repair Rework Required',
-      message: '$adminName requested rework on your post-repair report for $roomStr.',
-      type: 'work_request_declined',
-      workRequestId: workRequestId,
-      targetPage: '/tasks',
-    );
-    final requestorId = await _getRequestorId(workRequestId);
-    if (requestorId != null) {
-      await createForUser(
-        targetUserId: requestorId,
-        title: 'Rework Required',
-        message: 'The post-repair evaluation for $roomStr requires rework as decided by $adminName.',
-        type: 'work_request_declined',
-        workRequestId: workRequestId,
-        targetPage: '/reports',
+    var targetMaintId = maintenanceId?.trim();
+    if (targetMaintId == null || targetMaintId.isEmpty) {
+      targetMaintId = await _getMaintenanceId(workRequestId);
+    }
+
+    final futures = <Future<void>>[];
+
+    if (targetMaintId != null && targetMaintId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: targetMaintId,
+          title: 'Post-Repair Rework Required',
+          message: '$adminName requested rework on your post-repair report for $roomStr.',
+          type: 'work_request_declined',
+          workRequestId: workRequestId,
+          targetPage: '/tasks',
+        ),
       );
+    }
+
+    final requestorId = await _getRequestorId(workRequestId);
+    if (requestorId != null && requestorId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: requestorId,
+          title: 'Rework Required',
+          message: 'The post-repair evaluation for $roomStr requires rework as decided by $adminName.',
+          type: 'work_request_declined',
+          workRequestId: workRequestId,
+          targetPage: '/reports',
+        ),
+      );
+    }
+
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
     }
   }
 
   static Future<void> notifyPostRepairCompleted({
     required String workRequestId,
-    required String maintenanceId,
+    String? maintenanceId,
     required String adminName,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
-    await createForUser(
-      targetUserId: maintenanceId,
-      title: 'Post-Repair Completed',
-      message: '$adminName marked the repair for $roomStr as completed.',
-      type: 'work_request_completed',
-      workRequestId: workRequestId,
-      targetPage: '/tasks',
-    );
-    final requestorId = await _getRequestorId(workRequestId);
-    if (requestorId != null) {
-      await createForUser(
-        targetUserId: requestorId,
-        title: 'Work Completed & Verified',
-        message: 'The maintenance work for $roomStr has been completed and verified by $adminName.',
-        type: 'work_request_completed',
-        workRequestId: workRequestId,
-        targetPage: '/reports',
+    var targetMaintId = maintenanceId?.trim();
+    if (targetMaintId == null || targetMaintId.isEmpty) {
+      targetMaintId = await _getMaintenanceId(workRequestId);
+    }
+
+    final futures = <Future<void>>[];
+
+    if (targetMaintId != null && targetMaintId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: targetMaintId,
+          title: 'Post-Repair Completed',
+          message: '$adminName marked the repair for $roomStr as completed.',
+          type: 'work_request_completed',
+          workRequestId: workRequestId,
+          targetPage: '/tasks',
+        ),
       );
+    }
+
+    final requestorId = await _getRequestorId(workRequestId);
+    if (requestorId != null && requestorId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: requestorId,
+          title: 'Work Completed & Verified',
+          message: 'The maintenance work for $roomStr has been completed and verified by $adminName.',
+          type: 'work_request_completed',
+          workRequestId: workRequestId,
+          targetPage: '/reports',
+        ),
+      );
+    }
+
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
     }
   }
 
@@ -551,28 +732,59 @@ class AppNotificationService {
     required String workRequestId,
     required String maintenanceName,
     String? adminId,
+    String? requestorId,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
-    if (adminId != null && adminId.isNotEmpty) {
-      await createForUser(
-        targetUserId: adminId,
+    final normalizedAdminId = adminId?.trim();
+    var normalizedRequestorId = requestorId?.trim();
+    if (normalizedRequestorId == null || normalizedRequestorId.isEmpty) {
+      normalizedRequestorId = await _getRequestorId(workRequestId);
+    }
+
+    final futures = <Future<void>>[];
+
+    // 1. Broadcast to role 'admin' so ALL campus admins see it
+    futures.add(
+      createForRole(
+        targetRole: 'admin',
         title: 'Pre-Inspection Submitted',
         message: '$maintenanceName has submitted a pre-inspection report for $roomStr.',
         type: 'pre_inspection_submitted',
         workRequestId: workRequestId,
         targetPage: '/tickets',
+      ),
+    );
+
+    // 2. Direct user targeting if specific admin ID provided
+    if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: normalizedAdminId,
+          title: 'Pre-Inspection Submitted',
+          message: '$maintenanceName has submitted a pre-inspection report for $roomStr.',
+          type: 'pre_inspection_submitted',
+          workRequestId: workRequestId,
+          targetPage: '/tickets',
+        ),
       );
     }
-    final requestorId = await _getRequestorId(workRequestId);
-    if (requestorId != null) {
-      await createForUser(
-        targetUserId: requestorId,
-        title: 'Pre-Inspection Filed',
-        message: 'A pre-inspection report for $roomStr has been filed by $maintenanceName and is awaiting admin review.',
-        type: 'work_request_inspected',
-        workRequestId: workRequestId,
-        targetPage: '/reports',
+
+    // 3. Notify Requestor for complete visibility and transparency
+    if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: normalizedRequestorId,
+          title: 'Pre-Inspection Filed',
+          message: 'A pre-inspection report for $roomStr has been filed by $maintenanceName and is awaiting admin review.',
+          type: 'work_request_inspected',
+          workRequestId: workRequestId,
+          targetPage: '/reports',
+        ),
       );
+    }
+
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
     }
   }
 
@@ -580,30 +792,62 @@ class AppNotificationService {
     required String workRequestId,
     required String maintenanceName,
     String? adminId,
+    String? requestorId,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
-    if (adminId != null && adminId.isNotEmpty) {
-      await createForUser(
-        targetUserId: adminId,
+    final normalizedAdminId = adminId?.trim();
+    var normalizedRequestorId = requestorId?.trim();
+    if (normalizedRequestorId == null || normalizedRequestorId.isEmpty) {
+      normalizedRequestorId = await _getRequestorId(workRequestId);
+    }
+
+    final futures = <Future<void>>[];
+
+    // 1. Broadcast to role 'admin' so ALL campus admins see it
+    futures.add(
+      createForRole(
+        targetRole: 'admin',
         title: 'Post-Repair Evaluation Submitted',
         message: '$maintenanceName has submitted a post-repair evaluation for $roomStr.',
         type: 'post_repair_submitted',
         workRequestId: workRequestId,
         targetPage: '/tickets',
+      ),
+    );
+
+    // 2. Direct user targeting if specific admin ID provided
+    if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: normalizedAdminId,
+          title: 'Post-Repair Evaluation Submitted',
+          message: '$maintenanceName has submitted a post-repair evaluation for $roomStr.',
+          type: 'post_repair_submitted',
+          workRequestId: workRequestId,
+          targetPage: '/tickets',
+        ),
       );
     }
-    final requestorId = await _getRequestorId(workRequestId);
-    if (requestorId != null) {
-      await createForUser(
-        targetUserId: requestorId,
-        title: 'Post-Repair Submitted',
-        message: 'A post-repair evaluation for $roomStr has been submitted by $maintenanceName and is awaiting admin evaluation.',
-        type: 'post_repair_submitted',
-        workRequestId: workRequestId,
-        targetPage: '/reports',
+
+    // 3. Notify Requestor for complete visibility and transparency
+    if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
+      futures.add(
+        createForUser(
+          targetUserId: normalizedRequestorId,
+          title: 'Post-Repair Submitted',
+          message: 'A post-repair evaluation for $roomStr has been submitted by $maintenanceName and is awaiting admin evaluation.',
+          type: 'post_repair_submitted',
+          workRequestId: workRequestId,
+          targetPage: '/reports',
+        ),
       );
+    }
+
+    if (futures.isNotEmpty) {
+      await Future.wait(futures);
     }
   }
+
 
   static Future<void> notifyNewChatMessage({
     required String targetUserId,

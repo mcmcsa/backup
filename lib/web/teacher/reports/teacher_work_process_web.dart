@@ -418,92 +418,119 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
     ));
 
     // 5. Pre-Inspection Review Decision
-    if (hasPreInsp) {
-      final isReviewed = _preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined';
-      final isPreInspDeclined = _preInspectionReport!.status == 'Declined';
-      final approvedByName = _preInspectionReport!.adminApprovedBy != null
-          ? (_userNames[_preInspectionReport!.adminApprovedBy] ?? _preInspectionReport!.adminApprovedBy)
-          : "Campus Admin";
-      
-      steps.add(_TimelineStep(
-        icon: isPreInspDeclined ? Icons.cancel_rounded : Icons.fact_check_rounded,
-        title: isPreInspDeclined ? 'Pre-Inspection Declined' : 'Pre-Inspection Approved',
-        desc: isReviewed
-            ? '${_preInspectionReport!.status} by $approvedByName'
-            : 'Awaiting Campus Admin pre-inspection review.',
-        date: _preInspectionReport?.adminApprovedDate,
-        isCompleted: isReviewed && !isPreInspDeclined,
-        color: isPreInspDeclined ? AdminStyles.error : AdminStyles.success,
-      ));
+    final isReviewed = hasPreInsp && (_preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined');
+    final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
+    final isPreInspApproved = hasPreInsp && _preInspectionReport!.status == 'Approved';
+    final approvedByName = _preInspectionReport?.adminApprovedBy != null
+        ? (_userNames[_preInspectionReport!.adminApprovedBy] ?? _preInspectionReport!.adminApprovedBy)
+        : "Campus Admin";
+    
+    steps.add(_TimelineStep(
+      icon: isPreInspDeclined ? Icons.cancel_rounded : Icons.fact_check_rounded,
+      title: isPreInspDeclined
+          ? 'Pre-Inspection Declined'
+          : (isPreInspApproved ? 'Pre-Inspection Approved' : 'Pre-Inspection Review'),
+      desc: isReviewed
+          ? '${_preInspectionReport!.status} by $approvedByName'
+          : (hasPreInsp ? 'Awaiting Campus Admin pre-inspection review.' : 'Pending pre-inspection submission.'),
+      date: _preInspectionReport?.adminApprovedDate,
+      isCompleted: isPreInspApproved,
+      color: isPreInspDeclined ? AdminStyles.error : AdminStyles.success,
+    ));
 
-      if (isPreInspDeclined) return steps;
-    }
+    if (isPreInspDeclined) return steps;
 
-    // 6. Post-Repair Attempts
     final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
       ..sort((a, b) {
         int cmp = a.repairDate.compareTo(b.repairDate);
         if (cmp != 0) return cmp;
         return a.attemptNumber.compareTo(b.attemptNumber);
       });
+    final hasPostRepair = sortedAttempts.isNotEmpty;
+    final isCompleted = task.status.toLowerCase() == 'completed';
 
-    for (int i = 0; i < sortedAttempts.length; i++) {
-      final report = sortedAttempts[i];
-      steps.add(_TimelineStep(
-        icon: Icons.build_circle_rounded,
-        title: 'Post-Repair Report Submitted',
-        desc: 'Submitted by ${report.technicianName}',
-        date: report.repairDate,
-        isCompleted: true,
-        color: AdminStyles.primary,
-      ));
-
-      final isEvaluated = report.adminEvaluation != null;
-      final isRework = report.adminEvaluation == 'rework';
-      final evaluatedByName = report.adminEvaluatedBy != null
-          ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
-          : "Campus Admin";
-      
-      final isLatestReport = i == sortedAttempts.length - 1;
-      if (isEvaluated || isLatestReport) {
+    // 6. Post-Repair Attempts & Evaluations
+    if (hasPostRepair) {
+      for (int i = 0; i < sortedAttempts.length; i++) {
+        final report = sortedAttempts[i];
+        final attemptSuffix = sortedAttempts.length > 1 ? ' (Attempt #${report.attemptNumber})' : '';
         steps.add(_TimelineStep(
-          icon: isRework ? Icons.refresh_rounded : Icons.check_circle_rounded,
-          title: isRework ? 'Post-Repair Evaluation Completed - Rework' : 'Post-Repair Evaluation',
-          desc: isEvaluated
-              ? (isRework
-                  ? 'Rework required by $evaluatedByName'
-                  : 'Approved by $evaluatedByName')
-              : 'Awaiting evaluation.',
-          date: report.adminEvaluatedDate,
-          isCompleted: isEvaluated,
-          color: isRework ? AdminStyles.warning : AdminStyles.success,
-          customBadge: isRework ? 'Rework' : null,
+          icon: Icons.build_circle_rounded,
+          title: 'Post-Repair Report$attemptSuffix',
+          desc: 'Submitted by ${report.technicianName}',
+          date: report.repairDate,
+          isCompleted: true,
+          color: AdminStyles.primary,
+        ));
+
+        final isEvaluated = report.adminEvaluation != null;
+        final isRework = report.adminEvaluation == 'rework';
+        final evaluatedByName = report.adminEvaluatedBy != null
+            ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
+            : "Campus Admin";
+        
+        final isLatestReport = i == sortedAttempts.length - 1;
+        if (isEvaluated || isLatestReport) {
+          steps.add(_TimelineStep(
+            icon: isRework ? Icons.refresh_rounded : Icons.check_circle_rounded,
+            title: isRework ? 'Post-Repair Evaluation - Rework Required' : 'Post-Repair Evaluation',
+            desc: isEvaluated
+                ? (isRework
+                    ? 'Rework required by $evaluatedByName'
+                    : 'Approved by $evaluatedByName')
+                : 'Awaiting evaluation.',
+            date: report.adminEvaluatedDate,
+            isCompleted: isEvaluated && !isRework,
+            color: isRework ? AdminStyles.warning : AdminStyles.success,
+            customBadge: isRework ? 'Rework' : null,
+          ));
+        }
+      }
+
+      // If the latest evaluation was rework, append a pending Post-Repair Report step
+      if (sortedAttempts.last.adminEvaluation == 'rework') {
+        final nextAttempt = sortedAttempts.length + 1;
+        steps.add(_TimelineStep(
+          icon: Icons.build_circle_rounded,
+          title: 'Post-Repair Report (Attempt #$nextAttempt)',
+          desc: 'Awaiting post-repair report (Rework).',
+          isCompleted: false,
+          color: AdminStyles.warning,
         ));
       }
-    }
-
-    // If the latest evaluation was rework, append a pending Post-Repair Report step
-    if (sortedAttempts.isNotEmpty && sortedAttempts.last.adminEvaluation == 'rework') {
-      steps.add(const _TimelineStep(
+    } else {
+      steps.add(_TimelineStep(
         icon: Icons.build_circle_rounded,
         title: 'Post-Repair Report',
-        desc: 'Awaiting post-repair report (Rework).',
+        desc: isPreInspApproved
+            ? 'Awaiting post-repair report submission.'
+            : 'Pending repair completion.',
+        isCompleted: false,
+        color: isPreInspApproved ? AdminStyles.primary : Colors.grey,
+      ));
+
+      steps.add(const _TimelineStep(
+        icon: Icons.rate_review_rounded,
+        title: 'Post-Repair Evaluation',
+        desc: 'Pending post-repair report submission.',
         isCompleted: false,
         color: Colors.grey,
       ));
     }
 
-    // 7. Final Completion
-    final isCompleted = task.status.toLowerCase() == 'completed';
+    // 8. Final Completion
+    final hasSatisfiedEval = hasPostRepair && sortedAttempts.last.adminEvaluation == 'satisfied';
     steps.add(_TimelineStep(
       icon: Icons.verified_rounded,
       title: 'Completed & Verified',
       desc: isCompleted
           ? 'Work request fully verified and completed.'
-          : 'Awaiting final verification and close out.',
+          : (hasSatisfiedEval
+              ? 'Awaiting final verification and close out.'
+              : 'Pending work completion and evaluation.'),
       date: task.dateCompleted,
       isCompleted: isCompleted,
-      color: AdminStyles.success,
+      color: isCompleted ? AdminStyles.success : Colors.grey,
       isLast: true,
     ));
 

@@ -139,6 +139,9 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         createdBy: '',
+        isPinned: a.isPinned,
+        targetAudience: a.targetAudience,
+        displayType: a.displayType,
       ),
     );
   }
