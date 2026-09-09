@@ -72,7 +72,10 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
         _history = history;
         _nextAttemptNumber = history.length + 1;
         _selectedAttemptIndex = history.isNotEmpty ? history.length - 1 : 0;
-        _showNewSubmissionForm = _isEntryMode;
+        
+        final hasRework = history.isNotEmpty && history.last.adminEvaluation == 'rework';
+        final isEntry = _isEntryMode;
+        _showNewSubmissionForm = isEntry && (history.isEmpty || hasRework);
         _isLoading = false;
       });
     } catch (_) {
@@ -83,11 +86,31 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
   bool get _isEntryMode {
     if (widget.forceHistoryView) return false;
     
-    final status = widget.request.status;
+    final status = widget.request.status.toLowerCase().trim();
     final authService = context.read<AuthService>();
     final user = authService.currentUser;
     final isMaintenance = user?.role.name == 'maintenance';
-    return isMaintenance && (status == 'Confirmed' || status == 'Rework' || status == 'Pre-Inspection Approved' || status == 'For Rework');
+    if (!isMaintenance) return false;
+
+    // Terminal closed states cannot be edited or submitted
+    if (status == 'completed' || status == 'cancelled' || status == 'declined' || status == 'rejected') {
+      return false;
+    }
+
+    // If no reports have been submitted yet, maintenance technician MUST be able to submit!
+    if (_history.isEmpty) return true;
+
+    // If latest attempt is rework, submission of new attempt is allowed
+    if (_history.isNotEmpty && _history.last.adminEvaluation == 'rework') return true;
+
+    return status == 'confirmed' ||
+        status == 'under_maintenance' ||
+        status == 'in_progress' ||
+        status == 'in progress' ||
+        status == 'in progress (post-repair)' ||
+        status == 'pre-inspection approved' ||
+        status == 'rework' ||
+        status == 'for rework';
   }
 
   Future<void> _pickImages() async {
@@ -286,7 +309,9 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
                                 ),
                               )
                             else if (_history.isNotEmpty)
-                              _buildDetailedView(_history[_selectedAttemptIndex]),
+                              _buildDetailedView(_history[_selectedAttemptIndex])
+                            else
+                              _buildEmptyState(),
                           ],
                         ),
                       ),
@@ -315,7 +340,12 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
             },
           ),
           const SizedBox(width: 16),
-          Text(_isEntryMode ? 'Submit Post-Repair Report' : 'Repair History', style: AdminStyles.headingStyle(fontSize: 20)),
+          Text(
+            _showNewSubmissionForm
+                ? 'Submit Post-Repair Report'
+                : (_history.isNotEmpty ? 'Repair History' : 'Post-Repair Report'),
+            style: AdminStyles.headingStyle(fontSize: 20),
+          ),
         ],
       ),
     );
@@ -525,13 +555,12 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
   }
 
   Widget _buildTaskSummary() {
-    final trackId = widget.request.id.length > 8 ? widget.request.id.substring(0, 8).toUpperCase() : widget.request.id.toUpperCase();
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AdminStyles.primary.withOpacity(0.05),
+        color: AdminStyles.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AdminStyles.primary.withOpacity(0.15)),
+        border: Border.all(color: AdminStyles.primary.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -540,7 +569,7 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
             children: [
               const Icon(Icons.build_circle_rounded, color: AdminStyles.primary),
               const SizedBox(width: 12),
-              Text(_isEntryMode ? 'Post-Repair - Attempt #$_nextAttemptNumber' : 'Post-Repair Report', style: AdminStyles.headingStyle(fontSize: 16, color: AdminStyles.primary)),
+              Text(_showNewSubmissionForm ? 'Post-Repair - Attempt #$_nextAttemptNumber' : 'Post-Repair Report', style: AdminStyles.headingStyle(fontSize: 16, color: AdminStyles.primary)),
             ],
           ),
           const SizedBox(height: 16),
@@ -549,6 +578,58 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
           Text('Location: ${widget.request.buildingName} • ${widget.request.officeRoom}', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
           const SizedBox(height: 8),
           Text('Requestor: ${widget.request.displayRequestorName}', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AdminStyles.border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AdminStyles.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.assignment_outlined, size: 40, color: AdminStyles.primary),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Post-Repair Reports Yet',
+            style: AdminStyles.headingStyle(fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No post-repair reports have been recorded for this request.',
+            style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+          if (_isEntryMode) ...[
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                setState(() => _showNewSubmissionForm = true);
+              },
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Fill Up Post-Repair Form'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminStyles.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
         ],
       ),
     );

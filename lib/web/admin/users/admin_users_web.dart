@@ -132,7 +132,7 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
     final searchField = Container(
       width: isMobile ? double.infinity : 350,
       height: 48,
-      decoration: AdminStyles.cardDecoration(borderRadius: 14),
+      decoration: AdminStyles.cardDecoration(borderRadius: 14, hasShadow: false),
       child: TextField(
         controller: _searchController,
         onChanged: (_) => setState(() {}),
@@ -144,6 +144,12 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
             child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
           ),
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          filled: false,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
       ),

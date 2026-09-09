@@ -941,12 +941,19 @@ class _MaintenanceManagementPageWebState
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: AdminStyles.searchInputDecoration(
-                      hintText: 'Search maintenance accounts...',
-                      prefixIcon: Icons.search_rounded,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AdminStyles.border),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: (_) => setState(() {}),
+                      decoration: AdminStyles.searchInputDecoration(
+                        hintText: 'Search maintenance accounts...',
+                        prefixIcon: Icons.search_rounded,
+                      ),
                     ),
                   ),
                 ),

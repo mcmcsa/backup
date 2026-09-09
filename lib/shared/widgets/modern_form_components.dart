@@ -85,15 +85,7 @@ class _ModernTextFieldState extends State<ModernTextField> {
                       : Colors.grey.withValues(alpha: 0.2),
               width: _isFocused ? 2 : 1,
             ),
-            boxShadow: _isFocused
-                ? [
-                    BoxShadow(
-                      color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : [],
+            boxShadow: const [],
           ),
           child: TextField(
             controller: widget.controller,
@@ -131,6 +123,12 @@ class _ModernTextFieldState extends State<ModernTextField> {
                     )
                   : null,
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              filled: false,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 14,

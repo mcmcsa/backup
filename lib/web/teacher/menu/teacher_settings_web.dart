@@ -179,6 +179,13 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                           obscureText: obscureOld,
                           decoration: InputDecoration(
                             labelText: 'Old Password',
+                            labelStyle: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 13),
+                            filled: true,
+                            fillColor: AdminStyles.bg,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.border)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.border)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.primary, width: 1.5)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             suffixIcon: IconButton(
                               icon: Icon(obscureOld ? Icons.visibility_off : Icons.visibility),
                               onPressed: () => setDialogState(() => obscureOld = !obscureOld),
@@ -192,6 +199,13 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                           obscureText: obscureNew,
                           decoration: InputDecoration(
                             labelText: 'New Password',
+                            labelStyle: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 13),
+                            filled: true,
+                            fillColor: AdminStyles.bg,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.border)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.border)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.primary, width: 1.5)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             suffixIcon: IconButton(
                               icon: Icon(obscureNew ? Icons.visibility_off : Icons.visibility),
                               onPressed: () => setDialogState(() => obscureNew = !obscureNew),
@@ -205,6 +219,13 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                           obscureText: obscureConfirm,
                           decoration: InputDecoration(
                             labelText: 'Confirm Password',
+                            labelStyle: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 13),
+                            filled: true,
+                            fillColor: AdminStyles.bg,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.border)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.border)),
+                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.primary, width: 1.5)),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             suffixIcon: IconButton(
                               icon: Icon(obscureConfirm ? Icons.visibility_off : Icons.visibility),
                               onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),

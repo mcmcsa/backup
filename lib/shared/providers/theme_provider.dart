@@ -67,7 +67,7 @@ class ThemeProvider extends ChangeNotifier {
       
       textSelectionTheme: TextSelectionThemeData(
         cursorColor: primaryColor,
-        selectionColor: primaryColor.withValues(alpha: 0.3),
+        selectionColor: isDarkMode ? primaryColor.withValues(alpha: 0.3) : const Color(0x261E40AF),
         selectionHandleColor: primaryColor,
       ),
       
@@ -90,16 +90,16 @@ class ThemeProvider extends ChangeNotifier {
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: inputBorderColor),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: inputBorderColor),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(999),
-          borderSide: BorderSide(color: primaryColor, width: 2),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: primaryColor, width: 1.5),
         ),
         prefixIconColor: isDarkMode ? Colors.grey.shade400 : const Color(0xFF64748B),
         suffixIconColor: isDarkMode ? Colors.grey.shade400 : const Color(0xFF64748B),

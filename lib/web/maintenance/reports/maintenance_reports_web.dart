@@ -193,17 +193,22 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
         color: _card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _border),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: TextField(
         controller: _searchController,
         onChanged: (_) => setState(() {}),
-        decoration: InputDecoration(
+        decoration: const InputDecoration(
           hintText: 'Search by tracking number, title or room...',
-          hintStyle: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 14),
-          prefixIcon: const Icon(Icons.search_rounded, color: _muted, size: 20),
+          hintStyle: TextStyle(color: Color(0xFFCBD5E1), fontSize: 14),
+          prefixIcon: Icon(Icons.search_rounded, color: _muted, size: 20),
           border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          filled: false,
+          contentPadding: EdgeInsets.symmetric(vertical: 16),
         ),
       ),
     );

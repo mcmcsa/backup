@@ -599,13 +599,22 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
     TextInputAction? textInputAction,
     ValueChanged<String>? onSubmitted,
   }) {
-    return TextFormField(
-      controller: controller,
-      obscureText: isPassword && !_isPasswordVisible,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      onFieldSubmitted: onSubmitted,
-      style: const TextStyle(fontWeight: FontWeight.w500, color: _textPrimary, fontSize: 14),
+    return Theme(
+      data: Theme.of(context).copyWith(
+        textSelectionTheme: TextSelectionThemeData(
+          cursorColor: _brandBlue,
+          selectionColor: _brandBlue.withValues(alpha: 0.15),
+          selectionHandleColor: _brandBlue,
+        ),
+      ),
+      child: TextFormField(
+        controller: controller,
+        cursorColor: _brandBlue,
+        obscureText: isPassword && !_isPasswordVisible,
+        keyboardType: keyboardType,
+        textInputAction: textInputAction,
+        onFieldSubmitted: onSubmitted,
+        style: const TextStyle(fontWeight: FontWeight.w500, color: _textPrimary, fontSize: 14),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontWeight: FontWeight.w400),
@@ -633,6 +642,7 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       ),
       validator: (v) => (v == null || v.isEmpty) ? 'Required field' : null,
+      ),
     );
   }
 

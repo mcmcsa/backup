@@ -147,6 +147,14 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
                     ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFF00BFA5), width: 1.5),
+                    ),
                     contentPadding: const EdgeInsets.symmetric(vertical: 8),
                   ),
                 ),
@@ -161,6 +169,9 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.symmetric(horizontal: 10),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
                         ),
                         items: const [
                           DropdownMenuItem(value: 'all', child: Text('All Roles', style: TextStyle(fontSize: 13))),
@@ -180,6 +191,9 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                         decoration: const InputDecoration(
                           contentPadding: EdgeInsets.symmetric(horizontal: 10),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
                         ),
                         items: const [
                           DropdownMenuItem(value: 'all', child: Text('All Status', style: TextStyle(fontSize: 13))),

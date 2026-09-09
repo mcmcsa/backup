@@ -82,11 +82,27 @@ class _PostRepairPageState extends State<PostRepairPage> {
   }
 
   bool get _isEntryMode {
-    final status = widget.request.status;
+    final status = widget.request.status.toLowerCase().trim();
     final authService = context.read<AuthService>();
     final user = authService.currentUser;
     final isMaintenance = user?.role.name == 'maintenance';
-    return isMaintenance && (status == 'Confirmed' || status == 'Rework' || status == 'Pre-Inspection Approved' || status == 'For Rework');
+    if (!isMaintenance) return false;
+
+    if (status == 'completed' || status == 'cancelled' || status == 'declined' || status == 'rejected') {
+      return false;
+    }
+
+    if (_history.isEmpty) return true;
+    if (_history.isNotEmpty && _history.last.adminEvaluation == 'rework') return true;
+
+    return status == 'confirmed' ||
+        status == 'under_maintenance' ||
+        status == 'in_progress' ||
+        status == 'in progress' ||
+        status == 'in progress (post-repair)' ||
+        status == 'pre-inspection approved' ||
+        status == 'rework' ||
+        status == 'for rework';
   }
 
   void _openSignatureDialog() {

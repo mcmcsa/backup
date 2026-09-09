@@ -202,13 +202,6 @@ class _AdminLogsWebState extends State<AdminLogsWeb> {
             color: _cardBg,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: _borderColor),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x060F172A),
-                blurRadius: 8,
-                offset: Offset(0, 2),
-              ),
-            ],
           ),
           child: TextField(
             controller: _searchController,
@@ -232,6 +225,12 @@ class _AdminLogsWebState extends State<AdminLogsWeb> {
                     )
                   : null,
               border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              filled: false,
               contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             ),
           ),

@@ -246,13 +246,6 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: TextField(
         onChanged: (v) {
@@ -276,6 +269,12 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
             fontSize: 14,
           ),
           border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          disabledBorder: InputBorder.none,
+          errorBorder: InputBorder.none,
+          focusedErrorBorder: InputBorder.none,
+          filled: false,
         ),
       ),
     );

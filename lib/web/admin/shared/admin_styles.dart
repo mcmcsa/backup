@@ -168,14 +168,19 @@ class AdminStyles {
   static InputDecoration searchInputDecoration({
     required String hintText,
     required IconData prefixIcon,
+    Widget? suffixIcon,
   }) {
     return InputDecoration(
       hintText: hintText,
       hintStyle: bodyStyle(color: textMuted, fontSize: 13, fontWeight: FontWeight.w500),
       prefixIcon: Icon(prefixIcon, color: textMuted, size: 20),
+      suffixIcon: suffixIcon,
       border: InputBorder.none,
       enabledBorder: InputBorder.none,
       focusedBorder: InputBorder.none,
+      disabledBorder: InputBorder.none,
+      errorBorder: InputBorder.none,
+      focusedErrorBorder: InputBorder.none,
       filled: false,
       contentPadding: const EdgeInsets.symmetric(vertical: 12),
     );

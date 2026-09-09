@@ -474,6 +474,12 @@ class _ChatComposerState extends State<ChatComposer> {
                   hintText: 'Message…',
                   hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade400),
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
+                  filled: false,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
