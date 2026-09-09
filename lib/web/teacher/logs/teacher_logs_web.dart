@@ -163,18 +163,23 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredLogs;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isNarrow = screenWidth < 500;
 
     return Container(
       color: _pageBg,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+        padding: EdgeInsets.symmetric(
+          horizontal: isNarrow ? 14 : 32,
+          vertical: isNarrow ? 20 : 32,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Activity Logs',
               style: AdminStyles.headingStyle(
-                fontSize: 28,
+                fontSize: isNarrow ? 22 : 28,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -182,11 +187,11 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
             Text(
               'Track your recent interactions and system updates.',
               style: AdminStyles.bodyStyle(
-                fontSize: 15,
+                fontSize: isNarrow ? 13 : 15,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: isNarrow ? 16 : 24),
             _buildSearchAndFilter(),
             const SizedBox(height: 20),
             if (_isLoading)

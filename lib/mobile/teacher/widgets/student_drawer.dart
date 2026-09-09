@@ -10,6 +10,7 @@ class StudentDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
+      width: 280,
       child: Container(
         color: const Color(0xFF00BFA5),
         child: SafeArea(
@@ -24,13 +25,16 @@ class StudentDrawer extends StatelessWidget {
                     SizedBox(
                       height: 70,
                       width: 70,
-                      child: Image.asset(
-                        'assets/images/PsuLogo.png',
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.school,
-                          color: Colors.white,
-                          size: 60,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.asset(
+                          'assets/images/app_logo_v2.png',
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.school,
+                            color: Colors.white,
+                            size: 60,
+                          ),
                         ),
                       ),
                     ),

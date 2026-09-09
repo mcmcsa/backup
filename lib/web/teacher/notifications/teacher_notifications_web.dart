@@ -199,15 +199,20 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredNotifications;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isNarrow = screenWidth < 500;
 
     return Container(
       color: _pageBg,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+        padding: EdgeInsets.symmetric(
+          horizontal: isNarrow ? 14 : 32,
+          vertical: isNarrow ? 20 : 32,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildPageHeader(),
+            _buildPageHeader(isNarrow),
             const SizedBox(height: 20),
             NotificationFilterBar(
               selectedType: _selectedType,
@@ -381,14 +386,14 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
     );
   }
 
-  Widget _buildPageHeader() {
+  Widget _buildPageHeader(bool isNarrow) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Notifications',
           style: TextStyle(
-            fontSize: 28,
+            fontSize: isNarrow ? 22 : 28,
             fontWeight: FontWeight.w800,
             color: _darkText,
             letterSpacing: -0.5,
@@ -398,7 +403,7 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
         Text(
           'Stay updated on your maintenance requests and activity.',
           style: TextStyle(
-            fontSize: 15,
+            fontSize: isNarrow ? 13 : 15,
             color: _subtleText.withValues(alpha: 0.8),
             fontWeight: FontWeight.w500,
           ),

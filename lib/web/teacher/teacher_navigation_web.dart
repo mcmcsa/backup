@@ -569,11 +569,12 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Pangasinan State University',
+              'PSU MMS',
               style: AdminStyles.headingStyle(
-                fontSize: isCompact ? 15 : 18,
+                fontSize: isCompact ? 16 : 18,
                 fontWeight: FontWeight.bold,
                 color: AdminStyles.primary,
+                letterSpacing: 0.5,
               ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,

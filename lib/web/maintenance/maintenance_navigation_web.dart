@@ -270,9 +270,9 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
               key: _scaffoldKey,
               backgroundColor: _contentBg,
               drawer: Drawer(
-                width: 270,
+                width: 280,
                 shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-                child: _buildSidebar(width: 270, closeDrawerOnTap: true),
+                child: _buildSidebar(width: 280, closeDrawerOnTap: true),
               ),
               body: Column(
                 children: [
@@ -322,7 +322,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
     );
   }
 
-  Widget _buildSidebar({double width = 250, bool closeDrawerOnTap = false}) {
+  Widget _buildSidebar({double width = 260, bool closeDrawerOnTap = false}) {
     final user = context.watch<AuthService>().currentUser;
     final userName = user?.name ?? 'Maintenance';
     final userSpecialization = user?.position ?? 'Maintenance Staff';
@@ -630,11 +630,12 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Pangasinan State University',
+              'PSU MMS',
               style: AdminStyles.headingStyle(
-                fontSize: isCompact ? 15 : 18,
+                fontSize: isCompact ? 16 : 18,
                 fontWeight: FontWeight.bold,
                 color: AdminStyles.primary,
+                letterSpacing: 0.5,
               ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,

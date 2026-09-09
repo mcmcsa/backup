@@ -502,7 +502,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              _buildMainForm(),
+                              _buildMainForm(isNarrow: isNarrow),
                               const SizedBox(height: 32),
                               _buildSidePanel(),
                             ],
@@ -511,7 +511,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(flex: 6, child: _buildMainForm()),
+                              Expanded(flex: 6, child: _buildMainForm(isNarrow: isNarrow)),
                               const SizedBox(width: 32),
                               Expanded(flex: 4, child: _buildSidePanel()),
                             ],
@@ -824,7 +824,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
 
   bool get _isLocationLocked => widget.roomId != null && widget.roomId!.isNotEmpty;
 
-  Widget _buildMainForm() {
+  Widget _buildMainForm({bool isNarrow = false}) {
     return Column(
       children: [
         _buildCard(
@@ -860,80 +860,133 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                   ],
                 ),
               ),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInputField(
-                    label: 'Room Code',
-                    controller: _roomNumberController,
-                    hint: 'ex. CLR 1',
-                    validator: (v) => v!.isEmpty ? 'Required' : null,
-                    readOnly: _isLocationLocked,
+            if (isNarrow) ...[
+              _buildInputField(
+                label: 'Room Code',
+                controller: _roomNumberController,
+                hint: 'ex. CLR 1',
+                validator: (v) => v!.isEmpty ? 'Required' : null,
+                readOnly: _isLocationLocked,
+              ),
+              const SizedBox(height: 16),
+              _buildInputField(
+                label: 'Room Name',
+                controller: _officeRoomNameController,
+                hint: 'ex. Computer Lab 1',
+                validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                readOnly: _isLocationLocked,
+              ),
+              const SizedBox(height: 16),
+              _buildDropdownField(
+                label: 'Department/College',
+                value: _selectedCollege,
+                hintText: 'Select Department',
+                items: _colleges,
+                enabled: !_isLocationLocked,
+                showError: _showDropdownErrors,
+                onChanged: (v) => setState(() {
+                  _selectedCollege = v ?? '';
+                  _selectedBuilding = '';
+                }),
+              ),
+              const SizedBox(height: 16),
+              _buildDropdownField(
+                label: 'Building',
+                value: _selectedBuilding,
+                hintText: 'Select Building',
+                items: _selectedCollege.isNotEmpty
+                    ? (_buildingsByDepartment[_selectedCollege] ?? [])
+                    : (_colleges.expand((c) => _buildingsByDepartment[c] ?? <String>[]).toSet().toList()),
+                enabled: !_isLocationLocked,
+                showError: _showDropdownErrors,
+                onChanged: (v) => setState(() => _selectedBuilding = v ?? ''),
+              ),
+              const SizedBox(height: 16),
+              _buildDropdownField(
+                label: 'Floor',
+                value: _selectedFloor,
+                hintText: 'Select Floor',
+                items: _floors,
+                enabled: !_isLocationLocked,
+                showError: _showDropdownErrors,
+                onChanged: (v) => setState(() => _selectedFloor = v ?? ''),
+              ),
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildInputField(
+                      label: 'Room Code',
+                      controller: _roomNumberController,
+                      hint: 'ex. CLR 1',
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                      readOnly: _isLocationLocked,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildInputField(
-                    label: 'Room Name',
-                    controller: _officeRoomNameController,
-                    hint: 'ex. Computer Lab 1',
-                    validator: (v) => v!.trim().isEmpty ? 'Required' : null,
-                    readOnly: _isLocationLocked,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildInputField(
+                      label: 'Room Name',
+                      controller: _officeRoomNameController,
+                      hint: 'ex. Computer Lab 1',
+                      validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+                      readOnly: _isLocationLocked,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDropdownField(
-                    label: 'Department/College',
-                    value: _selectedCollege,
-                    hintText: 'Select Department',
-                    items: _colleges,
-                    enabled: !_isLocationLocked,
-                    showError: _showDropdownErrors,
-                    onChanged: (v) => setState(() {
-                      _selectedCollege = v ?? '';
-                      _selectedBuilding = '';
-                    }),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDropdownField(
+                      label: 'Department/College',
+                      value: _selectedCollege,
+                      hintText: 'Select Department',
+                      items: _colleges,
+                      enabled: !_isLocationLocked,
+                      showError: _showDropdownErrors,
+                      onChanged: (v) => setState(() {
+                        _selectedCollege = v ?? '';
+                        _selectedBuilding = '';
+                      }),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildDropdownField(
-                    label: 'Building',
-                    value: _selectedBuilding,
-                    hintText: 'Select Building',
-                    items: _selectedCollege.isNotEmpty
-                        ? (_buildingsByDepartment[_selectedCollege] ?? [])
-                        : (_colleges.expand((c) => _buildingsByDepartment[c] ?? <String>[]).toSet().toList()),
-                    enabled: !_isLocationLocked,
-                    showError: _showDropdownErrors,
-                    onChanged: (v) => setState(() => _selectedBuilding = v ?? ''),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildDropdownField(
+                      label: 'Building',
+                      value: _selectedBuilding,
+                      hintText: 'Select Building',
+                      items: _selectedCollege.isNotEmpty
+                          ? (_buildingsByDepartment[_selectedCollege] ?? [])
+                          : (_colleges.expand((c) => _buildingsByDepartment[c] ?? <String>[]).toSet().toList()),
+                      enabled: !_isLocationLocked,
+                      showError: _showDropdownErrors,
+                      onChanged: (v) => setState(() => _selectedBuilding = v ?? ''),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDropdownField(
-                    label: 'Floor',
-                    value: _selectedFloor,
-                    hintText: 'Select Floor',
-                    items: _floors,
-                    enabled: !_isLocationLocked,
-                    showError: _showDropdownErrors,
-                    onChanged: (v) => setState(() => _selectedFloor = v ?? ''),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDropdownField(
+                      label: 'Floor',
+                      value: _selectedFloor,
+                      hintText: 'Select Floor',
+                      items: _floors,
+                      enabled: !_isLocationLocked,
+                      showError: _showDropdownErrors,
+                      onChanged: (v) => setState(() => _selectedFloor = v ?? ''),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 16),
-                const Expanded(child: SizedBox()),
-              ],
-            ),
+                  const SizedBox(width: 16),
+                  const Expanded(child: SizedBox()),
+                ],
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 24),

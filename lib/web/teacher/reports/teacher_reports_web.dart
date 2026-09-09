@@ -374,8 +374,9 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
 
   // ─── Card List (Mobile/Compact) ─────────────────────────────────────────────
   Widget _buildCardList() {
+    final isMobile = MediaQuery.of(context).size.width < 450;
     return ListView.builder(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(isMobile ? 12 : 20),
       itemCount: _filteredRequests.length,
       itemBuilder: (context, index) {
         final request = _filteredRequests[index];
@@ -887,9 +888,9 @@ class _PremiumRequestCardState extends State<_PremiumRequestCard> {
                   ),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 16,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: MediaQuery.of(context).size.width < 450 ? 12 : 18,
+                        vertical: 14,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -924,9 +925,10 @@ class _PremiumRequestCardState extends State<_PremiumRequestCard> {
                               const SizedBox(width: 12),
                               // Status badge
                               Container(
+                                constraints: const BoxConstraints(maxWidth: 135),
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
+                                  horizontal: 8,
+                                  vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
                                   color: _statusColor.withValues(alpha: 0.1),
@@ -946,14 +948,18 @@ class _PremiumRequestCardState extends State<_PremiumRequestCard> {
                                         shape: BoxShape.circle,
                                       ),
                                     ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      _statusLabel,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        color: _statusColor,
-                                        letterSpacing: 0.5,
+                                    const SizedBox(width: 5),
+                                    Flexible(
+                                      child: Text(
+                                        _statusLabel,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: _statusColor,
+                                          letterSpacing: 0.4,
+                                        ),
                                       ),
                                     ),
                                   ],

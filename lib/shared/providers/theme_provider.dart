@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,13 +7,10 @@ class ThemeProvider extends ChangeNotifier {
   bool _isDarkMode = false;
 
   ThemeProvider() {
-    if (!kIsWeb) {
-      _loadThemeFromPrefs();
-    }
+    _loadThemeFromPrefs();
   }
 
-  /// Dark mode is strictly for mobile only. On Web, always enforce light mode.
-  bool get isDarkMode => kIsWeb ? false : _isDarkMode;
+  bool get isDarkMode => _isDarkMode;
 
   // Light theme colors
   Color get primaryColor => const Color(0xFF00BFA5);
@@ -135,21 +131,18 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Future<void> toggleTheme() async {
-    if (kIsWeb) return;
     _isDarkMode = !_isDarkMode;
     notifyListeners();
     await _saveThemeToPrefs();
   }
 
   Future<void> setDarkMode(bool value) async {
-    if (kIsWeb) return;
     _isDarkMode = value;
     notifyListeners();
     await _saveThemeToPrefs();
   }
 
   Future<void> _saveThemeToPrefs() async {
-    if (kIsWeb) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_themeKey, _isDarkMode);
@@ -159,7 +152,6 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Future<void> _loadThemeFromPrefs() async {
-    if (kIsWeb) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getBool(_themeKey);

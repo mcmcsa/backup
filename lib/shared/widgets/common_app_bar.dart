@@ -78,12 +78,13 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'PSU',
+                'PSU MMS',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: themeProvider.appBarTextColor,
                   height: 1,
+                  letterSpacing: 0.3,
                 ),
               ),
               const SizedBox(height: 2),
@@ -125,7 +126,12 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
                       Icons.notifications_outlined,
                       color: themeProvider.appBarIconColor,
                     ),
-                    onPressed: onNotificationPressed ?? () {},
+                    onPressed: onNotificationPressed ?? () {
+                      final router = GoRouter.maybeOf(context);
+                      if (router != null) {
+                        context.push('/notifications');
+                      }
+                    },
                   ),
                   if (unreadCount > 0)
                     Positioned(

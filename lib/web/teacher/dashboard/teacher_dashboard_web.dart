@@ -120,12 +120,20 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
   }
 
   Widget _buildHeader(String userName, bool isCompact) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 500;
+
     final titleWidget = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Welcome back, $userName', style: AdminStyles.headingStyle(fontSize: isCompact ? 24 : 32)),
+        Text(
+          'Welcome back, $userName',
+          style: AdminStyles.headingStyle(fontSize: isMobile ? 20 : (isCompact ? 24 : 32)),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
         const SizedBox(height: 8),
-        Text('Here is what is happening with your maintenance requests today.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: isCompact ? 14 : 16)),
+        Text('Here is what is happening with your maintenance requests today.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: isCompact ? 13 : 16)),
       ],
     );
 
@@ -223,8 +231,8 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: isCompact ? 1 : 2,
               crossAxisSpacing: 24,
-              mainAxisSpacing: 24,
-              mainAxisExtent: isCompact ? 130 : 140,
+              mainAxisSpacing: 16,
+              mainAxisExtent: isCompact ? (MediaQuery.of(context).size.width < 450 ? 148 : 130) : 140,
             ),
             itemCount: _requests.take(4).length,
             itemBuilder: (context, index) => _buildRequestCard(_requests[index], isCompact),
@@ -335,11 +343,15 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
   Widget _buildStatusPill(String status) {
     final color = _getStatusColor(status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      constraints: const BoxConstraints(maxWidth: 130),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: AdminStyles.pillDecoration(color: color, isSecondary: true),
       child: Text(
         status.toUpperCase().replaceAll('_', ' '),
         style: AdminStyles.headingStyle(fontSize: 9, color: color),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
       ),
     );
   }

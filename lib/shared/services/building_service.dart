@@ -39,27 +39,66 @@ class BuildingService {
     return (data as List).map((e) => Building.fromMap(e)).toList();
   }
 
+  static Future<Building?> fetchByName(String name) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) return null;
+    try {
+      final data = await _db
+          .from(_table)
+          .select(_selectWithJoins)
+          .ilike('name', cleanName)
+          .maybeSingle();
+      if (data != null) return Building.fromMap(data);
+    } catch (_) {}
+
+    try {
+      final data = await _db
+          .from(_table)
+          .select()
+          .ilike('name', cleanName)
+          .maybeSingle();
+      if (data != null) return Building.fromMap(data);
+    } catch (_) {}
+
+    return null;
+  }
+
   static Future<Building?> fetchByNameAndDepartment(String name, String departmentId) async {
-    final data = await _db
-        .from(_table)
-        .select(_selectWithJoins)
-        .ilike('name', name)
-        .eq('department_id', departmentId)
-        .maybeSingle();
-    if (data == null) return null;
-    return Building.fromMap(data);
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) return null;
+
+    try {
+      var query = _db.from(_table).select(_selectWithJoins).ilike('name', cleanName);
+      if (departmentId.trim().isNotEmpty) {
+        query = query.eq('department_id', departmentId.trim());
+      }
+      final data = await query.maybeSingle();
+      if (data != null) return Building.fromMap(data);
+    } catch (_) {}
+
+    try {
+      var query = _db.from(_table).select().ilike('name', cleanName);
+      if (departmentId.trim().isNotEmpty) {
+        query = query.eq('department_id', departmentId.trim());
+      }
+      final data = await query.maybeSingle();
+      if (data != null) return Building.fromMap(data);
+    } catch (_) {}
+
+    // Fallback: search by name without department filter
+    return fetchByName(name);
   }
 
   // ─── Create ──────────────────────────────────────────────────────────────
 
   static Future<String?> create({
     required String name,
-    required String code,
+    String code = '',
     required String departmentId,
     required int numberOfFloors,
   }) async {
     try {
-      // Duplicate check for name or code
+      // Duplicate check for name
       final existingName = await _db
           .from(_table)
           .select('id')
@@ -67,17 +106,9 @@ class BuildingService {
           .maybeSingle();
       if (existingName != null) return 'A building named "$name" already exists.';
 
-      final existingCode = await _db
-          .from(_table)
-          .select('id')
-          .ilike('code', code.trim())
-          .maybeSingle();
-      if (existingCode != null) return 'A building with code "$code" already exists.';
-
       final now = DateTime.now().toIso8601String();
       await _db.from(_table).insert({
         'name': name.trim(),
-        'code': code.trim().toUpperCase(),
         if (departmentId.isNotEmpty) 'department_id': departmentId,
         'created_at': now,
         'updated_at': now,
@@ -85,7 +116,7 @@ class BuildingService {
 
       await AdminAuditLogService.logAction(
         title: 'Created Building',
-        details: 'Building: $name ($code)',
+        details: 'Building: $name',
       );
       return null;
     } catch (e) {
@@ -107,7 +138,7 @@ class BuildingService {
   static Future<String?> updateBuilding({
     required String id,
     required String name,
-    required String code,
+    String code = '',
     required String departmentId,
     required int numberOfFloors,
     required bool isActive,
@@ -122,23 +153,15 @@ class BuildingService {
       );
       if (duplicateName) return 'A building named "$name" already exists.';
 
-      final duplicateCode = allBuildings.any(
-        (b) =>
-            b.id != id &&
-            b.code.trim().toLowerCase() == code.trim().toLowerCase(),
-      );
-      if (duplicateCode) return 'A building with code "$code" already exists.';
-
       await _db.from(_table).update({
         'name': name.trim(),
-        'code': code.trim().toUpperCase(),
         'department_id': departmentId.isNotEmpty ? departmentId : null,
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', id);
 
       await AdminAuditLogService.logAction(
         title: 'Updated Building',
-        details: 'Building: $name ($code)',
+        details: 'Building: $name',
       );
       return null;
     } catch (e) {
@@ -204,10 +227,8 @@ class BuildingService {
     if (data != null) return Building.fromMap(data);
 
     final now = DateTime.now();
-    final code = name.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '_');
     final newBuilding = {
       'name': name,
-      'code': '${code.substring(0, code.length > 10 ? 10 : code.length)}_${now.millisecondsSinceEpoch % 10000}',
       'created_at': now.toIso8601String(),
       'updated_at': now.toIso8601String(),
     };

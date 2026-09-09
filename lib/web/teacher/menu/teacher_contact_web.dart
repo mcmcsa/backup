@@ -67,26 +67,38 @@ class _TeacherContactWebState extends State<TeacherContactWeb> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isNarrow = screenWidth < 750;
+
     return Container(
       color: AdminStyles.bg,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(40),
+        padding: EdgeInsets.symmetric(
+          horizontal: isNarrow ? 16 : 40,
+          vertical: isNarrow ? 20 : 40,
+        ),
         child: Center(
           child: Container(
             constraints: const BoxConstraints(maxWidth: 1000),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildHeader(),
-                const SizedBox(height: 40),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 4, child: _buildContactInfo()),
-                    const SizedBox(width: 32),
-                    Expanded(flex: 6, child: _buildContactForm()),
-                  ],
-                ),
+                _buildHeader(isNarrow),
+                SizedBox(height: isNarrow ? 24 : 40),
+                if (isNarrow) ...[
+                  _buildContactInfo(isNarrow),
+                  const SizedBox(height: 24),
+                  _buildContactForm(isNarrow),
+                ] else ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 4, child: _buildContactInfo(isNarrow)),
+                      const SizedBox(width: 32),
+                      Expanded(flex: 6, child: _buildContactForm(isNarrow)),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -95,32 +107,41 @@ class _TeacherContactWebState extends State<TeacherContactWeb> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isNarrow) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Contact Support', style: AdminStyles.headingStyle(fontSize: 32)),
+        Text(
+          'Contact Support',
+          style: AdminStyles.headingStyle(fontSize: isNarrow ? 24 : 32),
+        ),
         const SizedBox(height: 8),
-        Text('Have questions or need technical assistance? Our team is here to help.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 16)),
+        Text(
+          'Have questions or need technical assistance? Our team is here to help.',
+          style: AdminStyles.bodyStyle(
+            color: AdminStyles.textSecondary,
+            fontSize: isNarrow ? 14 : 16,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildContactInfo() {
+  Widget _buildContactInfo(bool isNarrow) {
     return Column(
       children: [
-        _buildInfoCard(Icons.support_agent_rounded, 'Technical Support', 'support@psu.edu.ph', AdminStyles.primary),
-        const SizedBox(height: 24),
-        _buildInfoCard(Icons.business_rounded, 'Maintenance Office', 'Physical Plant Division, Admin Bldg.', AdminStyles.secondary),
-        const SizedBox(height: 24),
-        _buildInfoCard(Icons.phone_in_talk_rounded, 'Emergency Hotline', '(075) 123-4567', AdminStyles.error),
+        _buildInfoCard(Icons.support_agent_rounded, 'Technical Support', 'support@psu.edu.ph', AdminStyles.primary, isNarrow),
+        const SizedBox(height: 16),
+        _buildInfoCard(Icons.business_rounded, 'Maintenance Office', 'Physical Plant Division, Admin Bldg.', AdminStyles.secondary, isNarrow),
+        const SizedBox(height: 16),
+        _buildInfoCard(Icons.phone_in_talk_rounded, 'Emergency Hotline', '(075) 123-4567', AdminStyles.error, isNarrow),
       ],
     );
   }
 
-  Widget _buildInfoCard(IconData icon, String title, String value, Color color) {
+  Widget _buildInfoCard(IconData icon, String title, String value, Color color, bool isNarrow) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isNarrow ? 16 : 24),
       decoration: AdminStyles.cardDecoration(),
       child: Row(
         children: [
@@ -129,13 +150,14 @@ class _TeacherContactWebState extends State<TeacherContactWeb> {
             decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
             child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textSecondary)),
-                Text(value, style: AdminStyles.headingStyle(fontSize: 15)),
+                Text(title, style: AdminStyles.headingStyle(fontSize: 13, color: AdminStyles.textSecondary)),
+                const SizedBox(height: 2),
+                Text(value, style: AdminStyles.headingStyle(fontSize: isNarrow ? 14 : 15)),
               ],
             ),
           ),
@@ -144,14 +166,14 @@ class _TeacherContactWebState extends State<TeacherContactWeb> {
     );
   }
 
-  Widget _buildContactForm() {
+  Widget _buildContactForm(bool isNarrow) {
     return Container(
-      padding: const EdgeInsets.all(40),
+      padding: EdgeInsets.all(isNarrow ? 20 : 40),
       decoration: AdminStyles.cardDecoration(hasShadow: true),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Send us a message', style: AdminStyles.headingStyle(fontSize: 20)),
+          Text('Send us a message', style: AdminStyles.headingStyle(fontSize: isNarrow ? 18 : 20)),
           const SizedBox(height: 32),
           _buildTextField('Subject', 'How can we help?', controller: _subjectController),
           const SizedBox(height: 24),

@@ -1,8 +1,15 @@
 
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import '../models/building_model.dart';
+import '../models/department_model.dart';
+import '../models/floor_model.dart';
 import '../models/room_model.dart';
+import '../models/room_type_model.dart';
+import 'building_service.dart';
+import 'department_service.dart';
 import '../services/room_type_service.dart';
 import '../services/floor_service.dart';
 import 'admin_audit_log_service.dart';
@@ -17,112 +24,231 @@ class RoomService {
 
   static Future<String?> uploadRoomImageBytes(Uint8List bytes, String fileName) async {
     try {
-      final ext = fileName.contains('.') ? fileName.split('.').last : 'jpg';
-      final path = 'rooms/${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}.$ext';
+      final rawExt = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : 'jpg';
+      final mimeType = (rawExt == 'png')
+          ? 'image/png'
+          : (rawExt == 'webp')
+              ? 'image/webp'
+              : (rawExt == 'gif')
+                  ? 'image/gif'
+                  : 'image/jpeg';
+      final fileExt = (rawExt == 'jpeg' || rawExt == 'jpg') ? 'jpg' : rawExt;
+      final path = 'rooms/${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 8)}.$fileExt';
+
+      final buckets = [
+        'room-images',
+        'work-request-attachments',
+        'work-evidence',
+        'profile-images',
+        'chat-attachments',
+      ];
+
+      for (final bucket in buckets) {
+        try {
+          await _db.storage.from(bucket).uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: mimeType,
+              upsert: true,
+            ),
+          );
+          final url = _db.storage.from(bucket).getPublicUrl(path);
+          debugPrint('Successfully uploaded room image to bucket "$bucket": $url');
+          return url;
+        } catch (e) {
+          debugPrint('Upload room image to bucket "$bucket" failed: $e');
+        }
+      }
+
+      // Ultimate resilient fallback if storage buckets fail: Base64 data URI
       try {
-        await _db.storage.from('room-images').uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(contentType: 'image/$ext'),
-        );
-        return _db.storage.from('room-images').getPublicUrl(path);
-      } catch (_) {
-        await _db.storage.from('work-request-attachments').uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(contentType: 'image/$ext'),
-        );
-        return _db.storage.from('work-request-attachments').getPublicUrl(path);
+        final base64String = base64Encode(bytes);
+        final dataUri = 'data:$mimeType;base64,$base64String';
+        debugPrint('Room image saved as resilient data URI (length: ${dataUri.length})');
+        return dataUri;
+      } catch (e) {
+        debugPrint('Failed base64 fallback conversion: $e');
       }
     } catch (e) {
       debugPrint('Error uploading room image: $e');
-      return null;
     }
+    return null;
   }
 
   static const String _selectWithJoins = '*, buildings(name), departments(name), room_types(name)';
 
+  static Future<List<dynamic>> _safeSelectRooms({
+    String? filterColumn,
+    dynamic filterValue,
+    String? ilikeColumn,
+    String? ilikeValue,
+    bool ascending = true,
+  }) async {
+    // 1. Try joined query
+    try {
+      var query = _db.from(_table).select(_selectWithJoins);
+      if (filterColumn != null && filterValue != null) {
+        query = query.eq(filterColumn, filterValue);
+      }
+      if (ilikeColumn != null && ilikeValue != null) {
+        query = query.ilike(ilikeColumn, ilikeValue);
+      }
+      final res = await query.order('name', ascending: ascending);
+      return res as List<dynamic>;
+    } catch (e) {
+      debugPrint('RoomService: _selectWithJoins failed: $e. Retrying direct select...');
+    }
+
+    // 2. Try direct select with order
+    try {
+      var query = _db.from(_table).select();
+      if (filterColumn != null && filterValue != null) {
+        query = query.eq(filterColumn, filterValue);
+      }
+      if (ilikeColumn != null && ilikeValue != null) {
+        query = query.ilike(ilikeColumn, ilikeValue);
+      }
+      final res = await query.order('name', ascending: ascending);
+      return res as List<dynamic>;
+    } catch (e) {
+      debugPrint('RoomService: direct select with order failed: $e. Retrying plain select...');
+    }
+
+    // 3. Fallback direct select without order
+    try {
+      var query = _db.from(_table).select();
+      if (filterColumn != null && filterValue != null) {
+        query = query.eq(filterColumn, filterValue);
+      }
+      if (ilikeColumn != null && ilikeValue != null) {
+        query = query.ilike(ilikeColumn, ilikeValue);
+      }
+      final res = await query;
+      return res as List<dynamic>;
+    } catch (e) {
+      debugPrint('RoomService: plain select failed: $e');
+      return [];
+    }
+  }
+
   static Future<List<Room>> _mapRooms(List<dynamic> data) async {
-    final roomTypes = await RoomTypeService.fetchAll();
-    final roomTypeNames = {
-      for (final roomType in roomTypes) roomType.id: roomType.name,
-    };
-    final floors = await FloorService.fetchAll();
-    final floorNames = {
-      for (final f in floors) f.id: f.name,
-    };
+    if (data.isEmpty) return [];
+
+    final roomTypesFuture = RoomTypeService.fetchAll().catchError((_) => <RoomType>[]);
+    final floorsFuture = FloorService.fetchAll().catchError((_) => <Floor>[]);
+    final buildingsFuture = BuildingService.fetchAll().catchError((_) => <Building>[]);
+    final departmentsFuture = DepartmentService.fetchAll().catchError((_) => <Department>[]);
+
+    final results = await Future.wait([
+      roomTypesFuture,
+      floorsFuture,
+      buildingsFuture,
+      departmentsFuture,
+    ]);
+
+    final roomTypes = (results[0] as List).cast<RoomType>();
+    final floors = (results[1] as List).cast<Floor>();
+    final buildings = (results[2] as List).cast<Building>();
+    final departments = (results[3] as List).cast<Department>();
+
+    final roomTypeNames = {for (final rt in roomTypes) rt.id: rt.name};
+    final floorNames = {for (final f in floors) f.id: f.name};
+    final buildingNames = {for (final b in buildings) b.id: b.name};
+    final departmentNames = {for (final d in departments) d.id: d.name};
 
     return data.map((e) {
-      final row = Map<String, dynamic>.from(e as Map);
-      final roomTypeId = row['room_type_id']?.toString() ?? '';
-      final roomTypeName = roomTypeNames[roomTypeId] ?? row['room_type'] ?? '';
+      try {
+        final row = Map<String, dynamic>.from(e as Map);
+        final roomTypeId = row['room_type_id']?.toString() ?? '';
+        final roomTypeName = roomTypeNames[roomTypeId] ?? row['room_type'] ?? '';
 
-      if (roomTypeName.isNotEmpty) {
-        row['room_types'] = {'name': roomTypeName};
+        if (roomTypeName.isNotEmpty) {
+          row['room_types'] = {'name': roomTypeName};
+          row['room_type'] = roomTypeName;
+        }
+
+        final floorId = row['floor_id']?.toString() ?? '';
+        final floorName = floorNames[floorId] ?? row['floor'] ?? row['floor_snapshot'] ?? '';
+        if (floorName.isNotEmpty) {
+          row['floors'] = {'name': floorName};
+          row['floor'] = floorName;
+        }
+
+        final bldgId = row['building_id']?.toString() ?? '';
+        String bldgName = '';
+        if (row['buildings'] is Map) {
+          bldgName = row['buildings']['name']?.toString() ?? '';
+        }
+        if (bldgName.isEmpty && bldgId.isNotEmpty) {
+          bldgName = buildingNames[bldgId] ?? '';
+        }
+        if (bldgName.isNotEmpty) {
+          row['buildings'] = {'name': bldgName};
+          row['building'] = bldgName;
+        }
+
+        final deptId = row['department_id']?.toString() ?? '';
+        String deptName = '';
+        if (row['departments'] is Map) {
+          deptName = row['departments']['name']?.toString() ?? '';
+        }
+        if (deptName.isEmpty && deptId.isNotEmpty) {
+          deptName = departmentNames[deptId] ?? '';
+        }
+        if (deptName.isNotEmpty) {
+          row['departments'] = {'name': deptName};
+          row['department'] = deptName;
+          row['department_name'] = deptName;
+        }
+
+        return Room.fromMap(row);
+      } catch (err) {
+        debugPrint('Error mapping room row: $err');
+        return Room.fromMap(Map<String, dynamic>.from(e as Map));
       }
-
-      final floorId = row['floor_id']?.toString() ?? '';
-      final floorName = floorNames[floorId] ?? row['floor'] ?? row['floor_snapshot'] ?? '';
-      if (floorName.isNotEmpty) {
-        row['floors'] = {'name': floorName};
-        row['floor'] = floorName;
-      }
-
-      return Room.fromMap(row);
     }).toList();
   }
 
   static Future<List<Room>> fetchAll() async {
-    final data = await _db.from(_table).select(_selectWithJoins).order('name', ascending: true);
-    return _mapRooms(data as List);
+    final list = await _safeSelectRooms();
+    return _mapRooms(list);
   }
 
   static Future<List<Room>> fetchByBuilding(String buildingId) async {
-    final data = await _db
-        .from(_table)
-        .select(_selectWithJoins)
-        .eq('building_id', buildingId)
-        .order('name', ascending: true);
-    return _mapRooms(data as List);
+    final list = await _safeSelectRooms(filterColumn: 'building_id', filterValue: buildingId);
+    return _mapRooms(list);
   }
 
   static Future<List<Room>> fetchByDepartment(String departmentId) async {
-    final data = await _db
-        .from(_table)
-        .select(_selectWithJoins)
-        .eq('department_id', departmentId)
-        .order('name', ascending: true);
-    return _mapRooms(data as List);
+    final list = await _safeSelectRooms(filterColumn: 'department_id', filterValue: departmentId);
+    return _mapRooms(list);
   }
 
   static Future<List<Room>> fetchByStatus(String status) async {
-    final data = await _db
-        .from(_table)
-        .select(_selectWithJoins)
-        .eq('status', status)
-        .order('name', ascending: true);
-    return _mapRooms(data as List);
+    final list = await _safeSelectRooms(filterColumn: 'status', filterValue: status);
+    return _mapRooms(list);
   }
 
   static Future<Room?> fetchById(String id) async {
-    final data = await _db.from(_table).select(_selectWithJoins).eq('id', id).maybeSingle();
-    if (data == null) return null;
-    final list = await _mapRooms([data]);
-    return list.isNotEmpty ? list.first : null;
+    final list = await _safeSelectRooms(filterColumn: 'id', filterValue: id);
+    if (list.isEmpty) return null;
+    final mapped = await _mapRooms(list);
+    return mapped.isNotEmpty ? mapped.first : null;
   }
 
   static Future<Room?> fetchByCode(String code) async {
-    final data = await _db.from(_table).select(_selectWithJoins).eq('code', code).maybeSingle();
-    if (data == null) return null;
-    final list = await _mapRooms([data]);
-    return list.isNotEmpty ? list.first : null;
+    final list = await _safeSelectRooms(filterColumn: 'code', filterValue: code);
+    if (list.isEmpty) return null;
+    final mapped = await _mapRooms(list);
+    return mapped.isNotEmpty ? mapped.first : null;
   }
 
   static Future<Room?> fetchByQrCode(String qrCodeData) async {
-    final data = await _db.from(_table).select(_selectWithJoins).eq('qr_code_data', qrCodeData).maybeSingle();
-    if (data == null) return null;
-    final list = await _mapRooms([data]);
-    return list.isNotEmpty ? list.first : null;
+    final list = await _safeSelectRooms(filterColumn: 'qr_code_data', filterValue: qrCodeData);
+    if (list.isEmpty) return null;
+    final mapped = await _mapRooms(list);
+    return mapped.isNotEmpty ? mapped.first : null;
   }
 
   /// Find a room by scanned QR code data, room code, or room ID (case-insensitive).
@@ -252,13 +378,61 @@ class RoomService {
     }
   }
 
-  // Legacy insert
-  static Future<void> insert(Room room) async {
-    await _db.from(_table).insert(room.toMap());
+  // Insert room and return newly created Room record
+  static Future<Room> insert(Room room) async {
+    final payload = Map<String, dynamic>.from(room.toMap());
+
+    // Clean up empty string UUID keys so PostgREST won't fail with uuid syntax error
+    if (payload['id'] == '' || payload['id'] == null) {
+      payload.remove('id');
+    }
+    if (payload['department_id'] == '') {
+      payload.remove('department_id');
+    }
+    if (payload['floor_id'] == '') {
+      payload.remove('floor_id');
+    }
+    if (payload['room_type_id'] == '') {
+      payload.remove('room_type_id');
+    }
+    if (payload['building_id'] == '') {
+      payload.remove('building_id');
+    }
+
+    final code = (payload['code'] ?? '').toString().trim();
+    if (code.isEmpty) {
+      payload['code'] = 'RM-${DateTime.now().millisecondsSinceEpoch % 100000}';
+    } else {
+      payload['code'] = code.toUpperCase();
+    }
+
+    final now = DateTime.now().toIso8601String();
+    payload['created_at'] ??= now;
+    payload['updated_at'] ??= now;
+
+    Map<String, dynamic> insertedRow;
+
+    try {
+      final res = await _db.from(_table).insert(payload).select().single();
+      insertedRow = Map<String, dynamic>.from(res);
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('floor') && msg.contains('does not exist')) {
+        payload.remove('floor');
+        final res = await _db.from(_table).insert(payload).select().single();
+        insertedRow = Map<String, dynamic>.from(res);
+      } else {
+        rethrow;
+      }
+    }
+
     await AdminAuditLogService.logAction(
       title: 'Added Room',
-      details: 'Room: ${room.name} (${room.id})',
-    );
+      details: 'Room: ${room.name} (${insertedRow['code'] ?? insertedRow['id']})',
+    ).catchError((_) {});
+
+    final mappedList = await _mapRooms([insertedRow]);
+    return mappedList.isNotEmpty ? mappedList.first : Room.fromMap(insertedRow);
   }
 
   // ─── Update ──────────────────────────────────────────────────────────────

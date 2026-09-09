@@ -81,30 +81,43 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isNarrow = screenWidth < 500;
+
     return Container(
       color: AdminStyles.bg,
       child: Center(
         child: SingleChildScrollView(
           child: Container(
             constraints: const BoxConstraints(maxWidth: 500),
-            margin: const EdgeInsets.symmetric(vertical: 40),
-            padding: const EdgeInsets.all(40),
+            margin: EdgeInsets.symmetric(
+              horizontal: isNarrow ? 16 : 24,
+              vertical: isNarrow ? 16 : 40,
+            ),
+            padding: EdgeInsets.all(isNarrow ? 20 : 40),
             decoration: AdminStyles.cardDecoration(hasShadow: true),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Room Verification', style: AdminStyles.headingStyle(fontSize: 24)),
+                Text(
+                  'Room Verification',
+                  style: AdminStyles.headingStyle(fontSize: isNarrow ? 20 : 24),
+                ),
                 const SizedBox(height: 12),
                 Text(
                   'Enter the room code located on the door or scan the QR code to quickly start a maintenance request.',
                   textAlign: TextAlign.center,
-                  style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary),
+                  style: AdminStyles.bodyStyle(
+                    color: AdminStyles.textSecondary,
+                    fontSize: isNarrow ? 13 : 14,
+                  ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 if (_isScanning)
                   Container(
-                    width: 300,
-                    height: 300,
+                    width: double.infinity,
+                    height: isNarrow ? 250 : 300,
+                    constraints: const BoxConstraints(maxWidth: 300),
                     clipBehavior: Clip.hardEdge,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),

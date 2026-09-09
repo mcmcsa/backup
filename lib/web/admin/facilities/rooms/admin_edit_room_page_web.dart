@@ -10,6 +10,8 @@ import '../../../../shared/services/qr_code_history_service.dart';
 import '../../../../shared/services/room_service.dart';
 import '../../../../shared/services/room_type_service.dart';
 import '../../../../shared/utils/dropdown_data_helper.dart';
+import '../../../../shared/widgets/attachment_image_widget.dart';
+import '../../../../shared/widgets/room_image_cropper_dialog.dart';
 import '../../shared/admin_styles.dart';
 
 class AdminEditRoomPageWeb extends StatefulWidget {
@@ -49,13 +51,17 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
   Future<void> _pickRoomImage() async {
     try {
       final picker = ImagePicker();
-      final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-      if (image != null) {
+      final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+      if (image != null && mounted) {
         final bytes = await image.readAsBytes();
-        setState(() {
-          _roomImageBytes = bytes;
-          _roomImageName = image.name;
-        });
+        // Show cropper dialog
+        final cropped = await showRoomImageCropperDialog(context, bytes);
+        if (cropped != null && mounted) {
+          setState(() {
+            _roomImageBytes = cropped;
+            _roomImageName = image.name;
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error picking room image: $e');
@@ -655,10 +661,13 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
 
       String? imageUrl = _existingImageUrl;
       if (_roomImageBytes != null) {
-        imageUrl = await RoomService.uploadRoomImageBytes(
+        final uploaded = await RoomService.uploadRoomImageBytes(
           _roomImageBytes!,
           _roomImageName ?? 'room.jpg',
         );
+        if (uploaded != null && uploaded.isNotEmpty) {
+          imageUrl = uploaded;
+        }
       }
 
       final updatedRoom = Room(
@@ -790,63 +799,7 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
     );
   }
 
-  Widget _buildPageHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: const Color(0xFFECF2FF),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.meeting_room_rounded,
-              color: Color(0xFF4169E1),
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Edit Room', style: AdminStyles.pageTitleStyle()),
-                const SizedBox(height: 4),
-                Text(
-                  'Update room information, mapping, and availability details.',
-                  style: AdminStyles.pageSubtitleStyle(fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-          TextButton.icon(
-            onPressed: _closePage,
-            icon: const Icon(Icons.arrow_back_rounded, size: 18),
-            label: const Text('Back'),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF475569),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildFormPanel() {
     return Container(
@@ -1007,15 +960,9 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
                                   _roomImageBytes!,
                                   fit: BoxFit.contain,
                                 )
-                              : Image.network(
-                                  _existingImageUrl!,
+                              : AppAttachmentImage(
+                                  url: _existingImageUrl!,
                                   fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => Container(
-                                    color: Colors.grey.shade100,
-                                    child: const Center(
-                                      child: Icon(Icons.broken_image_rounded, size: 36, color: Colors.grey),
-                                    ),
-                                  ),
                                 ),
                         ),
                         Positioned(

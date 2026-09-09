@@ -963,18 +963,15 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
           ],
           Row(
             children: [
-              SizedBox(
-                width: isCompact ? 160 : null,
-                child: Text(
-                  'PANGASINAN STATE UNIVERSITY',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AdminStyles.headingStyle(
-                    fontSize: isCompact ? 11 : 13,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0F766E),
-                    letterSpacing: 0.3,
-                  ),
+              Text(
+                'PSU MMS',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AdminStyles.headingStyle(
+                  fontSize: isCompact ? 16 : 18,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF0F766E),
+                  letterSpacing: 0.5,
                 ),
               ),
             ],

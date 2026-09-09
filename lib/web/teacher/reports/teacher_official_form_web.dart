@@ -1248,9 +1248,15 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     final bool isOthers = checklist['isOthers'] as bool;
     final String specifyVal = checklist['specifyVal'] as String;
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isNarrow = screenWidth < 680;
+
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(24),
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isNarrow ? 8 : 24,
+        vertical: isNarrow ? 12 : 24,
+      ),
       child: Container(
         constraints: const BoxConstraints(maxWidth: 1150, maxHeight: 850),
         decoration: BoxDecoration(
@@ -1268,7 +1274,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
           children: [
             // Toolbar header
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: EdgeInsets.symmetric(horizontal: isNarrow ? 12 : 24, vertical: 10),
               decoration: const BoxDecoration(
                 color: Color(0xFF0F172A),
                 borderRadius: BorderRadius.only(
@@ -1278,8 +1284,10 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.description_rounded, color: Color(0xFF00BFA5), size: 20),
-                  const SizedBox(width: 12),
+                  if (!isNarrow) ...[
+                    const Icon(Icons.description_rounded, color: Color(0xFF00BFA5), size: 20),
+                    const SizedBox(width: 12),
+                  ],
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.1),
@@ -1292,15 +1300,15 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                         InkWell(
                           onTap: () => setState(() => _selectedPage = 0),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            padding: EdgeInsets.symmetric(horizontal: isNarrow ? 8 : 14, vertical: 8),
                             decoration: BoxDecoration(
                               color: _selectedPage == 0 ? const Color(0xFF00BFA5) : Colors.transparent,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text(
-                              '1. Work Request Form',
-                              style: TextStyle(
-                                fontSize: 13,
+                            child: Text(
+                              isNarrow ? '1. Request' : '1. Work Request Form',
+                              style: const TextStyle(
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
@@ -1311,15 +1319,15 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                         InkWell(
                           onTap: () => setState(() => _selectedPage = 1),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            padding: EdgeInsets.symmetric(horizontal: isNarrow ? 8 : 14, vertical: 8),
                             decoration: BoxDecoration(
                               color: _selectedPage == 1 ? const Color(0xFF00BFA5) : Colors.transparent,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text(
-                              '2. Confirm Form',
-                              style: TextStyle(
-                                fontSize: 13,
+                            child: Text(
+                              isNarrow ? '2. Confirm' : '2. Confirm Form',
+                              style: const TextStyle(
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
@@ -1330,30 +1338,43 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                     ),
                   ),
                   const Spacer(),
-                  OutlinedButton.icon(
-                    onPressed: _savePdfFile,
-                    icon: const Icon(Icons.download_rounded, size: 18, color: Colors.white),
-                    label: const Text('Save / Download PDF File', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Color(0xFF00BFA5), width: 1.5),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  if (isNarrow) ...[
+                    IconButton(
+                      tooltip: 'Download PDF',
+                      onPressed: _savePdfFile,
+                      icon: const Icon(Icons.download_rounded, color: Color(0xFF00BFA5), size: 22),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  ElevatedButton.icon(
-                    onPressed: _printForm,
-                    icon: const Icon(Icons.print_rounded, size: 18),
-                    label: const Text('Print Form', style: TextStyle(fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00BFA5),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    IconButton(
+                      tooltip: 'Print Form',
+                      onPressed: _printForm,
+                      icon: const Icon(Icons.print_rounded, color: Colors.white70, size: 22),
                     ),
-                  ),
-                  const SizedBox(width: 12),
+                  ] else ...[
+                    OutlinedButton.icon(
+                      onPressed: _savePdfFile,
+                      icon: const Icon(Icons.download_rounded, size: 18, color: Colors.white),
+                      label: const Text('Save / Download PDF File', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF00BFA5), width: 1.5),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton.icon(
+                      onPressed: _printForm,
+                      icon: const Icon(Icons.print_rounded, size: 18),
+                      label: const Text('Print Form', style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00BFA5),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(width: 4),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, color: Colors.white70),
                     onPressed: () => Navigator.of(context).pop(),
@@ -1361,12 +1382,11 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                 ],
               ),
             ),
-            // The sheet container
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: Color(0xFF00BFA5)))
                   : SingleChildScrollView(
-                      padding: const EdgeInsets.all(32),
+                      padding: EdgeInsets.all(isNarrow ? 12 : 32),
                       child: Center(
                         child: FittedBox(
                           child: _selectedPage == 0

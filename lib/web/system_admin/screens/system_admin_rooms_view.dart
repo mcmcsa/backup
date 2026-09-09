@@ -11,6 +11,8 @@ import '../../../shared/services/department_service.dart';
 import '../../../shared/services/room_service.dart';
 import '../../../shared/services/room_type_service.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/widgets/attachment_image_widget.dart';
+import '../../../shared/widgets/room_image_cropper_dialog.dart';
 import '../../admin/shared/admin_styles.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1196,14 +1198,18 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
   Future<void> _pickRoomImage() async {
     try {
       final picker = ImagePicker();
-      final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-      if (image != null) {
+      final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+      if (image != null && mounted) {
         final bytes = await image.readAsBytes();
-        setState(() {
-          _roomImageBytes = bytes;
-          _roomImageName = image.name;
-          _imageChanged = true;
-        });
+        // Show cropper dialog
+        final cropped = await showRoomImageCropperDialog(context, bytes);
+        if (cropped != null && mounted) {
+          setState(() {
+            _roomImageBytes = cropped;
+            _roomImageName = image.name;
+            _imageChanged = true;
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error picking room image: $e');
@@ -1218,10 +1224,13 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
 
     String? finalImageUrl = _existingImageUrl;
     if (_roomImageBytes != null) {
-      finalImageUrl = await RoomService.uploadRoomImageBytes(
+      final uploaded = await RoomService.uploadRoomImageBytes(
         _roomImageBytes!,
         _roomImageName ?? 'room.jpg',
       );
+      if (uploaded != null && uploaded.isNotEmpty) {
+        finalImageUrl = uploaded;
+      }
     }
 
     final err = await widget.onSave(
@@ -1579,15 +1588,9 @@ class _RoomFormDialogState extends State<_RoomFormDialog> {
                               _roomImageBytes!,
                               fit: BoxFit.contain,
                             )
-                          : Image.network(
-                              _existingImageUrl!,
+                          : AppAttachmentImage(
+                              url: _existingImageUrl!,
                               fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: Colors.grey.shade100,
-                                child: const Center(
-                                  child: Icon(Icons.broken_image_rounded, size: 36, color: Colors.grey),
-                                ),
-                              ),
                             ),
                     ),
                     Positioned(

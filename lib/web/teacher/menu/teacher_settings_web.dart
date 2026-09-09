@@ -138,10 +138,13 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
               title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold)),
-              content: SizedBox(
-                width: 400,
-                child: Form(
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: SizedBox(
+                  width: double.maxFinite,
+                  child: Form(
                   key: formKey,
                   child: SingleChildScrollView(
                     child: Column(
@@ -223,6 +226,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                   ),
                 ),
               ),
+            ),
               actions: [
                 TextButton(
                   onPressed: isSaving ? null : () => Navigator.of(dialogContext).pop(),
@@ -316,21 +320,27 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isNarrow = screenWidth < 600;
+
     return Scaffold(
       body: Container(
         color: AdminStyles.bg,
         width: double.infinity,
         height: double.infinity,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+          padding: EdgeInsets.symmetric(
+            horizontal: isNarrow ? 16 : 24,
+            vertical: isNarrow ? 20 : 40,
+          ),
           child: Center(
             child: Container(
               constraints: const BoxConstraints(maxWidth: 680),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(),
-                  const SizedBox(height: 40),
+                  _buildHeader(isNarrow),
+                  SizedBox(height: isNarrow ? 24 : 40),
                   _buildSettingsCategory('Notifications', [
                     _buildSwitchTile(
                       icon: Icons.notifications_active_rounded,
@@ -339,6 +349,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                       color: AdminStyles.info,
                       value: _notificationsEnabled,
                       onChanged: _isLoadingPreferences ? null : _toggleMasterNotifications,
+                      isNarrow: isNarrow,
                     ),
                     _buildSwitchTile(
                       icon: Icons.email_rounded,
@@ -347,6 +358,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                       color: AdminStyles.primary,
                       value: _notificationsEnabled ? _emailNotifications : false,
                       onChanged: (!_isLoadingPreferences && _notificationsEnabled) ? _toggleEmailNotifications : null,
+                      isNarrow: isNarrow,
                     ),
                     _buildSwitchTile(
                       icon: Icons.phone_android_rounded,
@@ -355,6 +367,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                       color: AdminStyles.success,
                       value: _notificationsEnabled ? _pushNotifications : false,
                       onChanged: (!_isLoadingPreferences && _notificationsEnabled) ? _togglePushNotifications : null,
+                      isNarrow: isNarrow,
                     ),
                   ]),
                   const SizedBox(height: 32),
@@ -365,6 +378,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                       description: 'Ensure your account remains secure.',
                       color: AdminStyles.error,
                       onTap: _showChangePasswordDialog,
+                      isNarrow: isNarrow,
                     ),
                   ]),
                   const SizedBox(height: 32),
@@ -377,6 +391,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                       onTap: () {
                         TeacherNavController.of(context)?.navigateTo(10);
                       },
+                      isNarrow: isNarrow,
                     ),
                   ]),
                 ],
@@ -388,13 +403,13 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isNarrow) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Settings', style: AdminStyles.headingStyle(fontSize: 32)),
+        Text('Settings', style: AdminStyles.headingStyle(fontSize: isNarrow ? 24 : 32)),
         const SizedBox(height: 8),
-        Text('Personalize your experience and manage account security.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 16)),
+        Text('Personalize your experience and manage account security.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: isNarrow ? 14 : 16)),
       ],
     );
   }
@@ -422,6 +437,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
     required Color color,
     required bool value,
     required ValueChanged<bool>? onChanged,
+    bool isNarrow = false,
   }) {
     final bool isEnabled = onChanged != null;
     return Column(
@@ -430,7 +446,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
           value: isEnabled ? value : false,
           onChanged: onChanged,
           activeThumbColor: AdminStyles.primary,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          contentPadding: EdgeInsets.symmetric(horizontal: isNarrow ? 14 : 24, vertical: isNarrow ? 8 : 12),
           secondary: Container(
             width: 40,
             height: 40,
@@ -466,11 +482,12 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
     required String description,
     required Color color,
     required VoidCallback onTap,
+    bool isNarrow = false,
   }) {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        padding: EdgeInsets.symmetric(horizontal: isNarrow ? 14 : 24, vertical: isNarrow ? 16 : 24),
         child: Row(
           children: [
             Container(
@@ -479,7 +496,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
               decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
               child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(width: 20),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

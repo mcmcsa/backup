@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../../shared/utils/app_route_observer.dart';
 import '../../../../shared/models/room_model.dart';
+import '../../../../shared/models/department_model.dart';
 import '../../../../shared/services/room_service.dart';
 import '../../../../shared/services/building_service.dart';
 import '../../../../shared/services/floor_service.dart';
@@ -11,6 +12,7 @@ import '../../../../shared/services/room_type_service.dart';
 import '../../../../shared/services/app_settings_service.dart';
 import '../../../../shared/services/qr_code_history_service.dart';
 import '../../../../shared/utils/dropdown_data_helper.dart';
+import '../../../../shared/widgets/room_image_cropper_dialog.dart';
 import '../../shared/admin_styles.dart';
 
 class AddRoomPage extends StatefulWidget {
@@ -51,13 +53,17 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
   Future<void> _pickRoomImage() async {
     try {
       final picker = ImagePicker();
-      final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
-      if (image != null) {
+      final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+      if (image != null && mounted) {
         final bytes = await image.readAsBytes();
-        setState(() {
-          _roomImageBytes = bytes;
-          _roomImageName = image.name;
-        });
+        // Show cropper dialog
+        final cropped = await showRoomImageCropperDialog(context, bytes);
+        if (cropped != null && mounted) {
+          setState(() {
+            _roomImageBytes = cropped;
+            _roomImageName = image.name;
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error picking room image: $e');
@@ -586,29 +592,23 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
           : 'ROOM:${roomCode.toUpperCase()}';
 
       // Find or create building/department in database
-      final department = await _dropdownHelper.getDepartmentByName(
-        departmentName,
-      );
-      if (department == null) {
-        throw Exception('Selected department was not found');
+      Department? department;
+      if (departmentName.isNotEmpty) {
+        department = await _dropdownHelper.getDepartmentByName(departmentName);
       }
 
-      final building = await BuildingService.fetchByNameAndDepartment(
+      var building = await BuildingService.fetchByNameAndDepartment(
         buildingName,
-        department.id,
+        department?.id ?? '',
       );
+      building ??= await BuildingService.fetchByName(buildingName);
       if (building == null) {
-        throw Exception(
-          'Selected building was not found under the selected department',
-        );
+        throw Exception('Selected building was not found');
       }
 
-      final departmentId = department.id;
+      final departmentId = department?.id ?? (building.departmentId.isNotEmpty ? building.departmentId : '');
       final floor = await FloorService.findOrCreateByName(_selectedFloor);
-      final roomType = await RoomTypeService.fetchByName(_selectedRoomType);
-      if (roomType == null) {
-        throw Exception('Selected room type was not found');
-      }
+      final roomType = await RoomTypeService.findOrCreateByName(_selectedRoomType);
 
       String? imageUrl;
       if (_roomImageBytes != null) {
@@ -628,9 +628,9 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
         floor: _selectedFloor,
         seats: int.tryParse(_capacityController.text) ?? 40,
         departmentId: departmentId,
-        department: departmentName,
+        department: department?.name ?? departmentName,
         roomTypeId: roomType.id,
-        roomType: _selectedRoomType,
+        roomType: roomType.name,
         status: _selectedStatus,
         imageUrl: imageUrl,
         qrCodeData: qrData,
@@ -651,22 +651,21 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
         return;
       }
 
-      // Check for duplicate room name (skipping API call since fetchByName is unsupported)
+      // Insert room directly and resolve inserted room object
+      final insertedRoom = await RoomService.insert(room);
 
-      await RoomService.insert(room);
-      final insertedRoom = await RoomService.fetchByCode(roomCode);
-      if (insertedRoom == null) {
-        throw Exception('Failed to resolve inserted room UUID.');
+      // Save QR code history safely (non-blocking if auth/history fails)
+      try {
+        await QRCodeHistoryService.saveQRCode(
+          roomId: insertedRoom.id,
+          qrCodeValue: qrData,
+          roomName: _nameController.text.trim(),
+          building: buildingName.isNotEmpty ? buildingName : null,
+          department: departmentName.isNotEmpty ? departmentName : null,
+        );
+      } catch (qrErr) {
+        debugPrint('Warning: QRCodeHistoryService.saveQRCode failed: $qrErr');
       }
-
-      // Save QR code history
-      await QRCodeHistoryService.saveQRCode(
-        roomId: insertedRoom.id,
-        qrCodeValue: qrData,
-        roomName: _nameController.text.trim(),
-        building: buildingName.isNotEmpty ? buildingName : null,
-        department: departmentName.isNotEmpty ? departmentName : null,
-      );
 
       if (!mounted) return;
       didNavigate = true;

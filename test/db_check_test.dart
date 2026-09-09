@@ -25,14 +25,44 @@ void main() {
       print('Login failed: $e');
     }
 
-    print('\n=== Rooms in Database ===');
+    print('\n=== Buildings in Database ===');
     try {
-      final roomsData = await db.from('rooms').select('id, code, name, status');
-      for (final room in roomsData) {
-        print('Room ID: ${room['id']} | Code: ${room['code']} | Name: ${room['name']} | Status: ${room['status']}');
+      final bldData = await db.from('buildings').select();
+      print('Buildings count: ${bldData.length}');
+      for (final b in bldData) {
+        print('Building: $b');
       }
     } catch (e) {
-      print('Error fetching rooms: $e');
+      print('Error fetching buildings: $e');
+    }
+
+    print('\n=== Departments in Database ===');
+    try {
+      final deptData = await db.from('departments').select();
+      print('Departments count: ${deptData.length}');
+    } catch (e) {
+      print('Error fetching departments: $e');
+    }
+
+    print('\n=== Rooms in Database ===');
+    try {
+      final roomsData = await db.from('rooms').select('*, buildings(name), departments(name), room_types(name)');
+      print('Rooms with joins count: ${roomsData.length}');
+      for (final room in roomsData) {
+        print('Room: $room');
+      }
+    } catch (e) {
+      print('Error fetching rooms with joins: $e');
+    }
+
+    try {
+      final rawRooms = await db.from('rooms').select();
+      print('Raw rooms count: ${rawRooms.length}');
+      for (final r in rawRooms) {
+        print('Raw room: $r');
+      }
+    } catch (e) {
+      print('Error fetching raw rooms: $e');
     }
 
     print('\n=== Active Work Requests in Database ===');

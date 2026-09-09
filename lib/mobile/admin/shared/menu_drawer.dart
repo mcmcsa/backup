@@ -16,10 +16,8 @@ class MenuDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final isCompact = screenWidth <= 430;
-    final drawerWidth = isCompact
-        ? (screenWidth * 0.9).clamp(300.0, 360.0)
-        : 360.0;
+    final bool isCompact = screenWidth <= 430;
+    const drawerWidth = 280.0;
 
     return Drawer(
       width: drawerWidth,
@@ -67,7 +65,7 @@ class MenuDrawer extends StatelessWidget {
                     height: isCompact ? 98 : 100,
                     child: ClipOval(
                       child: Image.asset(
-                        'assets/images/psu_logo_v3.png',
+                        'assets/images/app_logo_v2.png',
                         fit: BoxFit.cover,
                         filterQuality: FilterQuality.high,
                         isAntiAlias: true,

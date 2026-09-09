@@ -12,7 +12,7 @@ class Building {
   Building({
     required this.id,
     required this.name,
-    required this.code,
+    this.code = '',
     this.departmentId = '',
     this.department = '',
     this.numberOfFloors = 1,
@@ -46,7 +46,6 @@ class Building {
     return {
       'id': id,
       'name': name,
-      'code': code,
       if (departmentId.isNotEmpty) 'department_id': departmentId,
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),

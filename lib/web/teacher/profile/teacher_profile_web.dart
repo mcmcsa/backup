@@ -111,7 +111,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
             content: const Text('Profile picture updated successfully!'),
             backgroundColor: AdminStyles.success,
             behavior: SnackBarBehavior.floating,
-            width: 400,
+            margin: const EdgeInsets.all(16),
           ),
         );
       } else {
@@ -124,7 +124,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
           content: Text('Failed to upload profile picture: $e'),
           backgroundColor: AdminStyles.error,
           behavior: SnackBarBehavior.floating,
-          width: 400,
+          margin: const EdgeInsets.all(16),
         ),
       );
     } finally {
@@ -160,7 +160,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
             content: const Text('Profile updated successfully!'),
             backgroundColor: AdminStyles.success,
             behavior: SnackBarBehavior.floating,
-            width: 400,
+            margin: const EdgeInsets.all(16),
           ),
         );
       } else {
@@ -174,7 +174,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
           content: Text('Error updating profile: ${e.toString()}'),
           backgroundColor: AdminStyles.error,
           behavior: SnackBarBehavior.floating,
-          width: 400,
+          margin: const EdgeInsets.all(16),
         ),
       );
     }
@@ -186,12 +186,17 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
     final user = authService.currentUser;
     _syncControllers(user);
 
-    final isMobile = MediaQuery.of(context).size.width < 800;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 800;
+    final isSmall = screenWidth < 450;
 
     return Scaffold(
       backgroundColor: AdminStyles.bg,
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(isMobile ? 20 : 40),
+        padding: EdgeInsets.symmetric(
+          horizontal: isSmall ? 12 : (isMobile ? 20 : 40),
+          vertical: isSmall ? 16 : 40,
+        ),
         child: Center(
           child: Container(
             constraints: const BoxConstraints(maxWidth: 1000),
@@ -383,15 +388,17 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
 
   Widget _buildActionButton(bool isLoading) {
     if (_isEditing) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
+      return Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 8,
         children: [
           TextButton(
             onPressed: () => setState(() => _isEditing = false),
             child: Text('Cancel',
                 style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
           ),
-          const SizedBox(width: 16),
           ElevatedButton.icon(
             onPressed: isLoading ? null : _saveProfile,
             icon: isLoading
@@ -406,7 +413,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
               backgroundColor: AdminStyles.primary,
               foregroundColor: Colors.white,
               padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),
@@ -439,7 +446,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(isMobile ? 16 : 32),
       decoration: AdminStyles.cardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

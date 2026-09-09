@@ -58,7 +58,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
-                    'PSU',
+                    'PSU MMS',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

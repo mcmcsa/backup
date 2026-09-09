@@ -111,7 +111,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
 
   Future<void> _showAddBuildingDialog() async {
     final nameController = TextEditingController();
-    final codeController = TextEditingController();
     String? selectedDepartmentId;
     bool isSubmitting = false;
 
@@ -158,15 +157,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                           border: OutlineInputBorder(),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: codeController,
-                        enabled: canInputBuildingDetails,
-                        decoration: const InputDecoration(
-                          labelText: 'Building Code',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -194,20 +184,10 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                           final selectedDeptId = selectedDepartmentId!;
 
                           final name = nameController.text.trim();
-                          final code = codeController.text.trim();
                           if (name.isEmpty) {
                             ScaffoldMessenger.of(this.context).showSnackBar(
                               const SnackBar(
                                 content: Text('Building name is required'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                            return;
-                          }
-                          if (code.isEmpty) {
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Building code is required'),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -221,7 +201,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                             final building = Building(
                               id: const Uuid().v4(),
                               name: name,
-                              code: code,
                               departmentId: selectedDeptId,
                               createdAt: now,
                               updatedAt: now,
@@ -264,12 +243,10 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
     );
 
     nameController.dispose();
-    codeController.dispose();
   }
 
   Future<void> _showEditBuildingDialog(Building building) async {
     final nameController = TextEditingController(text: building.name);
-    final codeController = TextEditingController(text: building.code);
     String? selectedDepartmentId = building.departmentId.isNotEmpty
         ? building.departmentId
         : null;
@@ -318,15 +295,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                           border: OutlineInputBorder(),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: codeController,
-                        enabled: canInputBuildingDetails,
-                        decoration: const InputDecoration(
-                          labelText: 'Building Code',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -354,20 +322,10 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                           final selectedDeptId = selectedDepartmentId!;
 
                           final name = nameController.text.trim();
-                          final code = codeController.text.trim();
                           if (name.isEmpty) {
                             ScaffoldMessenger.of(this.context).showSnackBar(
                               const SnackBar(
                                 content: Text('Building name is required'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                            return;
-                          }
-                          if (code.isEmpty) {
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Building code is required'),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -379,7 +337,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                           try {
                             final updated = building.copyWith(
                               name: name,
-                              code: code,
                               departmentId: selectedDeptId,
                               updatedAt: DateTime.now(),
                             );
@@ -421,7 +378,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
     );
 
     nameController.dispose();
-    codeController.dispose();
   }
 
   List<Map<String, dynamic>> get _filteredBuildings {
@@ -430,8 +386,8 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
     return _buildings
         .where(
           (b) =>
-              b['name'].toLowerCase().contains(query) ||
-              b['id'].toLowerCase().contains(query),
+              (b['name']?.toString().toLowerCase().contains(query) ?? false) ||
+              (b['department']?.toString().toLowerCase().contains(query) ?? false),
         )
         .toList();
   }
@@ -578,7 +534,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
       );
     }
 
-    const codeColWidth = 120.0;
     const roomsColWidth = 100.0;
     const actionsColWidth = 120.0;
     const columnsGap = 16.0;
@@ -613,12 +568,14 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                       ),
                       child: Row(
                         children: [
-                          SizedBox(
-                            width: codeColWidth,
-                            child: _buildTableHeader('Code', alignment: Alignment.centerLeft),
+                          Expanded(
+                            flex: 3,
+                            child: _buildTableHeader('Building Name', alignment: Alignment.centerLeft),
                           ),
-                          Expanded(child: _buildTableHeader('Building Name', alignment: Alignment.centerLeft)),
-                          Expanded(child: _buildTableHeader('Department', alignment: Alignment.centerLeft)),
+                          Expanded(
+                            flex: 2,
+                            child: _buildTableHeader('Department', alignment: Alignment.centerLeft),
+                          ),
                           SizedBox(
                             width: roomsColWidth,
                             child: _buildTableHeader('Rooms', alignment: Alignment.center),
@@ -643,34 +600,25 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                             ),
                             child: Row(
                               children: [
-                                SizedBox(
-                                  width: codeColWidth,
-                                  child: Text(
-                                    '${building['id'] ?? '-'}',
-                                    style: AdminStyles.bodyStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: _darkText,
-                                    ),
-                                  ),
-                                ),
                                 Expanded(
+                                  flex: 3,
                                   child: Text(
                                     '${building['name'] ?? '-'}',
                                     style: AdminStyles.bodyStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
-                                      color: _subtleText,
+                                      color: _darkText,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 Expanded(
+                                  flex: 2,
                                   child: Text(
                                     '${building['department'] ?? '-'}',
                                     style: AdminStyles.bodyStyle(
                                       fontSize: 13,
-                                      fontWeight: FontWeight.w600,
+                                      fontWeight: FontWeight.w500,
                                       color: _subtleText,
                                     ),
                                     overflow: TextOverflow.ellipsis,

@@ -26,12 +26,12 @@ class _AdminFloorsWebState extends State<AdminFloorsWeb> {
   List<Map<String, dynamic>> _floors = [];
   bool _isLoading = true;
 
-  static const Color _primaryBlue = Color(0xFF3B82F6);
-  static const Color _darkText = Color(0xFF0F172A);
-  static const Color _subtleText = Color(0xFF64748B);
-  static const Color _pageBg = Color(0xFFF1F5F9);
-  static const Color _cardBg = Colors.white;
-  static const Color _borderColor = Color(0xFFE2E8F0);
+  static const Color _primaryBlue = AdminStyles.primary;
+  static const Color _darkText = AdminStyles.textPrimary;
+  static const Color _subtleText = AdminStyles.textSecondary;
+  static const Color _pageBg = AdminStyles.bg;
+  static const Color _cardBg = AdminStyles.surface;
+  static const Color _borderColor = AdminStyles.border;
 
   @override
   void initState() {

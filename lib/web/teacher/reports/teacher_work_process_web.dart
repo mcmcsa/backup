@@ -838,34 +838,39 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
               ],
             ),
           ),
-          SizedBox(width: isNarrow ? 8 : 16),
-          ElevatedButton(
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => TeacherOfficialFormWeb(request: _req),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminStyles.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: EdgeInsets.symmetric(horizontal: isNarrow ? 10 : 14, vertical: isNarrow ? 10 : 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          SizedBox(width: isNarrow ? 6 : 16),
+          Tooltip(
+            message: 'View Official Form',
+            child: ElevatedButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => TeacherOfficialFormWeb(request: _req),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminStyles.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: EdgeInsets.symmetric(horizontal: isNarrow ? 10 : 14, vertical: isNarrow ? 10 : 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: isNarrow
+                  ? const Icon(Icons.assignment_rounded, size: 18)
+                  : const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.assignment_rounded, size: 16),
+                        SizedBox(width: 8),
+                        Text('View Official Form', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      ],
+                    ),
             ),
-            child: isNarrow
-                ? const Icon(Icons.assignment_rounded, size: 18)
-                : const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.assignment_rounded, size: 16),
-                      SizedBox(width: 8),
-                      Text('View Official Form', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    ],
-                  ),
           ),
-          SizedBox(width: isNarrow ? 8 : 16),
-          _buildStatusBadge(isNarrow: isNarrow),
+          if (width >= 500) ...[
+            const SizedBox(width: 12),
+            _buildStatusBadge(isNarrow: isNarrow),
+          ],
         ],
       ),
     );

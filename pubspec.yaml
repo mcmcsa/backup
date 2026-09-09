@@ -81,6 +81,7 @@ dependencies:
   audioplayers: ^6.7.1
   file_picker: ^8.0.0
   universal_html: ^2.3.0
+  crop_your_image: ^2.0.0
 
   path: any
   http: ^1.6.0

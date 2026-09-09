@@ -12,6 +12,7 @@ class MenuDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
+      width: 280,
       backgroundColor: const Color(0xFF4169E1),
       child: SafeArea(
         child: Column(
@@ -57,9 +58,11 @@ class MenuDrawer extends StatelessWidget {
                       ],
                     ),
                     padding: const EdgeInsets.all(12),
-                    child: Image.asset(
-                      'assets/images/PsuLogo.png',
-                      fit: BoxFit.contain,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.asset(
+                        'assets/images/app_logo_v2.png',
+                        fit: BoxFit.cover,
                       errorBuilder: (_, error, stackTrace) => const Icon(
                         Icons.school,
                         color: Color(0xFF4169E1),

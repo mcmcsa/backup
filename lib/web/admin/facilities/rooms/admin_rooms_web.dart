@@ -107,20 +107,21 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
       final roomsFuture = RoomService.fetchAll();
       final requestsFuture = Supabase.instance.client
           .from('work_requests')
-          .select('id, room_id, room, room_name, status');
+          .select('id, room_id, status');
 
       final results = await Future.wait([
         roomsFuture,
         requestsFuture.catchError((_) => <dynamic>[]),
       ]);
 
-      final rooms = results[0] as List<Room>;
-      final rawRequests = (results[1] as List).cast<Map<String, dynamic>>();
+      final rooms = (results[0] as List).cast<Room>();
+      final rawRequests = results[1] as List;
 
       final activeRoomIds = <String>{};
       final activeRoomNames = <String>{};
 
       for (final req in rawRequests) {
+        if (req is! Map) continue;
         final status = _lower(req['status']);
         final isClosed = status == 'completed' ||
             status == 'declined' ||
@@ -181,7 +182,8 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
         _rooms = mapped;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('AdminRoomsWeb._loadRooms error: $e\n$st');
       if (!mounted) return;
       setState(() {
         _rooms = [];
@@ -516,7 +518,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                               crossAxisCount: crossAxisCount,
                               crossAxisSpacing: 20,
                               mainAxisSpacing: 20,
-                              mainAxisExtent: 290,
+                              mainAxisExtent: 360,
                             ),
                             itemCount: filteredRooms.length,
                             itemBuilder: (context, index) {
@@ -538,16 +540,13 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: filteredRooms.length,
-                            separatorBuilder: (context, index) => const SizedBox(height: 16),
+                            separatorBuilder: (context, index) => const SizedBox(height: 12),
                             itemBuilder: (context, index) {
-                              return SizedBox(
-                                height: 290,
-                                child: _RoomCard(
-                                  room: filteredRooms[index],
-                                  onViewRoom: widget.onViewRoom,
-                                  onEditRoom: widget.onEditRoom,
-                                  showAddEdit: widget.showAddEdit,
-                                ),
+                              return _RoomMobileListItem(
+                                room: filteredRooms[index],
+                                onViewRoom: widget.onViewRoom,
+                                onEditRoom: widget.onEditRoom,
+                                showAddEdit: widget.showAddEdit,
                               );
                             },
                           ),
@@ -1208,7 +1207,7 @@ class _RoomCardState extends State<_RoomCard> {
           children: [
             // Top Image or Fallback Banner (only visible in Grid View)
             SizedBox(
-              height: 136,
+              height: 190,
               width: double.infinity,
               child: Stack(
                 fit: StackFit.expand,
@@ -1220,7 +1219,7 @@ class _RoomCardState extends State<_RoomCard> {
                         url: imageUrl,
                         fit: BoxFit.cover,
                         width: double.infinity,
-                        height: 136,
+                        height: 190,
                       ),
                     )
                   else
@@ -1381,7 +1380,7 @@ class _RoomCardState extends State<_RoomCard> {
             // Card Body Details
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1728,3 +1727,157 @@ class _RoomTableRowState extends State<_RoomTableRow> {
     );
   }
 }
+
+class _RoomMobileListItem extends StatelessWidget {
+  final Map<String, dynamic> room;
+  final ValueChanged<Room>? onViewRoom;
+  final ValueChanged<Room>? onEditRoom;
+  final bool showAddEdit;
+
+  const _RoomMobileListItem({
+    required this.room,
+    this.onViewRoom,
+    this.onEditRoom,
+    this.showAddEdit = true,
+  });
+
+  String _text(dynamic value, {String fallback = '-'}) {
+    final text = (value ?? '').toString().trim();
+    return text.isEmpty ? fallback : text;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = (room['status'] ?? '').toString().toLowerCase();
+    final isAvailable = status == 'available';
+    final isUnavailable = status == 'unavailable' || status == 'maintenance';
+    final statusColor = isAvailable 
+        ? AdminStyles.success 
+        : isUnavailable 
+            ? AdminStyles.error 
+            : const Color(0xFFF59E0B);
+    final selectedRoom = room['room'] as Room;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AdminStyles.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AdminStyles.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  _text(room['code'], fallback: 'N/A'),
+                  style: AdminStyles.headingStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AdminStyles.primary,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: AdminStyles.pillDecoration(color: statusColor, isSecondary: true),
+                child: Text(
+                  _text(room['status'], fallback: 'Unknown').toUpperCase(),
+                  style: AdminStyles.headingStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    color: statusColor,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _text(room['name'], fallback: 'Unnamed Room'),
+            style: AdminStyles.headingStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AdminStyles.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              const Icon(Icons.apartment_outlined, size: 14, color: AdminStyles.textMuted),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '${_text(room['building'])} • ${_text(room['department'])}',
+                  style: AdminStyles.bodyStyle(
+                    fontSize: 12,
+                    color: AdminStyles.textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: AdminStyles.border),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton.icon(
+                onPressed: () {
+                  if (onViewRoom != null) {
+                    onViewRoom!(selectedRoom);
+                    return;
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AdminRoomDetailsPageWeb(room: selectedRoom),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.visibility_outlined, size: 16),
+                label: const Text('View Details'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AdminStyles.primary,
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+              if (showAddEdit && onEditRoom != null) ...[
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () => onEditRoom!(selectedRoom),
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Edit'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF64748B),
+                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+

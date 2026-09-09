@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../authentication/services/auth_service.dart';
+import '../../shared/services/app_notification_service.dart';
+import '../../shared/services/app_settings_service.dart';
 import '../../shared/utils/workflow_guide_dialog.dart';
 
 
@@ -57,8 +61,8 @@ class _SystemAdminMainNavigationWebState
   static const _contentBg = Color(0xFFF8FAFC);
   static const _primaryBlue = Color(0xFF0F766E); // Consistent Teal accent
 
-  static const int _buildingsIndex = 2; // Default Facility Management
-  static const int _departmentsIndex = 12;
+  static const int _departmentsIndex = 2; // Default Facility Management is Department
+  static const int _buildingsIndex = 12;
   static const int _floorsIndex = 13;
   static const int _roomTypesIndex = 14;
   static const int _requestTypesIndex = 15;
@@ -107,10 +111,64 @@ class _SystemAdminMainNavigationWebState
     });
   }
 
+  int _unreadNotificationCount = 0;
+  RealtimeChannel? _notificationsChannel;
+  StreamSubscription<void>? _settingsSubscription;
+
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
+    _loadUnreadNotificationCount();
+    _subscribeNotifications();
+    _settingsSubscription = AppSettingsService.changes.listen((_) {
+      _loadUnreadNotificationCount();
+    });
+  }
+
+  @override
+  void dispose() {
+    _settingsSubscription?.cancel();
+    if (_notificationsChannel != null) {
+      Supabase.instance.client.removeChannel(_notificationsChannel!);
+    }
+    super.dispose();
+  }
+
+  Future<void> _loadUnreadNotificationCount() async {
+    try {
+      final authService = context.read<AuthService>();
+      final currentUser = authService.currentUser;
+      if (currentUser == null) return;
+
+      final count = await AppNotificationService.getUnreadCount(
+        role: currentUser.role.name,
+        userId: currentUser.id,
+      );
+      if (mounted) {
+        setState(() {
+          _unreadNotificationCount = count;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _subscribeNotifications() {
+    final authService = context.read<AuthService>();
+    final currentUser = authService.currentUser;
+    if (currentUser == null) return;
+
+    _notificationsChannel = Supabase.instance.client
+        .channel('sysadmin_notifications_realtime_${currentUser.id}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'app_notifications',
+          callback: (_) {
+            _loadUnreadNotificationCount();
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _loadUserInfo() async {
@@ -268,6 +326,7 @@ class _SystemAdminMainNavigationWebState
         backgroundColor: _contentBg,
         drawer: isMobile
             ? Drawer(
+                width: 280,
                 backgroundColor: _sidebarBg,
                 child: _buildSidebarContents(isMobile: true),
               )
@@ -321,7 +380,7 @@ class _SystemAdminMainNavigationWebState
       case 1:
         return const SystemAdminUsersView();
       case 2:
-        return AdminBuildingsWeb(
+        return AdminDepartmentsWeb(
           activeIndex: _selectedIndex,
           onNavigate: _handleFacilityQuickNavigate,
           quickActionsConfig: _facilityQuickActionsConfig,
@@ -364,8 +423,8 @@ class _SystemAdminMainNavigationWebState
         return const SystemAdminBackupRestoreView();
       case 11:
         return const SystemAdminSettingsView();
-      case _departmentsIndex:
-        return AdminDepartmentsWeb(
+      case _buildingsIndex:
+        return AdminBuildingsWeb(
           activeIndex: _selectedIndex,
           onNavigate: _handleFacilityQuickNavigate,
           quickActionsConfig: _facilityQuickActionsConfig,
@@ -421,7 +480,15 @@ class _SystemAdminMainNavigationWebState
           ),
           child: Row(
             children: [
-              const Icon(Icons.shield_outlined, color: Colors.tealAccent, size: 28),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset(
+                  'assets/images/app_logo_v2.png',
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.cover,
+                ),
+              ),
               if (isMobile) ...[
                 const SizedBox(width: 12),
                 const Text(
@@ -684,7 +751,6 @@ class _SystemAdminMainNavigationWebState
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final showFullTitle = constraints.maxWidth > 500;
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -701,11 +767,12 @@ class _SystemAdminMainNavigationWebState
                     const SizedBox(width: 8),
                   ],
                   Text(
-                    showFullTitle ? 'System Management Console' : 'Console',
+                    'PSU MMS',
                     style: const TextStyle(
                       color: Color(0xFF1E293B),
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -738,7 +805,37 @@ class _SystemAdminMainNavigationWebState
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 10),
+                  // Notification Button
+                  Tooltip(
+                    message: 'Notifications',
+                    child: InkWell(
+                      onTap: () {
+                        setState(() => _selectedIndex = 7);
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Center(
+                          child: Badge(
+                            isLabelVisible: _unreadNotificationCount > 0,
+                            label: Text('$_unreadNotificationCount'),
+                            child: const Icon(
+                              Icons.notifications_outlined,
+                              color: Color(0xFF0F766E),
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

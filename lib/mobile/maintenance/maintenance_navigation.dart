@@ -63,6 +63,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
 
     return Scaffold(
       drawer: Drawer(
+        width: 280,
         child: Container(
           color: Colors.white,
           child: Column(
