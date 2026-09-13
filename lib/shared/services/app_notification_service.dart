@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_notification_model.dart';
 import 'app_settings_service.dart';
+import 'email_notification_service.dart';
 import 'room_service.dart';
 
 class AppNotificationService {
@@ -168,6 +169,20 @@ class AppNotificationService {
     };
 
     await _db.from(_table).insert(payload);
+
+    try {
+      await _db.functions.invoke('push-notifications', body: {'record': payload});
+    } catch (_) {}
+
+    try {
+      await EmailNotificationService.sendRoleNotificationEmails(
+        targetRoles: [targetRole],
+        title: title,
+        message: message,
+        workRequestId: workRequestId,
+        type: type,
+      );
+    } catch (_) {}
   }
 
   static String _truncate(String? s, {int max = 490}) {
@@ -198,10 +213,25 @@ class AppNotificationService {
 
     await _db.from(_table).insert(payload);
 
+    // Push notification check: if (enableNotifications === true && pushNotifications === true) -> push
     try {
       final canPush = await AppSettingsService.canReceivePush(userId: targetUserId);
       if (canPush) {
         await _db.functions.invoke('push-notifications', body: {'record': payload});
+      }
+    } catch (_) {}
+
+    // Email notification check: if (enableNotifications === true && emailNotifications === true) -> email
+    try {
+      final canEmail = await AppSettingsService.canReceiveEmail(userId: targetUserId);
+      if (canEmail) {
+        await EmailNotificationService.sendNotificationEmail(
+          targetUserId: targetUserId,
+          title: title,
+          message: message,
+          workRequestId: workRequestId,
+          type: type,
+        );
       }
     } catch (_) {}
   }
@@ -234,6 +264,16 @@ class AppNotificationService {
       for (final p in payload) {
         await _db.functions.invoke('push-notifications', body: {'record': p});
       }
+    } catch (_) {}
+
+    try {
+      await EmailNotificationService.sendRoleNotificationEmails(
+        targetRoles: targetRoles,
+        title: title,
+        message: message,
+        workRequestId: workRequestId,
+        type: type,
+      );
     } catch (_) {}
   }
 

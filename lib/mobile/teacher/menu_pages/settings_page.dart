@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import '../../../router/app_router.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/admin_audit_log_service.dart';
 import '../../../shared/services/app_settings_service.dart';
+import '../../../shared/services/fcm_service.dart';
 import '../../admin/shared/about_system_page.dart';
 import '../../admin/shared/change_password_page.dart';
 import 'contact_us_page.dart';
@@ -56,10 +58,18 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _toggleMasterNotifications(bool value) async {
+    final userId = context.read<AuthService>().currentUser?.id;
     setState(() {
       _notificationsEnabled = value;
     });
     await _savePreferences();
+    if (userId != null && !kIsWeb) {
+      if (value && _pushNotifications) {
+        await FcmService.saveToken(userId);
+      } else if (!value) {
+        await FcmService.deleteToken(userId);
+      }
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -102,10 +112,18 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _togglePushNotifications(bool value) async {
     if (!_notificationsEnabled) return;
+    final userId = context.read<AuthService>().currentUser?.id;
     setState(() {
       _pushNotifications = value;
     });
     await _savePreferences();
+    if (userId != null && !kIsWeb) {
+      if (value) {
+        await FcmService.saveToken(userId);
+      } else {
+        await FcmService.deleteToken(userId);
+      }
+    }
     if (mounted) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(

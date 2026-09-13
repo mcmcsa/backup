@@ -235,6 +235,7 @@ class InspectionPdfService {
 
     // Admin Approval signature
     final adminApprovalSig = sigList.where((s) =>
+        s.signatureType == 'pre_inspection_admin' ||
         s.signatureType == 'pre_inspection_approval' ||
         (s.signatureType == 'approval' &&
             (s.signerRole.toLowerCase() == 'admin' || s.signerRole.toLowerCase() == 'campadmin' || s.signerRole.toLowerCase() == 'campus admin'))

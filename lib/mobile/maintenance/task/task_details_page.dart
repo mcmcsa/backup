@@ -1689,7 +1689,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
 
     // 5. Pre-Inspection Approval/Decline
     final preInspApprovalSig = _signatures.firstWhere(
-      (s) => s.signatureType == 'pre_inspection_approval',
+      (s) => s.signatureType == 'pre_inspection_admin' || s.signatureType == 'pre_inspection_approval',
       orElse: () => ESignature(
         id: '',
         workRequestId: '',

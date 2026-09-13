@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import '../../../shared/models/system_settings_model.dart';
 import '../../../shared/services/system_settings_service.dart';
 import '../../../shared/services/app_settings_service.dart';
 import '../../../shared/services/admin_audit_log_service.dart';
+import '../../../shared/services/web_push_notification_service.dart';
 import '../../admin/shared/admin_styles.dart';
 
 class SystemAdminSettingsView extends StatefulWidget {
@@ -37,6 +39,12 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
   bool _maintenanceMode = false;
   bool _qrRegenerationEnabled = false;
 
+  // Personal Notification Preferences
+  bool _notificationsEnabled = true;
+  bool _emailNotifications = false;
+  bool _pushNotifications = true;
+  bool _isLoadingPreferences = true;
+
   bool _saving = false;
 
   @override
@@ -66,6 +74,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
     try {
       final s = await SystemSettingsService.fetchSettings();
       final qrEnabled = await AppSettingsService.isQrRegenerationEnabled();
+      await _loadNotificationPreferences();
       if (mounted) {
         setState(() {
           _settings = s;
@@ -88,6 +97,94 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
     } catch (e) {
       if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
+  }
+
+  Future<void> _loadNotificationPreferences() async {
+    final userId = context.read<AuthService>().currentUser?.id;
+    final settings = await AppSettingsService.getNotificationSettings(userId: userId);
+    if (!mounted) return;
+    setState(() {
+      _notificationsEnabled = settings['notificationsEnabled'] ?? true;
+      _emailNotifications = settings['emailNotifications'] ?? false;
+      _pushNotifications = settings['pushNotifications'] ?? true;
+      _isLoadingPreferences = false;
+    });
+  }
+
+  Future<void> _saveNotificationPreferences() async {
+    final userId = context.read<AuthService>().currentUser?.id;
+    await AppSettingsService.setNotificationSettings(
+      notificationsEnabled: _notificationsEnabled,
+      emailNotifications: _emailNotifications,
+      pushNotifications: _pushNotifications,
+      userId: userId,
+    );
+  }
+
+  Future<void> _toggleMasterNotifications(bool value) async {
+    setState(() {
+      _notificationsEnabled = value;
+    });
+    await _saveNotificationPreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            value
+                ? 'Notifications enabled'
+                : 'Notifications disabled. You will not receive notification alerts.',
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: value ? AdminStyles.primary : const Color(0xFF475569),
+        ),
+      );
+    }
+    await AdminAuditLogService.logAction(
+      title: value ? 'Enabled Notifications (System Admin)' : 'Disabled Notifications (System Admin)',
+      details: 'System Admin Settings > Notifications',
+    );
+  }
+
+  Future<void> _toggleEmailNotifications(bool value) async {
+    if (!_notificationsEnabled) return;
+    setState(() => _emailNotifications = value);
+    await _saveNotificationPreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'Email notifications enabled' : 'Email notifications disabled'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    await AdminAuditLogService.logAction(
+      title: value ? 'Enabled Email Notifications (System Admin)' : 'Disabled Email Notifications (System Admin)',
+      details: 'System Admin Settings > Notifications',
+    );
+  }
+
+  Future<void> _togglePushNotifications(bool value) async {
+    if (!_notificationsEnabled) return;
+    if (value && kIsWeb) {
+      await WebPushNotificationService.requestPermission();
+    }
+    setState(() => _pushNotifications = value);
+    await _saveNotificationPreferences();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'Push notifications enabled' : 'Push notifications disabled'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    await AdminAuditLogService.logAction(
+      title: value ? 'Enabled Push Notifications (System Admin)' : 'Disabled Push Notifications (System Admin)',
+      details: 'System Admin Settings > Notifications',
+    );
   }
 
   Future<void> _save() async {
@@ -155,6 +252,8 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                 child: isMobile
                     ? Column(
                         children: [
+                          _buildNotificationSettingsCard(),
+                          const SizedBox(height: 16),
                           _buildGeneralCard(),
                           const SizedBox(height: 16),
                           _buildAcademicCard(),
@@ -171,6 +270,8 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                             flex: 3,
                             child: Column(
                               children: [
+                                _buildNotificationSettingsCard(),
+                                const SizedBox(height: 24),
                                 _buildGeneralCard(),
                                 const SizedBox(height: 24),
                                 _buildAcademicCard(),
@@ -627,6 +728,47 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
           title: Text('Allow QR Regeneration', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
           subtitle: Text('Show regenerate option in Add/Edit Room across all campuses.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
           contentPadding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNotificationSettingsCard() {
+    return _SettingsCard(
+      title: 'Personal Notification Preferences',
+      icon: Icons.notifications_active_outlined,
+      children: [
+        SwitchListTile(
+          value: _notificationsEnabled,
+          onChanged: _isLoadingPreferences ? null : _toggleMasterNotifications,
+          activeThumbColor: AdminStyles.primary,
+          title: Text('Enable Notifications', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('Master toggle: overall on/off switch for all alerts.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+          contentPadding: EdgeInsets.zero,
+        ),
+        const Divider(height: 20, color: AdminStyles.border),
+        Opacity(
+          opacity: _notificationsEnabled ? 1.0 : 0.45,
+          child: SwitchListTile(
+            value: _notificationsEnabled ? _emailNotifications : false,
+            onChanged: (_isLoadingPreferences || !_notificationsEnabled) ? null : _toggleEmailNotifications,
+            activeThumbColor: AdminStyles.primary,
+            title: Text('Email Notifications', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text('Receive email updates about relevant requests and activities.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const Divider(height: 20, color: AdminStyles.border),
+        Opacity(
+          opacity: _notificationsEnabled ? 1.0 : 0.45,
+          child: SwitchListTile(
+            value: _notificationsEnabled ? _pushNotifications : false,
+            onChanged: (_isLoadingPreferences || !_notificationsEnabled) ? null : _togglePushNotifications,
+            activeThumbColor: AdminStyles.primary,
+            title: Text('Push Notifications', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text('Receive real-time desktop browser notifications and alerts.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+            contentPadding: EdgeInsets.zero,
+          ),
         ),
       ],
     );

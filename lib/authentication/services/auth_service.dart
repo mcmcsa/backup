@@ -6,10 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../router/app_router.dart';
 import '../models/user_model.dart';
+import '../../shared/services/app_settings_service.dart';
 import '../../shared/services/department_service.dart';
 import '../../shared/services/fcm_service.dart';
 import '../../shared/services/login_activity_service.dart';
 import '../../shared/services/maintenance_status_service.dart';
+import '../../shared/services/web_push_notification_service.dart';
 
 class AuthService extends ChangeNotifier {
   AppUser? _currentUser;
@@ -152,13 +154,21 @@ class AuthService extends ChangeNotifier {
     }
     if (_currentUser != null) {
       try {
-        await FcmService.saveToken(_currentUser!.id);
-        FcmService.startRealtimeNotificationWatcher(
-          _currentUser!.id,
-          _currentUser!.role.name,
-        );
+        await AppSettingsService.loadAndApplyForUser(_currentUser!.id);
+        if (kIsWeb) {
+          WebPushNotificationService.startWatcher(
+            _currentUser!.id,
+            _currentUser!.role.name,
+          );
+        } else {
+          await FcmService.saveToken(_currentUser!.id);
+          FcmService.startRealtimeNotificationWatcher(
+            _currentUser!.id,
+            _currentUser!.role.name,
+          );
+        }
       } catch (e) {
-        debugPrint('FCM token save on session sync failed: $e');
+        debugPrint('Notification watcher / settings sync on session failed: $e');
       }
     }
   }
@@ -292,8 +302,14 @@ class AuthService extends ChangeNotifier {
         if (profile.role == UserRole.maintenance) {
           await MaintenanceStatusService.setOnlineOnLogin(profile.id);
         }
-        // Save FCM device token for push notifications (no-op on web).
-        await FcmService.saveToken(profile.id);
+        await AppSettingsService.loadAndApplyForUser(profile.id);
+        if (kIsWeb) {
+          WebPushNotificationService.startWatcher(profile.id, profile.role.name);
+        } else {
+          // Save FCM device token for push notifications (no-op on web).
+          await FcmService.saveToken(profile.id);
+          FcmService.startRealtimeNotificationWatcher(profile.id, profile.role.name);
+        }
       } catch (e) {
         // Login should still succeed even if activity logging or FCM token save fails.
         debugPrint('Login activity recording failed: $e');
@@ -393,8 +409,12 @@ class AuthService extends ChangeNotifier {
           if (current.role == UserRole.maintenance) {
             await MaintenanceStatusService.setOfflineOnLogout(current.id);
           }
-          // Remove FCM device token so user stops receiving notifications after logout.
-          await FcmService.deleteToken(current.id);
+          // Remove FCM device token and stop watchers so user stops receiving notifications after logout.
+          if (kIsWeb) {
+            WebPushNotificationService.stopWatcher();
+          } else {
+            await FcmService.deleteToken(current.id);
+          }
         } catch (e) {
           debugPrint('Logout activity logging error: $e');
         }

@@ -168,7 +168,7 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
         signerId: user.id,
         signerName: user.name,
         signerRole: 'admin',
-        signatureType: 'pre_inspection_approval',
+        signatureType: 'pre_inspection_admin',
         signatureData: _adminSignatureBase64!,
         signedAt: DateTime.now(),
         notes: 'Pre-inspection admin review signature',

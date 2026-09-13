@@ -151,7 +151,7 @@ class FcmService {
             if (!matchesUser && !matchesRole) return;
 
             // Check master switch and push switch in user settings
-            final canPush = await AppSettingsService.canReceivePush();
+            final canPush = await AppSettingsService.canReceivePush(userId: userId);
             if (!canPush) {
               debugPrint('[FcmService] Notification suppressed by user settings (notificationsEnabled or pushNotifications is OFF).');
               return;
@@ -250,7 +250,7 @@ class FcmService {
         return;
       }
 
-      final canPush = await AppSettingsService.canReceivePush();
+      final canPush = await AppSettingsService.canReceivePush(userId: userId);
 
       await _db.from(_devicesTable).upsert(
         {

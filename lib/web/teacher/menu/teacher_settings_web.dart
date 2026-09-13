@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/services/app_settings_service.dart';
+import '../../../shared/services/web_push_notification_service.dart';
 import '../../admin/shared/admin_styles.dart';
 import '../teacher_nav_controller.dart';
 
@@ -84,6 +86,9 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
 
   Future<void> _togglePushNotifications(bool value) async {
     if (!_notificationsEnabled) return;
+    if (value && kIsWeb) {
+      await WebPushNotificationService.requestPermission();
+    }
     setState(() => _pushNotifications = value);
     await _saveNotificationPreferences();
     if (mounted) {
@@ -323,7 +328,7 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                             ),
                           );
 
-                          if (shouldLogout == true && mounted) {
+                          if (shouldLogout == true && context.mounted) {
                             await authService.handleLogoutButton(context);
                           }
                         },
