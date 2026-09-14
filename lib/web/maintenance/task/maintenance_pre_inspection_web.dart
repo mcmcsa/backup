@@ -164,8 +164,8 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
         ),
       );
 
-      // 3. Update Work Request Status
-      await WorkRequestService.updateStatus(widget.request.id, 'In Progress');
+      // 3. Update Work Request Status to Confirmed once pre-inspection is submitted
+      await WorkRequestService.updateStatus(widget.request.id, 'Confirmed');
 
       // 4. Notify Campus Admin and Requestor for transparency
       try {

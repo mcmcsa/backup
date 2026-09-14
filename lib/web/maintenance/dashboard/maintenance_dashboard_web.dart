@@ -5,7 +5,6 @@ import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/widgets/status_selector_widget.dart';
-import '../../../shared/services/maintenance_account_service.dart';
 import '../maintenance_nav_controller.dart';
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────
@@ -125,7 +124,11 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
     final isMobile = width < 768;
 
     final pending = _countByWorkflowStatus('APPROVED');
-    final inProgress = _countByWorkflowStatus('ACCEPTED') + _countByWorkflowStatus('CONFIRMED');
+    final inProgress = _countByWorkflowStatus('ACCEPTED') +
+        _countByWorkflowStatus('PRE-INSPECTION SUBMITTED') +
+        _countByWorkflowStatus('CONFIRMED') +
+        _countByWorkflowStatus('UNDER EVALUATION') +
+        _countByWorkflowStatus('REWORK NEEDED');
     final completed = _countByWorkflowStatus('COMPLETED');
     final highPriority = _countByPriority('high');
 
@@ -244,7 +247,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
 
   Widget _buildStatRow(int pending, int inProgress, int highPriority, int completed, bool isMobile) {
     final cards = [
-      _StatCard(title: 'Pending', value: pending, icon: Icons.schedule_rounded, color: _orange, subtitle: 'Awaiting Review'),
+      _StatCard(title: 'Pending', value: pending, icon: Icons.schedule_rounded, color: _orange, subtitle: 'Awaiting Acceptance'),
       _StatCard(title: 'In Progress', value: inProgress, icon: Icons.engineering_rounded, color: _blue, subtitle: 'Active tasks'),
       _StatCard(title: 'High Priority', value: highPriority, icon: Icons.warning_amber_rounded, color: _red, subtitle: 'Urgent Request'),
       _StatCard(title: 'Completed', value: completed, icon: Icons.check_circle_rounded, color: _green, subtitle: 'Resolved'),
@@ -274,40 +277,90 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
       title: 'Status Overview',
       child: Column(
         children: [
-          _buildProgressRow('Approved (Assigned)', _countByWorkflowStatus('APPROVED'), total, _orange),
+          _buildProgressRow('Approved (Assigned)', 'Assigned by admin • Waiting for acceptance', _countByWorkflowStatus('APPROVED'), total, _orange),
           const SizedBox(height: 14),
-          _buildProgressRow('Accepted', _countByWorkflowStatus('ACCEPTED'), total, _blue),
+          _buildProgressRow('Accepted', 'Task accepted • Ready for pre-inspection', _countByWorkflowStatus('ACCEPTED'), total, _blue),
           const SizedBox(height: 14),
-          _buildProgressRow('Pre-Inspection Submitted', _countByWorkflowStatus('PRE-INSPECTION SUBMITTED'), total, _indigo),
+          _buildProgressRow('Pre-Inspection Submitted', 'Report submitted • Awaiting Admin review', _countByWorkflowStatus('PRE-INSPECTION SUBMITTED'), total, _indigo),
           const SizedBox(height: 14),
-          _buildProgressRow('Confirmed', _countByWorkflowStatus('CONFIRMED'), total, _purple),
+          _buildProgressRow('Confirmed', 'Pre-inspection approved • Ready for repair', _countByWorkflowStatus('CONFIRMED'), total, _purple),
           const SizedBox(height: 14),
-          _buildProgressRow('Under Evaluation', _countByWorkflowStatus('UNDER EVALUATION'), total, _pink),
+          _buildProgressRow('Under Evaluation', 'Post-repair submitted • Admin evaluation pending', _countByWorkflowStatus('UNDER EVALUATION'), total, _pink),
           const SizedBox(height: 14),
-          _buildProgressRow('Rework Needed', _countByWorkflowStatus('REWORK NEEDED'), total, _red),
+          _buildProgressRow('Rework Needed', 'Action required on repair work', _countByWorkflowStatus('REWORK NEEDED'), total, _red),
           const SizedBox(height: 14),
-          _buildProgressRow('Completed', _countByWorkflowStatus('COMPLETED'), total, _green),
+          _buildProgressRow('Completed', 'Work completed & verified', _countByWorkflowStatus('COMPLETED'), total, _green),
         ],
       ),
     );
   }
 
-  Widget _buildProgressRow(String label, int count, int total, Color color) {
+  Widget _buildProgressRow(String label, String subtitle, int count, int total, Color color) {
     final pct = total > 0 ? count / total : 0.0;
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(children: [
-              Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 4)])),
-              const SizedBox(width: 10),
-              Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _ink)),
-            ]),
+            Expanded(
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withValues(alpha: 0.5),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _ink,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: _muted,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-              child: Text('$count', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
             ),
           ],
         ),

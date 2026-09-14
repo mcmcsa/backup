@@ -1,10 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/app_settings_service.dart';
+import '../../../shared/services/chat_service.dart';
+import '../../../shared/widgets/chat/chat_messages_panel.dart';
+import '../../../shared/services/work_request_service.dart';
+import '../../admin/ticket/request_details_page.dart' as admin_ticket;
+import '../../../router/app_router.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -210,6 +216,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
       date: notification.createdAt,
       isRead: notification.isRead,
       category: category,
+      workRequestId: notification.workRequestId,
+      chatRoomId: notification.chatRoomId,
+      targetPage: notification.targetPage,
+      rawType: notification.type,
     );
   }
 
@@ -517,6 +527,122 @@ class _NotificationsPageState extends State<NotificationsPage> {
     );
   }
 
+  Future<void> _handleNotificationClick(NotificationItem notification) async {
+    if (!notification.isRead) {
+      setState(() {
+        notification.isRead = true;
+      });
+      await AppNotificationService.markAsRead(notification.id);
+    }
+
+    if (!mounted) return;
+    final authService = context.read<AuthService>();
+    final user = authService.currentUser;
+    if (user == null) return;
+
+    final isChat = notification.category == 'Message' ||
+        notification.rawType == 'chat' ||
+        notification.rawType == 'chat_message' ||
+        notification.rawType == 'new_chat_message' ||
+        (notification.chatRoomId != null && notification.chatRoomId!.isNotEmpty);
+
+    // Case 1: Chat Notification
+    if (isChat) {
+      final roomId = notification.chatRoomId;
+      if (roomId != null && roomId.isNotEmpty) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(child: CircularProgressIndicator()),
+        );
+
+        try {
+          final room = await ChatService.fetchRoom(roomId);
+          if (mounted) Navigator.of(context).pop();
+
+          if (room != null && mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => Scaffold(
+                  backgroundColor: Colors.white,
+                  body: SafeArea(
+                    top: false,
+                    child: ChatMessagesPanel(
+                      key: ValueKey(room.id),
+                      room: room,
+                      currentUserId: user.id,
+                      currentUserName: user.name,
+                      currentUserRole: user.role.name,
+                      onBack: () => Navigator.pop(context),
+                      onRoomDeleted: () => Navigator.pop(context),
+                    ),
+                  ),
+                ),
+              ),
+            );
+            return;
+          }
+        } catch (_) {
+          if (mounted) Navigator.of(context).pop();
+        }
+      }
+
+      if (!mounted) return;
+      if (user.role.name == 'teacher') {
+        context.push(teacherChatRoute);
+      }
+      return;
+    }
+
+    // Case 2: Work Request Notification
+    if (notification.workRequestId != null && notification.workRequestId!.isNotEmpty) {
+      final reqId = notification.workRequestId!;
+      final userRoleStr = user.role.name.toLowerCase();
+
+      if (userRoleStr == 'teacher') {
+        context.push(
+          '/request-details',
+          extra: {
+            'trackingNumber': reqId,
+            'status': 'PENDING',
+          },
+        );
+        return;
+      } else if (userRoleStr == 'admin' || userRoleStr == 'campadmin') {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(child: CircularProgressIndicator()),
+        );
+        try {
+          final req = await WorkRequestService.fetchById(reqId);
+          if (mounted) Navigator.of(context).pop();
+          if (req != null && mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => admin_ticket.RequestDetailsPage(request: req),
+              ),
+            );
+          }
+        } catch (_) {
+          if (mounted) Navigator.of(context).pop();
+        }
+        return;
+      } else if (userRoleStr == 'maintenance') {
+        context.push(
+          '/request-details',
+          extra: {
+            'trackingNumber': reqId,
+            'status': 'PENDING',
+          },
+        );
+        return;
+      }
+    }
+  }
+
   Widget _buildNotificationCard(NotificationItem notification) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -537,12 +663,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         ],
       ),
       child: InkWell(
-        onTap: () async {
-          setState(() {
-            notification.isRead = true;
-          });
-          await AppNotificationService.markAsRead(notification.id);
-        },
+        onTap: () => _handleNotificationClick(notification),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           decoration: BoxDecoration(
@@ -638,6 +759,10 @@ class NotificationItem {
   final DateTime date;
   bool isRead;
   final String category;
+  final String? workRequestId;
+  final String? chatRoomId;
+  final String? targetPage;
+  final String rawType;
 
   NotificationItem({
     required this.id,
@@ -650,5 +775,9 @@ class NotificationItem {
     required this.date,
     this.isRead = false,
     required this.category,
+    this.workRequestId,
+    this.chatRoomId,
+    this.targetPage,
+    this.rawType = '',
   });
 }

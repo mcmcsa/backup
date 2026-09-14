@@ -168,6 +168,11 @@ class _MaintenanceManagementPageWebState
             s == 'in_progress' ||
             s == 'accepted' ||
             s == 'accepted by maintenance' ||
+            s == 'confirmed' ||
+            s == 'pre-inspection approved' ||
+            s == 'post-repair submitted' ||
+            s == 'rework' ||
+            s == 'for rework' ||
             s == 'rework needed' ||
             s == 'pre-inspection submitted' ||
             s == 'under evaluation';
@@ -176,7 +181,7 @@ class _MaintenanceManagementPageWebState
         }
       }
 
-      final now = DateTime.now();
+      final nowUtc = DateTime.now().toUtc();
 
       // Re-map active accounts with accurate dynamic status
       final activeAccounts = rawActive.map((account) {
@@ -185,17 +190,21 @@ class _MaintenanceManagementPageWebState
 
         // Account is actively open if a heartbeat was received within the last 35 seconds,
         // or if status was explicitly updated within the last 45 seconds.
-        final bool isHeartbeatActive = lastActive != null && now.difference(lastActive).inSeconds <= 35;
-        final bool isRecentlyUpdated = statusUpdated != null && now.difference(statusUpdated).inSeconds <= 45;
+        final int? lastActiveDiff = lastActive != null ? nowUtc.difference(lastActive.toUtc()).inSeconds : null;
+        final int? statusUpdatedDiff = statusUpdated != null ? nowUtc.difference(statusUpdated.toUtc()).inSeconds : null;
+
+        final bool isHeartbeatActive = lastActiveDiff != null && lastActiveDiff >= -15 && lastActiveDiff <= 35;
+        final bool isRecentlyUpdated = statusUpdatedDiff != null && statusUpdatedDiff >= -15 && statusUpdatedDiff <= 45;
         final bool isAccountOpen = isHeartbeatActive || isRecentlyUpdated;
 
         String computedStatus;
 
-        if (account.availabilityStatus.toLowerCase().trim() == 'offline') {
+        final currentRaw = account.availabilityStatus.toLowerCase().trim();
+        if (currentRaw == 'offline') {
           computedStatus = 'offline';
         } else if (isAccountOpen) {
-          // Account is actively open: detect if currently has ongoing work
-          if (activeBusyUserIds.contains(account.userId)) {
+          // Account is actively open: detect if currently has ongoing work or manual busy
+          if (activeBusyUserIds.contains(account.userId) || currentRaw == 'busy' || currentRaw == 'working') {
             computedStatus = 'busy';
           } else {
             computedStatus = 'online';
@@ -205,7 +214,7 @@ class _MaintenanceManagementPageWebState
           computedStatus = 'offline';
 
           // Sync database if it was stale
-          if (account.availabilityStatus.toLowerCase().trim() != 'offline') {
+          if (currentRaw != 'offline') {
             MaintenanceStatusService.updateStatus(account.userId, 'offline').catchError((_) {});
           }
         }

@@ -189,10 +189,10 @@ class _PostRepairPageState extends State<PostRepairPage> {
         ),
       );
 
-      // 3. Update Work Request Status (Keep as current status, but triggers updated_at)
+      // 3. Update Work Request Status back to 'Confirmed' so campus admin can evaluate
       await WorkRequestService.updateStatus(
         widget.request.id,
-        widget.request.status,
+        'Confirmed',
       );
 
       // 4. Notify Campus Admin and Requestor for transparency

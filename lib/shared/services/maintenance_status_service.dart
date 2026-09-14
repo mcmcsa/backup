@@ -36,13 +36,17 @@ class MaintenanceStatusService {
           .select('id')
           .eq('assigned_to_id', userId)
           .inFilter('status', [
-            'Accepted', 
-            'Confirmed', 
-            'Rework Needed', 
-            'Pre-Inspection Submitted', 
-            'Under Evaluation', 
-            'In Progress', 
-            'in_progress', 
+            'Accepted',
+            'Confirmed',
+            'Pre-Inspection Approved',
+            'Rework',
+            'For Rework',
+            'Rework Needed',
+            'Pre-Inspection Submitted',
+            'Post-Repair Submitted',
+            'Under Evaluation',
+            'In Progress',
+            'in_progress',
             'accepted by maintenance'
           ]);
 
@@ -50,8 +54,8 @@ class MaintenanceStatusService {
 
       await _db.from(_table).update({
         'availability_status': nextStatus,
-        'last_active_at': DateTime.now().toIso8601String(),
-        'status_updated_at': DateTime.now().toIso8601String(),
+        'last_active_at': DateTime.now().toUtc().toIso8601String(),
+        'status_updated_at': DateTime.now().toUtc().toIso8601String(),
         if (activeRequests.isNotEmpty) 'current_assignment_id': activeRequests.first['id'],
       }).eq('user_id', userId);
     } catch (e) {
@@ -68,8 +72,8 @@ class MaintenanceStatusService {
   static Future<void> updateStatus(String userId, String status) async {
     await _db.from(_table).update({
       'availability_status': status,
-      'last_active_at': status.toLowerCase() == 'offline' ? null : DateTime.now().toIso8601String(),
-      'status_updated_at': DateTime.now().toIso8601String(),
+      'last_active_at': status.toLowerCase() == 'offline' ? null : DateTime.now().toUtc().toIso8601String(),
+      'status_updated_at': DateTime.now().toUtc().toIso8601String(),
     }).eq('user_id', userId);
   }
 
@@ -82,13 +86,17 @@ class MaintenanceStatusService {
           .select('id')
           .eq('assigned_to_id', userId)
           .inFilter('status', [
-            'Accepted', 
-            'Confirmed', 
-            'Rework Needed', 
-            'Pre-Inspection Submitted', 
-            'Under Evaluation', 
-            'In Progress', 
-            'in_progress', 
+            'Accepted',
+            'Confirmed',
+            'Pre-Inspection Approved',
+            'Rework',
+            'For Rework',
+            'Rework Needed',
+            'Pre-Inspection Submitted',
+            'Post-Repair Submitted',
+            'Under Evaluation',
+            'In Progress',
+            'in_progress',
             'accepted by maintenance'
           ]);
 
@@ -96,8 +104,8 @@ class MaintenanceStatusService {
 
       await _db.from(_table).update({
         'availability_status': nextStatus,
-        'last_active_at': DateTime.now().toIso8601String(),
-        'status_updated_at': DateTime.now().toIso8601String(),
+        'last_active_at': DateTime.now().toUtc().toIso8601String(),
+        'status_updated_at': DateTime.now().toUtc().toIso8601String(),
         if (activeRequests.isNotEmpty) 'current_assignment_id': activeRequests.first['id'],
       }).eq('user_id', userId);
     } catch (e) {
@@ -111,7 +119,7 @@ class MaintenanceStatusService {
       await _db.from(_table).update({
         'availability_status': 'offline',
         'current_assignment_id': null,
-        'status_updated_at': DateTime.now().toIso8601String(),
+        'status_updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('user_id', userId);
     } catch (e) {
       debugPrint('Failed to set offline status: $e');
@@ -124,7 +132,7 @@ class MaintenanceStatusService {
       await _db.from(_table).update({
         'availability_status': 'busy',
         'current_assignment_id': workRequestId,
-        'status_updated_at': DateTime.now().toIso8601String(),
+        'status_updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('user_id', userId);
     } catch (e) {
       debugPrint('Failed to set busy status: $e');
@@ -140,13 +148,17 @@ class MaintenanceStatusService {
           .select('id')
           .eq('assigned_to_id', userId)
           .inFilter('status', [
-            'Accepted', 
-            'Confirmed', 
-            'Rework Needed', 
-            'Pre-Inspection Submitted', 
-            'Under Evaluation', 
-            'In Progress', 
-            'in_progress', 
+            'Accepted',
+            'Confirmed',
+            'Pre-Inspection Approved',
+            'Rework',
+            'For Rework',
+            'Rework Needed',
+            'Pre-Inspection Submitted',
+            'Post-Repair Submitted',
+            'Under Evaluation',
+            'In Progress',
+            'in_progress',
             'accepted by maintenance'
           ]);
       
@@ -155,7 +167,7 @@ class MaintenanceStatusService {
       await _db.from(_table).update({
         'availability_status': nextStatus,
         'current_assignment_id': activeRequests.isNotEmpty ? activeRequests.first['id'] : null,
-        'status_updated_at': DateTime.now().toIso8601String(),
+        'status_updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('user_id', userId);
     } catch (e) {
       debugPrint('Failed to set online status on completion: $e');

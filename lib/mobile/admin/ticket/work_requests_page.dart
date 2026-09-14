@@ -28,12 +28,19 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
     'All',
     'Pending',
     'In Progress',
-    'Declined',
     'Confirmed',
     'Rework',
-    'Completed',
     'Duplicates',
   ];
+
+  bool _isHistorical(String status) {
+    final s = status.toLowerCase();
+    return s == 'completed' ||
+        s == 'declined' ||
+        s == 'cancelled' ||
+        s == 'declined/cancelled' ||
+        s == 'pre-inspection declined';
+  }
   List<WorkRequest> _requests = [];
   Map<String, String> _maintenanceNamesById = {};
   Map<String, String> _maintenanceSpecializationsById = {};
@@ -134,22 +141,20 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
 
   List<WorkRequest> get _filteredRequests {
     final query = _searchController.text.toLowerCase();
-    var requests = _requests;
+    var requests = _requests.where((r) => !_isHistorical(r.status)).toList();
+
+    final filter = _selectedFilter < _filters.length ? _filters[_selectedFilter] : 'All';
 
     // Apply status filter
-    if (_selectedFilter == 1) {
+    if (filter == 'Pending') {
       requests = requests.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').toList();
-    } else if (_selectedFilter == 2) {
+    } else if (filter == 'In Progress') {
       requests = requests.where((r) => r.status.toLowerCase() == 'in progress' || r.status.toLowerCase() == 'in_progress' || r.status.toLowerCase() == 'assigned' || r.status.toLowerCase() == 'accepted by maintenance').toList();
-    } else if (_selectedFilter == 3) {
-      requests = requests.where((r) => r.status.toLowerCase() == 'declined' || r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined/cancelled').toList();
-    } else if (_selectedFilter == 4) {
+    } else if (filter == 'Confirmed') {
       requests = requests.where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'under_maintenance').toList();
-    } else if (_selectedFilter == 5) {
+    } else if (filter == 'Rework') {
       requests = requests.where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'for rework').toList();
-    } else if (_selectedFilter == 6) {
-      requests = requests.where((r) => r.status.toLowerCase() == 'completed').toList();
-    } else if (_selectedFilter == 7) {
+    } else if (filter == 'Duplicates') {
       requests = requests.where((r) => r.duplicateOfId != null).toList();
     }
 

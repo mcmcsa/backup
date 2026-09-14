@@ -314,10 +314,9 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
         reviewNotes: _reviewNotesController.text,
       );
 
-      // 3. Update Work Request Status
-      await WorkRequestService.updateStatus(
+      // 3. Update Work Request Status to Confirmed
+      await WorkRequestService.setUnderMaintenance(
         widget.request.id,
-        'Pre-Inspection Approved',
       );
 
       await LoginActivityService.recordAdminAction(
@@ -378,7 +377,7 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
       // Update Work Request Status
       await WorkRequestService.updateStatus(
         widget.request.id,
-        'Pre-Inspection Declined',
+        'Declined',
       );
 
       await LoginActivityService.recordAdminAction(

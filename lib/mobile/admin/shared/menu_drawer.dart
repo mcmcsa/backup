@@ -7,11 +7,33 @@ import 'maintenance_management_page.dart';
 import '../users/users_page.dart';
 import '../../teacher/menu_pages/settings_page.dart';
 import '../ticket/approval_queue_page.dart';
+import '../rooms/qr_code_history_page.dart';
+import '../main_navigation.dart';
 
 class MenuDrawer extends StatelessWidget {
-  const MenuDrawer({super.key});
+  final void Function(int index)? onSelectTab;
+  final int? currentTab;
+
+  const MenuDrawer({
+    super.key,
+    this.onSelectTab,
+    this.currentTab,
+  });
 
   static void _noop() {}
+
+  void _navigateToTab(BuildContext context, int tabIndex) {
+    Navigator.pop(context);
+    if (onSelectTab != null) {
+      onSelectTab!(tabIndex);
+    } else {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => MainNavigation(initialIndex: tabIndex)),
+        (route) => route.isFirst,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,10 +49,19 @@ class MenuDrawer extends StatelessWidget {
           children: [
             // Header with close button
             Padding(
-              padding: EdgeInsets.all(isCompact ? 12.0 : 16.0),
+              padding: EdgeInsets.fromLTRB(16, isCompact ? 8 : 12, 12, 0),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  const Text(
+                    'NAVIGATION',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.1),
@@ -40,13 +71,10 @@ class MenuDrawer extends StatelessWidget {
                       icon: Icon(
                         Icons.close,
                         color: Colors.white,
-                        size: isCompact ? 26 : 28,
+                        size: isCompact ? 22 : 24,
                       ),
-                      padding: EdgeInsets.all(isCompact ? 8 : 8),
-                      constraints: BoxConstraints(
-                        minWidth: isCompact ? 44 : 44,
-                        minHeight: isCompact ? 44 : 44,
-                      ),
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ),
@@ -56,13 +84,12 @@ class MenuDrawer extends StatelessWidget {
 
             // PSU Logo and Title
             Container(
-              padding: EdgeInsets.symmetric(vertical: isCompact ? 16 : 24),
+              padding: EdgeInsets.symmetric(vertical: isCompact ? 10 : 16),
               child: Column(
                 children: [
-                  // PSU Logo
                   SizedBox(
-                    width: isCompact ? 98 : 100,
-                    height: isCompact ? 98 : 100,
+                    width: isCompact ? 72 : 80,
+                    height: isCompact ? 72 : 80,
                     child: ClipOval(
                       child: Image.asset(
                         'assets/images/app_logo_v2.png',
@@ -72,50 +99,124 @@ class MenuDrawer extends StatelessWidget {
                         errorBuilder: (_, error, stackTrace) => const Icon(
                           Icons.school,
                           color: Colors.white,
-                          size: 50,
+                          size: 40,
                         ),
                       ),
                     ),
                   ),
-                  SizedBox(height: isCompact ? 14 : 16),
+                  const SizedBox(height: 10),
                   Text(
-                    'PANGASINAN',
+                    'PANGASINAN STATE UNIVERSITY',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: isCompact ? 16 : 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.3,
-                    ),
-                  ),
-                  Text(
-                    'STATE UNIVERSITY',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: isCompact ? 18 : 18,
+                      fontSize: isCompact ? 13 : 14,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: isCompact ? 1.1 : 1.2,
+                      letterSpacing: 0.8,
                     ),
                   ),
-                  SizedBox(height: isCompact ? 4 : 4),
-                  Text(
+                  const SizedBox(height: 2),
+                  const Text(
                     'CAMPUS ADMINISTRATOR',
                     style: TextStyle(
                       color: Colors.white70,
-                      fontSize: isCompact ? 11.5 : 11,
-                      letterSpacing: 0.9,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.8,
                     ),
                   ),
                 ],
               ),
             ),
 
-            SizedBox(height: isCompact ? 22 : 20),
+            const Divider(color: Colors.white24, height: 1),
 
-            // Menu Items
+            // Menu Items matching Web Sidebar
             Expanded(
               child: ListView(
-                padding: EdgeInsets.fromLTRB(isCompact ? 14 : 16, isCompact ? 6 : 0, isCompact ? 14 : 16, 0),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isCompact ? 10 : 12,
+                  vertical: 8,
+                ),
                 children: [
+                  _buildMenuItem(
+                    icon: Icons.home_rounded,
+                    title: 'Home',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 0,
+                    onTap: () => _navigateToTab(context, 0),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.meeting_room_outlined,
+                    title: 'Rooms',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 1,
+                    onTap: () => _navigateToTab(context, 1),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.confirmation_num_rounded,
+                    title: 'Tickets',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 2,
+                    onTap: () => _navigateToTab(context, 2),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    title: 'Messages',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 3,
+                    onTap: () => _navigateToTab(context, 3),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.query_stats_rounded,
+                    title: 'Stats',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 4,
+                    onTap: () => _navigateToTab(context, 4),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.qr_code_2_rounded,
+                    title: 'QR Management',
+                    isCompact: isCompact,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const QRCodeHistoryPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.people_rounded,
+                    title: 'Users',
+                    isCompact: isCompact,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const UsersPage(openDrawer: _noop),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.engineering_rounded,
+                    title: 'Maintenance',
+                    isCompact: isCompact,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              const MaintenanceManagementPage(),
+                        ),
+                      );
+                    },
+                  ),
                   _buildMenuItem(
                     icon: Icons.pending_actions_rounded,
                     title: 'Approvals',
@@ -130,9 +231,8 @@ class MenuDrawer extends StatelessWidget {
                       );
                     },
                   ),
-
                   _buildMenuItem(
-                    icon: Icons.list_alt_rounded,
+                    icon: Icons.receipt_long_rounded,
                     title: 'Logs',
                     isCompact: isCompact,
                     onTap: () {
@@ -145,7 +245,6 @@ class MenuDrawer extends StatelessWidget {
                       );
                     },
                   ),
-
                   _buildMenuItem(
                     icon: Icons.history_rounded,
                     title: 'History',
@@ -160,39 +259,8 @@ class MenuDrawer extends StatelessWidget {
                       );
                     },
                   ),
-                  
                   _buildMenuItem(
-                    icon: Icons.group_outlined,
-                    title: 'Users',
-                    isCompact: isCompact,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const UsersPage(openDrawer: _noop),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildMenuItem(
-                    icon: Icons.engineering_outlined,
-                    title: 'Maintenance',
-                    isCompact: isCompact,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const MaintenanceManagementPage(),
-                        ),
-                      );
-                    },
-                  ),
-
-                  _buildMenuItem(
-                    icon: Icons.settings_outlined,
+                    icon: Icons.settings_rounded,
                     title: 'Settings',
                     isCompact: isCompact,
                     onTap: () {
@@ -205,78 +273,77 @@ class MenuDrawer extends StatelessWidget {
                       );
                     },
                   ),
+                  _buildMenuItem(
+                    icon: Icons.person_rounded,
+                    title: 'Profile',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 5,
+                    onTap: () => _navigateToTab(context, 5),
+                  ),
                 ],
               ),
             ),
 
+            const Divider(color: Colors.white24, height: 1),
+
             // Logout Button
             Padding(
-              padding: EdgeInsets.all(isCompact ? 16 : 24),
-              child: Column(
-                children: [
-                  FractionallySizedBox(
-                    widthFactor: isCompact ? 0.95 : 1,
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        final authService = context.read<AuthService>();
-                        // Show confirmation dialog using root navigator to ensure valid context
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          useRootNavigator: true,
-                          builder: (dialogContext) => AlertDialog(
-                            title: const Text('Logout'),
-                            content: const Text('Do you want to logout?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(false),
-                                child: const Text('Cancel'),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                ),
-                                onPressed: () =>
-                                    Navigator.of(dialogContext).pop(true),
-                                child: const Text('Logout'),
-                              ),
-                            ],
+              padding: EdgeInsets.symmetric(
+                horizontal: isCompact ? 16 : 20,
+                vertical: isCompact ? 12 : 16,
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final authService = context.read<AuthService>();
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      useRootNavigator: true,
+                      builder: (dialogContext) => AlertDialog(
+                        title: const Text('Logout'),
+                        content: const Text('Do you want to logout?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(false),
+                            child: const Text('Cancel'),
                           ),
-                        );
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(true),
+                            child: const Text('Logout'),
+                          ),
+                        ],
+                      ),
+                    );
 
-                        if (confirm == true) {
-                          if (context.mounted) {
-                            await authService.handleLogoutButton(context);
-                          }
-                        }
-                      },
-                      icon: const Icon(Icons.logout, color: Colors.white),
-                      label: Text(
-                        'Logout',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: isCompact ? 17 : 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: isCompact ? 14 : 14),
-                        side: const BorderSide(color: Colors.white, width: 2),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: isCompact ? 10 : 16),
-                  Text(
-                    '© PSU Maintenance',
+                    if (confirm == true) {
+                      if (context.mounted) {
+                        await authService.handleLogoutButton(context);
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.logout, color: Colors.white, size: 18),
+                  label: const Text(
+                    'Logout',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      fontSize: isCompact ? 12 : 12,
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ],
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    side: const BorderSide(color: Colors.white60, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -290,31 +357,49 @@ class MenuDrawer extends StatelessWidget {
     required String title,
     required bool isCompact,
     required VoidCallback onTap,
+    bool isSelected = false,
   }) {
     return Padding(
-      padding: EdgeInsets.only(bottom: isCompact ? 2 : 4),
+      padding: EdgeInsets.only(bottom: isCompact ? 2 : 3),
       child: Material(
-        color: Colors.transparent,
+        color: isSelected ? Colors.white.withValues(alpha: 0.2) : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           child: Container(
             padding: EdgeInsets.symmetric(
-              horizontal: isCompact ? 16 : 16,
-              vertical: isCompact ? 13 : 14,
+              horizontal: isCompact ? 14 : 16,
+              vertical: isCompact ? 10 : 11,
             ),
             child: Row(
               children: [
-                Icon(icon, color: Colors.white, size: isCompact ? 27 : 24),
-                SizedBox(width: isCompact ? 16 : 16),
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: isCompact ? 17.5 : 16,
-                    fontWeight: FontWeight.w500,
+                Icon(
+                  icon,
+                  color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.88),
+                  size: isCompact ? 22 : 22,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isCompact ? 14.5 : 15,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
+                if (isSelected)
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
               ],
             ),
           ),

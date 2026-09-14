@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../maintenance_nav_controller.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/widgets/room_comparison_dialog.dart';
 
 const Color _blue = Color(0xFF0EA5E9);
@@ -37,7 +36,10 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
       final data = await WorkRequestService.fetchAll();
       final completed = data.where((r) {
         final st = r.status.toLowerCase();
-        return st == 'completed' || st == 'declined';
+        return st == 'completed' ||
+            st == 'declined' ||
+            st == 'cancelled' ||
+            st == 'declined/cancelled';
       }).toList();
       if (mounted) setState(() { _history = completed; _isLoading = false; });
     } catch (_) {
@@ -122,31 +124,8 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
                     padding: const EdgeInsets.only(bottom: 10),
                     child: _HistoryCard(
                       request: r,
-                      onTap: () async {
-                        final roomId = r.roomId;
-                        bool showComparison = false;
-                        if (roomId != null && roomId.isNotEmpty) {
-                          try {
-                            final response = await Supabase.instance.client
-                                .from('room_versions')
-                                .select('id')
-                                .eq('room_id', roomId);
-                            if ((response as List).length >= 2) {
-                              showComparison = true;
-                            }
-                          } catch (_) {}
-                        }
-
-                        if (!mounted) return;
-
-                        if (showComparison) {
-                          showDialog(
-                            context: context,
-                            builder: (context) => RoomComparisonDialog(roomId: roomId!),
-                          );
-                        } else {
-                          MaintenanceNavController.of(context)?.navigateTo(3, request: r);
-                        }
+                      onTap: () {
+                        MaintenanceNavController.of(context)?.navigateTo(3, request: r);
                       },
                     ),
                   )),
@@ -369,6 +348,55 @@ class _HistoryCardState extends State<_HistoryCard> {
                   const SizedBox(height: 6),
                   Text(displayDate, style: const TextStyle(fontSize: 11, color: _muted, fontWeight: FontWeight.w500)),
                 ],
+              ),
+              const SizedBox(width: 12),
+              PopupMenuButton<String>(
+                tooltip: 'Actions',
+                offset: const Offset(0, 38),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                onSelected: (val) {
+                  if (val == 'view') {
+                    widget.onTap();
+                  } else if (val == 'compare' && widget.request.roomId != null && widget.request.roomId!.isNotEmpty) {
+                    showDialog(
+                      context: context,
+                      builder: (context) => RoomComparisonDialog(roomId: widget.request.roomId!),
+                    );
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'view',
+                    child: Row(
+                      children: [
+                        Icon(Icons.visibility_outlined, size: 16, color: _blue),
+                        SizedBox(width: 8),
+                        Text('View Task Details', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                  if (widget.request.roomId != null && widget.request.roomId!.isNotEmpty)
+                    const PopupMenuItem(
+                      value: 'compare',
+                      child: Row(
+                        children: [
+                          Icon(Icons.difference_outlined, size: 16, color: _green),
+                          SizedBox(width: 8),
+                          Text('Compare Room', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                ],
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _border),
+                  ),
+                  child: const Icon(Icons.more_vert_rounded, size: 16, color: _muted),
+                ),
               ),
             ],
           ),

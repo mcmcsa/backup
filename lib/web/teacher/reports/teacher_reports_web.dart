@@ -30,11 +30,18 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
     'All',
     'Pending',
     'In Progress',
-    'Declined',
     'Confirmed',
     'Rework',
-    'Completed',
   ];
+
+  bool _isHistorical(String status) {
+    final s = status.toLowerCase();
+    return s == 'completed' ||
+        s == 'declined' ||
+        s == 'cancelled' ||
+        s == 'declined/cancelled' ||
+        s == 'pre-inspection declined';
+  }
 
   @override
   void initState() {
@@ -100,7 +107,7 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
                     false);
         bool matchesStatus = false;
         if (_selectedStatus == 'All') {
-          matchesStatus = true;
+          matchesStatus = !_isHistorical(r.status);
         } else {
           final sel = _selectedStatus.toLowerCase();
           final status = r.status.toLowerCase();
@@ -108,14 +115,10 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
             matchesStatus = (status == 'pending' || status == 'pending assignment');
           } else if (sel == 'in progress') {
             matchesStatus = (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance');
-          } else if (sel == 'declined') {
-            matchesStatus = (status == 'declined' || status == 'cancelled' || status == 'declined/cancelled');
           } else if (sel == 'confirmed') {
             matchesStatus = (status == 'confirmed' || status == 'pre-inspection approved' || status == 'under_maintenance');
           } else if (sel == 'rework') {
             matchesStatus = (status == 'rework' || status == 'for rework');
-          } else if (sel == 'completed') {
-            matchesStatus = (status == 'completed');
           }
         }
         return matchesSearch && matchesStatus;

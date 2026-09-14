@@ -42,34 +42,37 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     
     return AppBar(
-      leadingWidth: 48,
+      leadingWidth: 56,
       backgroundColor: themeProvider.appBarColor,
       elevation: 0,
       automaticallyImplyLeading: false,
-      leading: showBack
-          ? IconButton(
-              icon: Icon(Icons.arrow_back, color: themeProvider.appBarIconColor),
-              onPressed: onBackPressed ?? () {
-                final router = GoRouter.maybeOf(context);
-                if (router != null) {
-                  router.pop();
-                } else {
-                  Navigator.pop(context);
-                }
-              },
-            )
-          : (showMenu
-              ? IconButton(
-                  icon: Icon(
-                    Icons.menu,
-                    color: themeProvider.appBarIconColor,
-                    size: 24,
-                  ),
-                  onPressed: onMenuPressed ?? () {
-                    Scaffold.of(context).openDrawer();
-                  },
-                )
-              : null),
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 10.0),
+        child: showBack
+            ? IconButton(
+                icon: Icon(Icons.arrow_back, color: themeProvider.appBarIconColor),
+                onPressed: onBackPressed ?? () {
+                  final router = GoRouter.maybeOf(context);
+                  if (router != null) {
+                    router.pop();
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
+              )
+            : (showMenu
+                ? IconButton(
+                    icon: Icon(
+                      Icons.menu,
+                      color: themeProvider.appBarIconColor,
+                      size: 24,
+                    ),
+                    onPressed: onMenuPressed ?? () {
+                      Scaffold.of(context).openDrawer();
+                    },
+                  )
+                : null),
+      ),
       title: Row(
         children: [
           const SizedBox(width: 6),

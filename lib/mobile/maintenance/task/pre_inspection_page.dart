@@ -155,10 +155,10 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
         ),
       );
 
-      // 3. Update Work Request Status (Keep as In Progress, but triggers updated_at)
+      // 3. Update Work Request Status to Confirmed once pre-inspection is submitted
       await WorkRequestService.updateStatus(
         widget.request.id,
-        'In Progress',
+        'Confirmed',
       );
 
       // 4. Notify Campus Admin and Requestor for transparency

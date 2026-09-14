@@ -1585,37 +1585,6 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     );
   }
 
-  Widget _buildEvidencePlaceholder(String label) {
-    return Column(
-      children: [
-        Container(
-          height: 120,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF3F4F6),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-          ),
-          child: Center(
-            child: Icon(
-              Icons.image_outlined,
-              size: 40,
-              color: Colors.grey.shade400,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF6B7280),
-            letterSpacing: 0.5,
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
@@ -1896,8 +1865,6 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
 
   Widget _buildWorkflowTimeline() {
     final request = _request;
-    if (request == null) return const SizedBox.shrink();
-
     final List<Widget> items = [];
 
     // 1. Submission

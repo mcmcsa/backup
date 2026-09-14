@@ -78,12 +78,14 @@ class _MaintenanceDashboardMobileState
 
   @override
   Widget build(BuildContext context) {
-    final assigned = _requests.where((r) => r.status == 'Assigned').length;
+    final assigned = _requests.where((r) => r.status == 'Assigned' || (r.status.toLowerCase() == 'in progress' && r.acceptedDate == null)).length;
     final inspection = _requests
         .where(
           (r) =>
               r.status == 'Pre-Inspection Submitted' ||
-              r.status == 'Pre-Inspection Declined',
+              r.status == 'Pre-Inspection Declined' ||
+              (r.status.toLowerCase() == 'confirmed' && r.postRepairId == null) ||
+              (r.status.toLowerCase() == 'in progress' && r.acceptedDate != null && r.preInspectionId == null),
         )
         .length;
     final repair = _requests
@@ -92,18 +94,17 @@ class _MaintenanceDashboardMobileState
               r.status == 'Pre-Inspection Approved' ||
               r.status == 'Post-Repair Submitted' ||
               r.status == 'For Rework' ||
-              r.status == 'Accepted by Maintenance',
+              r.status == 'Accepted by Maintenance' ||
+              r.status.toLowerCase() == 'rework' ||
+              (r.status.toLowerCase() == 'confirmed' && r.postRepairId != null),
         )
         .length;
     final completed = _requests.where((r) => r.status == 'Completed').length;
     final activeRequests = _requests
-        .where((r) =>
-            r.status == 'Assigned' ||
-            r.status == 'Accepted by Maintenance' ||
-            r.status == 'Pre-Inspection Approved' ||
-            r.status == 'Pre-Inspection Declined' ||
-            r.status == 'Post-Repair Submitted' ||
-            r.status == 'For Rework')
+        .where((r) {
+          final s = r.status.toLowerCase();
+          return s != 'completed' && s != 'declined' && s != 'cancelled' && s != 'declined/cancelled';
+        })
         .toList();
     final highPriority = _requests
         .where((r) => r.priority == 'high' && r.status != 'Completed' && r.status != 'Declined/Cancelled')

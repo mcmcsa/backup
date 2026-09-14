@@ -34,7 +34,6 @@ import '../web/teacher/menu/teacher_settings_web.dart';
 import '../web/teacher/menu/teacher_workflow_web.dart';
 import 'package:psu_maintsystem/web/teacher/reports/teacher_create_request_web.dart';
 import 'package:psu_maintsystem/web/teacher/reports/teacher_work_process_web.dart';
-import 'package:psu_maintsystem/web/admin/tickets/admin_create_request_web.dart';
 import 'package:psu_maintsystem/web/teacher/reports/teacher_request_success_web.dart';
 import '../web/teacher/teacher_navigation_web.dart' as web_teacher;
 import '../web/system_admin/system_admin_main_navigation_web.dart' as web_sysadmin;
@@ -56,6 +55,7 @@ const String teacherAboutRoute = '/teacher/about';
 const String teacherContactRoute = '/teacher/contact';
 const String teacherWorkflowRoute = '/teacher/workflow';
 const String teacherCreateRequestRoute = '/teacher/create-request';
+const String teacherChatRoute = '/teacher/chat';
 
 String? resolveAuthRedirect({
   required String location,
@@ -303,6 +303,22 @@ GoRouter buildAppRouter(AuthService authService) {
               ? const web_teacher.TeacherNavigationWeb(initialIndex: 4)
               : const StudentTeacherNavigation(initialIndex: 4),
         ),
+      ),
+      GoRoute(
+        path: teacherChatRoute,
+        pageBuilder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return _buildSmoothPageTransition(
+            context: context,
+            state: state,
+            child: kIsWeb
+                ? const web_teacher.TeacherNavigationWeb(initialIndex: 3)
+                : StudentTeacherNavigation(
+                    initialIndex: 5,
+                    initialChatRoom: extra?['room'],
+                  ),
+          );
+        },
       ),
       GoRoute(
         path: '/maintenance/dashboard',

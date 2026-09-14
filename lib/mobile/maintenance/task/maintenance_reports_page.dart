@@ -22,9 +22,17 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
     'Pending',
     'In Progress',
     'Under Maintenance',
-    'Completed',
     'High Priority',
   ];
+
+  bool _isHistorical(String status) {
+    final s = status.toLowerCase();
+    return s == 'completed' ||
+        s == 'declined' ||
+        s == 'cancelled' ||
+        s == 'declined/cancelled' ||
+        s == 'pre-inspection declined';
+  }
 
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
@@ -71,17 +79,17 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
   }
 
   List<WorkRequest> get _filteredRequests {
-    if (_selectedCategory == 'All') return _requests;
+    final active = _requests.where((r) => !_isHistorical(r.status)).toList();
+    if (_selectedCategory == 'All') return active;
     if (_selectedCategory == 'Pending') {
-      return _requests.where((r) => r.status == 'Assigned').toList();
+      return active.where((r) => r.status == 'Assigned').toList();
     }
     if (_selectedCategory == 'In Progress') {
-      return _requests
+      return active
           .where((r) =>
             r.status == 'Accepted by Maintenance' ||
             r.status == 'Pre-Inspection Submitted' ||
             r.status == 'Pre-Inspection Approved' ||
-            r.status == 'Pre-Inspection Declined' ||
             r.status == 'In Progress (Post-Repair)' ||
             r.status == 'Post-Repair Submitted' ||
             r.status == 'Under Evaluation' ||
@@ -90,15 +98,12 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
           .toList();
     }
     if (_selectedCategory == 'Under Maintenance') {
-      return _requests.where((r) => r.status == 'In Progress (Post-Repair)').toList();
-    }
-    if (_selectedCategory == 'Completed') {
-      return _requests.where((r) => r.status == 'Completed').toList();
+      return active.where((r) => r.status == 'In Progress (Post-Repair)').toList();
     }
     if (_selectedCategory == 'High Priority') {
-      return _requests.where((r) => r.priority == 'high').toList();
+      return active.where((r) => r.priority.toLowerCase() == 'high').toList();
     }
-    return _requests;
+    return active;
   }
 
   @override

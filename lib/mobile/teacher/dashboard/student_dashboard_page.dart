@@ -234,7 +234,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  context.push('/work-request-form');
+                  context.push('/manual-room-entry');
                 },
                 icon: const Icon(Icons.add_box_outlined, size: 22),
                 label: const Text(

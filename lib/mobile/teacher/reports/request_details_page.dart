@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
@@ -15,6 +17,7 @@ import '../../../shared/models/post_repair_model.dart';
 import '../../../shared/services/pre_inspection_service.dart';
 import '../../../shared/services/post_repair_service.dart';
 import '../../../shared/services/user_service.dart';
+import '../../../web/teacher/reports/teacher_official_form_web.dart';
 
 import 'package:printing/printing.dart';
 import '../../../shared/services/iso_pdf_service.dart';
@@ -158,6 +161,14 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
   }
 
 
+  void _openOfficialForm() {
+    if (_request == null) return;
+    showDialog(
+      context: context,
+      builder: (context) => TeacherOfficialFormWeb(request: _request!),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -180,9 +191,16 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
         centerTitle: true,
         actions: [
           IconButton(
+            tooltip: 'View Official ISO Form',
+            icon: const Icon(Icons.assignment_rounded, color: Colors.black87),
+            onPressed: _openOfficialForm,
+          ),
+          IconButton(
+            tooltip: 'Print Form',
             icon: const Icon(Icons.print_rounded, color: Colors.black87),
             onPressed: () async {
               if (_request != null) {
+                final messenger = ScaffoldMessenger.of(context);
                 try {
                   final pdfBytes = await IsoPdfService.generateWorkRequestPdf(_request!);
                   await Printing.layoutPdf(
@@ -191,14 +209,12 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                     format: IsoPdfService.standardPortraitFormat,
                   );
                 } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Failed to generate PDF: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to generate PDF: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
                 }
               }
             },
@@ -368,27 +384,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: () async {
-                  if (_request != null) {
-                    try {
-                      final pdfBytes = await IsoPdfService.generateWorkRequestPdf(_request!);
-                      await Printing.layoutPdf(
-                        onLayout: (_) => pdfBytes,
-                        name: 'Work_Request_Form_${_request!.formattedId}',
-                        format: IsoPdfService.standardPortraitFormat,
-                      );
-                    } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Failed to generate PDF: $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  }
-                },
+                onPressed: _openOfficialForm,
                 icon: const Icon(
                   Icons.description,
                   size: 18,
@@ -404,7 +400,10 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            // Requestor E-Signature Card
+            _buildSignaturesCard(),
+            const SizedBox(height: 24),
             // Workflow Timeline
             const Text(
               'Workflow Timeline',
@@ -988,6 +987,237 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
 
     return Column(
       children: items,
+    );
+  }
+
+  bool _isRequestorSignature(ESignature s) {
+    final role = s.signerRole.trim().toLowerCase();
+    final type = s.signatureType.trim().toLowerCase();
+    if (role == 'admin' || role == 'campadmin' || role == 'campus admin' ||
+        role == 'maintenance' || role == 'technician') {
+      return false;
+    }
+    if (type.contains('pre_inspection') || type.contains('post_repair')) {
+      return false;
+    }
+
+    final reqId = _request?.requestorId?.trim();
+    if (reqId != null && reqId.isNotEmpty && s.signerId.trim() == reqId) {
+      return true;
+    }
+    final reportedId = _request?.reportedById?.trim();
+    if (reportedId != null && reportedId.isNotEmpty && s.signerId.trim() == reportedId) {
+      return true;
+    }
+
+    final signerName = s.signerName.trim().toLowerCase();
+    final reqName = (_request?.requestorName ?? '').trim().toLowerCase();
+    final dispName = (_request?.displayRequestorName ?? '').trim().toLowerCase();
+    final reportedName = (_request?.reportedByName ?? '').trim().toLowerCase();
+    
+    if (signerName.isNotEmpty) {
+      if (reqName.isNotEmpty && signerName == reqName) return true;
+      if (dispName.isNotEmpty && signerName == dispName) return true;
+      if (reportedName.isNotEmpty && signerName == reportedName) return true;
+    }
+
+    if (role == 'teacher' || role == 'requestor') {
+      return true;
+    }
+
+    return false;
+  }
+
+  List<ESignature> get _requestorSignatures {
+    return _signatures.where(_isRequestorSignature).toList();
+  }
+
+  Widget _buildSignaturesCard() {
+    final sigs = _requestorSignatures;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF059669).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Requestor Signature',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (sigs.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                children: [
+                  Icon(Icons.draw_rounded, size: 36, color: Colors.grey.shade400),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No Requestor Signature Recorded',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Your signature as the requestor will appear here once attached to this work request.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...sigs.map((s) => _buildSignatureItem(s)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignatureItem(ESignature s) {
+    final initials = s.signerName.trim().split(' ').take(2).map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').join();
+    Uint8List? signatureBytes;
+    if (s.signatureData.isNotEmpty) {
+      try {
+        final cleanBase64 = s.signatureData.contains(',')
+            ? s.signatureData.split(',').last
+            : s.signatureData;
+        signatureBytes = base64Decode(cleanBase64.trim());
+      } catch (_) {}
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF059669).withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF059669).withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  initials.isNotEmpty ? initials : 'RQ',
+                  style: const TextStyle(
+                    color: Color(0xFF059669),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.signerName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    () {
+                      final type = s.signatureType.trim().toLowerCase();
+                      if (type == 'completion') {
+                        return 'Requestor (Completion Confirmation)';
+                      }
+                      return 'Requestor (Submission)';
+                    }(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  if (signatureBytes != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 50,
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Image.memory(
+                        signatureBytes,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 18),
+                const SizedBox(height: 4),
+                Text(
+                  DateFormat('MMM dd').format(s.signedAt),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

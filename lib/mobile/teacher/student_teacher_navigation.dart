@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../shared/models/chat_model.dart';
 import '../../shared/providers/theme_provider.dart';
 import 'dashboard/student_dashboard_page.dart';
 import 'dashboard/logs_page.dart';
@@ -11,8 +12,13 @@ import 'chat/teacher_chat_page.dart';
 
 class StudentTeacherNavigation extends StatefulWidget {
   final int initialIndex;
+  final ChatRoom? initialChatRoom;
 
-  const StudentTeacherNavigation({super.key, this.initialIndex = 0});
+  const StudentTeacherNavigation({
+    super.key,
+    this.initialIndex = 0,
+    this.initialChatRoom,
+  });
 
   @override
   State<StudentTeacherNavigation> createState() => _StudentTeacherNavigationState();
@@ -40,6 +46,9 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
     if (oldWidget.initialIndex != widget.initialIndex) {
       _selectedIndex = widget.initialIndex;
     }
+    if (widget.initialChatRoom != null && widget.initialChatRoom != oldWidget.initialChatRoom) {
+      _selectedIndex = 5;
+    }
   }
 
   @override
@@ -54,15 +63,19 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
       ),
       StudentReportsPage(scaffoldKey: _scaffoldKey),
       StudentProfilePage(scaffoldKey: _scaffoldKey),
-      const TeacherChatPage(),
+      TeacherChatPage(
+        scaffoldKey: _scaffoldKey,
+        initialRoom: widget.initialChatRoom,
+      ),
     ];
 
-    return WillPopScope(
-      onWillPop: () async {
-        // Prevent exiting the navigation with the system back button to avoid
-        // accidentally triggering a logout/route redirect. User can use
-        // system home button or in-app navigation instead.
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_selectedIndex != 0) {
+          setState(() => _selectedIndex = 0);
+        }
       },
       child: Scaffold(
         key: _scaffoldKey,
@@ -71,7 +84,7 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
           index: _selectedIndex,
           children: pages,
         ),
-        drawer: const StudentDrawer(),
+        drawer: StudentDrawer(onSelectTab: _onNavItemTapped),
         bottomNavigationBar: _buildBottomNavBar(themeProvider),
       ),
     );

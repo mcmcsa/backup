@@ -1073,7 +1073,10 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                       ),
                     ),
                   ],
-                  if (request?.status.toLowerCase() == 'confirmed' || request?.status.toLowerCase() == 'rework') ...[
+                  if (((request?.status.toLowerCase() == 'confirmed' &&
+                          (_preInspectionReport?.status.toLowerCase() == 'approved' ||
+                              _preInspectionReport?.adminApproved == true)) ||
+                      request?.status.toLowerCase() == 'rework')) ...[
                     const SizedBox(height: 16),
                     ElevatedButton.icon(
                       onPressed: () {
@@ -1096,6 +1099,32 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
+                      ),
+                    ),
+                  ] else if (request?.status.toLowerCase() == 'confirmed' &&
+                      _preInspectionReport != null &&
+                      _preInspectionReport?.status.toLowerCase() != 'approved' &&
+                      _preInspectionReport?.adminApproved != true) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFCD34D)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.hourglass_top_rounded, color: Color(0xFFD97706), size: 18),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Pre-inspection report submitted. Waiting for Campus Admin approval before repair work can begin.',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF92400E), fontWeight: FontWeight.w500),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

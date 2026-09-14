@@ -149,7 +149,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
     });
   }
 
-  // â”€â”€ Upload mode: analyze clarity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Upload mode: analyze clarity ───────────────────────────────────────────
   Future<_ClarityResult> _analyzeImageClarity(Uint8List bytes) async {
     try {
       final codec = await ui.instantiateImageCodec(bytes);
@@ -159,10 +159,10 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
       final w = image.width;
       final h = image.height;
 
-      if (w < 100 || h < 50) {
+      if (w < 40 || h < 20) {
         return _ClarityResult(
           false,
-          'Image too small (${w}x$h px). Please upload a larger, clearer signature.',
+          'Image too small (${w}x$h px). Please upload a clearer, larger signature image.',
         );
       }
 
@@ -174,140 +174,96 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
       final pixels = byteData.buffer.asUint8List();
       final totalPixels = w * h;
 
-      // Pixel statistics
-      int brightPixels = 0;   // pure white/transparent background
-      int midTonePixels = 0;  // shading/grays
+      int transparentPixels = 0;
+      double minLum = 255;
+      double maxLum = 0;
 
-      // Foreground analysis (only for non-background pixels)
-      int foregroundPixels = 0;
-      int redOrGreenPixels = 0; // Signatures should be Black or Blue ink only
+      // Sample evenly to evaluate contrast and transparency quickly
+      final sampleStep = math.max(1, (totalPixels / 20000).toInt());
+      for (int i = 0; i < pixels.length; i += 4 * sampleStep) {
+        final a = pixels[i + 3];
+        if (a < 50) {
+          transparentPixels++;
+          continue;
+        }
+        final r = pixels[i];
+        final g = pixels[i + 1];
+        final b = pixels[i + 2];
+        final lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (lum > maxLum) maxLum = lum;
+        if (lum < minLum) minLum = lum;
+      }
+
+      final totalSampled = (pixels.length / (4 * sampleStep)).floor();
+      final hasExistingTransparency = transparentPixels > (totalSampled * 0.15);
+
       int minX = w, minY = h, maxX = 0, maxY = 0;
+      int inkPixelCount = 0;
 
-      double sumLuminance = 0;
-      double sumSqLuminance = 0;
-
-      for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-          final i = (y * w + x) * 4;
-          final r = pixels[i].toDouble();
-          final g = pixels[i + 1].toDouble();
-          final b = pixels[i + 2].toDouble();
-          final a = pixels[i + 3].toDouble();
-
-          // Background (transparent)
-          if (a < 50) {
-            brightPixels++;
-            continue;
-          }
-
-          final luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-          sumLuminance += luminance;
-          sumSqLuminance += luminance * luminance;
-
-          if (luminance > 235) {
-            brightPixels++;
-          } else {
-            // Foreground pixel (Ink or Shading)
-            foregroundPixels++;
-            if (luminance < 80) {
-              // dark ink pixel (no specific counter needed anymore)
-            } else {
-              midTonePixels++;
+      if (hasExistingTransparency) {
+        // Transparent PNG / digital signature
+        for (int y = 0; y < h; y += 2) {
+          for (int x = 0; x < w; x += 2) {
+            final idx = (y * w + x) * 4;
+            if (pixels[idx + 3] > 40) {
+              inkPixelCount++;
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
             }
+          }
+        }
 
-            // Track bounding box of the ink
+        if (inkPixelCount < 15) {
+          return _ClarityResult(false, 'No signature detected. The image appears blank.');
+        }
+
+        return _ClarityResult(true, 'Signature detected and accepted.');
+      }
+
+      // Opaque image (photo of paper or scan)
+      final contrast = maxLum - minLum;
+      if (contrast < 22) {
+        return _ClarityResult(
+          false,
+          'The image appears blank or has very low contrast. Please upload a clear signature on paper.',
+        );
+      }
+
+      final inkLumThreshold = maxLum - (contrast * 0.28);
+      for (int y = 0; y < h; y += 2) {
+        for (int x = 0; x < w; x += 2) {
+          final idx = (y * w + x) * 4;
+          final r = pixels[idx];
+          final g = pixels[idx + 1];
+          final b = pixels[idx + 2];
+          final lum = 0.299 * r + 0.587 * g + 0.114 * b;
+
+          if (lum <= inkLumThreshold) {
+            inkPixelCount++;
             if (x < minX) minX = x;
             if (x > maxX) maxX = x;
             if (y < minY) minY = y;
             if (y > maxY) maxY = y;
-
-            // Check if ink is NOT black or blue (e.g. red, green, yellow, orange)
-            // If R or G is significantly higher than B, it's a warm color
-            if (r > b + 25 || g > b + 25) {
-              redOrGreenPixels++;
-            }
           }
         }
       }
 
-      final brightRatio = brightPixels / totalPixels;
-      final midToneRatio = midTonePixels / totalPixels;
-      final meanLuminance = sumLuminance / totalPixels;
-      final variance = (sumSqLuminance / totalPixels) - (meanLuminance * meanLuminance);
-      final stdDev = math.sqrt(variance);
+      final totalChecked = (w / 2).ceil() * (h / 2).ceil();
+      final inkRatio = inkPixelCount / totalChecked;
 
-      // Ink density and aspect ratio within its bounding box
-      int inkWidth = maxX >= minX ? (maxX - minX + 1) : 0;
-      int inkHeight = maxY >= minY ? (maxY - minY + 1) : 0;
-      double inkDensity = 0;
-      double aspectRatio = 0;
-      if (inkWidth > 0 && inkHeight > 0) {
-        inkDensity = foregroundPixels / (inkWidth * inkHeight);
-        aspectRatio = inkWidth / inkHeight;
-      }
-      
-      final redGreenRatio = foregroundPixels > 0 ? (redOrGreenPixels / foregroundPixels) : 0;
-
-      // ── Signature Detection ───────────────────────────────────────────────
-
-      // Check 1: Empty or blank
-      if (foregroundPixels == 0 || inkWidth < 10 || inkHeight < 10) {
-        return _ClarityResult(false, 'No signature detected. The image appears blank.');
-      }
-
-      // Check 2: Background ratio
-      if (brightRatio < 0.65) {
+      if (inkPixelCount < 15 || (maxX - minX) < 8 || (maxY - minY) < 6) {
         return _ClarityResult(
           false,
-          'This does not appear to be a signature (background is not clear/white enough).\n\nPlease upload a clear photo of your handwritten signature on plain white paper.',
+          'No signature detected. Please upload a clear photo of your handwritten signature.',
         );
       }
 
-      // Check 3: Mid-tones / Shading
-      if (midToneRatio > 0.10) {
+      if (inkRatio > 0.85) {
         return _ClarityResult(
           false,
-          'Image rejected. This appears to be a drawing, photo, or clipart (too much shading/gray).\n\nPlease upload a clean signature (solid ink lines).',
-        );
-      }
-
-      // Check 4: Colored Ink (Red/Green/Yellow) — strict 2% limit
-      if (redGreenRatio > 0.02) {
-        return _ClarityResult(
-          false,
-          'Colored image detected. Signatures must be in Black or Blue ink only.\n\nPlease upload a valid signature.',
-        );
-      }
-
-      // Check 5: Aspect Ratio — signatures are typically wide. Cliparts are often square or tall.
-      if (aspectRatio < 1.1) {
-        return _ClarityResult(
-          false,
-          'Image rejected. The drawn object is too square or tall to be a signature. Signatures are typically wide.\n\nPlease upload a normal handwritten signature.',
-        );
-      }
-
-      // Check 6: Ink Density — signatures are thin lines, not solid blocks
-      if (inkDensity > 0.35) {
-        return _ClarityResult(
-          false,
-          'Image rejected. The drawn object is too dense or solid to be a signature.\n\nPlease upload a normal handwritten signature.',
-        );
-      }
-
-      // Check 7: Sharpness
-      if (stdDev < 20) {
-        return _ClarityResult(
-          false,
-          'The signature image is too blurry or low-contrast. Please upload a clearer, sharper signature.',
-        );
-      }
-
-      // ── Clarity / Sharpness Check ─────────────────────────────────────────
-      if (stdDev < 20) {
-        return _ClarityResult(
-          false,
-          'The signature image is too blurry or low-contrast. Please upload a clearer, sharper signature.',
+          'The image appears too dark or solid. Please upload a clear photo of your signature on white/light paper.',
         );
       }
 
@@ -317,21 +273,20 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
     }
   }
 
-
-  // â”€â”€ Upload mode: confirm and submit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Upload mode: confirm and submit ───────────────────────────────────────
   Future<void> _saveUploadedSignature() async {
     if (_uploadedBytes == null) return;
 
     final confirmed = await _showConfirmDialog();
     if (!confirmed) return;
 
-    final transparentBytes = await SignatureImageHelper.removeBackground(_uploadedBytes!);
-    final base64 = base64Encode(transparentBytes);
+    // _uploadedBytes is already processed with pure black ink and transparent background
+    final base64 = base64Encode(_uploadedBytes!);
     setState(() => _isConfirmed = true);
     widget.onSignatureComplete(base64);
   }
 
-  // â”€â”€ Shared: confirmation dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Shared: confirmation dialog ───────────────────────────────────────────
   Future<bool> _showConfirmDialog() async {
     final result = await showDialog<bool>(
       context: context,
@@ -684,9 +639,11 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
                                     color: Colors.white, size: 12),
                                 SizedBox(width: 4),
                                 Text(
-                                  'Clear',
+                                  'Signature Ready',
                                   style: TextStyle(
-                                      color: Colors.white, fontSize: 11),
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600),
                                 ),
                               ],
                             ),

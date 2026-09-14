@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../shared/screens/unified_dashboard_page.dart';
 import 'rooms/room_management_page.dart';
 import 'ticket/work_requests_page.dart';
+import 'chat/admin_chat_page.dart';
 import '../../shared/screens/unified_analytics_page.dart';
 import 'profile/profile_page.dart';
 import 'shared/menu_drawer.dart';
@@ -45,13 +46,17 @@ class _MainNavigationState extends State<MainNavigation> {
       UnifiedDashboardPage(openDrawer: _openDrawer),
       RoomManagementPage(openDrawer: _openDrawer),
       WorkRequestsPage(openDrawer: _openDrawer),
+      AdminChatPage(openDrawer: _openDrawer),
       UnifiedAnalyticsPage(openDrawer: _openDrawer),
       ProfilePage(openDrawer: _openDrawer),
     ];
 
     Widget content = Scaffold(
       key: _scaffoldKey,
-      drawer: const MenuDrawer(),
+      drawer: MenuDrawer(
+        currentTab: _selectedIndex,
+        onSelectTab: _onNavItemTapped,
+      ),
       onDrawerChanged: (isOpen) {
         setState(() {
           _isDrawerOpen = isOpen;
@@ -164,16 +169,16 @@ class _MainNavigationState extends State<MainNavigation> {
                 isCompact: isCompact,
               ),
               _buildNavItem(
-                icon: Icons.bar_chart_outlined,
-                activeIcon: Icons.bar_chart_rounded,
-                label: 'Stats',
+                icon: Icons.chat_bubble_outline_rounded,
+                activeIcon: Icons.chat_bubble_rounded,
+                label: 'Messages',
                 index: 3,
                 isCompact: isCompact,
               ),
               _buildNavItem(
-                icon: Icons.person_outline,
-                activeIcon: Icons.person_rounded,
-                label: 'Profile',
+                icon: Icons.bar_chart_outlined,
+                activeIcon: Icons.bar_chart_rounded,
+                label: 'Stats',
                 index: 4,
                 isCompact: isCompact,
               ),

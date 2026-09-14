@@ -387,7 +387,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           id: '',
           title: 'Work Request – $typeLabel',
           description: _issueDetailsController.text.trim(),
-          status: 'Pending Assignment',
+          status: 'Pending',
           priority: _selectedPriority,
           buildingName: _selectedBuilding,
           buildingId: selectedBuildingRecord?.id,

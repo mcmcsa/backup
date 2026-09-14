@@ -5,6 +5,7 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../router/app_router.dart';
+import '../../../shared/widgets/room_comparison_dialog.dart';
 import 'package:intl/intl.dart';
 
 class ArchivesPage extends StatefulWidget {
@@ -185,12 +186,13 @@ class _ArchivesPageState extends State<ArchivesPage> {
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: _filteredArchives.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final r = _filteredArchives[index];
                        final statusLabel = r.status.toLowerCase() == 'completed' ? 'COMPLETED' : 'DECLINED';
                        final statusColor = r.status.toLowerCase() == 'completed' ? const Color(0xFF4CAF50) : Colors.red;
                       return _buildArchiveCard(
+                        request: r,
                         trackingNumber: r.id,
                         title: r.title,
                         location: '${r.officeRoom}, ${r.buildingName}',
@@ -203,6 +205,17 @@ class _ArchivesPageState extends State<ArchivesPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _handleArchiveTap(WorkRequest request) async {
+    context.push(
+      '/request-details',
+      extra: {
+        'trackingNumber': request.id,
+        'status': request.status,
+        'request': request,
+      },
     );
   }
 
@@ -236,6 +249,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
   }
 
   Widget _buildArchiveCard({
+    required WorkRequest request,
     required String trackingNumber,
     required String title,
     required String location,
@@ -243,87 +257,137 @@ class _ArchivesPageState extends State<ArchivesPage> {
     required String status,
     required Color statusColor,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => _handleArchiveTap(request),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  trackingNumber,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: statusColor,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade200),
           ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.location_on_outlined, size: 14, color: Colors.grey.shade500),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  location,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      trackingNumber,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
                   ),
-                ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          status,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: statusColor,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      PopupMenuButton<String>(
+                        tooltip: 'Actions',
+                        icon: const Icon(Icons.more_vert, size: 18, color: Colors.grey),
+                        onSelected: (val) {
+                          if (val == 'view') {
+                            _handleArchiveTap(request);
+                          } else if (val == 'compare' && request.roomId != null && request.roomId!.isNotEmpty) {
+                            showDialog(
+                              context: context,
+                              builder: (context) => RoomComparisonDialog(roomId: request.roomId!),
+                            );
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'view',
+                            child: Row(
+                              children: [
+                                Icon(Icons.visibility_outlined, size: 16, color: Colors.blue),
+                                SizedBox(width: 8),
+                                Text('View Details', style: TextStyle(fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                          if (request.roomId != null && request.roomId!.isNotEmpty)
+                            const PopupMenuItem(
+                              value: 'compare',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.difference_outlined, size: 16, color: Colors.green),
+                                  SizedBox(width: 8),
+                                  Text('Compare Room', style: TextStyle(fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey.shade500),
-              const SizedBox(width: 4),
+              const SizedBox(height: 8),
               Text(
-                date,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.location_on_outlined, size: 14, color: Colors.grey.shade500),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      location,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey.shade500),
+                  const SizedBox(width: 4),
+                  Text(
+                    date,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

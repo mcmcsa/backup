@@ -92,8 +92,18 @@ class _StudentReportsPageState extends State<StudentReportsPage>
     }
   }
 
+  bool _isHistorical(String status) {
+    final s = status.toLowerCase();
+    return s == 'completed' ||
+        s == 'complete' ||
+        s == 'declined' ||
+        s == 'cancelled' ||
+        s == 'declined/cancelled' ||
+        s == 'pre-inspection declined';
+  }
+
   List<WorkRequest> get _filteredRequests {
-    List<WorkRequest> filtered = _requests;
+    List<WorkRequest> filtered = _requests.where((r) => !_isHistorical(r.status)).toList();
     final f = _selectedFilter.toLowerCase();
     
     if (f == 'pending') {
@@ -115,11 +125,6 @@ class _StudentReportsPageState extends State<StudentReportsPage>
             s == 'in_progress' ||
             s == 'under_maintenance';
       }).toList();
-    } else if (f == 'declined') {
-      filtered = filtered.where((r) {
-        final s = r.status.toLowerCase();
-        return s.contains('declined') || s.contains('cancelled');
-      }).toList();
     } else if (f == 'confirmed') {
       filtered = filtered.where((r) {
         final s = r.status.toLowerCase();
@@ -129,11 +134,6 @@ class _StudentReportsPageState extends State<StudentReportsPage>
       filtered = filtered.where((r) {
         final s = r.status.toLowerCase();
         return s.contains('rework');
-      }).toList();
-    } else if (f == 'complete' || f == 'completed') {
-      filtered = filtered.where((r) {
-        final s = r.status.toLowerCase();
-        return s.contains('completed');
       }).toList();
     }
 
@@ -267,10 +267,6 @@ class _StudentReportsPageState extends State<StudentReportsPage>
                     _buildFilterChip('Confirmed', themeProvider),
                     const SizedBox(width: 8),
                     _buildFilterChip('Rework', themeProvider),
-                    const SizedBox(width: 8),
-                    _buildFilterChip('Declined', themeProvider),
-                    const SizedBox(width: 8),
-                    _buildFilterChip('Complete', themeProvider),
                   ],
                 ),
               ),

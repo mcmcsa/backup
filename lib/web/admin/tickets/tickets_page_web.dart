@@ -43,16 +43,15 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
   static const Color _subtleText = AdminStyles.textSecondary;
   static const Color _pageBg = AdminStyles.bg;
 
-  final List<String> _filters = [
-    'All Requests',
-    'Pending',
-    'In Progress',
-    'Declined',
-    'Confirmed',
-    'Rework',
-    'Completed',
-    'Duplicates',
-  ];
+
+  bool _isHistorical(String status) {
+    final s = status.toLowerCase();
+    return s == 'completed' ||
+        s == 'declined' ||
+        s == 'cancelled' ||
+        s == 'declined/cancelled' ||
+        s == 'pre-inspection declined';
+  }
 
   StreamSubscription? _realtimeSubscription;
 
@@ -140,7 +139,7 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
 
   List<WorkRequest> get _filteredRequests {
     final query = _searchController.text.toLowerCase();
-    var requests = _requests;
+    var requests = _requests.where((r) => !_isHistorical(r.status)).toList();
 
     // Apply status filter
     if (_selectedFilter == 1) {
@@ -157,10 +156,6 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                 r.status.toLowerCase() == 'pre-inspection submitted',
           )
           .toList();
-    } else if (_selectedFilter == 3) {
-      requests = requests
-          .where((r) => r.status.toLowerCase() == 'declined' || r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined/cancelled' || r.status.toLowerCase() == 'pre-inspection declined')
-          .toList();
     } else if (_selectedFilter == 4) {
       requests = requests
           .where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'post-repair submitted' || r.status.toLowerCase() == 'in progress (post-repair)' || r.status.toLowerCase() == 'under_maintenance')
@@ -168,10 +163,6 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
     } else if (_selectedFilter == 5) {
       requests = requests
           .where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'for rework' || r.status.toLowerCase() == 'under evaluation')
-          .toList();
-    } else if (_selectedFilter == 6) {
-      requests = requests
-          .where((r) => r.status.toLowerCase() == 'completed')
           .toList();
     } else if (_selectedFilter == 7) {
       requests = requests
@@ -195,15 +186,16 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
   }
 
   int _getCountByFilter(int filter) {
+    final active = _requests.where((r) => !_isHistorical(r.status));
     switch (filter) {
       case 0:
-        return _requests.length;
+        return active.length;
       case 1:
-        return _requests
+        return active
             .where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment')
             .length;
       case 2:
-        return _requests
+        return active
             .where(
               (r) => r.status.toLowerCase() == 'in progress' ||
                   r.status.toLowerCase() == 'in_progress' ||
@@ -212,24 +204,16 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                   r.status.toLowerCase() == 'pre-inspection submitted',
             )
             .length;
-      case 3:
-        return _requests
-            .where((r) => r.status.toLowerCase() == 'declined' || r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined/cancelled' || r.status.toLowerCase() == 'pre-inspection declined')
-            .length;
       case 4:
-        return _requests
+        return active
             .where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'post-repair submitted' || r.status.toLowerCase() == 'in progress (post-repair)' || r.status.toLowerCase() == 'under_maintenance')
             .length;
       case 5:
-        return _requests
+        return active
             .where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'for rework' || r.status.toLowerCase() == 'under evaluation')
             .length;
-      case 6:
-        return _requests
-            .where((r) => r.status.toLowerCase() == 'completed')
-            .length;
       case 7:
-        return _requests
+        return active
             .where((r) => r.duplicateOfId != null)
             .length;
       default:
@@ -430,10 +414,6 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
           _buildStatusFilterButton('Confirmed', 4),
           const SizedBox(width: 8),
           _buildStatusFilterButton('Rework', 5),
-          const SizedBox(width: 8),
-          _buildStatusFilterButton('Completed', 6),
-          const SizedBox(width: 8),
-          _buildStatusFilterButton('Declined', 3),
         ],
       ),
     );

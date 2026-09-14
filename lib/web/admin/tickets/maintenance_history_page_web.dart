@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
@@ -42,7 +41,10 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
       setState(() {
         _historyItems = data.where((item) {
           final status = item.status.toLowerCase();
-          return status == 'completed' || status == 'cancelled';
+          return status == 'completed' ||
+              status == 'cancelled' ||
+              status == 'declined' ||
+              status == 'declined/cancelled';
         }).toList()
           ..sort((a, b) => b.dateSubmitted.compareTo(a.dateSubmitted));
         _isLoading = false;
@@ -62,7 +64,10 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
     if (_selectedFilter == 'Completed') {
       filtered = filtered.where((item) => item.status.toLowerCase() == 'completed').toList();
     } else if (_selectedFilter == 'Declined') {
-      filtered = filtered.where((item) => item.status.toLowerCase() == 'cancelled').toList();
+      filtered = filtered.where((item) {
+        final s = item.status.toLowerCase();
+        return s == 'cancelled' || s == 'declined' || s == 'declined/cancelled';
+      }).toList();
     }
 
     final query = _searchController.text.trim().toLowerCase();
@@ -100,7 +105,10 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
   Widget build(BuildContext context) {
     final filtered = _filteredItems;
     final completedCount = _historyItems.where((item) => item.status.toLowerCase() == 'completed').length;
-    final declinedCount = _historyItems.where((item) => item.status.toLowerCase() == 'cancelled').length;
+    final declinedCount = _historyItems.where((item) {
+      final s = item.status.toLowerCase();
+      return s == 'cancelled' || s == 'declined' || s == 'declined/cancelled';
+    }).length;
 
     return Material(
       color: AdminStyles.bg,
@@ -213,40 +221,45 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
                               ),
                             ),
                           )
-                        : SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SizedBox(
-                              width: 1000,
-                              child: Column(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                                    decoration: const BoxDecoration(
-                                      border: Border(bottom: BorderSide(color: AdminStyles.border)),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(flex: 1, child: _buildTableHeader('Ticket ID')),
-                                        Expanded(flex: 2, child: _buildTableHeader('Requestor')),
-                                        Expanded(flex: 2, child: _buildTableHeader('Title / Issue')),
-                                        Expanded(flex: 2, child: _buildTableHeader('Date & Location')),
-                                        Expanded(flex: 1, child: _buildTableHeader('Status')),
-                                        Expanded(flex: 1, child: _buildTableHeader('Action')),
-                                      ],
-                                    ),
+                        : LayoutBuilder(
+                            builder: (context, constraints) {
+                              final tableWidth = constraints.maxWidth > 1000 ? constraints.maxWidth : 1000.0;
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: SizedBox(
+                                  width: tableWidth,
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                                        decoration: const BoxDecoration(
+                                          border: Border(bottom: BorderSide(color: AdminStyles.border)),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(flex: 1, child: _buildTableHeader('Ticket ID')),
+                                            Expanded(flex: 2, child: _buildTableHeader('Requestor')),
+                                            Expanded(flex: 2, child: _buildTableHeader('Title / Issue')),
+                                            Expanded(flex: 2, child: _buildTableHeader('Date & Location')),
+                                            Expanded(flex: 1, child: _buildTableHeader('Status')),
+                                            Expanded(flex: 1, child: _buildTableHeader('Action')),
+                                          ],
+                                        ),
+                                      ),
+                                      ListView.separated(
+                                        shrinkWrap: true,
+                                        physics: const NeverScrollableScrollPhysics(),
+                                        itemCount: filtered.length,
+                                        separatorBuilder: (_, index) => const Divider(height: 1, color: AdminStyles.border),
+                                        itemBuilder: (context, index) {
+                                          return _HistoryTableRow(request: filtered[index]);
+                                        },
+                                      ),
+                                    ],
                                   ),
-                                  ListView.separated(
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    itemCount: filtered.length,
-                                    separatorBuilder: (_, index) => const Divider(height: 1, color: AdminStyles.border),
-                                    itemBuilder: (context, index) {
-                                      return _HistoryTableRow(request: filtered[index]);
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
+                                ),
+                              );
+                            },
                           ),
               ),
             ],
@@ -279,6 +292,8 @@ class _HistoryTableRowState extends State<_HistoryTableRow> {
       case 'completed':
         return AdminStyles.success;
       case 'cancelled':
+      case 'declined':
+      case 'declined/cancelled':
         return AdminStyles.error;
       default:
         return AdminStyles.textSecondary;
@@ -290,10 +305,40 @@ class _HistoryTableRowState extends State<_HistoryTableRow> {
       case 'completed':
         return 'COMPLETED';
       case 'cancelled':
+      case 'declined':
+      case 'declined/cancelled':
         return 'DECLINED';
       default:
         return status.toUpperCase();
     }
+  }
+
+  void _openDetails() {
+    final controller = AdminNavController.of(context);
+    if (controller != null) {
+      controller.openWorkProcess(widget.request);
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AdminWorkProcessWeb(request: widget.request),
+        ),
+      );
+    }
+  }
+
+  void _openRoomComparison() {
+    final roomId = widget.request.roomId;
+    if (roomId == null || roomId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No room associated with this request.')),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (context) => RoomComparisonDialog(roomId: roomId),
+    );
   }
 
   @override
@@ -303,64 +348,67 @@ class _HistoryTableRowState extends State<_HistoryTableRow> {
     final sColor = _statusColor(widget.request.status);
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
-          color: _isHovered ? AdminStyles.primary.withValues(alpha: 0.02) : Colors.transparent,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 1,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AdminStyles.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
+      child: InkWell(
+        onTap: _openDetails,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          decoration: BoxDecoration(
+            color: _isHovered ? AdminStyles.primary.withValues(alpha: 0.03) : Colors.transparent,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AdminStyles.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '#${shortId.toUpperCase()}',
+                      style: AdminStyles.headingStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: AdminStyles.primary,
+                      ),
+                    ),
                   ),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Center(
                   child: Text(
-                    '#${shortId.toUpperCase()}',
-                    style: AdminStyles.headingStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AdminStyles.primary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Center(
-                child: Text(
-                  _text(widget.request.requestorName, fallback: 'Unknown User'),
-                  textAlign: TextAlign.center,
-                  style: AdminStyles.headingStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _text(widget.request.title, fallback: 'No Title'),
+                    _text(widget.request.requestorName, fallback: 'Unknown User'),
                     textAlign: TextAlign.center,
-                    style: AdminStyles.bodyStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AdminStyles.textPrimary,
+                    style: AdminStyles.headingStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _text(widget.request.title, fallback: 'No Title'),
+                      textAlign: TextAlign.center,
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AdminStyles.textPrimary,
+                      ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -418,65 +466,99 @@ class _HistoryTableRowState extends State<_HistoryTableRow> {
             Expanded(
               flex: 1,
               child: Center(
-                child: Tooltip(
-                  message: 'View Details',
-                  child: InkWell(
-                    onTap: () async {
-                      final roomId = widget.request.roomId;
-                      bool showComparison = false;
-                      if (roomId != null && roomId.isNotEmpty) {
-                        try {
-                          final response = await Supabase.instance.client
-                              .from('room_versions')
-                              .select('id')
-                              .eq('room_id', roomId);
-                          if ((response as List).length >= 2) {
-                            showComparison = true;
-                          }
-                        } catch (_) {}
-                      }
-
-                      if (!mounted) return;
-
-                      if (showComparison) {
-                        showDialog(
-                          context: context,
-                          builder: (context) => RoomComparisonDialog(roomId: roomId!),
-                        );
-                      } else {
-                        final controller = AdminNavController.of(context);
-                        if (controller != null) {
-                          controller.openWorkProcess(widget.request);
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AdminWorkProcessWeb(request: widget.request),
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AdminStyles.border),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Tooltip(
+                      message: 'View Details',
+                      child: InkWell(
+                        onTap: _openDetails,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AdminStyles.border),
+                          ),
+                          child: const Icon(Icons.visibility_outlined, size: 16, color: AdminStyles.textSecondary),
+                        ),
                       ),
-                      child: const Icon(Icons.visibility_outlined, size: 18, color: AdminStyles.textSecondary),
                     ),
-                  ),
+                    if (widget.request.roomId != null && widget.request.roomId!.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      Tooltip(
+                        message: 'Compare Room Versions',
+                        child: InkWell(
+                          onTap: _openRoomComparison,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF0FDF4),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF86EFAC)),
+                            ),
+                            child: const Icon(Icons.difference_outlined, size: 16, color: Color(0xFF16A34A)),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 4),
+                    PopupMenuButton<String>(
+                      tooltip: 'More Actions',
+                      offset: const Offset(0, 38),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      onSelected: (val) {
+                        if (val == 'view') _openDetails();
+                        if (val == 'compare') _openRoomComparison();
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'view',
+                          child: Row(
+                            children: [
+                              Icon(Icons.visibility_outlined, size: 16, color: AdminStyles.primary),
+                              const SizedBox(width: 8),
+                              Text('View Details', style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                        if (widget.request.roomId != null && widget.request.roomId!.isNotEmpty)
+                          PopupMenuItem(
+                            value: 'compare',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.difference_outlined, size: 16, color: Color(0xFF16A34A)),
+                                const SizedBox(width: 8),
+                                Text('Compare Room', style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ),
+                      ],
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AdminStyles.border),
+                        ),
+                        child: const Icon(Icons.more_vert_rounded, size: 16, color: AdminStyles.textSecondary),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _TopStat extends StatelessWidget {

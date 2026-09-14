@@ -25,14 +25,22 @@ class MaintenanceReportsWeb extends StatefulWidget {
 class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
-  String _selectedFilter = 'All';
   final TextEditingController _searchController = TextEditingController();
 
-  final _statusFilters = ['All', 'Pending', 'In Progress', 'Confirmed', 'Rework', 'Completed', 'Declined'];
+  final _statusFilters = ['All', 'Pending', 'In Progress', 'Confirmed', 'Rework'];
   final _priorityFilters = ['All', 'Low', 'Medium', 'High'];
 
   String _selectedStatusFilter = 'All';
   String _selectedPriorityFilter = 'All';
+
+  bool _isHistorical(String status) {
+    final s = status.toLowerCase();
+    return s == 'completed' ||
+        s == 'declined' ||
+        s == 'cancelled' ||
+        s == 'declined/cancelled' ||
+        s == 'pre-inspection declined';
+  }
 
   @override
   void initState() {
@@ -56,7 +64,7 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
   }
 
   List<WorkRequest> get _filtered {
-    List<WorkRequest> list = _requests;
+    List<WorkRequest> list = _requests.where((r) => !_isHistorical(r.status)).toList();
     if (_selectedStatusFilter == 'Pending') {
       list = list.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').toList();
     } else if (_selectedStatusFilter == 'In Progress') {
@@ -65,14 +73,10 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
       list = list.where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'under_maintenance').toList();
     } else if (_selectedStatusFilter == 'Rework') {
       list = list.where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'rework needed' || r.status.toLowerCase() == 'for rework').toList();
-    } else if (_selectedStatusFilter == 'Completed') {
-      list = list.where((r) => r.status.toLowerCase() == 'completed').toList();
-    } else if (_selectedStatusFilter == 'Declined') {
-      list = list.where((r) => r.status.toLowerCase() == 'declined').toList();
     }
 
     if (_selectedPriorityFilter != 'All') {
-      list = list.where((r) => r.priority?.toLowerCase() == _selectedPriorityFilter.toLowerCase()).toList();
+      list = list.where((r) => r.priority.toLowerCase() == _selectedPriorityFilter.toLowerCase()).toList();
     }
     final q = _searchController.text.toLowerCase();
     if (q.isNotEmpty) {

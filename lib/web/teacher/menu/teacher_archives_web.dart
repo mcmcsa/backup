@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
@@ -210,31 +209,8 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
     final color = isCompleted ? AdminStyles.success : AdminStyles.error;
 
     return GestureDetector(
-      onTap: () async {
-        final roomId = request.roomId;
-        bool showComparison = false;
-        if (roomId != null && roomId.isNotEmpty) {
-          try {
-            final response = await Supabase.instance.client
-                .from('room_versions')
-                .select('id')
-                .eq('room_id', roomId);
-            if ((response as List).length >= 2) {
-              showComparison = true;
-            }
-          } catch (_) {}
-        }
-
-        if (!mounted) return;
-
-        if (showComparison) {
-          showDialog(
-            context: context,
-            builder: (context) => RoomComparisonDialog(roomId: roomId!),
-          );
-        } else {
-          TeacherNavController.of(context)?.navigateTo(3, request: request);
-        }
+      onTap: () {
+        TeacherNavController.of(context)?.navigateTo(3, request: request);
       },
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -300,6 +276,85 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
               ),
               const SizedBox(width: 12),
               _buildStatusPill(request.status),
+              const SizedBox(width: 12),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (request.roomId != null && request.roomId!.isNotEmpty) ...[
+                    Tooltip(
+                      message: 'Compare Room Versions',
+                      child: InkWell(
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => RoomComparisonDialog(roomId: request.roomId!),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF86EFAC)),
+                          ),
+                          child: const Icon(Icons.difference_outlined, size: 16, color: Color(0xFF16A34A)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  PopupMenuButton<String>(
+                    tooltip: 'Actions',
+                    offset: const Offset(0, 38),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    onSelected: (val) {
+                      if (val == 'view') {
+                        TeacherNavController.of(context)?.navigateTo(3, request: request);
+                      } else if (val == 'compare' && request.roomId != null && request.roomId!.isNotEmpty) {
+                        showDialog(
+                          context: context,
+                          builder: (context) => RoomComparisonDialog(roomId: request.roomId!),
+                        );
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'view',
+                        child: Row(
+                          children: [
+                            Icon(Icons.visibility_outlined, size: 16, color: AdminStyles.primary),
+                            const SizedBox(width: 8),
+                            Text('View Details', style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                      if (request.roomId != null && request.roomId!.isNotEmpty)
+                        PopupMenuItem(
+                          value: 'compare',
+                          child: Row(
+                            children: [
+                              const Icon(Icons.difference_outlined, size: 16, color: Color(0xFF16A34A)),
+                              const SizedBox(width: 8),
+                              Text('Compare Room', style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ),
+                    ],
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AdminStyles.border),
+                      ),
+                      child: const Icon(Icons.more_vert_rounded, size: 16, color: AdminStyles.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
+import 'admin_work_process_page.dart';
+import '../../../shared/widgets/room_comparison_dialog.dart';
 
 class MaintenanceHistoryPage extends StatefulWidget {
   const MaintenanceHistoryPage({super.key});
@@ -35,7 +37,8 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
                   final status = item.status.toLowerCase();
                   return status == 'completed' ||
                       status == 'declined' ||
-                      status == 'cancelled';
+                      status == 'cancelled' ||
+                      status == 'declined/cancelled';
                 },
               )
               .toList();
@@ -65,7 +68,10 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
             )
             .toList();
       } else if (statusFilter == 'declined') {
-        filtered = filtered.where((item) => item.status.toLowerCase() == 'cancelled' || item.status.toLowerCase() == 'declined').toList();
+        filtered = filtered.where((item) {
+          final s = item.status.toLowerCase();
+          return s == 'cancelled' || s == 'declined' || s == 'declined/cancelled';
+        }).toList();
       }
     }
 
@@ -136,6 +142,7 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
         return const Color(0xFF10B981); // Green
       case 'declined':
       case 'cancelled':
+      case 'declined/cancelled':
         return const Color(0xFFEF4444); // Red
       default:
         return Colors.grey;
@@ -148,6 +155,7 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
         return 'COMPLETED';
       case 'declined':
       case 'cancelled':
+      case 'declined/cancelled':
         return 'DECLINED';
       default:
         return status.toUpperCase();
@@ -531,158 +539,234 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header with ID and Status
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '#${item.id}',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AdminWorkProcessPage(request: item),
+              ),
+            );
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with ID, Status, and Actions
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    statusLabel,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title
-                Text(
-                  item.title,
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Instructor
-                Row(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Icon(
-                      Icons.person_outline,
-                      size: 16,
-                      color: Colors.grey.shade600,
-                    ),
-                    const SizedBox(width: 6),
                     Text(
-                      '${item.requestorName} (${item.requestorPosition})',
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-
-                // Location
-                Row(
-                  children: [
-                    Icon(
-                      Icons.location_on_outlined,
-                      size: 16,
-                      color: Colors.grey.shade600,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      item.officeRoom ?? '',
-                      style: TextStyle(
-                        color: Colors.grey.shade700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Description
-                Text(
-                  item.description,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-
-                // Dates
-                Row(
-                  children: [
-                    Icon(
-                      Icons.event_outlined,
-                      size: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Requested: ${_formatDate(item.dateSubmitted)}',
+                      '#${item.id}',
                       style: TextStyle(
                         color: Colors.grey.shade600,
                         fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Icon(
-                      item.dateCompleted != null
-                          ? Icons.check_circle_outline
-                          : Icons.schedule,
-                      size: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      item.dateCompleted != null
-                          ? 'Completed: ${_formatDate(item.dateCompleted!)}'
-                          : 'Est. Completion: Oct 12, 2023',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            statusLabel,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, size: 20, color: Colors.black54),
+                          tooltip: 'Actions',
+                          onSelected: (action) {
+                            if (action == 'details') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => AdminWorkProcessPage(request: item),
+                                ),
+                              );
+                            } else if (action == 'compare') {
+                              if (item.roomId != null && item.roomId!.isNotEmpty) {
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => RoomComparisonDialog(roomId: item.roomId!),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('No room associated with this work request'),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          itemBuilder: (ctx) => [
+                            const PopupMenuItem(
+                              value: 'details',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.visibility_outlined, size: 18, color: Colors.black87),
+                                  SizedBox(width: 8),
+                                  Text('View Details'),
+                                ],
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: 'compare',
+                              enabled: item.roomId != null && item.roomId!.isNotEmpty,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.difference_outlined,
+                                    size: 18,
+                                    color: (item.roomId != null && item.roomId!.isNotEmpty)
+                                        ? const Color(0xFF0F766E)
+                                        : Colors.grey,
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('Compare Room'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      item.title,
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Instructor
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${item.requestorName} (${item.requestorPosition})',
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Location
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          item.officeRoom ?? '',
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Description
+                    Text(
+                      item.description,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Dates
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.event_outlined,
+                          size: 14,
+                          color: Colors.grey.shade500,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Requested: ${_formatDate(item.dateSubmitted)}',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Icon(
+                          item.dateCompleted != null
+                              ? Icons.check_circle_outline
+                              : Icons.schedule,
+                          size: 14,
+                          color: Colors.grey.shade500,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          item.dateCompleted != null
+                              ? 'Completed: ${_formatDate(item.dateCompleted!)}'
+                              : 'Est. Completion: Oct 12, 2023',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

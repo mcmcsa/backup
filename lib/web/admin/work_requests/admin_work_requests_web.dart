@@ -64,15 +64,22 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
     }
   }
 
+  bool _isHistorical(String status) {
+    final s = status.toLowerCase();
+    return s == 'completed' ||
+        s == 'declined' ||
+        s == 'cancelled' ||
+        s == 'declined/cancelled' ||
+        s == 'pre-inspection declined';
+  }
+
   List<WorkRequest> get _filteredRequests {
-    List<WorkRequest> filtered = _requests;
+    List<WorkRequest> filtered = _requests.where((r) => !_isHistorical(r.status)).toList();
     final f = _selectedFilter.toLowerCase();
     if (f == 'pending') {
       filtered = filtered.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').toList();
     } else if (f == 'in progress') {
       filtered = filtered.where((r) => r.status.toLowerCase() == 'in progress' || r.status.toLowerCase() == 'in_progress' || r.status.toLowerCase() == 'assigned' || r.status.toLowerCase() == 'accepted by maintenance').toList();
-    } else if (f == 'declined') {
-      filtered = filtered.where((r) => r.status.toLowerCase() == 'declined' || r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined/cancelled').toList();
     } else if (f == 'confirmed') {
       filtered = filtered.where((r) => r.status.toLowerCase() == 'confirmed').toList();
     } else if (f == 'pre-inspection approved') {
@@ -81,8 +88,6 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
       filtered = filtered.where((r) => r.status.toLowerCase() == 'under_maintenance').toList();
     } else if (f == 'rework') {
       filtered = filtered.where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'for rework').toList();
-    } else if (f == 'completed') {
-      filtered = filtered.where((r) => r.status.toLowerCase() == 'completed').toList();
     } else if (f == 'duplicates') {
       filtered = filtered.where((r) => r.duplicateOfId != null).toList();
     }
@@ -206,9 +211,7 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
             _buildFilterChip('Confirmed'),
             _buildFilterChip('In Progress'),
             _buildFilterChip('Under Maintenance'),
-            _buildFilterChip('Declined'),
             _buildFilterChip('Rework'),
-            _buildFilterChip('Completed'),
             _buildDuplicatesFilterChip(),
           ],
         ),

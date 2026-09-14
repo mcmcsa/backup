@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../router/app_router.dart';
 
 class ContactUsPage extends StatefulWidget {
@@ -17,6 +20,17 @@ class _ContactUsPageState extends State<ContactUsPage> {
   final _emailController = TextEditingController();
   final _subjectController = TextEditingController();
   final _messageController = TextEditingController();
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = context.read<AuthService>().currentUser;
+    if (user != null) {
+      _nameController.text = user.name;
+      _emailController.text = user.email;
+    }
+  }
 
   @override
   void dispose() {
@@ -250,22 +264,20 @@ class _ContactUsPageState extends State<ContactUsPage> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          // Handle form submission
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Message sent successfully!'),
-                              backgroundColor: Color(0xFF00BFA5),
-                            ),
-                          );
-                          _formKey.currentState!.reset();
-                        }
-                      },
-                      icon: const Icon(Icons.send, size: 20),
-                      label: const Text(
-                        'Send Message',
-                        style: TextStyle(
+                      onPressed: _isSubmitting ? null : _sendMessage,
+                      icon: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(Icons.send, size: 20),
+                      label: Text(
+                        _isSubmitting ? 'Sending...' : 'Send Message',
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                         ),
@@ -289,6 +301,47 @@ class _ContactUsPageState extends State<ContactUsPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _sendMessage() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final user = context.read<AuthService>().currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      await Supabase.instance.client.from('support_messages').insert({
+        'user_id': user.id,
+        'subject': _subjectController.text.trim(),
+        'message': _messageController.text.trim(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message sent successfully!'),
+            backgroundColor: Color(0xFF00BFA5),
+          ),
+        );
+        _subjectController.clear();
+        _messageController.clear();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending message: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   Widget _buildQuickContactCard({

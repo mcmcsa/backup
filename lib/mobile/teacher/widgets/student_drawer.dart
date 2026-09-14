@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import '../../../router/app_router.dart';
 
 class StudentDrawer extends StatelessWidget {
-  const StudentDrawer({super.key});
+  final Function(int)? onSelectTab;
+
+  const StudentDrawer({super.key, this.onSelectTab});
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +82,19 @@ class StudentDrawer extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     children: [
+                      _buildDrawerItem(
+                        icon: Icons.person_outline_rounded,
+                        label: 'Profile',
+                        onTap: () {
+                          Navigator.pop(context);
+                          if (onSelectTab != null) {
+                            onSelectTab!(4);
+                          } else {
+                            context.push(teacherProfileRoute);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 16),
                       _buildDrawerItem(
                         icon: Icons.history_rounded,
                         label: 'History',

@@ -28,7 +28,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
   static const Color _warningYellow = AdminStyles.warning;
   static const Color _dangerRed = AdminStyles.error;
   static const Color _infoBlue = AdminStyles.info;
-  static const Color _indigoMaint = Color(0xFF6366F1);
+  static const Color _confirmedIndigo = Color(0xFF6366F1);
   static const Color _reworkOrange = Color(0xFFEA580C);
   static const Color _darkText = AdminStyles.textPrimary;
   static const Color _subtleText = AdminStyles.textSecondary;
@@ -89,7 +89,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
             s == 'accepted by maintenance' ||
             s == 'pre-inspection submitted';
       }).length;
-  int get _underMaintenanceRequests => _requests.where((r) {
+  int get _confirmedRequests => _requests.where((r) {
         final s = r.status.toLowerCase();
         return s == 'confirmed' ||
             s == 'pre-inspection approved' ||
@@ -568,9 +568,9 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
   Widget _buildStatusDistributionCard({required bool isMobile}) {
     final segments = [
       _StatusChartSegment(
-        label: 'Completed',
-        value: _completedRequests,
-        color: _successGreen,
+        label: 'Pending',
+        value: _pendingRequests,
+        color: _warningYellow,
       ),
       _StatusChartSegment(
         label: 'In Progress',
@@ -578,19 +578,19 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
         color: _infoBlue,
       ),
       _StatusChartSegment(
-        label: 'Under Maintenance',
-        value: _underMaintenanceRequests,
-        color: _indigoMaint,
-      ),
-      _StatusChartSegment(
-        label: 'Pending',
-        value: _pendingRequests,
-        color: _warningYellow,
+        label: 'Confirmed',
+        value: _confirmedRequests,
+        color: _confirmedIndigo,
       ),
       _StatusChartSegment(
         label: 'Rework',
         value: _reworkRequests,
         color: _reworkOrange,
+      ),
+      _StatusChartSegment(
+        label: 'Completed',
+        value: _completedRequests,
+        color: _successGreen,
       ),
       _StatusChartSegment(
         label: 'Declined',
