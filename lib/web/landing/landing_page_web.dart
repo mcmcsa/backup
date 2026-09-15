@@ -381,7 +381,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                         : [],
                   ),
                   child: ElevatedButton.icon(
-                    onPressed: () => context.go('/login'),
+                    onPressed: () => _showHowItWorksModal(context),
                     icon: Icon(Icons.qr_code_scanner_rounded, size: screenWidth < 600 ? 16 : 20, color: Colors.white),
                     label: Text(
                       'Get Started',
@@ -442,7 +442,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                     },
                     icon: Icon(Icons.android_rounded, size: screenWidth < 600 ? 16 : 20, color: _royalBlue),
                     label: Text(
-                      'Download App',
+                      'Download Mobile App',
                       style: TextStyle(
                         fontFamily: 'Inter',
                         fontSize: screenWidth < 600 ? 14 : 16,
@@ -1251,6 +1251,786 @@ class _LandingPageWebState extends State<LandingPageWeb> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showHowItWorksModal(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => const _HowItWorksOnboardingDialog(),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Onboarding Step Data Model
+// ---------------------------------------------------------------------------
+class _WorkflowStepData {
+  final String stepNumber;
+  final String badgeText;
+  final String title;
+  final String description;
+  final String tipTitle;
+  final String tipText;
+  final IconData icon;
+  final Color primaryColor;
+  final Color lightColor;
+  final List<String> bulletPoints;
+
+  const _WorkflowStepData({
+    required this.stepNumber,
+    required this.badgeText,
+    required this.title,
+    required this.description,
+    required this.tipTitle,
+    required this.tipText,
+    required this.icon,
+    required this.primaryColor,
+    required this.lightColor,
+    required this.bulletPoints,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Interactive 'How It Works' Walkthrough Dialog before Login
+// ---------------------------------------------------------------------------
+class _HowItWorksOnboardingDialog extends StatefulWidget {
+  const _HowItWorksOnboardingDialog();
+
+  @override
+  State<_HowItWorksOnboardingDialog> createState() => _HowItWorksOnboardingDialogState();
+}
+
+class _HowItWorksOnboardingDialogState extends State<_HowItWorksOnboardingDialog> {
+  int _currentStep = 0;
+
+  static const List<_WorkflowStepData> _steps = [
+    _WorkflowStepData(
+      stepNumber: '01',
+      badgeText: 'STEP 1 • IDENTIFY FACILITY',
+      title: 'Scan Room QR Code',
+      description:
+          'Every classroom, laboratory, and campus facility at PSU San Carlos Campus has an official QR code plate. Scan it using your mobile camera or browser to instantly detect the facility without manual entry.',
+      tipTitle: 'Quick Location Detection',
+      tipText: 'QR codes are placed near entrance doors. Scanning them immediately fetches the building, floor, and room info.',
+      icon: Icons.qr_code_scanner_rounded,
+      primaryColor: Color(0xFF1E40AF),
+      lightColor: Color(0xFFEFF6FF),
+      bulletPoints: [
+        'Instant room, floor, and building identification',
+        'Eliminates typos or mismatched location reports',
+        'Works with mobile camera or built-in web scanner',
+      ],
+    ),
+    _WorkflowStepData(
+      stepNumber: '02',
+      badgeText: 'STEP 2 • SUBMIT REQUEST',
+      title: 'Describe & Attach Photo Evidence',
+      description:
+          'Select the official request type (Repair, Installation, Replacement, Ocular Inspection, Remediation, or Others), specify what needs servicing, and attach photo proof directly from your phone camera or gallery.',
+      tipTitle: 'Photo Proof Matters',
+      tipText: 'Attaching photo evidence helps maintenance officers assess urgency and assign technicians with appropriate tools.',
+      icon: Icons.edit_document,
+      primaryColor: Color(0xFFF59E0B),
+      lightColor: Color(0xFFFEF3C7),
+      bulletPoints: [
+        'Request types: Repair, Installation, Replacement, Ocular Inspection, Remediation',
+        'Direct photo upload as maintenance evidence',
+        'Real-time status updates delivered to requestors',
+      ],
+    ),
+    _WorkflowStepData(
+      stepNumber: '03',
+      badgeText: 'STEP 3 • ADMIN REVIEW',
+      title: 'Admin Triage & Technician Assignment',
+      description:
+          'Campus administrators evaluate submitted tickets, set priority levels (Low, Medium, or High), and assign technicians based on their specialization (Electrical, Air Conditioning, Plumbing, Carpentry, etc.) with electronic approval signatures.',
+      tipTitle: 'Specialized Assignment',
+      tipText: 'Tickets are prioritized (Low, Medium, High) and dispatched to technicians with matching expertise.',
+      icon: Icons.assignment_ind_rounded,
+      primaryColor: Color(0xFF6366F1),
+      lightColor: Color(0xFFEEF2FF),
+      bulletPoints: [
+        'Priority level evaluation (Low, Medium, and High)',
+        'Technician assignment based on specialization (Electrical, Plumbing, etc.)',
+        'Digital administrative e-signature approval',
+      ],
+    ),
+    _WorkflowStepData(
+      stepNumber: '04',
+      badgeText: 'STEP 4 • WORK EXECUTION',
+      title: 'Pre-Inspection & Quality Repair',
+      description:
+          'The assigned technician reviews the ticket, performs an on-site pre-inspection report, executes the repair work, and submits post-repair completion proof with before/after photos.',
+      tipTitle: 'Documented Execution',
+      tipText: 'Pre-inspection guarantees transparency before actual repair work begins on PSU facilities.',
+      icon: Icons.handyman_rounded,
+      primaryColor: Color(0xFF0284C7),
+      lightColor: Color(0xFFF0F9FF),
+      bulletPoints: [
+        'On-site pre-inspection verification report',
+        'Execution by authorized maintenance personnel',
+        'Post-repair evidence and technician e-signature',
+      ],
+    ),
+    _WorkflowStepData(
+      stepNumber: '05',
+      badgeText: 'STEP 5 • VERIFICATION',
+      title: 'Final Evaluation & Ticket Closure',
+      description:
+          'Administrators verify the post-repair report and photo proof. Once verified satisfactory, the ticket is officially completed, notifying the requestor and safely saving records to the campus audit history.',
+      tipTitle: 'Quality Guarantee',
+      tipText: 'If work does not meet campus standards, admins can request a rework to maintain first-rate facilities.',
+      icon: Icons.verified_rounded,
+      primaryColor: Color(0xFF10B981),
+      lightColor: Color(0xFFECFDF5),
+      bulletPoints: [
+        'Quality verification before final closure',
+        'Rework mechanism if further adjustment is needed',
+        'Permanent audit trail and maintenance report records',
+      ],
+    ),
+  ];
+
+  void _goToNextStep() {
+    if (_currentStep < _steps.length - 1) {
+      setState(() => _currentStep++);
+    } else {
+      _proceedToLogin();
+    }
+  }
+
+  void _goToPreviousStep() {
+    if (_currentStep > 0) {
+      setState(() => _currentStep--);
+    }
+  }
+
+  void _proceedToLogin() {
+    Navigator.of(context).pop();
+    context.go('/login');
+  }
+
+  void _downloadMobileApp() {
+    final anchor = html.AnchorElement(href: '/downloads/psu_maintsystem.apk')
+      ..setAttribute('download', 'psu_maintsystem.apk')
+      ..style.display = 'none';
+    html.document.body?.append(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final isMobile = media.size.width < 700;
+    final step = _steps[_currentStep];
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 16 : 40,
+        vertical: isMobile ? 20 : 36,
+      ),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 760),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 36,
+                offset: const Offset(0, 16),
+              ),
+              BoxShadow(
+                color: step.primaryColor.withValues(alpha: 0.12),
+                blurRadius: 48,
+                offset: const Offset(0, 8),
+              ),
+            ],
+            border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // -------------------------------------------------------------
+                  // Modal Top Header Bar
+                  // -------------------------------------------------------------
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 18 : 28,
+                      vertical: 18,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF0F172A),
+                      border: Border(
+                        bottom: BorderSide(color: Color(0xFF1E293B), width: 1),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Image.asset(
+                            'assets/images/psu_logo_v3.png',
+                            height: 24,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) => const Icon(
+                              Icons.engineering_rounded,
+                              color: Color(0xFFF59E0B),
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Text(
+                                    'PSU MMS',
+                                    style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFFF59E0B),
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    '• How The System Works',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 12,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Step ${_currentStep + 1} of ${_steps.length}: ${step.title}',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: isMobile ? 15 : 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 22),
+                          splashRadius: 20,
+                          tooltip: 'Close Guide',
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // -------------------------------------------------------------
+                  // Interactive Step Navigation Bar / Progress Pills
+                  // -------------------------------------------------------------
+                  Container(
+                    color: const Color(0xFFF8FAFC),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 14 : 28,
+                      vertical: 14,
+                    ),
+                    child: isMobile
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: List.generate(_steps.length, (index) {
+                              final isCurrent = _currentStep == index;
+                              final isCompleted = _currentStep > index;
+                              final itemStep = _steps[index];
+
+                              return Expanded(
+                                child: InkWell(
+                                  onTap: () => setState(() => _currentStep = index),
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: isCurrent
+                                          ? itemStep.primaryColor
+                                          : (isCompleted
+                                              ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                                              : Colors.white),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: isCurrent
+                                            ? itemStep.primaryColor
+                                            : (isCompleted
+                                                ? const Color(0xFF10B981)
+                                                : const Color(0xFFE2E8F0)),
+                                        width: isCurrent ? 1.8 : 1,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: isCompleted
+                                          ? const Icon(Icons.check_rounded, size: 14, color: Color(0xFF10B981))
+                                          : Text(
+                                              '${index + 1}',
+                                              style: TextStyle(
+                                                fontFamily: 'Outfit',
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: isCurrent
+                                                    ? Colors.white
+                                                    : const Color(0xFF64748B),
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          )
+                        : Row(
+                            children: List.generate(_steps.length, (index) {
+                              final isCurrent = _currentStep == index;
+                              final isCompleted = _currentStep > index;
+                              final itemStep = _steps[index];
+
+                              final stepShortLabels = [
+                                'Scan QR',
+                                'Report Issue',
+                                'Admin Triage',
+                                'Maintenance',
+                                'Verification',
+                              ];
+
+                              return Expanded(
+                                child: InkWell(
+                                  onTap: () => setState(() => _currentStep = index),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    margin: EdgeInsets.only(right: index < _steps.length - 1 ? 8 : 0),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: isCurrent
+                                          ? itemStep.primaryColor
+                                          : (isCompleted
+                                              ? const Color(0xFF10B981).withValues(alpha: 0.1)
+                                              : Colors.white),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: isCurrent
+                                            ? itemStep.primaryColor
+                                            : (isCompleted
+                                                ? const Color(0xFF10B981).withValues(alpha: 0.6)
+                                                : const Color(0xFFCBD5E1)),
+                                        width: isCurrent ? 1.8 : 1.2,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 20,
+                                          height: 20,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: isCurrent
+                                                ? Colors.white
+                                                : (isCompleted
+                                                    ? const Color(0xFF10B981)
+                                                    : const Color(0xFFE2E8F0)),
+                                          ),
+                                          child: Center(
+                                            child: isCompleted
+                                                ? const Icon(Icons.check_rounded, size: 12, color: Colors.white)
+                                                : Text(
+                                                    '${index + 1}',
+                                                    style: TextStyle(
+                                                      fontFamily: 'Inter',
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: isCurrent
+                                                          ? itemStep.primaryColor
+                                                          : const Color(0xFF64748B),
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Flexible(
+                                          child: Text(
+                                            stepShortLabels[index],
+                                            style: TextStyle(
+                                              fontFamily: 'Outfit',
+                                              fontSize: 12,
+                                              fontWeight: isCurrent ? FontWeight.bold : FontWeight.w600,
+                                              color: isCurrent
+                                                  ? Colors.white
+                                                  : (isCompleted
+                                                      ? const Color(0xFF0F172A)
+                                                      : const Color(0xFF64748B)),
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                  ),
+
+                  // -------------------------------------------------------------
+                  // Step Body Content (Animated Switcher)
+                  // -------------------------------------------------------------
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: Padding(
+                      key: ValueKey<int>(_currentStep),
+                      padding: EdgeInsets.all(isMobile ? 20 : 32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Step Badge & Big Icon Row
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: isMobile ? 54 : 64,
+                                height: isMobile ? 54 : 64,
+                                decoration: BoxDecoration(
+                                  color: step.lightColor,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: step.primaryColor.withValues(alpha: 0.25),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Icon(
+                                    step.icon,
+                                    size: isMobile ? 28 : 34,
+                                    color: step.primaryColor,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 18),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: step.lightColor,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: step.primaryColor.withValues(alpha: 0.3),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        step.badgeText,
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: step.primaryColor,
+                                          letterSpacing: 0.6,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      step.title,
+                                      style: TextStyle(
+                                        fontFamily: 'Outfit',
+                                        fontSize: isMobile ? 20 : 24,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 18),
+
+                          // Step Detailed Description
+                          Text(
+                            step.description,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: isMobile ? 13.5 : 15,
+                              color: const Color(0xFF475569),
+                              height: 1.6,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Bullet Highlights
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: step.bulletPoints.map((point) {
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 2),
+                                        child: Icon(
+                                          Icons.check_circle_rounded,
+                                          size: 16,
+                                          color: step.primaryColor,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          point,
+                                          style: const TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF1E293B),
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Tip / Note Box
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: step.lightColor.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: step.primaryColor.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.lightbulb_outline_rounded,
+                                  color: step.primaryColor,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: RichText(
+                                    text: TextSpan(
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 12.5,
+                                        color: step.primaryColor,
+                                        height: 1.45,
+                                      ),
+                                      children: [
+                                        TextSpan(
+                                          text: '${step.tipTitle}: ',
+                                          style: const TextStyle(fontWeight: FontWeight.bold),
+                                        ),
+                                        TextSpan(
+                                          text: step.tipText,
+                                          style: const TextStyle(fontWeight: FontWeight.normal),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // -------------------------------------------------------------
+                  // Modal Footer Controls & Actions
+                  // -------------------------------------------------------------
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 18 : 28,
+                      vertical: 18,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF8FAFC),
+                      border: Border(
+                        top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Left: Back button or Skip Link
+                            if (_currentStep > 0)
+                              OutlinedButton.icon(
+                                onPressed: _goToPreviousStep,
+                                icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                                label: const Text('Back'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF475569),
+                                  side: const BorderSide(color: Color(0xFFCBD5E1)),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 14 : 20,
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              )
+                            else
+                              TextButton(
+                                onPressed: _proceedToLogin,
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFF64748B),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                ),
+                                child: const Text(
+                                  'Skip to Login →',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+
+                            // Right: Next Step or Proceed to Login Button
+                            if (_currentStep < _steps.length - 1)
+                              ElevatedButton.icon(
+                                onPressed: _goToNextStep,
+                                icon: const Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.white),
+                                label: Text(
+                                  isMobile ? 'Next' : 'Next Step (${_currentStep + 2}/${_steps.length})',
+                                  style: const TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: step.primaryColor,
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 18 : 26,
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  elevation: 2,
+                                ),
+                              )
+                            else
+                              ElevatedButton.icon(
+                                onPressed: _proceedToLogin,
+                                icon: const Icon(Icons.login_rounded, size: 18, color: Colors.white),
+                                label: const Text(
+                                  'Proceed to Login',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1E40AF),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: isMobile ? 20 : 30,
+                                    vertical: 16,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  elevation: 4,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Bottom helper row: Option to download APK
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            const Text(
+                              'Reporting via smartphone? ',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 12,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: _downloadMobileApp,
+                              child: const Text(
+                                'Download Mobile App (.apk)',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1E40AF),
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );

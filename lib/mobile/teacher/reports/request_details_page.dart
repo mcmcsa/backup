@@ -165,6 +165,8 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     if (_request == null) return;
     showDialog(
       context: context,
+      useSafeArea: true,
+      barrierDismissible: true,
       builder: (context) => TeacherOfficialFormWeb(request: _request!),
     );
   }

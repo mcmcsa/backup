@@ -30,6 +30,8 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
   int _selectedPage = 0; // 0: Work Request Form, 1: Confirmation Form
   RealtimeChannel? _realtimeChannel;
   String? _requestorLivePosition;
+  final TransformationController _transformController = TransformationController();
+  bool _hasInitializedTransform = false;
 
   @override
   void initState() {
@@ -52,8 +54,37 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
 
   @override
   void dispose() {
+    _transformController.dispose();
     _realtimeChannel?.unsubscribe();
     super.dispose();
+  }
+
+  void _zoomIn() {
+    final currentMatrix = _transformController.value;
+    final scale = currentMatrix.getMaxScaleOnAxis();
+    if (scale < 3.5) {
+      _transformController.value = currentMatrix.clone()..multiply(Matrix4.diagonal3Values(1.25, 1.25, 1.0));
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _zoomOut() {
+    final currentMatrix = _transformController.value;
+    final scale = currentMatrix.getMaxScaleOnAxis();
+    if (scale > 0.25) {
+      _transformController.value = currentMatrix.clone()..multiply(Matrix4.diagonal3Values(0.8, 0.8, 1.0));
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _resetToFit(double fitScale) {
+    _transformController.value = Matrix4.diagonal3Values(fitScale, fitScale, 1.0);
+    if (mounted) setState(() {});
+  }
+
+  void _resetTo100() {
+    _transformController.value = Matrix4.identity();
+    if (mounted) setState(() {});
   }
 
   void _setupRealtime() {
@@ -1249,16 +1280,20 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
     final String specifyVal = checklist['specifyVal'] as String;
 
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final bool isNarrow = screenWidth < 680;
 
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: EdgeInsets.symmetric(
-        horizontal: isNarrow ? 8 : 24,
-        vertical: isNarrow ? 12 : 24,
+        horizontal: isNarrow ? 6 : 24,
+        vertical: isNarrow ? 10 : 24,
       ),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 1150, maxHeight: 850),
+        constraints: BoxConstraints(
+          maxWidth: 1150,
+          maxHeight: isNarrow ? screenHeight * 0.94 : 850,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(16),
@@ -1274,7 +1309,7 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
           children: [
             // Toolbar header
             Container(
-              padding: EdgeInsets.symmetric(horizontal: isNarrow ? 12 : 24, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: isNarrow ? 10 : 24, vertical: 10),
               decoration: const BoxDecoration(
                 color: Color(0xFF0F172A),
                 borderRadius: BorderRadius.only(
@@ -1382,18 +1417,148 @@ class _TeacherOfficialFormWebState extends State<TeacherOfficialFormWeb> {
                 ],
               ),
             ),
+            if (isNarrow)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.pinch_rounded, size: 16, color: Color(0xFF00BFA5)),
+                    const SizedBox(width: 6),
+                    const Expanded(
+                      child: Text(
+                        'Pinch or drag to inspect ISO form',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF334155),
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: _zoomOut,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(Icons.remove, size: 16, color: Color(0xFF1E293B)),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: () {
+                        final fitScale = ((screenWidth - 24) / 1040.0).clamp(0.25, 1.0);
+                        _resetToFit(fitScale);
+                      },
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'Fit',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: _resetTo100,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00BFA5).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF00BFA5), width: 1),
+                        ),
+                        child: const Text(
+                          '100%',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF00BFA5)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    InkWell(
+                      onTap: _zoomIn,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(Icons.add, size: 16, color: Color(0xFF1E293B)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: Color(0xFF00BFA5)))
-                  : SingleChildScrollView(
-                      padding: EdgeInsets.all(isNarrow ? 12 : 32),
-                      child: Center(
-                        child: FittedBox(
-                          child: _selectedPage == 0
-                              ? _buildWorkRequestForm(request, isOcular, isInstall, isRepair, isReplace, isOthers, specifyVal)
-                              : _buildConfirmationForm(request, isOcular, isInstall, isRepair, isReplace, isOthers, specifyVal),
-                        ),
-                      ),
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final availableWidth = constraints.maxWidth;
+                        final fitScale = (availableWidth - (isNarrow ? 16 : 48)) / 1040.0;
+                        final clampedFitScale = fitScale.clamp(0.25, 1.0);
+
+                        final formWidget = _selectedPage == 0
+                            ? _buildWorkRequestForm(request, isOcular, isInstall, isRepair, isReplace, isOthers, specifyVal)
+                            : _buildConfirmationForm(request, isOcular, isInstall, isRepair, isReplace, isOthers, specifyVal);
+
+                        if (!isNarrow) {
+                          return SingleChildScrollView(
+                            padding: const EdgeInsets.all(28),
+                            child: Center(
+                              child: FittedBox(
+                                child: formWidget,
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (!_hasInitializedTransform) {
+                          _hasInitializedTransform = true;
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              _resetToFit(clampedFitScale);
+                            }
+                          });
+                        }
+
+                        return ClipRect(
+                          child: InteractiveViewer(
+                            transformationController: _transformController,
+                            minScale: 0.25,
+                            maxScale: 3.5,
+                            boundaryMargin: const EdgeInsets.all(100),
+                            constrained: false,
+                            child: GestureDetector(
+                              onDoubleTap: () {
+                                final currentScale = _transformController.value.getMaxScaleOnAxis();
+                                if ((currentScale - 1.0).abs() < 0.15) {
+                                  _resetToFit(clampedFitScale);
+                                } else {
+                                  _resetTo100();
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: formWidget,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
             ),
           ],

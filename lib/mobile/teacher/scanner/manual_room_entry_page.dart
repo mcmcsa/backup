@@ -13,6 +13,19 @@ class ManualRoomEntryPage extends StatefulWidget {
 class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
   final TextEditingController _roomIdController = TextEditingController();
   bool _isVerifying = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _roomIdController.addListener(() {
+      if (_errorMessage != null && mounted) {
+        setState(() {
+          _errorMessage = null;
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -23,17 +36,15 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
   void _verifyRoom() async {
     final code = _roomIdController.text.trim();
     if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a room ID'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      setState(() {
+        _errorMessage = 'Please enter a room ID';
+      });
       return;
     }
 
     setState(() {
       _isVerifying = true;
+      _errorMessage = null;
     });
 
     try {
@@ -50,28 +61,22 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
           },
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Invalid room ID. Please enter a valid room code.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _errorMessage = 'Room not found. Please enter a valid room code.';
+        });
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error verifying room. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _errorMessage = 'Error verifying room. Please check your connection and try again.';
+        });
       }
-    }
-
-    if (mounted) {
-      setState(() {
-        _isVerifying = false;
-      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isVerifying = false;
+        });
+      }
     }
   }
 
@@ -79,7 +84,8 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
     final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
     if (clipboardData != null && clipboardData.text != null) {
       setState(() {
-        _roomIdController.text = clipboardData.text!;
+        _roomIdController.text = clipboardData.text!.trim().toUpperCase();
+        _errorMessage = null;
       });
     }
   }
@@ -151,13 +157,14 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: Colors.grey.shade300,
+                      color: _errorMessage != null ? const Color(0xFFEF4444) : Colors.grey.shade300,
                       width: 1.5,
                     ),
                   ),
                   child: TextField(
                     controller: _roomIdController,
                     textCapitalization: TextCapitalization.characters,
+                    onSubmitted: (_) => _verifyRoom(),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -192,6 +199,29 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
                     ),
                   ),
                 ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        size: 16,
+                        color: Color(0xFFEF4444),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFFEF4444),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 16),
                 // Help Text
                 Row(

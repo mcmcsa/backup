@@ -32,6 +32,8 @@ class RoomVerificationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isVerified = room != null;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
@@ -41,9 +43,9 @@ class RoomVerificationPage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Location Verified',
-          style: TextStyle(
+        title: Text(
+          isVerified ? 'Location Verified' : 'Verification Failed',
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
             color: Colors.black87,
@@ -57,18 +59,20 @@ class RoomVerificationPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 20),
-            // Verified Icon
+            // Verified / Error Icon
             Center(
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00BFA5).withValues(alpha: 0.15),
+                  color: isVerified
+                      ? const Color(0xFF00BFA5).withValues(alpha: 0.15)
+                      : const Color(0xFFEF4444).withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.check_circle,
+                child: Icon(
+                  isVerified ? Icons.check_circle : Icons.cancel_outlined,
                   size: 48,
-                  color: Color(0xFF00BFA5),
+                  color: isVerified ? const Color(0xFF00BFA5) : const Color(0xFFEF4444),
                 ),
               ),
             ),
@@ -91,54 +95,62 @@ class RoomVerificationPage extends StatelessWidget {
               child: Column(
                 children: [
                   Text(
-                    room?.name ?? 'Unknown Room',
+                    isVerified ? room!.name : 'Unrecognized Room ($roomId)',
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 28,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    room?.building ?? 'Unknown Building',
+                    isVerified
+                        ? (room!.building.isNotEmpty ? room!.building : 'Campus Facility')
+                        : 'Room not found in campus database',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 15,
-                      color: Colors.grey.shade600,
+                      color: isVerified ? Colors.grey.shade600 : const Color(0xFFEF4444),
+                      fontWeight: isVerified ? FontWeight.normal : FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(6),
+                  if (isVerified) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Icon(
+                            Icons.meeting_room,
+                            size: 16,
+                            color: Color(0xFF00BFA5),
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.meeting_room,
-                          size: 16,
-                          color: Color(0xFF00BFA5),
+                        const SizedBox(width: 8),
+                        Text(
+                          room!.roomType.isNotEmpty ? room!.roomType : 'Room',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black87,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
+                      ],
+                    ),
+                    if (room!.floor.isNotEmpty) ...[
+                      const SizedBox(height: 12),
                       Text(
-                        room?.roomType ?? 'Room',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black87,
-                        ),
+                        room!.floor,
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (room?.floor.isNotEmpty == true)
-                    Text(
-                      room!.floor,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                    ),
+                  ],
                   const SizedBox(height: 20),
                   // Availability Status
                   Row(
@@ -150,7 +162,7 @@ class RoomVerificationPage extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: _statusColor(room?.status ?? 'available').withValues(alpha: 0.15),
+                          color: (isVerified ? _statusColor(room!.status) : const Color(0xFFEF4444)).withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
@@ -159,17 +171,17 @@ class RoomVerificationPage extends StatelessWidget {
                               width: 8,
                               height: 8,
                               decoration: BoxDecoration(
-                                color: _statusColor(room?.status ?? 'available'),
+                                color: isVerified ? _statusColor(room!.status) : const Color(0xFFEF4444),
                                 shape: BoxShape.circle,
                               ),
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              _statusLabel(room?.status ?? 'available'),
+                              isVerified ? _statusLabel(room!.status) : 'UNVERIFIED',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: _statusColor(room?.status ?? 'available'),
+                                color: isVerified ? _statusColor(room!.status) : const Color(0xFFEF4444),
                                 letterSpacing: 0.5,
                               ),
                             ),
@@ -182,47 +194,81 @@ class RoomVerificationPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            // Proceed to Report Issue Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  context.push(
-                    '/work-request-form',
-                    extra: {
-                      'roomId': roomId,
-                      'buildingName': room?.building ?? 'Unknown Building',
-                      'roomName': room?.name ?? 'Unknown Room',
-                      'verifiedRoom': room,
-                      'lockLocationDetails': true,
-                    },
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00BFA5),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.warning_amber, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Proceed to Report Issue',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+            // Proceed to Report Issue Button (only if verified)
+            if (isVerified) ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    context.push(
+                      '/work-request-form',
+                      extra: {
+                        'roomId': roomId,
+                        'buildingName': room!.building,
+                        'roomName': room!.name,
+                        'verifiedRoom': room,
+                        'lockLocationDetails': true,
+                      },
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00BFA5),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
+                    elevation: 0,
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.warning_amber, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Proceed to Report Issue',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ] else ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text(
+                    'Return to Room Entry',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1E293B),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'A valid, verified room is required to submit a maintenance work request.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFFEF4444),
+                  fontWeight: FontWeight.w500,
+                  height: 1.4,
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             // Footer text
             Text(

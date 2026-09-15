@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/chat_model.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/chat/chat_list_panel.dart';
 import '../../../shared/widgets/chat/chat_messages_panel.dart';
 import '../../../shared/widgets/common_app_bar.dart';
@@ -40,11 +41,26 @@ class _TeacherChatPageState extends State<TeacherChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final user = context.watch<AuthService>().currentUser;
+
     if (user == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF8FAFC),
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: themeProvider.backgroundColor,
+        appBar: CommonAppBar(
+          roleText: 'Teacher',
+          primaryColor: themeProvider.primaryColor,
+          onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
+          onNotificationPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const NotificationsPage(),
+              ),
+            );
+          },
+        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -58,7 +74,8 @@ class _TeacherChatPageState extends State<TeacherChatPage> {
         child: Scaffold(
           backgroundColor: Colors.white,
           body: SafeArea(
-            top: false,
+            top: true,
+            bottom: true,
             child: ChatMessagesPanel(
               key: ValueKey(_selectedRoom!.id),
               room: _selectedRoom!,
@@ -74,10 +91,10 @@ class _TeacherChatPageState extends State<TeacherChatPage> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
         roleText: 'Teacher',
-        primaryColor: const Color(0xFF00BFA5),
+        primaryColor: themeProvider.primaryColor,
         onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
         onNotificationPressed: () {
           Navigator.push(
