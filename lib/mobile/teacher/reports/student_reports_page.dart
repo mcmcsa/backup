@@ -186,6 +186,7 @@ class _StudentReportsPageState extends State<StudentReportsPage>
                 padding: const EdgeInsets.all(16),
                 child: TextField(
                   controller: _searchController,
+                  style: TextStyle(color: themeProvider.textColor),
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     hintText: 'Search tracking number or room...',
@@ -206,14 +207,18 @@ class _StudentReportsPageState extends State<StudentReportsPage>
                       minHeight: 44,
                     ),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: themeProvider.isDarkMode ? const Color(0xFF2D2D2D) : Colors.white,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(999),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                      borderSide: BorderSide(
+                        color: themeProvider.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                      ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(999),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                      borderSide: BorderSide(
+                        color: themeProvider.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                      ),
                     ),
                     focusedBorder: const OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(999)),
@@ -412,7 +417,9 @@ class _StudentReportsPageState extends State<StudentReportsPage>
               children: [
                 Expanded(
                   child: Text(
-                    trackingNumber,
+                    trackingNumber.trim().length > 8
+                        ? '#${trackingNumber.trim().substring(0, 8).toUpperCase()}'
+                        : '#${trackingNumber.trim().toUpperCase()}',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,

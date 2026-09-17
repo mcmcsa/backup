@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../../shared/models/room_model.dart';
+import '../../../shared/providers/theme_provider.dart';
 
 class RoomVerificationPage extends StatelessWidget {
   final String roomId;
@@ -32,23 +34,25 @@ class RoomVerificationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final isVerified = room != null;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: themeProvider.appBarIconColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           isVerified ? 'Location Verified' : 'Verification Failed',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: themeProvider.appBarTextColor,
           ),
         ),
         centerTitle: true,
@@ -82,11 +86,12 @@ class RoomVerificationPage extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: themeProvider.cardColor,
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: themeProvider.borderColor),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -97,10 +102,10 @@ class RoomVerificationPage extends StatelessWidget {
                   Text(
                     isVerified ? room!.name : 'Unrecognized Room ($roomId)',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: themeProvider.textColor,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -111,7 +116,7 @@ class RoomVerificationPage extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 15,
-                      color: isVerified ? Colors.grey.shade600 : const Color(0xFFEF4444),
+                      color: isVerified ? themeProvider.subtitleColor : const Color(0xFFEF4444),
                       fontWeight: isVerified ? FontWeight.normal : FontWeight.w600,
                     ),
                   ),
@@ -135,10 +140,10 @@ class RoomVerificationPage extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           room!.roomType.isNotEmpty ? room!.roomType : 'Room',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: Colors.black87,
+                            color: themeProvider.textColor,
                           ),
                         ),
                       ],
@@ -147,7 +152,7 @@ class RoomVerificationPage extends StatelessWidget {
                       const SizedBox(height: 12),
                       Text(
                         room!.floor,
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 13, color: themeProvider.subtitleColor),
                       ),
                     ],
                   ],
@@ -247,11 +252,12 @@ class RoomVerificationPage extends StatelessWidget {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E293B),
+                    backgroundColor: isDark ? const Color(0xFF2D2D2D) : const Color(0xFF1E293B),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
+                      side: isDark ? BorderSide(color: themeProvider.borderColor) : BorderSide.none,
                     ),
                     elevation: 0,
                   ),
@@ -276,7 +282,7 @@ class RoomVerificationPage extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade500,
+                color: themeProvider.subtitleColor,
                 height: 1.4,
               ),
             ),
@@ -286,5 +292,4 @@ class RoomVerificationPage extends StatelessWidget {
       ),
     );
   }
-
 }

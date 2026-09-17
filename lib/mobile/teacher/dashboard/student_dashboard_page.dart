@@ -129,14 +129,18 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
                   minHeight: 44,
                 ),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: themeProvider.isDarkMode ? const Color(0xFF2D2D2D) : Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(
+                    color: themeProvider.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(
+                    color: themeProvider.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                  ),
                 ),
                 focusedBorder: const OutlineInputBorder(
                   borderRadius: BorderRadius.all(Radius.circular(999)),

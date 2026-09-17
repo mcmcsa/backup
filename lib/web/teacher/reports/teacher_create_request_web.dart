@@ -1013,7 +1013,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
             if (_selectedRequestType.isNotEmpty) ...[
               const SizedBox(height: 16),
               _buildInputField(
-                label: _selectedRequestType == 'Others' ? 'Specify Other Type' : 'Specify Details (what is to be ${_selectedRequestType.split(" ").first.toLowerCase()}?)',
+                label: _getSpecifyDetailsLabel(_selectedRequestType),
                 controller: _otherRequestTypeController,
                 hint: _selectedRequestType == 'Others'
                     ? 'What kind of request is needed?'
@@ -1297,6 +1297,24 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         ],
       ],
     );
+  }
+
+  String _getSpecifyDetailsLabel(String type) {
+    switch (type) {
+      case 'Installation of':
+        return 'Specify Details (what is to be installed?)';
+      case 'Repair of':
+        return 'Specify Details (what is to be repaired?)';
+      case 'Replacement of':
+        return 'Specify Details (what is to be replaced?)';
+      case 'Ocular Inspection of':
+        return 'Specify Details (what is to be inspected?)';
+      case 'Others':
+        return 'Specify Other Type';
+      default:
+        if (type.isEmpty) return 'Specify Details';
+        return 'Specify Details ($type)';
+    }
   }
 
   Widget _buildChoiceChip(String label) {

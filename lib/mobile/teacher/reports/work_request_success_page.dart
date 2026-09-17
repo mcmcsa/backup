@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../router/app_router.dart';
 
 class WorkRequestSuccessPage extends StatelessWidget {
@@ -19,23 +21,33 @@ class WorkRequestSuccessPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    final shortTrack = trackingNumber.trim().isNotEmpty
+        ? (trackingNumber.trim().length > 8
+            ? trackingNumber.trim().substring(0, 8)
+            : trackingNumber.trim())
+        : 'N/A';
+    final formattedTrackId = shortTrack.startsWith('#') ? shortTrack : '#$shortTrack';
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
           onPressed: () {
             context.go(teacherDashboardRoute);
           },
         ),
-        title: const Text(
+        title: Text(
           'Submitted!',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: themeProvider.textColor,
           ),
         ),
         centerTitle: true,
@@ -61,13 +73,13 @@ class WorkRequestSuccessPage extends StatelessWidget {
             ),
             const SizedBox(height: 32),
             // Success Title
-            const Text(
+            Text(
               'Report Submitted\nSuccessfully!',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: themeProvider.textColor,
                 height: 1.3,
               ),
             ),
@@ -78,7 +90,7 @@ class WorkRequestSuccessPage extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Colors.grey.shade600,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 height: 1.5,
               ),
             ),
@@ -88,11 +100,12 @@ class WorkRequestSuccessPage extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: themeProvider.cardColor,
                 borderRadius: BorderRadius.circular(12),
+                border: isDark ? Border.all(color: Colors.grey.shade800) : null,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -106,26 +119,32 @@ class WorkRequestSuccessPage extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade500,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
                       letterSpacing: 1.2,
                     ),
                   ),
                   const SizedBox(height: 20),
                   _buildDetailRow(
                     label: 'Tracking Number',
-                    value: trackingNumber.trim().length > 8 ? trackingNumber.trim().substring(0, 8) : trackingNumber.trim(),
+                    value: formattedTrackId,
                     valueColor: const Color(0xFF4169E1),
                     isBold: true,
+                    textColor: themeProvider.textColor,
+                    isDark: isDark,
                   ),
                   const SizedBox(height: 16),
                   _buildDetailRow(
                     label: 'Location',
                     value: location,
+                    textColor: themeProvider.textColor,
+                    isDark: isDark,
                   ),
                   const SizedBox(height: 16),
                   _buildDetailRow(
                     label: 'Reported on',
                     value: DateFormat('MMMM dd, yyyy').format(reportedDate),
+                    textColor: themeProvider.textColor,
+                    isDark: isDark,
                   ),
                 ],
               ),
@@ -139,7 +158,13 @@ class WorkRequestSuccessPage extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () {
                     // Navigate to request tracking/status page
-                    context.go(teacherDashboardRoute);
+                    context.push(
+                      '/request-details',
+                      extra: {
+                        'trackingNumber': trackingNumber,
+                        'status': 'PENDING',
+                      },
+                    );
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00BFA5),
@@ -166,12 +191,12 @@ class WorkRequestSuccessPage extends StatelessWidget {
               onPressed: () {
                 context.go(teacherDashboardRoute);
               },
-              child: const Text(
+              child: Text(
                 'Back to Home',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  color: isDark ? Colors.grey.shade300 : Colors.black87,
                 ),
               ),
             ),
@@ -187,6 +212,8 @@ class WorkRequestSuccessPage extends StatelessWidget {
     required String value,
     Color? valueColor,
     bool isBold = false,
+    required Color textColor,
+    required bool isDark,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,7 +222,7 @@ class WorkRequestSuccessPage extends StatelessWidget {
           label,
           style: TextStyle(
             fontSize: 12,
-            color: Colors.grey.shade600,
+            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
           ),
         ),
         const SizedBox(height: 6),
@@ -204,7 +231,7 @@ class WorkRequestSuccessPage extends StatelessWidget {
           style: TextStyle(
             fontSize: 14,
             fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-            color: valueColor ?? Colors.black87,
+            color: valueColor ?? textColor,
           ),
         ),
       ],

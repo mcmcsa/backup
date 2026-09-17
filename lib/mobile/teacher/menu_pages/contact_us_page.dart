@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../router/app_router.dart';
 
 class ContactUsPage extends StatefulWidget {
@@ -43,13 +44,20 @@ class _ContactUsPageState extends State<ContactUsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    final cardBorder = isDark
+        ? Border.all(color: Colors.grey.shade800)
+        : Border.all(color: Colors.grey.shade200);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor, size: 24),
           onPressed: () {
             final router = GoRouter.maybeOf(context);
             if (router != null) {
@@ -59,12 +67,12 @@ class _ContactUsPageState extends State<ContactUsPage> {
             }
           },
         ),
-        title: const Text(
+        title: Text(
           'Contact Us',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: themeProvider.textColor,
           ),
         ),
       ),
@@ -80,6 +88,10 @@ class _ContactUsPageState extends State<ContactUsPage> {
                   iconColor: Colors.green,
                   label: 'Call Us',
                   value: '+63 075 542-6103',
+                  isDark: isDark,
+                  cardBg: themeProvider.cardColor,
+                  border: cardBorder,
+                  textColor: themeProvider.textColor,
                 ),
               ),
               const SizedBox(width: 12),
@@ -89,6 +101,10 @@ class _ContactUsPageState extends State<ContactUsPage> {
                   iconColor: Colors.red,
                   label: 'Email',
                   value: 'info@psu.edu.ph',
+                  isDark: isDark,
+                  cardBg: themeProvider.cardColor,
+                  border: cardBorder,
+                  textColor: themeProvider.textColor,
                 ),
               ),
             ],
@@ -99,9 +115,9 @@ class _ContactUsPageState extends State<ContactUsPage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: cardBorder,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,12 +137,12 @@ class _ContactUsPageState extends State<ContactUsPage> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Text(
+                    Text(
                       'Office Location',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: themeProvider.textColor,
                       ),
                     ),
                   ],
@@ -137,7 +153,7 @@ class _ContactUsPageState extends State<ContactUsPage> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade800,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -145,32 +161,32 @@ class _ContactUsPageState extends State<ContactUsPage> {
                   'Ground Floor, Administration Building',
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade600,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
                 ),
                 Text(
                   'Pangasinan State University',
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade600,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
                 ),
                 Text(
                   'Lingayen, Pangasinan 2401',
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade600,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Divider(),
+                Divider(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
                 const SizedBox(height: 12),
                 Text(
                   'Office Hours: Monday - Friday',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade700,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -178,7 +194,7 @@ class _ContactUsPageState extends State<ContactUsPage> {
                   '8:00 AM - 5:00 PM',
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade600,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
                 ),
               ],
@@ -190,21 +206,21 @@ class _ContactUsPageState extends State<ContactUsPage> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: cardBorder,
             ),
             child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Send us a Message',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: themeProvider.textColor,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -212,6 +228,7 @@ class _ContactUsPageState extends State<ContactUsPage> {
                     controller: _nameController,
                     label: 'Full Name',
                     icon: Icons.person_outline,
+                    isDark: isDark,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter your name';
@@ -224,6 +241,7 @@ class _ContactUsPageState extends State<ContactUsPage> {
                     controller: _emailController,
                     label: 'Email Address',
                     icon: Icons.email_outlined,
+                    isDark: isDark,
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -240,6 +258,7 @@ class _ContactUsPageState extends State<ContactUsPage> {
                     controller: _subjectController,
                     label: 'Subject',
                     icon: Icons.subject_outlined,
+                    isDark: isDark,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Please enter a subject';
@@ -252,6 +271,7 @@ class _ContactUsPageState extends State<ContactUsPage> {
                     controller: _messageController,
                     label: 'Message',
                     icon: Icons.message_outlined,
+                    isDark: isDark,
                     maxLines: 5,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -349,13 +369,17 @@ class _ContactUsPageState extends State<ContactUsPage> {
     required Color iconColor,
     required String label,
     required String value,
+    required bool isDark,
+    required Color cardBg,
+    required Border border,
+    required Color textColor,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: border,
       ),
       child: Column(
         children: [
@@ -377,15 +401,15 @@ class _ContactUsPageState extends State<ContactUsPage> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
-              color: Colors.black87,
+              color: textColor,
             ),
             textAlign: TextAlign.center,
           ),
@@ -398,6 +422,7 @@ class _ContactUsPageState extends State<ContactUsPage> {
     required TextEditingController controller,
     required String label,
     required IconData icon,
+    required bool isDark,
     int maxLines = 1,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
@@ -407,16 +432,30 @@ class _ContactUsPageState extends State<ContactUsPage> {
       maxLines: maxLines,
       keyboardType: keyboardType,
       validator: validator,
+      style: TextStyle(
+        fontSize: 14,
+        color: isDark ? Colors.white : const Color(0xFF0F172A),
+      ),
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: TextStyle(
+          fontSize: 13,
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+        ),
         prefixIcon: Icon(icon, color: const Color(0xFF00BFA5), size: 20),
+        filled: true,
+        fillColor: isDark ? const Color(0xFF2D2D2D) : Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(
+            color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(
+            color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../utils/signature_image_helper.dart';
 
@@ -11,6 +12,7 @@ import '../utils/signature_image_helper.dart';
 /// PNG image data. Uploaded images are analyzed for clarity before acceptance.
 class SignaturePadWidget extends StatefulWidget {
   final Function(String base64Signature) onSignatureComplete;
+  final VoidCallback? onSignatureCleared;
   final String title;
   final String subtitle;
   final double height;
@@ -18,6 +20,7 @@ class SignaturePadWidget extends StatefulWidget {
   const SignaturePadWidget({
     super.key,
     required this.onSignatureComplete,
+    this.onSignatureCleared,
     this.title = 'E-Signature',
     this.subtitle = 'Sign below to confirm',
     this.height = 200,
@@ -51,6 +54,8 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
       _uploadError = null;
       _isConfirmed = false;
     });
+    widget.onSignatureCleared?.call();
+    widget.onSignatureComplete('');
   }
 
   // â”€â”€ Clamp points inside canvas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -519,39 +524,50 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(7),
-            child: GestureDetector(
-              onPanStart: (details) {
-                if (_isConfirmed) return;
-                final clamped = _clamp(
-                  details.localPosition,
-                  Size(canvasWidth, canvasHeight),
-                );
-                setState(() {
-                  _currentStroke = [clamped];
-                  _hasSigned = true;
-                });
-              },
-              onPanUpdate: (details) {
-                final clamped = _clamp(
-                  details.localPosition,
-                  Size(canvasWidth, canvasHeight),
-                );
-                setState(() {
-                  _currentStroke.add(clamped);
-                });
-              },
-              onPanEnd: (details) {
-                setState(() {
-                  _strokes.add(List.from(_currentStroke));
-                  _currentStroke = [];
-                });
-              },
-              child: CustomPaint(
-                painter: _SignaturePainter(
-                  strokes: _strokes,
-                  currentStroke: _currentStroke,
+            child: RawGestureDetector(
+              gestures: {
+                EagerGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+                  () => EagerGestureRecognizer(),
+                  (EagerGestureRecognizer instance) {},
                 ),
-                size: Size(canvasWidth, canvasHeight),
+              },
+              child: GestureDetector(
+                onPanStart: (details) {
+                  if (_isConfirmed) return;
+                  final clamped = _clamp(
+                    details.localPosition,
+                    Size(canvasWidth, canvasHeight),
+                  );
+                  setState(() {
+                    _currentStroke = [clamped];
+                    _hasSigned = true;
+                  });
+                },
+                onPanUpdate: (details) {
+                  if (_isConfirmed) return;
+                  final clamped = _clamp(
+                    details.localPosition,
+                    Size(canvasWidth, canvasHeight),
+                  );
+                  setState(() {
+                    _currentStroke.add(clamped);
+                  });
+                },
+                onPanEnd: (details) {
+                  if (_isConfirmed) return;
+                  setState(() {
+                    _strokes.add(List.from(_currentStroke));
+                    _currentStroke = [];
+                  });
+                },
+                child: CustomPaint(
+                  painter: _SignaturePainter(
+                    strokes: _strokes,
+                    currentStroke: _currentStroke,
+                  ),
+                  size: Size(canvasWidth, canvasHeight),
+                ),
               ),
             ),
           ),

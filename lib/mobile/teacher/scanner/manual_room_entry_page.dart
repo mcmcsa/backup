@@ -1,7 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/room_service.dart';
+
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
 
 class ManualRoomEntryPage extends StatefulWidget {
   const ManualRoomEntryPage({super.key});
@@ -37,7 +52,7 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
     final code = _roomIdController.text.trim();
     if (code.isEmpty) {
       setState(() {
-        _errorMessage = 'Please enter a room ID';
+        _errorMessage = 'Please enter a room code';
       });
       return;
     }
@@ -92,277 +107,230 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: themeProvider.appBarIconColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'INPUT CLASS',
+        title: Text(
+          'Room Verification',
           style: TextStyle(
-            fontSize: 14,
+            fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.black54,
-            letterSpacing: 1.2,
+            color: themeProvider.appBarTextColor,
           ),
         ),
         centerTitle: true,
       ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 20),
-                // Title
-                const Text(
-                  'Enter Room ID',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Subtitle
-                Text(
-                  'If the QR code is damaged or unreadable,\nplease enter the facility identifier below.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                // Room Identifier Label
-                Text(
-                  'ROOM IDENTIFIER',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade500,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Input Field
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _errorMessage != null ? const Color(0xFFEF4444) : Colors.grey.shade300,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: TextField(
-                    controller: _roomIdController,
-                    textCapitalization: TextCapitalization.characters,
-                    onSubmitted: (_) => _verifyRoom(),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'E.G. ENG-302',
-                      hintStyle: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade400,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      disabledBorder: InputBorder.none,
-                      errorBorder: InputBorder.none,
-                      focusedErrorBorder: InputBorder.none,
-                      filled: false,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          Icons.content_paste,
-                          color: Colors.grey.shade500,
-                          size: 20,
-                        ),
-                        onPressed: _pasteFromClipboard,
-                      ),
-                    ),
-                  ),
-                ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        size: 16,
-                        color: Color(0xFFEF4444),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _errorMessage!,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFFEF4444),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: themeProvider.cardColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: themeProvider.borderColor),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
                 ],
-                const SizedBox(height: 16),
-                // Help Text
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 16,
-                      color: Colors.grey.shade600,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        "Can't scan? Enter the Room ID found on the facility door.",
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 32),
-                // Verify Room Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isVerifying ? null : _verifyRoom,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00BFA5),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 0,
-                      disabledBackgroundColor: const Color(0xFF00BFA5).withValues(alpha: 0.5),
-                    ),
-                    child: _isVerifying
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Text(
-                                'Verify Room',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.check,
-                                  size: 14,
-                                  color: Color(0xFF00BFA5),
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Back to Scanner Button
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton.icon(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(
-                      Icons.qr_code_scanner,
-                      size: 20,
-                      color: Colors.black87,
-                    ),
-                    label: const Text(
-                      'Back to Scanner',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(
-                          color: Colors.grey.shade300,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Circular QR Scanner Icon
+                  InkWell(
+                    onTap: () => Navigator.pop(context),
+                    borderRadius: BorderRadius.circular(40),
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00BFA5).withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFF00BFA5).withValues(alpha: 0.25),
                           width: 1.5,
                         ),
                       ),
+                      child: const Icon(
+                        Icons.qr_code_scanner_rounded,
+                        color: Color(0xFF00BFA5),
+                        size: 36,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 80),
-              ],
-            ),
-          ),
-          // Footer
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
+                  const SizedBox(height: 20),
+
+                  // Title
+                  Text(
+                    'Room Verification',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: themeProvider.textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Subtitle
+                  Text(
+                    'Enter the room code located on the door or scan the QR code to quickly start a maintenance request.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: themeProvider.subtitleColor,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Room Code Input (Auto-capslock + 'ex. CLR 1' hint)
+                  TextField(
+                    controller: _roomIdController,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [
+                      UpperCaseTextFormatter(),
+                    ],
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                      color: themeProvider.textColor,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'ex. CLR 1',
+                      hintStyle: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: 2,
+                        color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
+                      ),
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: themeProvider.borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: _errorMessage != null
+                              ? const Color(0xFFEF4444)
+                              : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF00BFA5), width: 2),
+                      ),
+                      errorText: _errorMessage,
+                      errorStyle: const TextStyle(fontSize: 12, color: Color(0xFFEF4444)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          Icons.content_paste_rounded,
+                          color: themeProvider.subtitleColor,
+                          size: 20,
+                        ),
+                        onPressed: _pasteFromClipboard,
+                        tooltip: 'Paste from clipboard',
+                      ),
+                    ),
+                    onSubmitted: (_) => _verifyRoom(),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Verify Room Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _isVerifying ? null : _verifyRoom,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00BFA5),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                        disabledBackgroundColor: const Color(0xFF00BFA5).withValues(alpha: 0.5),
+                      ),
+                      child: _isVerifying
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Verify Room & Report Issue',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(Icons.check_circle_rounded, size: 18),
+                              ],
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Back to Scanner Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(context),
+                      icon: Icon(
+                        Icons.qr_code_scanner_rounded,
+                        size: 18,
+                        color: themeProvider.textColor,
+                      ),
+                      label: Text(
+                        'Back to Scanner',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: themeProvider.textColor,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: themeProvider.borderColor),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
-              child: Text(
-                'PSU MMS',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade400,
-                  letterSpacing: 1.5,
-                ),
-              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

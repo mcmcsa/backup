@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/models/work_request_model.dart';
@@ -260,35 +261,334 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     );
   }
 
+  Color get _statusColor {
+    final status = (_request?.status ?? widget.status).toLowerCase();
+    final hasPreInsp = _preInspectionReport != null;
+    final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
+    final isPreInspApproved = hasPreInsp && _preInspectionReport!.status == 'Approved';
+    final isPreInspReviewed = hasPreInsp && 
+        (_preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined');
+    
+    PostRepairReport? latestPostRepair;
+    if (_postRepairReports.isNotEmpty) {
+      final list = List<PostRepairReport>.from(_postRepairReports)
+        ..sort((a, b) {
+          int cmp = a.repairDate.compareTo(b.repairDate);
+          if (cmp != 0) return cmp;
+          return a.attemptNumber.compareTo(b.attemptNumber);
+        });
+      latestPostRepair = list.last;
+    }
+    final hasPostRepair = latestPostRepair != null;
+    final isPostRepairEvaluated = latestPostRepair?.adminEvaluation != null;
+    final isRework = latestPostRepair?.adminEvaluation == 'rework' || status == 'rework';
+    final isCompleted = status == 'completed';
+
+    if (isCompleted) {
+      return const Color(0xFF10B981);
+    } else if (status == 'declined' || status == 'cancelled' || status == 'declined/cancelled' || isPreInspDeclined) {
+      return const Color(0xFFEF4444);
+    } else if (isRework) {
+      return const Color(0xFFF59E0B);
+    } else if (hasPostRepair && !isPostRepairEvaluated) {
+      return const Color(0xFF00BFA5);
+    } else if (hasPostRepair) {
+      return const Color(0xFF00BFA5);
+    } else if (isPreInspApproved) {
+      return const Color(0xFF00BFA5);
+    } else if (hasPreInsp && !isPreInspReviewed) {
+      return const Color(0xFFF59E0B);
+    } else if (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance') {
+      return const Color(0xFF0EA5E9);
+    } else {
+      return const Color(0xFF94A3B8);
+    }
+  }
+
+  String get _statusLabel {
+    final status = (_request?.status ?? widget.status).toLowerCase();
+    final hasPreInsp = _preInspectionReport != null;
+    final isPreInspReviewed = hasPreInsp && 
+        (_preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined');
+    final isPreInspApproved = hasPreInsp && _preInspectionReport!.status == 'Approved';
+    final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
+    
+    PostRepairReport? latestPostRepair;
+    if (_postRepairReports.isNotEmpty) {
+      final list = List<PostRepairReport>.from(_postRepairReports)
+        ..sort((a, b) {
+          int cmp = a.repairDate.compareTo(b.repairDate);
+          if (cmp != 0) return cmp;
+          return a.attemptNumber.compareTo(b.attemptNumber);
+        });
+      latestPostRepair = list.last;
+    }
+    final hasPostRepair = latestPostRepair != null;
+    final isPostRepairEvaluated = latestPostRepair?.adminEvaluation != null;
+    final isRework = latestPostRepair?.adminEvaluation == 'rework' || status == 'rework';
+    final isCompleted = status == 'completed';
+
+    if (isCompleted) {
+      return 'COMPLETED';
+    } else if (status == 'declined' || status == 'cancelled' || status == 'declined/cancelled' || isPreInspDeclined) {
+      return 'DECLINED';
+    } else if (isRework) {
+      return 'REWORK NEEDED';
+    } else if (hasPostRepair && !isPostRepairEvaluated) {
+      return 'UNDER EVALUATION';
+    } else if (hasPostRepair) {
+      return 'POST-REPAIR INSPECTION SUBMITTED';
+    } else if (isPreInspApproved) {
+      return 'CONFIRMED';
+    } else if (hasPreInsp && !isPreInspReviewed) {
+      return 'PRE-INSPECTION SUBMITTED';
+    } else if (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance') {
+      if (_request?.acceptedDate == null) {
+        return 'APPROVED';
+      } else {
+        return 'ACCEPTED';
+      }
+    } else {
+      return 'AWAITING REVIEW';
+    }
+  }
+
+  Widget _buildCompactStatusCard(bool isDark, ThemeProvider themeProvider) {
+    String title, desc;
+    IconData icon;
+
+    final req = _request;
+    final status = (_request?.status ?? widget.status).toLowerCase();
+    final hasPreInsp = _preInspectionReport != null;
+    final isPreInspReviewed = hasPreInsp && 
+        (_preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined');
+    final isPreInspApproved = hasPreInsp && _preInspectionReport!.status == 'Approved';
+    final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
+    
+    PostRepairReport? latestPostRepair;
+    if (_postRepairReports.isNotEmpty) {
+      final list = List<PostRepairReport>.from(_postRepairReports)
+        ..sort((a, b) {
+          int cmp = a.repairDate.compareTo(b.repairDate);
+          if (cmp != 0) return cmp;
+          return a.attemptNumber.compareTo(b.attemptNumber);
+        });
+      latestPostRepair = list.last;
+    }
+    final hasPostRepair = latestPostRepair != null;
+    final isPostRepairEvaluated = latestPostRepair?.adminEvaluation != null;
+    final isRework = latestPostRepair?.adminEvaluation == 'rework' || status == 'rework';
+    final isCompleted = status == 'completed';
+
+    if (isCompleted) {
+      title = 'Completed';
+      desc = 'This maintenance request has been completed and verified. Thank you!';
+      icon = Icons.task_alt_rounded;
+    } else if (status == 'declined' || status == 'cancelled' || status == 'declined/cancelled' || isPreInspDeclined) {
+      title = 'Declined';
+      desc = 'This maintenance request has been declined or cancelled.';
+      icon = Icons.cancel_rounded;
+    } else if (isRework) {
+      title = 'Rework Needed';
+      desc = 'The Campus Admin requested rework on the performed repairs.';
+      icon = Icons.history_rounded;
+    } else if (hasPostRepair && !isPostRepairEvaluated) {
+      title = 'Under Evaluation';
+      desc = 'The Campus Admin is currently evaluating the post-repair inspection.';
+      icon = Icons.rate_review_rounded;
+    } else if (hasPostRepair) {
+      title = 'Post-Repair Submitted';
+      desc = 'Repair completed. Post-repair report has been submitted to Campus Admin.';
+      icon = Icons.fact_check_rounded;
+    } else if (isPreInspApproved) {
+      title = 'Confirmed';
+      desc = 'The pre-inspection has been confirmed. The repair is in progress.';
+      icon = Icons.construction_rounded;
+    } else if (hasPreInsp && !isPreInspReviewed) {
+      title = 'Pre-Inspection Submitted';
+      desc = 'Pre-inspection report has been submitted and is awaiting Campus Admin decision.';
+      icon = Icons.search_rounded;
+    } else if (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance') {
+      if (req?.acceptedDate == null) {
+        title = 'Approved';
+        desc = 'The request has been approved by Campus Admin and assigned to a technician.';
+        icon = Icons.thumb_up_rounded;
+      } else {
+        title = 'Accepted';
+        desc = 'The maintenance user accepted the task and is working on it.';
+        icon = Icons.assignment_turned_in_rounded;
+      }
+    } else {
+      title = 'Awaiting Review';
+      desc = 'Your request has been received and is pending Campus Admin review.';
+      icon = Icons.pending_actions_rounded;
+    }
+
+    final rawTrack = widget.trackingNumber.trim();
+    final shortTrackId = rawTrack.length > 8 ? rawTrack.substring(0, 8).toUpperCase() : rawTrack.toUpperCase();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: themeProvider.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _statusColor.withValues(alpha: 0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: _statusColor.withValues(alpha: isDark ? 0.2 : 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _statusColor.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: _statusColor.withValues(alpha: 0.25), width: 1.5),
+                ),
+                child: Icon(icon, color: _statusColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: _statusColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isDark ? Colors.grey.shade700 : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Text(
+                            '#$shortTrackId',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.grey.shade200 : const Color(0xFF475569),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _statusLabel,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: _statusColor,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            desc,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: isDark ? Colors.grey.shade300 : const Color(0xFF64748B),
+              height: 1.4,
+            ),
+          ),
+          if (_request?.maintenanceNotes != null && _request!.maintenanceNotes!.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF132E2B) : const Color(0xFFF0FDFA),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF0D9488).withValues(alpha: 0.3) : const Color(0xFFCCFBF1),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.note_alt_outlined, color: Color(0xFF00BFA5), size: 14),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _request!.maintenanceNotes!.trim(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? Colors.grey.shade200 : const Color(0xFF1E293B),
+                        fontWeight: FontWeight.w500,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: themeProvider.appBarIconColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Request Details',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: themeProvider.appBarTextColor,
           ),
         ),
         centerTitle: true,
         actions: [
           IconButton(
             tooltip: 'View Official ISO Form',
-            icon: const Icon(Icons.assignment_rounded, color: Colors.black87),
+            icon: Icon(Icons.assignment_rounded, color: themeProvider.appBarIconColor),
             onPressed: _openOfficialForm,
           ),
           IconButton(
             tooltip: 'Print Form',
-            icon: const Icon(Icons.print_rounded, color: Colors.black87),
+            icon: Icon(Icons.print_rounded, color: themeProvider.appBarIconColor),
             onPressed: () async {
               if (_request != null) {
                 final messenger = ScaffoldMessenger.of(context);
@@ -311,7 +611,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
             },
           ),
           IconButton(
-            icon: const Icon(Icons.share, color: Colors.black87),
+            icon: Icon(Icons.share, color: themeProvider.appBarIconColor),
             onPressed: () {},
           ),
         ],
@@ -321,75 +621,11 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Status Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00BFA5),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF00BFA5).withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.25),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          (_request?.status ?? widget.status).toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
-                      const Icon(Icons.menu, color: Colors.white, size: 20),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'TRACKING NUMBER',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white70,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    widget.trackingNumber,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            // Status Card (Web compact parity with 8-char tracking ID)
+            _buildCompactStatusCard(isDark, themeProvider),
             const SizedBox(height: 16),
             // Segmented Filter Tabs
-            _buildFilterButtons(),
+            _buildFilterButtons(isDark, themeProvider),
             const SizedBox(height: 16),
             // Active Tab Content
             AnimatedSwitcher(
@@ -397,108 +633,10 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
               child: KeyedSubtree(
                 key: ValueKey(_selectedFilter),
                 child: _selectedFilter == 'Timeline'
-                    ? _buildTimelineSection()
+                    ? _buildTimelineSection(isDark, themeProvider)
                     : (_selectedFilter == 'Details'
-                        ? _buildDetailsSection()
-                        : _buildSignaturesCard()),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Maintenance Office Contact Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00BFA5),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.headset_mic,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Maintenance Office',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'For corrections, assistance or safety concerns',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.white70,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {},
-                          icon: const Icon(Icons.phone, size: 18),
-                          label: const Text(
-                            'Call: 8422',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF00BFA5),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 0,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {},
-                          icon: const Icon(Icons.email, size: 18),
-                          label: const Text(
-                            'Email',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF00BFA5),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            elevation: 0,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                        ? _buildDetailsSection(isDark, themeProvider)
+                        : _buildSignaturesCard(isDark, themeProvider)),
               ),
             ),
             const SizedBox(height: 20),
@@ -508,7 +646,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     );
   }
 
-  Widget _buildFilterButtons() {
+  Widget _buildFilterButtons(bool isDark, ThemeProvider themeProvider) {
     final filters = [
       {'label': 'Timeline', 'icon': Icons.timeline_rounded},
       {'label': 'Details', 'icon': Icons.description_outlined},
@@ -518,14 +656,14 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
+        border: Border.all(color: themeProvider.borderColor),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x06000000),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
             blurRadius: 8,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -567,7 +705,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                       Icon(
                         icon,
                         size: 16,
-                        color: isSelected ? Colors.white : Colors.grey.shade600,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -575,7 +715,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? Colors.white : Colors.grey.shade700,
+                          color: isSelected
+                              ? Colors.white
+                              : (isDark ? Colors.grey.shade300 : Colors.grey.shade700),
                         ),
                       ),
                       if (label == 'Signature' && _requestorSignatures.isNotEmpty) ...[
@@ -609,19 +751,19 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     );
   }
 
-  Widget _buildTimelineSection() {
+  Widget _buildTimelineSection(bool isDark, ThemeProvider themeProvider) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               'Workflow Timeline',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: themeProvider.textColor,
               ),
             ),
             TextButton.icon(
@@ -643,191 +785,41 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
           ],
         ),
         const SizedBox(height: 16),
-        _buildWorkflowTimeline(),
+        _buildWorkflowTimeline(isDark, themeProvider),
       ],
     );
   }
 
-  Widget _buildDetailsSection() {
-    final isPendingReview = _request?.status.toLowerCase() == 'pending';
-    final priorityDisplay = isPendingReview
-        ? '--'
-        : (_request?.priority.isNotEmpty == true ? _request!.priority : 'Normal');
-    final prioritySub = isPendingReview ? 'Pending Review' : 'Assigned';
+  Widget _buildDetailsSection(bool isDark, ThemeProvider themeProvider) {
+    final req = _request;
+    if (req == null) return const SizedBox.shrink();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Location and Priority Row
-        Row(
-          children: [
-            Expanded(
-              child: _buildInfoBox(
-                icon: Icons.place_outlined,
-                label: 'LOCATION',
-                value1: _request?.officeRoom ?? _request?.roomName ?? 'N/A',
-                value2: _request?.buildingName ?? 'N/A',
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildInfoBox(
-                icon: Icons.flag_outlined,
-                label: 'PRIORITY',
-                value1: priorityDisplay,
-                value2: prioritySub,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        // Additional details card (Dates, Requestor)
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF00BFA5)),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Date Submitted',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
-                  const Spacer(),
-                  Text(
-                    _request != null
-                        ? DateFormat('MMM dd, yyyy • hh:mm a').format(_request!.dateSubmitted)
-                        : 'N/A',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
-                  ),
-                ],
-              ),
-              if (_request != null && (_request!.requestorName.isNotEmpty || _request!.displayRequestorName.isNotEmpty)) ...[
-                const Divider(height: 20, color: Color(0xFFF1F5F9)),
-                Row(
-                  children: [
-                    const Icon(Icons.person_outline_rounded, size: 16, color: Color(0xFF00BFA5)),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Requested By',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                    ),
-                    const Spacer(),
-                    Text(
-                      _request!.requestorName.isNotEmpty
-                          ? _request!.requestorName
-                          : _request!.displayRequestorName,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        // Problem Description
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.description_outlined,
-                    size: 18,
-                    color: Colors.grey.shade700,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Problem Description',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _request?.description ?? 'No description provided.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade700,
-                  height: 1.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        // Attached Photos Carousel
-        _buildAttachedPhotosCard(),
-        const SizedBox(height: 12),
-        // View Digital Form Link
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            onPressed: _openOfficialForm,
-            icon: const Icon(
-              Icons.assignment_rounded,
-              size: 16,
-              color: Color(0xFF00BFA5),
-            ),
-            label: const Text(
-              'View Digital Form',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF00BFA5),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+    final isPendingReview = req.status.toLowerCase() == 'pending';
+    final priorityDisplay = isPendingReview ? '--' : req.priorityLabel;
+    final priorityLower = req.priority.toLowerCase();
+    final priorityColor = isPendingReview
+        ? const Color(0xFF94A3B8)
+        : priorityLower == 'high'
+            ? const Color(0xFFEF4444)
+            : priorityLower == 'medium'
+                ? const Color(0xFFF59E0B)
+                : priorityLower == 'low'
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFF94A3B8);
 
-  Widget _buildAttachedPhotosCard() {
     final photos = _attachments;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        color: themeProvider.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
+            blurRadius: 10,
             offset: const Offset(0, 2),
           ),
         ],
@@ -837,14 +829,99 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
         children: [
           Row(
             children: [
-              const Icon(Icons.image_rounded, size: 18, color: Color(0xFF00BFA5)),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0369A1).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.info_rounded, color: Color(0xFF0369A1), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Request Details',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: themeProvider.textColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildDetailChip(
+            icon: Icons.location_on_rounded,
+            label: 'Location',
+            value: '${req.buildingName ?? 'N/A'} — ${req.roomName ?? 'N/A'}',
+            color: const Color(0xFF0F766E),
+            themeProvider: themeProvider,
+          ),
+          _buildDetailChip(
+            icon: Icons.flag_rounded,
+            label: 'Priority',
+            value: priorityDisplay,
+            color: priorityColor,
+            themeProvider: themeProvider,
+          ),
+          _buildDetailChip(
+            icon: Icons.calendar_today_rounded,
+            label: 'Submitted',
+            value: DateFormat('MMM dd, yyyy • hh:mm a').format(req.dateSubmitted),
+            color: const Color(0xFF475569),
+            themeProvider: themeProvider,
+          ),
+          if (req.requestorName.isNotEmpty || req.displayRequestorName.isNotEmpty)
+            _buildDetailChip(
+              icon: Icons.person_rounded,
+              label: 'Requested by',
+              value: req.requestorName.isNotEmpty ? req.requestorName : req.displayRequestorName,
+              color: const Color(0xFF134E4A),
+              themeProvider: themeProvider,
+            ),
+          Divider(height: 28, color: themeProvider.borderColor),
+          Row(
+            children: [
+              Icon(Icons.description_rounded, size: 16, color: themeProvider.subtitleColor),
               const SizedBox(width: 8),
-              const Text(
+              Text(
+                'Description',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.grey.shade300 : const Color(0xFF475569),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: themeProvider.borderColor),
+            ),
+            child: Text(
+              req.description.isNotEmpty ? req.description : 'No description provided.',
+              style: TextStyle(
+                fontSize: 13,
+                color: themeProvider.textColor,
+                height: 1.5,
+              ),
+            ),
+          ),
+          Divider(height: 28, color: themeProvider.borderColor),
+          Row(
+            children: [
+              Icon(Icons.image_rounded, size: 16, color: themeProvider.subtitleColor),
+              const SizedBox(width: 8),
+              Text(
                 'Attached Photos',
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.grey.shade300 : const Color(0xFF475569),
                 ),
               ),
               if (photos.isNotEmpty) ...[
@@ -852,15 +929,15 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF00BFA5).withValues(alpha: 0.12),
+                    color: const Color(0xFF0F766E).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     '${photos.length}',
                     style: const TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF00BFA5),
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0F766E),
                     ),
                   ),
                 ),
@@ -870,7 +947,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
           const SizedBox(height: 12),
           if (photos.isNotEmpty)
             SizedBox(
-              height: 110,
+              height: 100,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 itemCount: photos.length,
@@ -882,12 +959,12 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                       borderRadius: BorderRadius.circular(10),
                       onTap: () => showAttachmentZoomDialog(context, url),
                       child: Container(
-                        width: 110,
-                        height: 110,
+                        width: 100,
+                        height: 100,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                          color: const Color(0xFFF8FAFC),
+                          border: Border.all(color: themeProvider.borderColor),
+                          color: isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF8FAFC),
                         ),
                         child: Stack(
                           children: [
@@ -927,349 +1004,188 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: themeProvider.borderColor),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline_rounded, size: 16, color: Colors.grey.shade400),
+                  Icon(Icons.info_outline_rounded, size: 16, color: themeProvider.subtitleColor),
                   const SizedBox(width: 8),
                   Text(
                     'No photos attached to this request.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 12, color: themeProvider.subtitleColor),
                   ),
                 ],
               ),
             ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoBox({
-    required IconData icon,
-    required String label,
-    required String value1,
-    required String value2,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: const Color(0xFF00BFA5)),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade600,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value1,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value2,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-
-  bool _isUnassigned(String? staffId) {
-    final normalized = staffId?.trim().toLowerCase();
-    return normalized == null || normalized.isEmpty || normalized == 'null';
-  }
-
-  String _assignedMaintenanceName(String? staffId) {
-    if (_isUnassigned(staffId)) return 'Unassigned';
-    return _request?.acceptedByName ?? 'Assigned Staff';
-  }
-
-  Widget _buildWorkflowTimelineItem({
-    required String title,
-    required bool isDone,
-    bool isRework = false,
-    String? subtitle,
-    Widget? details,
-    ESignature? signature,
-    bool isLast = false,
-  }) {
-    final circleColor = isRework
-        ? const Color(0xFFD97706)
-        : (isDone ? const Color(0xFF059669) : Colors.grey.shade300);
-    final iconData = isRework
-        ? Icons.refresh_rounded
-        : (isDone ? Icons.check : Icons.circle);
-    final iconSize = (isRework || isDone) ? 14.0 : 8.0;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: circleColor,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                iconData,
-                size: iconSize,
-                color: Colors.white,
-              ),
-            ),
-            if (!isLast)
-              Container(
-                width: 2,
-                height: 48,
-                color: circleColor,
-              ),
-          ],
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _openOfficialForm,
+              icon: const Icon(Icons.assignment_rounded, size: 16, color: Color(0xFF00BFA5)),
+              label: const Text(
+                'View Digital Form',
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: isRework
-                      ? const Color(0xFFD97706)
-                      : (isDone ? const Color(0xFF111827) : Colors.grey.shade600),
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF00BFA5),
                 ),
               ),
-              if (subtitle != null && subtitle.isNotEmpty) ...[
-                const SizedBox(height: 4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailChip({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    required ThemeProvider themeProvider,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  subtitle,
+                  label,
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey.shade500,
+                    color: themeProvider.subtitleColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: themeProvider.textColor,
                   ),
                 ),
               ],
-              if (details != null) ...[
-                const SizedBox(height: 6),
-                details,
-              ],
-              if (signature != null && signature.signatureData.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                _buildWorkflowTimelineSignatureImage(signature.signatureData),
-              ],
-              const SizedBox(height: 16),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildWorkflowTimelineSignatureImage(String base64Str) {
-    try {
-      final cleaned = base64Str.trim().replaceAll(RegExp(r'\s+'), '');
-      final base64Data = cleaned.contains(',') ? cleaned.split(',')[1] : cleaned;
-      return Container(
-        padding: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Image.memory(
-          base64Decode(base64Data),
-          height: 35,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => const Icon(Icons.gesture, size: 25, color: Colors.grey),
-        ),
-      );
-    } catch (_) {
-      return const Icon(Icons.gesture, size: 25, color: Colors.grey);
-    }
-  }
+  List<_TimelineStep> get _steps {
+    final steps = <_TimelineStep>[];
+    final task = _request;
+    if (task == null) return steps;
 
-  String _formatDateTime(DateTime? dt) {
-    if (dt == null) return '';
-    return '${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  }
+    // 1. Request Submitted
+    final photoCount = _attachments.length;
+    steps.add(_TimelineStep(
+      icon: Icons.assignment_turned_in_rounded,
+      title: 'Request Submitted',
+      desc: photoCount > 0
+          ? 'Initial request submitted by ${task.displayRequestorName} with $photoCount photo${photoCount > 1 ? "s" : ""}.'
+          : 'Initial request submitted by ${task.displayRequestorName}.',
+      date: task.dateSubmitted,
+      isCompleted: true,
+      color: const Color(0xFF0F766E),
+    ));
 
-  Widget _buildWorkflowTimeline() {
-    final request = _request;
-    if (request == null) return const SizedBox.shrink();
+    // 2. Campus Admin Review & Approval
+    final isApproved = ['assigned', 'confirmed', 'rework', 'completed', 'in progress', 'in_progress', 'declined']
+        .contains(task.status.toLowerCase());
+    final isDeclinedInitially = task.status.toLowerCase() == 'declined' && task.preInspectionId == null;
+    final campusAdminName = (task.approvedByName != null && task.approvedByName!.trim().isNotEmpty)
+        ? task.approvedByName!.trim()
+        : 'Campus Admin';
+    steps.add(_TimelineStep(
+      icon: Icons.admin_panel_settings_rounded,
+      title: isDeclinedInitially ? 'Request Declined by Campus Admin' : 'Campus Admin Review & Approval',
+      desc: isDeclinedInitially
+          ? 'Request was declined by Campus Admin.'
+          : (isApproved
+              ? (task.approvedByName != null && task.approvedByName!.trim().isNotEmpty
+                  ? 'Request approved by Campus Admin ($campusAdminName).'
+                  : 'Request approved by Campus Admin.')
+              : 'Waiting for Campus Admin approval.'),
+      date: task.approvedDate,
+      isCompleted: isApproved,
+      color: isDeclinedInitially ? const Color(0xFFEF4444) : const Color(0xFF0369A1),
+    ));
 
-    final List<Widget> items = [];
+    if (isDeclinedInitially) return steps;
 
-    // 1. Submission
-    final reqSig = _signatures.firstWhere(
-      (s) => s.signatureType == 'requestor',
-      orElse: () => ESignature(
-        id: '',
-        workRequestId: '',
-        signerId: '',
-        signerName: '',
-        signerRole: '',
-        signatureType: '',
-        signatureData: '',
-        signedAt: DateTime.now(),
-      ),
-    );
-    items.add(
-      _buildWorkflowTimelineItem(
-        title: 'Work Request Submitted',
-        isDone: true,
-        subtitle: 'By ${request.requestorName} on ${_formatDateTime(request.dateSubmitted)}',
-        signature: reqSig.signatureData.isNotEmpty ? reqSig : null,
-      ),
-    );
+    // 3. Maintenance Assignment & Acceptance
+    final isAccepted = task.acceptedDate != null;
+    steps.add(_TimelineStep(
+      icon: Icons.engineering_rounded,
+      title: 'Maintenance Assignment',
+      desc: isAccepted
+          ? 'Accepted by ${task.acceptedByName ?? "Technician"}.'
+          : (task.assignedToId != null
+              ? 'Assigned to ${task.acceptedByName ?? "Technician"}. Awaiting acceptance.'
+              : 'Pending technician assignment.'),
+      date: task.acceptedDate,
+      isCompleted: isAccepted,
+      color: const Color(0xFF0EA5E9),
+    ));
 
-    // 2. Assignment
-    final isAssigned = !_isUnassigned(request.assignedToId);
-    final assignSig = _signatures.firstWhere(
-      (s) => s.signatureType == 'approval',
-      orElse: () => ESignature(
-        id: '',
-        workRequestId: '',
-        signerId: '',
-        signerName: '',
-        signerRole: '',
-        signatureType: '',
-        signatureData: '',
-        signedAt: DateTime.now(),
-      ),
-    );
-    items.add(
-      _buildWorkflowTimelineItem(
-        title: 'Admin Approved & Assigned',
-        isDone: isAssigned,
-        subtitle: isAssigned
-            ? 'Approved and assigned to ${_assignedMaintenanceName(request.assignedToId)}'
-            : 'Awaiting admin review & assignment',
-        signature: assignSig.signatureData.isNotEmpty ? assignSig : null,
-      ),
-    );
+    // 4. Pre-Inspection Conducted
+    final hasPreInsp = _preInspectionReport != null;
+    steps.add(_TimelineStep(
+      icon: Icons.search_rounded,
+      title: 'Pre-Inspection Conducted',
+      desc: hasPreInsp
+          ? 'Pre-inspection completed by ${_preInspectionReport!.inspectorName}.'
+          : 'Awaiting pre-inspection.',
+      date: _preInspectionReport?.inspectionDate,
+      isCompleted: hasPreInsp,
+      color: const Color(0xFF0F766E),
+    ));
 
-    // 3. Acceptance
-    final acceptSig = _signatures.firstWhere(
-      (s) => s.signatureType == 'acceptance',
-      orElse: () => ESignature(
-        id: '',
-        workRequestId: '',
-        signerId: '',
-        signerName: '',
-        signerRole: '',
-        signatureType: '',
-        signatureData: '',
-        signedAt: DateTime.now(),
-      ),
-    );
-    final isAccepted = acceptSig.signatureData.isNotEmpty ||
-        (request.status != 'Pending Assignment' && request.status != 'Assigned');
-    items.add(
-      _buildWorkflowTimelineItem(
-        title: 'Technician Accepted Task',
-        isDone: isAccepted,
-        subtitle: isAccepted
-            ? 'Accepted by ${request.acceptedByName ?? _assignedMaintenanceName(request.assignedToId)} on ${_formatDateTime(request.acceptedDate ?? acceptSig.signedAt)}'
-            : 'Awaiting technician acceptance',
-        signature: acceptSig.signatureData.isNotEmpty ? acceptSig : null,
-      ),
-    );
+    // 5. Pre-Inspection Review by Campus Admin
+    final isPreInspReviewed = hasPreInsp &&
+        (_preInspectionReport!.status == 'Approved' || _preInspectionReport!.status == 'Declined');
+    final isPreInspApproved = hasPreInsp && _preInspectionReport!.status == 'Approved';
+    final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
+    final approvedByName = _preInspectionReport?.adminApprovedBy != null
+        ? (_userNames[_preInspectionReport!.adminApprovedBy] ?? _preInspectionReport!.adminApprovedBy)
+        : "Campus Admin";
 
-    // 4. Pre-Inspection
-    final preInspection = _preInspectionReport;
-    final preInspSig = _signatures.firstWhere(
-      (s) => s.signatureType == 'pre_inspection',
-      orElse: () => ESignature(
-        id: '',
-        workRequestId: '',
-        signerId: '',
-        signerName: '',
-        signerRole: '',
-        signatureType: '',
-        signatureData: '',
-        signedAt: DateTime.now(),
-      ),
-    );
-    final isPreInspectionSubmitted = preInspection != null;
-    items.add(
-      _buildWorkflowTimelineItem(
-        title: 'Pre-Inspection Report Filed',
-        isDone: isPreInspectionSubmitted,
-        subtitle: isPreInspectionSubmitted
-            ? 'Submitted by ${preInspection.inspectorName}'
-            : 'Awaiting pre-inspection submission',
-        signature: preInspSig.signatureData.isNotEmpty ? preInspSig : null,
-        details: null,
-      ),
-    );
+    steps.add(_TimelineStep(
+      icon: isPreInspDeclined
+          ? Icons.cancel_rounded
+          : (isPreInspApproved ? Icons.verified_rounded : Icons.pending_actions_rounded),
+      title: isPreInspDeclined
+          ? 'Pre-Inspection Declined'
+          : (isPreInspApproved ? 'Pre-Inspection Approved' : 'Pre-Inspection Review'),
+      desc: isPreInspReviewed
+          ? '${_preInspectionReport!.status} by $approvedByName'
+          : (hasPreInsp ? 'Awaiting Campus Admin pre-inspection review.' : 'Pending pre-inspection submission.'),
+      date: _preInspectionReport?.adminApprovedDate,
+      isCompleted: isPreInspApproved,
+      color: isPreInspDeclined ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+    ));
 
-    // 5. Pre-Inspection Approval/Decline
-    final preInspApprovalSig = _signatures.firstWhere(
-      (s) => s.signatureType == 'pre_inspection_admin' || s.signatureType == 'pre_inspection_approval',
-      orElse: () => ESignature(
-        id: '',
-        workRequestId: '',
-        signerId: '',
-        signerName: '',
-        signerRole: '',
-        signatureType: '',
-        signatureData: '',
-        signedAt: DateTime.now(),
-      ),
-    );
-    final isPreInspectionReviewed = preInspection != null &&
-        (preInspection.status == 'Approved' || preInspection.status == 'Declined');
-    final isPreInspApproved = preInspection?.status == 'Approved';
-    final approvedByName = preInspection?.adminApprovedBy != null
-        ? (_userNames[preInspection!.adminApprovedBy] ?? preInspection.adminApprovedBy)
-        : "Admin";
-    items.add(
-      _buildWorkflowTimelineItem(
-        title: preInspection?.status == 'Approved'
-            ? 'Pre-Inspection Approved'
-            : (preInspection?.status == 'Declined' ? 'Pre-Inspection Declined' : 'Pre-Inspection Review'),
-        isDone: isPreInspectionReviewed,
-        subtitle: isPreInspectionReviewed
-            ? '${preInspection.status} by $approvedByName'
-            : (preInspection != null ? 'Awaiting admin pre-inspection decision' : 'Pending pre-inspection submission'),
-        signature: preInspApprovalSig.signatureData.isNotEmpty ? preInspApprovalSig : null,
-        details: null,
-      ),
-    );
+    if (isPreInspDeclined) return steps;
 
     final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
       ..sort((a, b) {
@@ -1278,149 +1194,244 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
         return a.attemptNumber.compareTo(b.attemptNumber);
       });
     final hasPostRepair = sortedAttempts.isNotEmpty;
-    final isCompleted = request.status.toLowerCase() == 'completed';
+    final isCompleted = task.status.toLowerCase() == 'completed';
 
     // 6. Post-Repair Attempts & Evaluations
     if (hasPostRepair) {
       for (int i = 0; i < sortedAttempts.length; i++) {
         final report = sortedAttempts[i];
-        final attemptTechSig = _signatures.firstWhere(
-          (s) => s.signatureType == 'post_repair' && s.signerId == report.technicianId,
-          orElse: () => ESignature(
-            id: '',
-            workRequestId: '',
-            signerId: '',
-            signerName: '',
-            signerRole: '',
-            signatureType: '',
-            signatureData: '',
-            signedAt: DateTime.now(),
-          ),
-        );
         final attemptSuffix = sortedAttempts.length > 1 ? ' (Attempt #${report.attemptNumber})' : '';
-        items.add(
-          _buildWorkflowTimelineItem(
-            title: 'Post-Repair Report$attemptSuffix',
-            isDone: true,
-            subtitle: 'Submitted by ${report.technicianName}',
-            signature: attemptTechSig.signatureData.isNotEmpty ? attemptTechSig : null,
-            details: null,
-          ),
-        );
+        steps.add(_TimelineStep(
+          icon: Icons.build_circle_rounded,
+          title: 'Post-Repair Report$attemptSuffix',
+          desc: 'Submitted by ${report.technicianName}',
+          date: report.repairDate,
+          isCompleted: true,
+          color: const Color(0xFF0F766E),
+        ));
 
         final isEvaluated = report.adminEvaluation != null;
-        final attemptAdminSig = _signatures.firstWhere(
-          (s) => s.signatureType == 'completion' && s.signerId == report.adminEvaluatedBy,
-          orElse: () => ESignature(
-            id: '',
-            workRequestId: '',
-            signerId: '',
-            signerName: '',
-            signerRole: '',
-            signatureType: '',
-            signatureData: '',
-            signedAt: DateTime.now(),
-          ),
-        );
         final isRework = report.adminEvaluation == 'rework';
         final evaluatedByName = report.adminEvaluatedBy != null
             ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
-            : "Admin";
-        
+            : "Campus Admin";
+
         final isLatestReport = i == sortedAttempts.length - 1;
         if (isEvaluated || isLatestReport) {
-          items.add(
-            _buildWorkflowTimelineItem(
-              title: isRework
-                  ? 'Post-Repair Evaluation - Rework Required'
-                  : 'Post-Repair Evaluation',
-              isDone: isEvaluated && !isRework,
-              isRework: isRework,
-              subtitle: isEvaluated
-                  ? '${isRework ? "REWORK REQUIRED" : "SATISFIED (Approved)"} by $evaluatedByName'
-                  : 'Awaiting admin post-repair evaluation',
-              signature: attemptAdminSig.signatureData.isNotEmpty ? attemptAdminSig : null,
-              details: null,
-            ),
-          );
+          steps.add(_TimelineStep(
+            icon: isRework ? Icons.refresh_rounded : Icons.check_circle_rounded,
+            title: isRework ? 'Post-Repair Evaluation - Rework Required' : 'Post-Repair Evaluation',
+            desc: isEvaluated
+                ? (isRework ? 'Rework required by $evaluatedByName' : 'Approved by $evaluatedByName')
+                : 'Awaiting evaluation.',
+            date: report.adminEvaluatedDate,
+            isCompleted: isEvaluated && !isRework,
+            color: isRework ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+            customBadge: isRework ? 'Rework' : null,
+          ));
         }
       }
 
       // If the latest evaluation was rework, append a pending Post-Repair Report step
       if (sortedAttempts.last.adminEvaluation == 'rework') {
         final nextAttempt = sortedAttempts.length + 1;
-        items.add(
-          _buildWorkflowTimelineItem(
-            title: 'Post-Repair Report (Attempt #$nextAttempt)',
-            isDone: false,
-            subtitle: 'Awaiting post-repair submission (Rework).',
-            signature: null,
-            details: null,
-          ),
-        );
+        steps.add(_TimelineStep(
+          icon: Icons.build_circle_rounded,
+          title: 'Post-Repair Report (Attempt #$nextAttempt)',
+          desc: 'Awaiting post-repair report (Rework).',
+          isCompleted: false,
+          color: const Color(0xFFF59E0B),
+        ));
       }
     } else {
-      // Keep Post-Repair Report and Post-Repair Evaluation visible even before first report submission!
-      items.add(
-        _buildWorkflowTimelineItem(
-          title: 'Post-Repair Report',
-          isDone: false,
-          subtitle: isPreInspApproved
-              ? 'Awaiting post-repair submission from technician.'
-              : 'Pending repair completion.',
-          signature: null,
-          details: null,
-        ),
-      );
+      steps.add(_TimelineStep(
+        icon: Icons.build_circle_rounded,
+        title: 'Post-Repair Report',
+        desc: isPreInspApproved
+            ? 'Awaiting post-repair report submission.'
+            : 'Pending repair completion.',
+        isCompleted: false,
+        color: isPreInspApproved ? const Color(0xFF0F766E) : Colors.grey,
+      ));
 
-      items.add(
-        _buildWorkflowTimelineItem(
-          title: 'Post-Repair Evaluation',
-          isDone: false,
-          subtitle: 'Pending post-repair report submission.',
-          signature: null,
-          details: null,
-        ),
-      );
+      steps.add(const _TimelineStep(
+        icon: Icons.rate_review_rounded,
+        title: 'Post-Repair Evaluation',
+        desc: 'Pending post-repair report submission.',
+        isCompleted: false,
+        color: Colors.grey,
+      ));
     }
 
     // 8. Final Completion
     final hasSatisfiedEval = hasPostRepair && sortedAttempts.last.adminEvaluation == 'satisfied';
-    items.add(
-      _buildWorkflowTimelineItem(
-        title: 'Completed & Verified',
-        isDone: isCompleted,
-        subtitle: isCompleted
-            ? 'Completed on ${_formatDateTime(request.updatedAt)}'
-            : (hasSatisfiedEval
-                ? 'Awaiting final verification and close out.'
-                : 'Pending work completion and evaluation.'),
-        isLast: true,
+    steps.add(_TimelineStep(
+      icon: Icons.verified_rounded,
+      title: 'Completed & Verified',
+      desc: isCompleted
+          ? 'Work request fully verified and completed.'
+          : (hasSatisfiedEval
+              ? 'Awaiting final verification and close out.'
+              : 'Pending work completion and evaluation.'),
+      date: task.dateCompleted,
+      isCompleted: isCompleted,
+      color: isCompleted ? const Color(0xFF10B981) : Colors.grey,
+      isLast: true,
+    ));
+
+    return steps;
+  }
+
+  Widget _buildTimelineItem(_TimelineStep step, bool isDark, ThemeProvider themeProvider) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Circle & Line
+          SizedBox(
+            width: 40,
+            child: Column(
+              children: [
+                // Circle
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: (step.isCompleted || step.customBadge != null)
+                        ? step.color.withValues(alpha: 0.12)
+                        : (isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF1F5F9)),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: (step.isCompleted || step.customBadge != null)
+                          ? step.color
+                          : (isDark ? Colors.grey.shade800 : const Color(0xFFE2E8F0)),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    (step.isCompleted || step.customBadge != null)
+                        ? step.icon
+                        : Icons.radio_button_unchecked_rounded,
+                    color: (step.isCompleted || step.customBadge != null)
+                        ? step.color
+                        : (isDark ? Colors.grey.shade600 : const Color(0xFFCBD5E1)),
+                    size: 18,
+                  ),
+                ),
+                // Connector
+                if (!step.isLast)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      decoration: BoxDecoration(
+                        gradient: step.isCompleted
+                            ? LinearGradient(
+                                colors: [step.color, step.color.withValues(alpha: 0.3)],
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                              )
+                            : null,
+                        color: step.isCompleted ? null : (isDark ? Colors.grey.shade800 : const Color(0xFFE2E8F0)),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          // Content
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: step.isLast ? 0 : 26, top: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          step.title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: step.isCompleted
+                                ? themeProvider.textColor
+                                : (isDark ? Colors.grey.shade400 : const Color(0xFF94A3B8)),
+                            fontWeight: step.isCompleted ? FontWeight.w700 : FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      if (step.isCompleted || step.customBadge != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: step.color.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            step.customBadge ?? 'Done',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: step.color,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    step.desc,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark
+                          ? Colors.grey.shade300
+                          : (step.isCompleted ? const Color(0xFF475569) : const Color(0xFF94A3B8)),
+                      height: 1.4,
+                    ),
+                  ),
+                  if (step.date != null) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.access_time_rounded,
+                            size: 13, color: step.color.withValues(alpha: 0.7)),
+                        const SizedBox(width: 5),
+                        Text(
+                          DateFormat('MMM dd, yyyy • hh:mm a').format(step.date!),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: step.color.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _buildWorkflowTimeline(bool isDark, ThemeProvider themeProvider) {
+    final steps = _steps;
+    if (steps.isEmpty) return const SizedBox.shrink();
 
     return Column(
-      children: items,
+      children: steps.map((s) => _buildTimelineItem(s, isDark, themeProvider)).toList(),
     );
   }
 
   bool _isRequestorSignature(ESignature s) {
     final role = s.signerRole.trim().toLowerCase();
     final type = s.signatureType.trim().toLowerCase();
-    if (role == 'admin' || role == 'campadmin' || role == 'campus admin' ||
-        role == 'maintenance' || role == 'technician') {
-      return false;
-    }
-    if (type.contains('pre_inspection') || type.contains('post_repair')) {
-      return false;
-    }
 
-    final reqId = _request?.requestorId?.trim();
-    if (reqId != null && reqId.isNotEmpty && s.signerId.trim() == reqId) {
-      return true;
-    }
-    final reportedId = _request?.reportedById?.trim();
-    if (reportedId != null && reportedId.isNotEmpty && s.signerId.trim() == reportedId) {
+    if (type == 'requestor' || type == 'teacher') {
       return true;
     }
 
@@ -1446,18 +1457,19 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     return _signatures.where(_isRequestorSignature).toList();
   }
 
-  Widget _buildSignaturesCard() {
+  Widget _buildSignaturesCard(bool isDark, ThemeProvider themeProvider) {
     final sigs = _requestorSignatures;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -1477,12 +1489,12 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                 child: const Icon(Icons.verified_rounded, color: Color(0xFF059669), size: 20),
               ),
               const SizedBox(width: 12),
-              const Text(
+              Text(
                 'Requestor Signature',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: themeProvider.textColor,
                 ),
               ),
             ],
@@ -1493,9 +1505,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: themeProvider.borderColor),
               ),
               child: Column(
                 children: [
@@ -1506,7 +1518,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade700,
+                      color: themeProvider.textColor,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1515,20 +1527,20 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade500,
+                      color: themeProvider.subtitleColor,
                     ),
                   ),
                 ],
               ),
             )
           else
-            ...sigs.map((s) => _buildSignatureItem(s)),
+            ...sigs.map((s) => _buildSignatureItem(s, isDark, themeProvider)),
         ],
       ),
     );
   }
 
-  Widget _buildSignatureItem(ESignature s) {
+  Widget _buildSignatureItem(ESignature s, bool isDark, ThemeProvider themeProvider) {
     final initials = s.signerName.trim().split(' ').take(2).map((w) => w.isNotEmpty ? w[0].toUpperCase() : '').join();
     Uint8List? signatureBytes;
     if (s.signatureData.isNotEmpty) {
@@ -1545,9 +1557,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF059669).withValues(alpha: 0.04),
+          color: const Color(0xFF059669).withValues(alpha: isDark ? 0.12 : 0.04),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.15)),
+          border: Border.all(color: const Color(0xFF059669).withValues(alpha: isDark ? 0.3 : 0.15)),
         ),
         child: Row(
           children: [
@@ -1576,10 +1588,10 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                 children: [
                   Text(
                     s.signerName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: themeProvider.textColor,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -1593,18 +1605,18 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                     }(),
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey.shade600,
+                      color: themeProvider.subtitleColor,
                     ),
                   ),
                   if (signatureBytes != null) ...[
                     const SizedBox(height: 8),
                     Container(
-                      height: 50,
-                      padding: const EdgeInsets.all(4),
+                      height: 55,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: Colors.grey.shade300),
                       ),
                       child: Image.memory(
                         signatureBytes,
@@ -1624,7 +1636,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                   DateFormat('MMM dd').format(s.signedAt),
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey.shade500,
+                    color: themeProvider.subtitleColor,
                   ),
                 ),
               ],
@@ -1634,4 +1646,26 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
       ),
     );
   }
+}
+
+class _TimelineStep {
+  final IconData icon;
+  final String title;
+  final String desc;
+  final DateTime? date;
+  final bool isCompleted;
+  final bool isLast;
+  final Color color;
+  final String? customBadge;
+
+  const _TimelineStep({
+    required this.icon,
+    required this.title,
+    required this.desc,
+    this.date,
+    required this.isCompleted,
+    this.isLast = false,
+    required this.color,
+    this.customBadge,
+  });
 }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../router/app_router.dart';
 import '../../../shared/widgets/room_comparison_dialog.dart';
 import 'package:intl/intl.dart';
@@ -80,13 +81,16 @@ class _ArchivesPageState extends State<ArchivesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
+          icon: Icon(Icons.arrow_back, color: themeProvider.appBarIconColor, size: 24),
           onPressed: () {
             final router = GoRouter.maybeOf(context);
             if (router != null) {
@@ -96,12 +100,12 @@ class _ArchivesPageState extends State<ArchivesPage> {
             }
           },
         ),
-        title: const Text(
+        title: Text(
           'History',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: themeProvider.appBarTextColor,
           ),
         ),
       ),
@@ -113,29 +117,34 @@ class _ArchivesPageState extends State<ArchivesPage> {
             padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _searchController,
+              style: TextStyle(color: themeProvider.textColor),
               decoration: InputDecoration(
                 hintText: 'Search request history...',
                 hintStyle: TextStyle(
-                  color: Colors.grey.shade400,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade400,
                   fontSize: 14,
                 ),
                 prefixIcon: Padding(
                   padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                  child: Icon(Icons.search_rounded, color: isDark ? Colors.grey.shade400 : Colors.grey.shade400, size: 20),
                 ),
                 prefixIconConstraints: const BoxConstraints(
                   minWidth: 44,
                   minHeight: 44,
                 ),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: isDark ? const Color(0xFF2D2D2D) : Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(
+                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(
+                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                  ),
                 ),
                 focusedBorder: const OutlineInputBorder(
                   borderRadius: BorderRadius.all(Radius.circular(999)),
@@ -156,13 +165,13 @@ class _ArchivesPageState extends State<ArchivesPage> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                _buildFilterChip('All'),
+                _buildFilterChip('All', themeProvider),
                 const SizedBox(width: 8),
-                _buildFilterChip('Completed'),
+                _buildFilterChip('Completed', themeProvider),
                 const SizedBox(width: 8),
-                _buildFilterChip('Declined'),
+                _buildFilterChip('Declined', themeProvider),
                 const SizedBox(width: 8),
-                _buildFilterChip('Cancelled'),
+                _buildFilterChip('Cancelled', themeProvider),
               ],
             ),
           ),
@@ -177,9 +186,9 @@ class _ArchivesPageState extends State<ArchivesPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.history_rounded, size: 48, color: Colors.grey.shade300),
+                        Icon(Icons.history_rounded, size: 48, color: themeProvider.subtitleColor),
                         const SizedBox(height: 12),
-                        Text('No request history found', style: TextStyle(color: Colors.grey.shade400)),
+                        Text('No request history found', style: TextStyle(color: themeProvider.subtitleColor)),
                       ],
                     ),
                   )
@@ -199,6 +208,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
                         date: DateFormat('MMM dd, yyyy').format(r.dateSubmitted),
                         status: statusLabel,
                         statusColor: statusColor,
+                        themeProvider: themeProvider,
                       );
                     },
                   ),
@@ -219,7 +229,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
     );
   }
 
-  Widget _buildFilterChip(String label) {
+  Widget _buildFilterChip(String label, ThemeProvider themeProvider) {
     final isSelected = _selectedFilter == label;
     return GestureDetector(
       onTap: () {
@@ -230,10 +240,10 @@ class _ArchivesPageState extends State<ArchivesPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF00BFA5) : Colors.white,
+          color: isSelected ? const Color(0xFF00BFA5) : themeProvider.cardColor,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFF00BFA5) : Colors.grey.shade300,
+            color: isSelected ? const Color(0xFF00BFA5) : themeProvider.borderColor,
           ),
         ),
         child: Text(
@@ -241,7 +251,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: isSelected ? Colors.white : Colors.grey.shade700,
+            color: isSelected ? Colors.white : themeProvider.textColor,
           ),
         ),
       ),
@@ -256,9 +266,14 @@ class _ArchivesPageState extends State<ArchivesPage> {
     required String date,
     required String status,
     required Color statusColor,
+    required ThemeProvider themeProvider,
   }) {
+    final shortTrack = trackingNumber.trim().length > 8
+        ? '#${trackingNumber.trim().substring(0, 8).toUpperCase()}'
+        : '#${trackingNumber.trim().toUpperCase()}';
+
     return Material(
-      color: Colors.white,
+      color: themeProvider.cardColor,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () => _handleArchiveTap(request),
@@ -267,7 +282,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade200),
+            border: Border.all(color: themeProvider.borderColor),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,11 +292,11 @@ class _ArchivesPageState extends State<ArchivesPage> {
                 children: [
                   Expanded(
                     child: Text(
-                      trackingNumber,
+                      shortTrack,
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade600,
+                        color: themeProvider.subtitleColor,
                       ),
                     ),
                   ),
@@ -307,7 +322,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
                       const SizedBox(width: 4),
                       PopupMenuButton<String>(
                         tooltip: 'Actions',
-                        icon: const Icon(Icons.more_vert, size: 18, color: Colors.grey),
+                        icon: Icon(Icons.more_vert, size: 18, color: themeProvider.subtitleColor),
                         onSelected: (val) {
                           if (val == 'view') {
                             _handleArchiveTap(request);
@@ -333,13 +348,13 @@ class _ArchivesPageState extends State<ArchivesPage> {
                             const PopupMenuItem(
                               value: 'compare',
                               child: Row(
-                                children: [
-                                  Icon(Icons.difference_outlined, size: 16, color: Colors.green),
-                                  SizedBox(width: 8),
-                                  Text('Compare Room', style: TextStyle(fontSize: 13)),
-                                ],
-                              ),
+                              children: [
+                                Icon(Icons.difference_outlined, size: 16, color: Colors.green),
+                                SizedBox(width: 8),
+                                Text('Compare Room', style: TextStyle(fontSize: 13)),
+                              ],
                             ),
+                          ),
                         ],
                       ),
                     ],
@@ -349,23 +364,23 @@ class _ArchivesPageState extends State<ArchivesPage> {
               const SizedBox(height: 8),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: themeProvider.textColor,
                 ),
               ),
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(Icons.location_on_outlined, size: 14, color: Colors.grey.shade500),
+                  Icon(Icons.location_on_outlined, size: 14, color: themeProvider.subtitleColor),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       location,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: themeProvider.subtitleColor,
                       ),
                     ),
                   ),
@@ -374,13 +389,13 @@ class _ArchivesPageState extends State<ArchivesPage> {
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(Icons.calendar_today_outlined, size: 14, color: Colors.grey.shade500),
+                  Icon(Icons.calendar_today_outlined, size: 14, color: themeProvider.subtitleColor),
                   const SizedBox(width: 4),
                   Text(
                     date,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade600,
+                      color: themeProvider.subtitleColor,
                     ),
                   ),
                 ],
@@ -392,4 +407,3 @@ class _ArchivesPageState extends State<ArchivesPage> {
     );
   }
 }
-

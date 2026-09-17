@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../router/app_router.dart';
 
 class AboutUsPage extends StatelessWidget {
@@ -9,13 +11,20 @@ class AboutUsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    final cardBorder = isDark
+        ? Border.all(color: Colors.grey.shade800)
+        : Border.all(color: Colors.grey.shade200);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor, size: 24),
           onPressed: () {
             final router = GoRouter.maybeOf(context);
             if (router != null) {
@@ -25,12 +34,12 @@ class AboutUsPage extends StatelessWidget {
             }
           },
         ),
-        title: const Text(
+        title: Text(
           'About Us',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: themeProvider.textColor,
           ),
         ),
       ),
@@ -41,32 +50,44 @@ class AboutUsPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200),
+              border: cardBorder,
             ),
             child: Column(
               children: [
-                SizedBox(
-                  height: 100,
-                  width: 100,
+                Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  padding: const EdgeInsets.all(12),
                   child: Image.asset(
-                    'assets/images/PsuLogo.png',
+                    'assets/images/app_logo_v2.png',
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(
+                    errorBuilder: (context, error, stackTrace) => const Icon(
                       Icons.school,
                       color: Color(0xFF00BFA5),
-                      size: 80,
+                      size: 50,
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'PSU MMS',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: themeProvider.textColor,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -75,7 +96,7 @@ class AboutUsPage extends StatelessWidget {
                   'Version 1.0.0',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey.shade600,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
                 ),
               ],
@@ -87,19 +108,19 @@ class AboutUsPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: cardBorder,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'About the System',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: themeProvider.textColor,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -107,7 +128,7 @@ class AboutUsPage extends StatelessWidget {
                   'The PSU MMS is a comprehensive platform designed to streamline maintenance requests and operations at Pangasinan State University. Our system enables teachers and staff to efficiently report issues, track maintenance progress, and ensure a well-maintained campus environment.',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey.shade700,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
                     height: 1.6,
                   ),
                 ),
@@ -120,19 +141,19 @@ class AboutUsPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: cardBorder,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Key Features',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: themeProvider.textColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -141,6 +162,8 @@ class AboutUsPage extends StatelessWidget {
                   iconColor: const Color(0xFF00BFA5),
                   title: 'QR Code Scanning',
                   description: 'Quickly report issues by scanning room QR codes',
+                  textColor: themeProvider.textColor,
+                  descColor: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
                 const SizedBox(height: 16),
                 _buildFeatureItem(
@@ -148,6 +171,8 @@ class AboutUsPage extends StatelessWidget {
                   iconColor: Colors.blue,
                   title: 'Real-time Tracking',
                   description: 'Monitor the status of your maintenance requests',
+                  textColor: themeProvider.textColor,
+                  descColor: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
                 const SizedBox(height: 16),
                 _buildFeatureItem(
@@ -155,6 +180,8 @@ class AboutUsPage extends StatelessWidget {
                   iconColor: Colors.orange,
                   title: 'Instant Notifications',
                   description: 'Get updates on your request progress',
+                  textColor: themeProvider.textColor,
+                  descColor: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
                 const SizedBox(height: 16),
                 _buildFeatureItem(
@@ -162,6 +189,8 @@ class AboutUsPage extends StatelessWidget {
                   iconColor: Colors.purple,
                   title: 'History & Archives',
                   description: 'Access your complete maintenance history',
+                  textColor: themeProvider.textColor,
+                  descColor: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
               ],
             ),
@@ -172,29 +201,45 @@ class AboutUsPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: cardBorder,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Pangasinan State University',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: themeProvider.textColor,
                   ),
                 ),
                 const SizedBox(height: 12),
-                _buildInfoRow(Icons.location_on_outlined, 'Lingayen, Pangasinan'),
+                _buildInfoRow(
+                  Icons.location_on_outlined,
+                  'Lingayen, Pangasinan',
+                  isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                ),
                 const SizedBox(height: 8),
-                _buildInfoRow(Icons.phone_outlined, '+63 (075) 542-6103'),
+                _buildInfoRow(
+                  Icons.phone_outlined,
+                  '+63 (075) 542-6103',
+                  isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                ),
                 const SizedBox(height: 8),
-                _buildInfoRow(Icons.email_outlined, 'info@psu.edu.ph'),
+                _buildInfoRow(
+                  Icons.email_outlined,
+                  'info@psu.edu.ph',
+                  isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                ),
                 const SizedBox(height: 8),
-                _buildInfoRow(Icons.language_outlined, 'www.psu.edu.ph'),
+                _buildInfoRow(
+                  Icons.language_outlined,
+                  'www.psu.edu.ph',
+                  isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                ),
               ],
             ),
           ),
@@ -209,7 +254,7 @@ class AboutUsPage extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey.shade600,
+                  color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
                   height: 1.5,
                 ),
               ),
@@ -226,6 +271,8 @@ class AboutUsPage extends StatelessWidget {
     required Color iconColor,
     required String title,
     required String description,
+    required Color textColor,
+    required Color descColor,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,10 +296,10 @@ class AboutUsPage extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black87,
+                  color: textColor,
                 ),
               ),
               const SizedBox(height: 4),
@@ -260,7 +307,7 @@ class AboutUsPage extends StatelessWidget {
                 description,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey.shade600,
+                  color: descColor,
                   height: 1.4,
                 ),
               ),
@@ -271,7 +318,7 @@ class AboutUsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String text) {
+  Widget _buildInfoRow(IconData icon, String text, Color textColor) {
     return Row(
       children: [
         Icon(icon, size: 18, color: const Color(0xFF00BFA5)),
@@ -281,7 +328,7 @@ class AboutUsPage extends StatelessWidget {
             text,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey.shade700,
+              color: textColor,
             ),
           ),
         ),

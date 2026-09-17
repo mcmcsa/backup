@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../authentication/models/user_model.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../admin/shared/notifications_page.dart';
 import '../../../web/admin/shared/admin_styles.dart';
@@ -31,6 +32,9 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
   bool _isEditing = false;
   String? _lastUserId;
   bool _isUploadingImage = false;
+
+  late ThemeProvider _themeProvider;
+  late bool _isDark;
 
   @override
   void initState() {
@@ -184,8 +188,11 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     final user = authService.currentUser;
     _syncControllers(user);
 
+    _themeProvider = Provider.of<ThemeProvider>(context);
+    _isDark = _themeProvider.isDarkMode;
+
     return Scaffold(
-      backgroundColor: AdminStyles.bg,
+      backgroundColor: _themeProvider.backgroundColor,
       appBar: CommonAppBar(
         roleText: 'Teacher',
         primaryColor: AdminStyles.primary,
@@ -224,7 +231,20 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
   Widget _buildProfileHero(AppUser? user, bool isLoading) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
-      decoration: AdminStyles.cardDecoration(hasShadow: true),
+      decoration: BoxDecoration(
+        color: _themeProvider.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isDark ? Colors.grey.shade800 : AdminStyles.border,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDark ? 0.2 : 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         children: [
           _buildAvatar(user),
@@ -240,13 +260,18 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
           const SizedBox(height: 8),
           Text(
             user?.name ?? 'Teacher Account',
-            style: AdminStyles.headingStyle(fontSize: 22),
+            style: AdminStyles.headingStyle(
+              fontSize: 22,
+              color: _themeProvider.textColor,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 6),
           Text(
             user?.email ?? '',
-            style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary),
+            style: AdminStyles.bodyStyle(
+              color: _isDark ? Colors.grey.shade400 : AdminStyles.textSecondary,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -362,8 +387,12 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         children: [
           TextButton(
             onPressed: () => setState(() => _isEditing = false),
-            child: Text('Cancel',
-                style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: AdminStyles.bodyStyle(
+                color: _isDark ? Colors.grey.shade400 : AdminStyles.textSecondary,
+              ),
+            ),
           ),
           const SizedBox(width: 16),
           ElevatedButton.icon(
@@ -414,15 +443,37 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
 
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: AdminStyles.cardDecoration(),
+      decoration: BoxDecoration(
+        color: _themeProvider.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isDark ? Colors.grey.shade800 : AdminStyles.border,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDark ? 0.2 : 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Personal Information', style: AdminStyles.headingStyle(fontSize: 18)),
+          Text(
+            'Personal Information',
+            style: AdminStyles.headingStyle(
+              fontSize: 18,
+              color: _themeProvider.textColor,
+            ),
+          ),
           const SizedBox(height: 8),
           Text(
             'These details were set by the System Admin when your account was created. You may update them here.',
-            style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+            style: AdminStyles.bodyStyle(
+              fontSize: 12,
+              color: _isDark ? Colors.grey.shade400 : AdminStyles.textMuted,
+            ),
           ),
           const SizedBox(height: 28),
           Column(
@@ -448,14 +499,19 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
       children: [
         Row(
           children: [
-            Icon(icon, size: 16, color: AdminStyles.textSecondary),
+            Icon(
+              icon,
+              size: 16,
+              color: _isDark ? Colors.grey.shade400 : AdminStyles.textSecondary,
+            ),
             const SizedBox(width: 8),
             Text(
               label,
               style: AdminStyles.bodyStyle(
-                  fontSize: 13,
-                  color: AdminStyles.textSecondary,
-                  fontWeight: FontWeight.bold),
+                fontSize: 13,
+                color: _isDark ? Colors.grey.shade300 : AdminStyles.textSecondary,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
@@ -464,27 +520,39 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
           controller: controller,
           enabled: enabled,
           style: AdminStyles.bodyStyle(
-              color: enabled
-                  ? AdminStyles.textPrimary
-                  : AdminStyles.textMuted),
+            color: _isDark
+                ? (enabled ? Colors.white : Colors.grey.shade400)
+                : (enabled ? AdminStyles.textPrimary : AdminStyles.textMuted),
+          ),
           decoration: InputDecoration(
             helperText: helperText,
             helperStyle: AdminStyles.bodyStyle(
-                fontSize: 11, color: AdminStyles.textMuted),
+              fontSize: 11,
+              color: _isDark ? Colors.grey.shade500 : AdminStyles.textMuted,
+            ),
             filled: true,
-            fillColor: enabled ? Colors.white : AdminStyles.bg,
+            fillColor: _isDark
+                ? (enabled ? const Color(0xFF2D2D2D) : const Color(0xFF1E1E1E))
+                : (enabled ? Colors.white : AdminStyles.bg),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AdminStyles.border),
+              borderSide: BorderSide(
+                color: _isDark ? Colors.grey.shade700 : AdminStyles.border,
+              ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AdminStyles.border),
+              borderSide: BorderSide(
+                color: _isDark ? Colors.grey.shade700 : AdminStyles.border,
+              ),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(
-                  color: AdminStyles.border.withValues(alpha: 0.5)),
+                color: _isDark
+                    ? Colors.grey.shade800
+                    : AdminStyles.border.withValues(alpha: 0.5),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),

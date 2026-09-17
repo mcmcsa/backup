@@ -1,8 +1,8 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../shared/providers/theme_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
@@ -18,7 +18,6 @@ import '../../../shared/services/duplicate_detection_service.dart';
 import '../../../shared/widgets/duplicate_detection_dialog.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
-import '../../../shared/widgets/voice_recorder_widget.dart';
 
 class WorkRequestFormPage extends StatefulWidget {
   final String? roomId;
@@ -59,8 +58,6 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   final String _selectedPriority = 'medium';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
-  Uint8List? _recordedVoiceBytes;
-  String _recordedVoiceExt = 'm4a';
 
   final List<File> _selectedImages = [];
   final ImagePicker _imagePicker = ImagePicker();
@@ -75,24 +72,20 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   bool get _isLocationLocked =>
       widget.lockLocationDetails || widget.verifiedRoom != null;
 
+  late ThemeProvider _themeProvider;
+  late bool _isDark;
+
   @override
   void initState() {
     super.initState();
     _applyVerifiedRoomDetails();
     _loadDropdownData();
+    _loadUserData();
     if (widget.roomId != null) {
       _roomNumberController.text = widget.roomId!;
     }
     if (widget.roomName != null) {
       _officeRoomNameController.text = widget.roomName!;
-    }
-    final user = context.read<AuthService>().currentUser;
-    if (user != null) {
-      _fullNameController.text = user.name;
-      final pos = (user.position != null && user.position!.trim().isNotEmpty)
-          ? user.position!.trim()
-          : user.roleLabel;
-      _positionController.text = pos;
     }
   }
 
@@ -105,6 +98,64 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     _selectedCollege = room.department;
     _selectedBuilding = room.building;
     _selectedFloor = room.floor;
+
+    // Immediately seed the lists so the first build frame has the verified room values
+    if (_selectedCollege.isNotEmpty && !_colleges.contains(_selectedCollege)) {
+      _colleges = [_selectedCollege, ..._colleges];
+    }
+    if (_selectedBuilding.isNotEmpty && !_filteredBuildings.contains(_selectedBuilding)) {
+      _filteredBuildings = [_selectedBuilding, ..._filteredBuildings];
+    }
+    if (_selectedFloor.isNotEmpty && !_floors.contains(_selectedFloor)) {
+      _floors = [_selectedFloor, ..._floors];
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    final authService = context.read<AuthService>();
+    final user = authService.currentUser;
+    if (user != null && user.name.trim().isNotEmpty) {
+      if (_fullNameController.text.trim().isEmpty) {
+        _fullNameController.text = user.name.trim();
+      }
+      if (_positionController.text.trim().isEmpty) {
+        final pos = (user.position != null && user.position!.trim().isNotEmpty)
+            ? user.position!.trim()
+            : user.roleLabel;
+        _positionController.text = pos;
+      }
+      if (mounted) setState(() {});
+      return;
+    }
+
+    try {
+      final sbUser = Supabase.instance.client.auth.currentUser;
+      if (sbUser != null) {
+        final res = await Supabase.instance.client
+            .from('users')
+            .select()
+            .eq('id', sbUser.id)
+            .maybeSingle();
+        if (res != null && mounted) {
+          final name = res['name']?.toString() ??
+              res['full_name']?.toString() ??
+              sbUser.userMetadata?['name']?.toString() ??
+              '';
+          final pos = res['position']?.toString() ??
+              res['role']?.toString() ??
+              'Teacher';
+          if (_fullNameController.text.trim().isEmpty && name.isNotEmpty) {
+            _fullNameController.text = name;
+          }
+          if (_positionController.text.trim().isEmpty && pos.isNotEmpty) {
+            _positionController.text = pos;
+          }
+          setState(() {});
+        }
+      }
+    } catch (e) {
+      debugPrint('[WorkRequestForm] Error fetching user data fallback: $e');
+    }
   }
 
   Future<void> _loadDropdownData() async {
@@ -140,10 +191,20 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         _requestTypes = requestTypes;
 
         if (_isLocationLocked && widget.verifiedRoom != null) {
-          if (_selectedCollege.isEmpty) {
-            _selectedCollege = widget.verifiedRoom!.department;
+          final room = widget.verifiedRoom!;
+          _selectedCollege = room.department;
+          _selectedBuilding = room.building;
+          _selectedFloor = room.floor;
+
+          if (_selectedCollege.isNotEmpty && !_colleges.contains(_selectedCollege)) {
+            _colleges = [_selectedCollege, ..._colleges];
           }
-          _selectedBuilding = widget.verifiedRoom!.building;
+          if (_selectedBuilding.isNotEmpty && !_buildings.contains(_selectedBuilding)) {
+            _buildings = [_selectedBuilding, ..._buildings];
+          }
+          if (_selectedFloor.isNotEmpty && !_floors.contains(_selectedFloor)) {
+            _floors = [_selectedFloor, ..._floors];
+          }
         } else {
           _selectedCollege = widget.buildingName != null
               ? _colleges.firstWhere(
@@ -160,11 +221,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         }
         _updateFilteredBuildings();
 
-        if (_isLocationLocked && widget.verifiedRoom != null) {
-          if (_selectedFloor.isEmpty) {
-            _selectedFloor = widget.verifiedRoom!.floor;
-          }
-        } else {
+        if (!_isLocationLocked) {
           _selectedFloor = _floors.isNotEmpty ? _floors.first : '';
         }
         if (_requestTypes.isNotEmpty && _selectedRequestType.isEmpty) {
@@ -176,13 +233,19 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
 
   void _updateFilteredBuildings() {
     if (_selectedCollege.isEmpty) {
-      _filteredBuildings = [];
+      _filteredBuildings = List.from(_buildings);
     } else {
       _filteredBuildings = _buildingsByDepartment[_selectedCollege] ?? _buildings;
     }
-    // Reset building selection if current selection is not in filtered list
-    if (!_filteredBuildings.contains(_selectedBuilding)) {
-      _selectedBuilding = _filteredBuildings.isNotEmpty ? _filteredBuildings.first : '';
+    if (_isLocationLocked && widget.verifiedRoom != null) {
+      if (_selectedBuilding.isNotEmpty && !_filteredBuildings.contains(_selectedBuilding)) {
+        _filteredBuildings = [_selectedBuilding, ..._filteredBuildings];
+      }
+    } else {
+      // Reset building selection if current selection is not in filtered list
+      if (!_filteredBuildings.contains(_selectedBuilding)) {
+        _selectedBuilding = _filteredBuildings.isNotEmpty ? _filteredBuildings.first : '';
+      }
     }
   }
 
@@ -440,19 +503,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
 
         var insertedRequest = await WorkRequestService.insert(requestToInsert);
 
-        if (_recordedVoiceBytes != null) {
-          try {
-            final voiceUrl = await WorkRequestService.uploadVoiceNoteBytes(
-              _recordedVoiceBytes!,
-              insertedRequest.id,
-              ext: _recordedVoiceExt,
-            );
-            final updatedVoiceReq = insertedRequest.copyWith(voiceNotes: [voiceUrl]);
-            await WorkRequestService.update(updatedVoiceReq);
-          } catch (e) {
-            // ignore voice upload errors
-          }
-        }
+
 
         if (authUser != null) {
           await ESignatureService.insert(
@@ -492,8 +543,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         }
 
         if (!mounted) return;
-        final trackingNumber =
-            'PSU-SC-MR-${DateTime.now().year}-${DateTime.now().millisecondsSinceEpoch % 10000}';
+        final trackingNumber = insertedRequest.id;
         if (!mounted) return;
         context.replace(
           '/work-request-success',
@@ -525,21 +575,38 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Keep user info in sync if late-loaded by AuthService
+    final authUser = context.watch<AuthService>().currentUser;
+    if (authUser != null && authUser.name.trim().isNotEmpty) {
+      if (_fullNameController.text.trim().isEmpty) {
+        _fullNameController.text = authUser.name.trim();
+      }
+      if (_positionController.text.trim().isEmpty) {
+        final pos = (authUser.position != null && authUser.position!.trim().isNotEmpty)
+            ? authUser.position!.trim()
+            : authUser.roleLabel;
+        _positionController.text = pos;
+      }
+    }
+
+    _themeProvider = Provider.of<ThemeProvider>(context);
+    _isDark = _themeProvider.isDarkMode;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: _themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: _themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: _themeProvider.textColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Work Request Form',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: _themeProvider.textColor,
           ),
         ),
         centerTitle: false,
@@ -562,90 +629,110 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                       margin: const EdgeInsets.only(bottom: 16),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00BFA5).withValues(alpha: 0.08),
+                        color: _isDark
+                            ? const Color(0xFF0F766E).withValues(alpha: 0.2)
+                            : const Color(0xFF0F766E).withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: const Color(0xFF00BFA5).withValues(alpha: 0.35),
+                          color: _isDark
+                              ? const Color(0xFF00BFA5).withValues(alpha: 0.4)
+                              : const Color(0xFF0F766E).withValues(alpha: 0.3),
                         ),
                       ),
-                      child: const Text(
-                        'Location details are locked because the room has already been verified.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF0F766E),
-                          fontWeight: FontWeight.w600,
-                        ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lock_rounded, size: 16, color: Color(0xFF00BFA5)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Location details are locked because the room has already been verified.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0F766E),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  _buildLabel('Room Name'),
-                  const SizedBox(height: 8),
-                  _buildTextField(
-                    controller: _officeRoomNameController,
-                    hint: 'e.g., Room-301-Computer Science Lab-B',
-                    readOnly: _isLocationLocked,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter room name';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
+                  // 1. Room Code (matching Web layout order)
                   _buildLabel('Room Code'),
                   const SizedBox(height: 8),
                   _buildTextField(
                     controller: _roomNumberController,
-                    hint: 'e.g., 402',
+                    hint: 'e.g., 402 or CLR 1',
                     readOnly: _isLocationLocked,
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.trim().isEmpty) {
                         return 'Please enter room code';
                       }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
-                  _buildLabel('Department'),
+                  // 2. Room Name
+                  _buildLabel('Room Name'),
+                  const SizedBox(height: 8),
+                  _buildTextField(
+                    controller: _officeRoomNameController,
+                    hint: 'e.g., Computer Laboratory Room 2',
+                    readOnly: _isLocationLocked,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter room name';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // 3. Department/College
+                  _buildLabel('Department/College'),
                   const SizedBox(height: 8),
                   _buildDropdown(
                     value: _selectedCollege,
                     items: _colleges,
+                    hintText: 'Select Department/College',
                     onChanged: _isLocationLocked
                         ? null
                         : (value) {
                             setState(() {
-                              _selectedCollege = value!;
+                              _selectedCollege = value ?? '';
                               _updateFilteredBuildings();
                             });
                           },
                     enabled: !_isLocationLocked,
                   ),
                   const SizedBox(height: 16),
+                  // 4. Building
                   _buildLabel('Building'),
                   const SizedBox(height: 8),
                   _buildDropdown(
                     value: _selectedBuilding,
                     items: _filteredBuildings,
+                    hintText: 'Select Building',
                     onChanged: _selectedCollege.isEmpty || _isLocationLocked
                         ? null
                         : (value) {
                             setState(() {
-                              _selectedBuilding = value!;
+                              _selectedBuilding = value ?? '';
                             });
                           },
                     enabled: _selectedCollege.isNotEmpty && !_isLocationLocked,
                   ),
                   const SizedBox(height: 16),
+                  // 5. Floor
                   _buildLabel('Floor'),
                   const SizedBox(height: 8),
                   _buildDropdown(
                     value: _selectedFloor,
                     items: _floors,
+                    hintText: 'Select Floor',
                     onChanged: _isLocationLocked
                         ? null
                         : (value) {
                             setState(() {
-                              _selectedFloor = value!;
+                              _selectedFloor = value ?? '';
                             });
                           },
                     enabled: !_isLocationLocked,
@@ -670,11 +757,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   ),
                   if (_selectedRequestType.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    _buildLabel(
-                      _selectedRequestType == 'Others'
-                          ? 'Specify Other Type *'
-                          : 'Specify Details (what is to be ${_selectedRequestType.split(" ").first.toLowerCase()}?) *',
-                    ),
+                    _buildLabel(_getSpecifyDetailsLabel(_selectedRequestType)),
                     const SizedBox(height: 8),
                     _buildTextField(
                       controller: _otherRequestTypeController,
@@ -699,24 +782,29 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                 title: '3. Issue Details',
                 children: [
                   const SizedBox(height: 16),
-                  _buildLabel('Describe the issue in detail'),
+                  _buildLabel('Describe the issue in detail *'),
                   const SizedBox(height: 8),
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: _isDark ? const Color(0xFF2D2D2D) : Colors.white,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(
+                        color: _isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                      ),
                     ),
                     child: TextFormField(
                       controller: _issueDetailsController,
                       maxLines: 4,
-                      style: const TextStyle(fontSize: 14),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _isDark ? Colors.white : const Color(0xFF0F172A),
+                      ),
                       decoration: InputDecoration(
                         hintText:
                             'Please provide specific details about the problem...',
                         hintStyle: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey.shade400,
+                          color: _isDark ? Colors.grey.shade500 : Colors.grey.shade400,
                         ),
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
@@ -728,7 +816,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                         contentPadding: const EdgeInsets.all(12),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) {
+                        if (value == null || value.trim().isEmpty) {
                           return 'Please describe the issue';
                         }
                         return null;
@@ -738,67 +826,50 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   const SizedBox(height: 16),
                   _buildLabel('Upload Photos *'),
                   const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: _pickImages,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.grey.shade300,
-                          width: 1.5,
-                          style: BorderStyle.solid,
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _pickImages,
+                        icon: const Icon(Icons.add_photo_alternate_rounded, size: 20),
+                        label: const Text('Add Photos'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF00BFA5),
+                          side: const BorderSide(color: Color(0xFF00BFA5)),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.cloud_upload_outlined,
-                            size: 48,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Tap to upload photos',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'PNG, JPG up to 10MB',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey.shade400,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 12),
+                      Text(
+                        'PNG, JPG up to 10MB',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                       ),
-                    ),
+                    ],
                   ),
                   if (_selectedImages.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      spacing: 10,
+                      runSpacing: 10,
                       children: _selectedImages.asMap().entries.map((entry) {
                         return Stack(
+                          clipBehavior: Clip.none,
                           children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                entry.value,
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.cover,
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: const Color(0xFFCBD5E1)),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(entry.value, fit: BoxFit.cover),
                               ),
                             ),
                             Positioned(
-                              top: 2,
-                              right: 2,
+                              top: -6,
+                              right: -6,
                               child: GestureDetector(
                                 onTap: () {
                                   setState(() {
@@ -806,16 +877,13 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                                   });
                                 },
                                 child: Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: const BoxDecoration(
-                                    color: Colors.black54,
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444),
                                     shape: BoxShape.circle,
+                                    border: Border.all(color: Colors.white, width: 1.5),
                                   ),
-                                  child: const Icon(
-                                    Icons.close,
-                                    size: 14,
-                                    color: Colors.white,
-                                  ),
+                                  child: const Icon(Icons.close, size: 12, color: Colors.white),
                                 ),
                               ),
                             ),
@@ -824,28 +892,11 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                       }).toList(),
                     ),
                   ],
-                  const SizedBox(height: 16),
-                  _buildLabel('Voice Explanation (optional)'),
-                  const SizedBox(height: 8),
-                  VoiceRecorderWidget(
-                    onRecordingComplete: (bytes, path) {
-                      setState(() {
-                        _recordedVoiceBytes = bytes;
-                        _recordedVoiceExt = path.isNotEmpty
-                            ? path.split('.').last
-                            : 'm4a';
-                      });
-                    },
-                    onRecordingDeleted: () {
-                      setState(() {
-                        _recordedVoiceBytes = null;
-                      });
-                    },
-                  ),
+
                 ],
               ),
               const SizedBox(height: 20),
-              // Requester Info Section
+              // Requester Info Section (aligned with Web)
               _buildSectionCard(
                 title: '4. Requester Info',
                 children: [
@@ -854,22 +905,24 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   const SizedBox(height: 8),
                   _buildTextField(
                     controller: _fullNameController,
-                    hint: 'Enter your full name',
+                    hint: 'Your full name',
+                    readOnly: true,
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.trim().isEmpty) {
                         return 'Please enter your full name';
                       }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
-                  _buildLabel('Position'),
+                  _buildLabel('Position/Title'),
                   const SizedBox(height: 8),
                   _buildTextField(
                     controller: _positionController,
-                    hint: 'e.g., Instructor, Professor, Staff',
+                    hint: 'e.g., Instructor',
+                    readOnly: true,
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
+                      if (value == null || value.trim().isEmpty) {
                         return 'Please enter your position';
                       }
                       return null;
@@ -878,97 +931,45 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   const SizedBox(height: 16),
                   _buildLabel('Electronic Signature *REQUIRED'),
                   const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color:
-                            (_requesterSignatureBase64 != null &&
-                                _requesterSignatureBase64!.isNotEmpty)
-                            ? const Color(0xFF00BFA5)
-                            : Colors.grey.shade300,
-                        width:
-                            (_requesterSignatureBase64 != null &&
-                                _requesterSignatureBase64!.isNotEmpty)
-                            ? 1.8
-                            : 1,
+                  SignaturePadWidget(
+                    title: 'E-Signature',
+                    subtitle: 'Sign below or upload image to verify this request',
+                    height: 170,
+                    onSignatureComplete: (base64) {
+                      setState(() => _requesterSignatureBase64 = base64);
+                    },
+                    onSignatureCleared: () {
+                      setState(() => _requesterSignatureBase64 = null);
+                    },
+                  ),
+                  if (_requesterSignatureBase64 != null &&
+                      _requesterSignatureBase64!.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: const Color(0xFF00BFA5).withValues(alpha: 0.3),
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            (_requesterSignatureBase64 != null &&
-                                    _requesterSignatureBase64!.isNotEmpty)
-                                ? 'Signature captured successfully'
-                                : 'No signature yet',
+                      child: const Row(
+                        children: [
+                          Icon(Icons.check_circle, size: 16, color: Color(0xFF00BFA5)),
+                          SizedBox(width: 8),
+                          Text(
+                            'Signature captured and verified',
                             style: TextStyle(
-                              fontSize: 13,
-                              color:
-                                  (_requesterSignatureBase64 != null &&
-                                      _requesterSignatureBase64!.isNotEmpty)
-                                  ? const Color(0xFF00BFA5)
-                                  : Colors.grey.shade500,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
+                              color: Color(0xFF0F766E),
                             ),
                           ),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            final signature = await SignatureDialog.show(
-                              context,
-                              title: 'Requester E-Signature',
-                              subtitle:
-                                  'Please sign to confirm this work request',
-                            );
-                            if (signature == null || signature.isEmpty) return;
-                            if (!mounted) return;
-                            setState(
-                              () => _requesterSignatureBase64 = signature,
-                            );
-                          },
-                          icon: const Icon(Icons.draw_rounded, size: 16),
-                          label: Text(
-                            (_requesterSignatureBase64 != null &&
-                                    _requesterSignatureBase64!.isNotEmpty)
-                                ? 'Re-sign'
-                                : 'Sign',
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00BFA5),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () {
-                        setState(() => _requesterSignatureBase64 = null);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Signature cleared'),
-                            duration: Duration(seconds: 1),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        'Clear',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF00BFA5),
-                          fontWeight: FontWeight.w600,
-                        ),
+                        ],
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
               const SizedBox(height: 32),
@@ -982,17 +983,19 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                           : () => Navigator.pop(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: BorderSide(color: Colors.grey.shade400),
+                        side: BorderSide(
+                          color: _isDark ? Colors.grey.shade700 : Colors.grey.shade400,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Cancel',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                          color: _isDark ? Colors.grey.shade300 : Colors.black87,
                         ),
                       ),
                     ),
@@ -1044,6 +1047,24 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     );
   }
 
+  String _getSpecifyDetailsLabel(String type) {
+    switch (type) {
+      case 'Installation of':
+        return 'Specify Details (what is to be installed?) *';
+      case 'Repair of':
+        return 'Specify Details (what is to be repaired?) *';
+      case 'Replacement of':
+        return 'Specify Details (what is to be replaced?) *';
+      case 'Ocular Inspection of':
+        return 'Specify Details (what is to be inspected?) *';
+      case 'Others':
+        return 'Specify Other Type *';
+      default:
+        if (type.isEmpty) return 'Specify Details *';
+        return 'Specify Details ($type) *';
+    }
+  }
+
   Widget _buildSectionCard({
     required String title,
     required List<Widget> children,
@@ -1051,16 +1072,18 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: const Color(0xFF00BFA5),
-          width: 2,
+          color: _isDark
+              ? const Color(0xFF00BFA5).withValues(alpha: 0.4)
+              : const Color(0xFF00BFA5),
+          width: _isDark ? 1.5 : 2,
           style: BorderStyle.solid,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
+            color: const Color(0xFF00BFA5).withValues(alpha: _isDark ? 0.05 : 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1071,10 +1094,10 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: _themeProvider.textColor,
             ),
           ),
           ...children,
@@ -1086,10 +1109,10 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   Widget _buildLabel(String text) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 13,
-        fontWeight: FontWeight.w500,
-        color: Colors.black87,
+        fontWeight: FontWeight.w600,
+        color: _isDark ? Colors.grey.shade200 : const Color(0xFF334155),
       ),
     );
   }
@@ -1101,22 +1124,37 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     TextInputType? keyboardType,
     bool readOnly = false,
   }) {
+    final bgColor = _isDark
+        ? (readOnly ? const Color(0xFF1E1E1E) : const Color(0xFF2D2D2D))
+        : (readOnly ? const Color(0xFFF1F5F9) : Colors.white);
+    final borderColor = _isDark
+        ? Colors.grey.shade700
+        : (readOnly ? const Color(0xFFCBD5E1) : Colors.grey.shade300);
+    final txtColor = _isDark
+        ? (readOnly ? Colors.grey.shade400 : Colors.white)
+        : (readOnly ? const Color(0xFF1E293B) : const Color(0xFF0F172A));
+
     return Container(
       decoration: BoxDecoration(
-        color: readOnly ? Colors.grey.shade100 : Colors.white,
+        color: bgColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: readOnly ? Colors.grey.shade200 : Colors.grey.shade300,
-        ),
+        border: Border.all(color: borderColor),
       ),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
         readOnly: readOnly,
-        style: const TextStyle(fontSize: 14),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: readOnly ? FontWeight.w600 : FontWeight.normal,
+          color: txtColor,
+        ),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+          hintStyle: TextStyle(
+            fontSize: 13,
+            color: _isDark ? Colors.grey.shade500 : const Color(0xFF94A3B8),
+          ),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
@@ -1125,7 +1163,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           focusedErrorBorder: InputBorder.none,
           filled: false,
           contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
+            horizontal: 14,
             vertical: 12,
           ),
         ),
@@ -1139,38 +1177,73 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     required List<String> items,
     required void Function(String?)? onChanged,
     bool enabled = true,
+    String hintText = 'Select option',
   }) {
-    String displayValue = value;
-    if (items.isNotEmpty && !items.contains(value)) {
-      displayValue = items.first;
+    final Set<String> sanitizedSet = {};
+    for (final item in items) {
+      final trimmed = item.trim();
+      if (trimmed.isNotEmpty) sanitizedSet.add(trimmed);
     }
+    final trimmedVal = value.trim();
+    if (trimmedVal.isNotEmpty) {
+      sanitizedSet.add(trimmedVal);
+    }
+    final sanitizedList = sanitizedSet.toList();
+    final effectiveValue = (trimmedVal.isNotEmpty && sanitizedList.contains(trimmedVal))
+        ? trimmedVal
+        : null;
+
+    final bgColor = enabled
+        ? (_isDark ? const Color(0xFF2D2D2D) : Colors.white)
+        : (_isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF1F5F9));
+    final borderColor = _isDark
+        ? Colors.grey.shade700
+        : (enabled ? Colors.grey.shade300 : const Color(0xFFCBD5E1));
+    final txtColor = _isDark
+        ? (enabled ? Colors.white : Colors.grey.shade400)
+        : (enabled ? const Color(0xFF0F172A) : const Color(0xFF1E293B));
+
     return Container(
       decoration: BoxDecoration(
-        color: enabled ? Colors.white : Colors.grey.shade100,
+        color: bgColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: enabled ? Colors.grey.shade300 : Colors.grey.shade200),
+        border: Border.all(color: borderColor),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: displayValue,
+          value: effectiveValue,
+          dropdownColor: _isDark ? const Color(0xFF2D2D2D) : Colors.white,
+          hint: Text(
+            hintText,
+            style: TextStyle(
+              fontSize: 14,
+              color: _isDark ? Colors.grey.shade500 : const Color(0xFF94A3B8),
+            ),
+          ),
           isExpanded: true,
-          icon: Icon(Icons.keyboard_arrow_down, color: enabled ? Colors.grey.shade600 : Colors.grey.shade400),
+          icon: Icon(
+            Icons.keyboard_arrow_down,
+            color: _isDark ? Colors.grey.shade300 : (enabled ? Colors.grey.shade600 : const Color(0xFF64748B)),
+          ),
           style: TextStyle(
             fontSize: 14,
-            color: enabled ? Colors.black87 : Colors.grey.shade500,
+            fontWeight: enabled ? FontWeight.normal : FontWeight.w600,
+            color: txtColor,
           ),
-          items: items.isEmpty
-              ? [DropdownMenuItem<String>(
-                  value: '',
-                  child: Text(
-                    enabled ? 'No options available' : 'Select department first',
-                    style: TextStyle(color: Colors.grey.shade400),
-                  ),
-                )]
-              : items.map((String item) {
-                  return DropdownMenuItem<String>(value: item, child: Text(item));
-                }).toList(),
+          items: sanitizedList.map((String item) {
+            return DropdownMenuItem<String>(
+              value: item,
+              child: Text(
+                item,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: enabled ? FontWeight.normal : FontWeight.w600,
+                  color: txtColor,
+                ),
+              ),
+            );
+          }).toList(),
           onChanged: enabled ? onChanged : null,
         ),
       ),
@@ -1182,24 +1255,35 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     return ChoiceChip(
       label: Text(label),
       selected: isSelected,
+      showCheckmark: false,
       onSelected: (s) {
         setState(() {
           _selectedRequestType = s ? label : '';
         });
       },
-      selectedColor: const Color(0xFF00BFA5).withValues(alpha: 0.15),
+      color: WidgetStateProperty.resolveWith<Color?>((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const Color(0xFF00BFA5).withValues(alpha: _isDark ? 0.25 : 0.12);
+        }
+        return _isDark ? const Color(0xFF2D2D2D) : Colors.white;
+      }),
       labelStyle: TextStyle(
-        color: isSelected ? const Color(0xFF00BFA5) : Colors.black87,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+        color: isSelected
+            ? const Color(0xFF2DD4BF)
+            : (_isDark ? Colors.grey.shade300 : const Color(0xFF475569)),
+        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
         fontSize: 13,
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: isSelected ? const Color(0xFF00BFA5) : Colors.grey.shade300,
+          color: isSelected
+              ? const Color(0xFF00BFA5)
+              : (_isDark ? Colors.grey.shade700 : const Color(0xFFCBD5E1)),
+          width: isSelected ? 1.5 : 1,
         ),
       ),
-      backgroundColor: Colors.white,
+      backgroundColor: _isDark ? const Color(0xFF2D2D2D) : Colors.white,
     );
   }
 }

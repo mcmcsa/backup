@@ -183,14 +183,18 @@ class _LogsPageState extends State<LogsPage> {
                           )
                         : null,
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: themeProvider.isDarkMode ? const Color(0xFF2D2D2D) : Colors.white,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                      borderSide: BorderSide(
+                        color: themeProvider.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                      ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                      borderSide: BorderSide(
+                        color: themeProvider.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
+                      ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -206,7 +210,7 @@ class _LogsPageState extends State<LogsPage> {
                 final filterGroup = Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
+                    color: themeProvider.isDarkMode ? const Color(0xFF2D2D2D) : const Color(0xFFF1F5F9),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: themeProvider.borderColor),
                   ),
@@ -450,7 +454,9 @@ class _LogsPageState extends State<LogsPage> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-              color: isSelected ? Colors.white : const Color(0xFF64748B),
+              color: isSelected
+                  ? Colors.white
+                  : (themeProvider.isDarkMode ? Colors.grey.shade300 : const Color(0xFF64748B)),
               letterSpacing: -0.1,
             ),
           ),

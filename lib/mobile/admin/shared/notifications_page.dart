@@ -11,6 +11,7 @@ import '../../../shared/widgets/chat/chat_messages_panel.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../admin/ticket/request_details_page.dart' as admin_ticket;
 import '../../../router/app_router.dart';
+import '../../../shared/providers/theme_provider.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -268,31 +269,34 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     final filteredNotifications = _filteredNotifications;
     final groupedNotifications = _groupNotificationsByDate(
       filteredNotifications,
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Notifications',
           style: TextStyle(
-            color: Colors.black87,
+            color: themeProvider.textColor,
             fontSize: 18,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.bold,
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.check, color: Colors.black87),
+            icon: Icon(Icons.done_all_rounded, color: themeProvider.textColor),
             onPressed: _markAllAsRead,
             tooltip: 'Mark all as read',
           ),
@@ -300,81 +304,102 @@ class _NotificationsPageState extends State<NotificationsPage> {
       ),
       body: Column(
         children: [
-          // Search Bar
+          // Unified Search and Filter Header
           Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) => setState(() {}),
-              decoration: InputDecoration(
-                hintText: 'Search notifications...',
-                hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+            color: themeProvider.cardColor,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Search Bar
+                TextField(
+                  controller: _searchController,
+                  onChanged: (value) => setState(() {}),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Search notifications...',
+                    hintStyle: TextStyle(
+                      color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
+                      fontSize: 14,
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                      size: 20,
+                    ),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(
+                              Icons.clear_rounded,
+                              size: 18,
+                              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF8FAFC),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                      ),
+                    ),
+                    focusedBorder: const OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                      borderSide: BorderSide(color: Color(0xFF00BFA5), width: 1.5),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
                 ),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 44,
-                  minHeight: 44,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(999)),
-                  borderSide: BorderSide(color: Color(0xFF4169E1)),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-              ),
-            ),
-          ),
+                const SizedBox(height: 12),
 
-          // Category Filters
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildCategoryChip('All'),
-                  const SizedBox(width: 8),
-                  _buildCategoryChip('Message'),
-                  const SizedBox(width: 8),
-                  _buildCategoryChip('Work Request'),
-                ],
-              ),
-            ),
-          ),
+                // Category Filters
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildCategoryChip('All', isDark, themeProvider),
+                      const SizedBox(width: 8),
+                      _buildCategoryChip('Message', isDark, themeProvider),
+                      const SizedBox(width: 8),
+                      _buildCategoryChip('Work Request', isDark, themeProvider),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
 
-          // Time Filters
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildTimeFilterChip('All'),
-                  const SizedBox(width: 8),
-                  _buildTimeFilterChip('Today'),
-                  const SizedBox(width: 8),
-                  _buildTimeFilterChip('This Week'),
-                  const SizedBox(width: 8),
-                  _buildTimeFilterChip('Earlier'),
-                ],
-              ),
+                // Time Filters
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildTimeFilterChip('All', isDark, themeProvider),
+                      const SizedBox(width: 8),
+                      _buildTimeFilterChip('Today', isDark, themeProvider),
+                      const SizedBox(width: 8),
+                      _buildTimeFilterChip('This Week', isDark, themeProvider),
+                      const SizedBox(width: 8),
+                      _buildTimeFilterChip('Earlier', isDark, themeProvider),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
 
@@ -388,11 +413,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
                           padding: const EdgeInsets.all(24),
                           margin: const EdgeInsets.symmetric(horizontal: 24),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: themeProvider.cardColor,
                             borderRadius: BorderRadius.circular(16),
+                            border: isDark ? Border.all(color: Colors.grey.shade800) : null,
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.04),
+                                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -401,27 +427,27 @@ class _NotificationsPageState extends State<NotificationsPage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.notifications_off_outlined,
                                 size: 56,
-                                color: Color(0xFF64748B),
+                                color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
                               ),
                               const SizedBox(height: 16),
-                              const Text(
+                              Text(
                                 'Notifications are Disabled',
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1E293B),
+                                  color: themeProvider.textColor,
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              const Text(
+                              Text(
                                 'Turn on "Enable Notifications" in Settings to receive updates about requests and activity.',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 13,
-                                  color: Color(0xFF64748B),
+                                  color: isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
                                   height: 1.4,
                                 ),
                               ),
@@ -437,93 +463,112 @@ class _NotificationsPageState extends State<NotificationsPage> {
                                 Icon(
                                   Icons.notifications_none,
                                   size: 64,
-                                  color: Colors.grey.shade300,
+                                  color: isDark ? Colors.grey.shade600 : Colors.grey.shade300,
                                 ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No notifications',
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      for (var group in groupedNotifications.entries) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12, top: 8),
-                          child: Text(
-                            group.key,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade600,
-                              letterSpacing: 0.5,
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No notifications',
+                                  style: TextStyle(
+                                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
                             ),
+                          )
+                        : ListView(
+                            padding: const EdgeInsets.all(16),
+                            children: [
+                              for (var group in groupedNotifications.entries) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 10, top: 12),
+                                  child: Text(
+                                    group.key,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                                ...group.value.map(
+                                  (notification) =>
+                                      _buildNotificationCard(notification, isDark, themeProvider),
+                                ),
+                              ],
+                            ],
                           ),
-                        ),
-                        ...group.value.map(
-                          (notification) =>
-                              _buildNotificationCard(notification),
-                        ),
-                      ],
-                    ],
-                  ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCategoryChip(String label) {
+  Widget _buildCategoryChip(String label, bool isDark, ThemeProvider themeProvider) {
     final isSelected = _selectedCategory == label;
 
-    return FilterChip(
+    return ChoiceChip(
       label: Text(label),
       selected: isSelected,
+      showCheckmark: isSelected,
+      checkmarkColor: Colors.white,
       onSelected: (selected) {
-        setState(() {
-          _selectedCategory = label;
-        });
+        if (selected) {
+          setState(() {
+            _selectedCategory = label;
+          });
+        }
       },
       labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.black87,
+        color: isSelected
+            ? Colors.white
+            : (isDark ? Colors.grey.shade300 : const Color(0xFF334155)),
         fontSize: 12,
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
       ),
-      backgroundColor: Colors.white,
-      selectedColor: const Color(0xFF4169E1),
+      backgroundColor: isDark ? const Color(0xFF2D2D2D) : Colors.white,
+      selectedColor: const Color(0xFF00BFA5),
       side: BorderSide(
-        color: isSelected ? const Color(0xFF4169E1) : Colors.grey.shade300,
+        color: isSelected
+            ? const Color(0xFF00BFA5)
+            : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     );
   }
 
-  Widget _buildTimeFilterChip(String label) {
+  Widget _buildTimeFilterChip(String label, bool isDark, ThemeProvider themeProvider) {
     final isSelected = _selectedTimeFilter == label;
 
-    return FilterChip(
+    return ChoiceChip(
       label: Text(label),
       selected: isSelected,
+      showCheckmark: false,
       onSelected: (selected) {
-        setState(() {
-          _selectedTimeFilter = label;
-        });
+        if (selected) {
+          setState(() {
+            _selectedTimeFilter = label;
+          });
+        }
       },
       labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.black87,
-        fontSize: 12,
-        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+        color: isSelected
+            ? Colors.white
+            : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+        fontSize: 11,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
       ),
-      backgroundColor: Colors.grey.shade100,
-      selectedColor: const Color(0xFF4169E1),
-      side: BorderSide.none,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      backgroundColor: isDark ? const Color(0xFF222222) : const Color(0xFFF1F5F9),
+      selectedColor: isDark ? const Color(0xFF0F766E) : const Color(0xFF0D9488),
+      side: BorderSide(
+        color: isSelected
+            ? (isDark ? const Color(0xFF0F766E) : const Color(0xFF0D9488))
+            : (isDark ? Colors.grey.shade800 : Colors.transparent),
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     );
   }
 
@@ -643,21 +688,29 @@ class _NotificationsPageState extends State<NotificationsPage> {
     }
   }
 
-  Widget _buildNotificationCard(NotificationItem notification) {
+  Widget _buildNotificationCard(
+    NotificationItem notification,
+    bool isDark,
+    ThemeProvider themeProvider,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: notification.isRead
-              ? Colors.grey.shade200
-              : Colors.transparent,
+          color: isDark
+              ? (notification.isRead
+                  ? Colors.grey.shade800
+                  : const Color(0xFF00BFA5).withValues(alpha: 0.3))
+              : (notification.isRead
+                  ? Colors.grey.shade200
+                  : const Color(0xFF00BFA5).withValues(alpha: 0.2)),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 4,
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+            blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ],
@@ -685,7 +738,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: notification.iconColor.withValues(alpha: 0.1),
+                    color: notification.iconColor.withValues(alpha: isDark ? 0.18 : 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -709,8 +762,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
                                 fontSize: 14,
                                 fontWeight: notification.isRead
                                     ? FontWeight.w500
-                                    : FontWeight.w600,
-                                color: Colors.black87,
+                                    : FontWeight.bold,
+                                color: themeProvider.textColor,
                               ),
                             ),
                           ),
@@ -718,7 +771,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                             notification.timestamp,
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.grey.shade500,
+                              color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
                             ),
                           ),
                         ],
@@ -728,7 +781,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                         notification.description,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
                           height: 1.4,
                         ),
                         maxLines: 2,

@@ -1,5 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../router/app_router.dart';
 
 class SystemWorkflowPage extends StatelessWidget {
@@ -9,13 +11,20 @@ class SystemWorkflowPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    final cardBorder = isDark
+        ? Border.all(color: Colors.grey.shade800)
+        : Border.all(color: Colors.grey.shade200);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87, size: 24),
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor, size: 24),
           onPressed: () {
             final router = GoRouter.maybeOf(context);
             if (router != null) {
@@ -25,9 +34,13 @@ class SystemWorkflowPage extends StatelessWidget {
             }
           },
         ),
-        title: const Text(
+        title: Text(
           'Work Request Workflow',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: themeProvider.textColor,
+          ),
         ),
       ),
       body: ListView(
@@ -37,27 +50,35 @@ class SystemWorkflowPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: cardBorder,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  children: const [
-                    Icon(Icons.account_tree_rounded, color: Color(0xFF4169E1), size: 22),
-                    SizedBox(width: 10),
+                  children: [
+                    const Icon(Icons.account_tree_rounded, color: Color(0xFF4169E1), size: 22),
+                    const SizedBox(width: 10),
                     Text(
                       'How It Works',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: themeProvider.textColor,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 Text(
                   'Your work request goes through the following stages in the PSU MMS before it is resolved.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700, height: 1.5),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                    height: 1.5,
+                  ),
                 ),
               ],
             ),
@@ -73,6 +94,10 @@ class SystemWorkflowPage extends StatelessWidget {
             iconColor: const Color(0xFF4169E1),
             actor: 'You (Teacher / Requestor)',
             statusLabel: 'PENDING',
+            cardBg: themeProvider.cardColor,
+            border: cardBorder,
+            textColor: themeProvider.textColor,
+            isDark: isDark,
           ),
           const SizedBox(height: 12),
           _buildWorkflowStep(
@@ -83,6 +108,10 @@ class SystemWorkflowPage extends StatelessWidget {
             iconColor: const Color(0xFFF59E0B),
             actor: 'Administrator',
             statusLabel: 'APPROVED',
+            cardBg: themeProvider.cardColor,
+            border: cardBorder,
+            textColor: themeProvider.textColor,
+            isDark: isDark,
           ),
           const SizedBox(height: 12),
           _buildWorkflowStep(
@@ -93,6 +122,10 @@ class SystemWorkflowPage extends StatelessWidget {
             iconColor: const Color(0xFF0EA5E9),
             actor: 'Maintenance Technician',
             statusLabel: 'IN PROGRESS',
+            cardBg: themeProvider.cardColor,
+            border: cardBorder,
+            textColor: themeProvider.textColor,
+            isDark: isDark,
           ),
           const SizedBox(height: 12),
           _buildWorkflowStep(
@@ -103,6 +136,10 @@ class SystemWorkflowPage extends StatelessWidget {
             iconColor: const Color(0xFF8B5CF6),
             actor: 'Maintenance Technician',
             statusLabel: 'IN PROGRESS',
+            cardBg: themeProvider.cardColor,
+            border: cardBorder,
+            textColor: themeProvider.textColor,
+            isDark: isDark,
           ),
           const SizedBox(height: 12),
           _buildWorkflowStep(
@@ -114,6 +151,10 @@ class SystemWorkflowPage extends StatelessWidget {
             actor: 'Administrator',
             statusLabel: 'CONFIRMED / DECLINED',
             isAlternate: true,
+            cardBg: themeProvider.cardColor,
+            border: cardBorder,
+            textColor: themeProvider.textColor,
+            isDark: isDark,
           ),
           const SizedBox(height: 12),
           _buildWorkflowStep(
@@ -124,6 +165,10 @@ class SystemWorkflowPage extends StatelessWidget {
             iconColor: const Color(0xFF0EA5E9),
             actor: 'Maintenance Technician',
             statusLabel: 'UNDER MAINTENANCE',
+            cardBg: themeProvider.cardColor,
+            border: cardBorder,
+            textColor: themeProvider.textColor,
+            isDark: isDark,
           ),
           const SizedBox(height: 12),
           _buildWorkflowStep(
@@ -134,6 +179,10 @@ class SystemWorkflowPage extends StatelessWidget {
             iconColor: const Color(0xFFF59E0B),
             actor: 'Maintenance Technician',
             statusLabel: 'POST-REPAIR SUBMITTED',
+            cardBg: themeProvider.cardColor,
+            border: cardBorder,
+            textColor: themeProvider.textColor,
+            isDark: isDark,
           ),
           const SizedBox(height: 12),
           _buildWorkflowStep(
@@ -145,6 +194,10 @@ class SystemWorkflowPage extends StatelessWidget {
             actor: 'Administrator',
             statusLabel: 'COMPLETED / REWORK',
             isAlternate: true,
+            cardBg: themeProvider.cardColor,
+            border: cardBorder,
+            textColor: themeProvider.textColor,
+            isDark: isDark,
           ),
           const SizedBox(height: 20),
 
@@ -152,33 +205,37 @@ class SystemWorkflowPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.cardColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: cardBorder,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Request Status Guide',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87),
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: themeProvider.textColor,
+                  ),
                 ),
                 const SizedBox(height: 16),
-                _buildStatusInfo('PENDING', 'Awaiting admin review', const Color(0xFFF59E0B)),
+                _buildStatusInfo('PENDING', 'Awaiting admin review', const Color(0xFFF59E0B), isDark),
                 const SizedBox(height: 10),
-                _buildStatusInfo('APPROVED', 'Admin approved, awaiting technician', const Color(0xFF6366F1)),
+                _buildStatusInfo('APPROVED', 'Admin approved, awaiting technician', const Color(0xFF6366F1), isDark),
                 const SizedBox(height: 10),
-                _buildStatusInfo('IN PROGRESS', 'Technician accepted & inspecting', const Color(0xFF0EA5E9)),
+                _buildStatusInfo('IN PROGRESS', 'Technician accepted & inspecting', const Color(0xFF0EA5E9), isDark),
                 const SizedBox(height: 10),
-                _buildStatusInfo('CONFIRMED', 'Pre-inspection approved, work can begin', const Color(0xFF4169E1)),
+                _buildStatusInfo('CONFIRMED', 'Pre-inspection approved, work can begin', const Color(0xFF4169E1), isDark),
                 const SizedBox(height: 10),
-                _buildStatusInfo('UNDER MAINTENANCE', 'Repair work is being executed', const Color(0xFF0EA5E9)),
+                _buildStatusInfo('UNDER MAINTENANCE', 'Repair work is being executed', const Color(0xFF0EA5E9), isDark),
                 const SizedBox(height: 10),
-                _buildStatusInfo('COMPLETED', 'Work finished and verified', const Color(0xFF10B981)),
+                _buildStatusInfo('COMPLETED', 'Work finished and verified', const Color(0xFF10B981), isDark),
                 const SizedBox(height: 10),
-                _buildStatusInfo('DECLINED', 'Request was not approved', Colors.red),
+                _buildStatusInfo('DECLINED', 'Request was not approved', Colors.red, isDark),
                 const SizedBox(height: 10),
-                _buildStatusInfo('REWORK', 'Redo requested — work was unsatisfactory', const Color(0xFFF59E0B)),
+                _buildStatusInfo('REWORK', 'Redo requested — work was unsatisfactory', const Color(0xFFF59E0B), isDark),
               ],
             ),
           ),
@@ -188,9 +245,11 @@ class SystemWorkflowPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFF4169E1).withValues(alpha: 0.06),
+              color: const Color(0xFF4169E1).withValues(alpha: isDark ? 0.12 : 0.06),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF4169E1).withValues(alpha: 0.25)),
+              border: Border.all(
+                color: const Color(0xFF4169E1).withValues(alpha: isDark ? 0.35 : 0.25),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,18 +258,22 @@ class SystemWorkflowPage extends StatelessWidget {
                   children: [
                     const Icon(Icons.tips_and_updates, color: Color(0xFF4169E1), size: 22),
                     const SizedBox(width: 10),
-                    const Text(
+                    Text(
                       'Tips for Better Service',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87),
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: themeProvider.textColor,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
-                _buildTipItem('Provide clear and detailed descriptions of the issue'),
-                _buildTipItem('Include photos when possible for faster evaluation'),
-                _buildTipItem('Choose the correct category and issue type'),
-                _buildTipItem('Monitor the Reports tab to track your request status'),
-                _buildTipItem('You will be notified when your request is resolved'),
+                _buildTipItem('Provide clear and detailed descriptions of the issue', isDark),
+                _buildTipItem('Include photos when possible for faster evaluation', isDark),
+                _buildTipItem('Choose the correct category and issue type', isDark),
+                _buildTipItem('Monitor the Reports tab to track your request status', isDark),
+                _buildTipItem('You will be notified when your request is resolved', isDark),
               ],
             ),
           ),
@@ -228,20 +291,25 @@ class SystemWorkflowPage extends StatelessWidget {
     required Color iconColor,
     required String actor,
     required String statusLabel,
+    required Color cardBg,
+    required Border border,
+    required Color textColor,
+    required bool isDark,
     bool isAlternate = false,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: border,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 40, height: 40,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: iconColor.withValues(alpha: 0.12),
               shape: BoxShape.circle,
@@ -266,7 +334,11 @@ class SystemWorkflowPage extends StatelessWidget {
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
                       ),
                     ),
                   ],
@@ -286,15 +358,26 @@ class SystemWorkflowPage extends StatelessWidget {
                           Icon(Icons.alt_route_rounded, size: 10, color: iconColor),
                           const SizedBox(width: 3),
                         ],
-                        Text(statusLabel,
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: iconColor, letterSpacing: 0.4)),
+                        Text(
+                          statusLabel,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: iconColor,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
                       ]),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         actor,
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -303,7 +386,11 @@ class SystemWorkflowPage extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   description,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.5),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
+                    height: 1.5,
+                  ),
                 ),
               ],
             ),
@@ -313,7 +400,7 @@ class SystemWorkflowPage extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusInfo(String status, String description, Color color) {
+  Widget _buildStatusInfo(String status, String description, Color color, bool isDark) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -333,14 +420,18 @@ class SystemWorkflowPage extends StatelessWidget {
         Expanded(
           child: Text(
             description,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+              height: 1.4,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildTipItem(String text) {
+  Widget _buildTipItem(String text, bool isDark) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -351,7 +442,11 @@ class SystemWorkflowPage extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade800, height: 1.4),
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.grey.shade300 : Colors.grey.shade800,
+                height: 1.4,
+              ),
             ),
           ),
         ],
