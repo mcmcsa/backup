@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../authentication/models/user_model.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../shared/admin_styles.dart';
@@ -23,14 +24,13 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
   late final TextEditingController _phoneController;
 
   bool _isEditing = false;
-  String? _lastUserId;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
     super.initState();
     final user = context.read<AuthService>().currentUser;
     _initControllers(user);
-    _lastUserId = user?.id;
   }
 
   void _initControllers(AppUser? user) {
@@ -52,16 +52,83 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
   }
 
   void _syncControllers(AppUser? user) {
-    if (user == null || _isEditing || user.id == _lastUserId) return;
-    _lastUserId = user.id;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _isEditing) return;
-      _nameController.text = user.name;
-      _emailController.text = user.email;
-      _positionController.text = user.position ?? '';
-      _employeeIdController.text = user.employeeId ?? '';
-      _phoneController.text = user.phone ?? '';
-    });
+    if (user == null || _isEditing) return;
+    if (_nameController.text != user.name ||
+        _emailController.text != user.email ||
+        _positionController.text != (user.position ?? '') ||
+        _employeeIdController.text != (user.employeeId ?? '') ||
+        _phoneController.text != (user.phone ?? '')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _isEditing) return;
+        _nameController.text = user.name;
+        _emailController.text = user.email;
+        _positionController.text = user.position ?? '';
+        _employeeIdController.text = user.employeeId ?? '';
+        _phoneController.text = user.phone ?? '';
+      });
+    }
+  }
+
+  Future<void> _pickAndUploadProfileImage(AppUser user) async {
+    final auth = context.read<AuthService>();
+    final picker = ImagePicker();
+    try {
+      final XFile? file = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+      );
+      if (file == null) return;
+
+      setState(() => _isUploadingImage = true);
+
+      final bytes = await file.readAsBytes();
+      final rawExt = file.name.split('.').last.toLowerCase();
+      // Normalize MIME types — Supabase only accepts standard image/* types
+      final mimeType = _normalizeMimeType(rawExt);
+      final ext = mimeType.split('/').last == 'jpeg' ? 'jpg' : rawExt;
+      final path = 'profiles/${user.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      await Supabase.instance.client.storage
+          .from('profile-images')
+          .uploadBinary(path, bytes,
+              fileOptions: FileOptions(upsert: true, contentType: mimeType));
+
+      final publicUrl = Supabase.instance.client.storage
+          .from('profile-images')
+          .getPublicUrl(path);
+
+      final success = await auth.updateProfileImage(
+        role: user.role,
+        userId: user.id,
+        profileImage: publicUrl,
+      );
+
+      if (!mounted) return;
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profile picture updated successfully!'),
+            backgroundColor: AdminStyles.success,
+            behavior: SnackBarBehavior.floating,
+            width: 400,
+          ),
+        );
+      } else {
+        throw Exception('Failed to update profile picture in database');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to upload profile picture: $e'),
+          backgroundColor: AdminStyles.error,
+          behavior: SnackBarBehavior.floating,
+          width: 400,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -108,6 +175,28 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
     }
   }
 
+  /// Maps raw file extensions to Supabase-accepted image MIME types.
+  String _normalizeMimeType(String ext) {
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+      case 'jfif':
+      case 'pjpeg':
+      case 'pjp':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'bmp':
+        return 'image/bmp';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authService = context.watch<AuthService>();
@@ -128,24 +217,9 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
               _buildHeader(),
               const SizedBox(height: 32),
               _buildProfileHero(user, authService.isLoading, isMobile),
+              const SizedBox(height: 24),
+              _buildDetailsCard(),
               const SizedBox(height: 32),
-              isMobile
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _buildDetailsCard(),
-                        const SizedBox(height: 24),
-                        _buildSummaryCard(user),
-                      ],
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(flex: 3, child: _buildDetailsCard()),
-                        const SizedBox(width: 24),
-                        Expanded(flex: 2, child: _buildSummaryCard(user)),
-                      ],
-                    ),
             ],
           ),
         ),
@@ -170,21 +244,129 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
     );
   }
 
+  Widget _buildAvatar(AppUser? user) {
+    if (user == null) {
+      return Container(
+        width: 100,
+        height: 100,
+        decoration: BoxDecoration(
+          color: AdminStyles.primary.withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Text('A',
+              style: AdminStyles.headingStyle(
+                  fontSize: 40, fontWeight: FontWeight.w700, color: AdminStyles.primary)),
+        ),
+      );
+    }
+
+    final initials = user.name.isNotEmpty ? user.name[0].toUpperCase() : 'A';
+
+    return Stack(
+      children: [
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: AdminStyles.primary.withValues(alpha: 0.15),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: AdminStyles.primaryGradient,
+              shape: BoxShape.circle,
+            ),
+            child: _isUploadingImage
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : (user.profileImage?.isNotEmpty == true)
+                    ? ClipOval(
+                        child: Image.network(
+                          user.profileImage!,
+                          width: 94,
+                          height: 94,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) => Center(
+                            child: Text(initials,
+                                style: const TextStyle(
+                                    fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white)),
+                          ),
+                        ),
+                      )
+                    : Center(
+                        child: Text(initials,
+                            style: const TextStyle(
+                                fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white)),
+                      ),
+          ),
+        ),
+        if (!_isUploadingImage)
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: GestureDetector(
+              onTap: () => _pickAndUploadProfileImage(user),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AdminStyles.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 14),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildProfileHero(AppUser? user, bool isLoading, bool isMobile) {
-    final avatar = Container(
-      width: 100,
-      height: 100,
+    final avatar = _buildAvatar(user);
+
+    // Role badge
+    final roleBadge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
       decoration: BoxDecoration(
-        color: AdminStyles.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
+        color: AdminStyles.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AdminStyles.primary.withValues(alpha: 0.25)),
       ),
-      child: Center(
-        child: Text(
-          (_nameController.text.isNotEmpty)
-              ? _nameController.text[0].toUpperCase()
-              : 'A',
-          style: AdminStyles.headingStyle(
-              fontSize: 48, fontWeight: FontWeight.w700, color: AdminStyles.primary),
+      child: Text(
+        'CAMPUS ADMINISTRATOR',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AdminStyles.primary,
+          letterSpacing: 1.2,
         ),
       ),
     );
@@ -192,9 +374,11 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
     final userInfo = Column(
       crossAxisAlignment: isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
+        isMobile ? roleBadge : Align(alignment: Alignment.centerLeft, child: roleBadge),
+        const SizedBox(height: 10),
         Text(
           user?.name ?? 'Administrator',
-          style: AdminStyles.headingStyle(fontSize: 22, fontWeight: FontWeight.w700),
+          style: AdminStyles.headingStyle(fontSize: 22, fontWeight: FontWeight.w800),
           textAlign: isMobile ? TextAlign.center : TextAlign.left,
         ),
         const SizedBox(height: 4),
@@ -203,17 +387,15 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
           style: AdminStyles.bodyStyle(fontSize: 14, color: AdminStyles.textSecondary),
           textAlign: isMobile ? TextAlign.center : TextAlign.left,
         ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: isMobile ? WrapAlignment.center : WrapAlignment.start,
-          children: [
-            _buildBadge(user?.roleLabel ?? 'Campus Administrator', AdminStyles.primary),
-            if ((user?.position ?? '').isNotEmpty)
-              _buildBadge(user!.position!, AdminStyles.secondary),
-          ],
-        ),
+        if ((user?.position ?? '').isNotEmpty) ...[  
+          const SizedBox(height: 4),
+          Text(
+            user!.position!,
+            style: AdminStyles.bodyStyle(
+                fontSize: 13, color: AdminStyles.primary, fontWeight: FontWeight.w600),
+            textAlign: isMobile ? TextAlign.center : TextAlign.left,
+          ),
+        ],
       ],
     );
 
@@ -239,9 +421,10 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
                 onPressed: isLoading ? null : _saveProfile,
                 icon: isLoading
                     ? const SizedBox(
-                        width: 16, height: 16,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.save_rounded, size: 18),
+                    : const Icon(Icons.check_circle_rounded, size: 18),
                 label: const Text('Save Changes'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AdminStyles.success,
@@ -285,14 +468,15 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
                 avatar,
                 const SizedBox(height: 20),
                 userInfo,
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
                 actions,
               ],
             )
           : Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 avatar,
-                const SizedBox(width: 24),
+                const SizedBox(width: 28),
                 Expanded(child: userInfo),
                 const SizedBox(width: 24),
                 actions,
@@ -301,24 +485,6 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
     );
   }
 
-  Widget _buildBadge(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
-      ),
-    );
-  }
 
   Widget _buildDetailsCard() {
     return Container(
@@ -439,109 +605,4 @@ class _AdminProfileWebState extends State<AdminProfileWeb> {
     );
   }
 
-  Widget _buildSummaryCard(AppUser? user) {
-    final joined = user?.createdAt != null
-        ? DateFormat('MMMM dd, yyyy').format(user!.createdAt!)
-        : 'N/A';
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AdminStyles.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AdminStyles.border),
-      ),
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Account Summary',
-              style: AdminStyles.headingStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 24),
-          _buildSummaryRow('Account Status', 'Active', AdminStyles.success),
-          _buildSummaryRow('Role', user?.roleLabel ?? 'Campus Administrator', AdminStyles.primary),
-          _buildSummaryRow(
-              'Employee ID',
-              (user?.employeeId?.isNotEmpty == true) ? user!.employeeId! : 'Not set',
-              AdminStyles.primary),
-          _buildSummaryRow(
-              'Contact',
-              (user?.phone?.isNotEmpty == true) ? user!.phone! : 'Not set',
-              AdminStyles.info),
-          _buildSummaryRow('Joined', joined, AdminStyles.textSecondary),
-          const Divider(height: 32),
-          // Quick links
-          Text('Quick Actions',
-              style: AdminStyles.bodyStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: AdminStyles.textMuted)),
-          const SizedBox(height: 16),
-          _buildSettingItem('Notifications', Icons.notifications_rounded, const Color(0xFF10B981)),
-          const SizedBox(height: 10),
-          _buildSettingItem('Preferences', Icons.tune_rounded, const Color(0xFF818CF8)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryRow(String label, String value, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(width: 16),
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                value,
-                textAlign: TextAlign.right,
-                style: TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w700, color: color),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSettingItem(String title, IconData icon, Color color) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AdminStyles.bg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AdminStyles.border),
-      ),
-      padding: const EdgeInsets.all(14),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(title,
-                style: AdminStyles.bodyStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600)),
-          ),
-          Icon(Icons.arrow_forward_rounded,
-              color: AdminStyles.textMuted.withValues(alpha: 0.5), size: 16),
-        ],
-      ),
-    );
-  }
 }

@@ -194,23 +194,16 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
     return result;
   }
 
-  /// Returns map of category → count (top 5).
+  /// Returns map of request type → count.
   Map<String, int> get _byCategory {
     final map = <String, int>{};
     for (final r in _data!.requests) {
-      String key = r.typeDisplay;
-      if (key.trim().isEmpty || key == 'N/A' || key == 'Other') {
-        if (r.title.trim().isNotEmpty) {
-          key = r.title.trim();
-        } else {
-          key = 'General Maintenance';
-        }
-      }
+      final key = r.standardizedType;
       map[key] = (map[key] ?? 0) + 1;
     }
     final sorted = map.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
-    return Map.fromEntries(sorted.take(5));
+    return Map.fromEntries(sorted);
   }
 
   /// Returns map of buildingName → count (top 5).
@@ -987,7 +980,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
     );
   }
 
-  // Requests by Category horizontal bars
+  // Request Types horizontal bars
   Widget _buildCategoryChart() {
     final data = _byCategory;
     final maxVal = data.values.isEmpty ? 1 : data.values.reduce(math.max);
@@ -1000,10 +993,10 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
     ];
 
     return _ChartCard(
-      title: 'Requests by Category',
-      icon: Icons.pie_chart_outline_rounded,
+      title: 'Request Types',
+      icon: Icons.category_outlined,
       child: data.isEmpty
-          ? _emptyChart('No category data')
+          ? _emptyChart('No request type data')
           : Column(
               children: data.entries.indexed.map((entry) {
                 final i = entry.$1;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../models/system_announcement_model.dart';
 import '../../services/system_announcement_service.dart';
@@ -18,11 +19,38 @@ class GlobalAnnouncementListener extends StatefulWidget {
 class _GlobalAnnouncementListenerState extends State<GlobalAnnouncementListener> {
   List<SystemAnnouncement> _banners = [];
   bool _isLoading = true;
+  RealtimeChannel? _realtimeChannel;
+  final Set<String> _shownPopups = {};
 
   @override
   void initState() {
     super.initState();
     _fetchAnnouncements();
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    try {
+      _realtimeChannel = Supabase.instance.client
+          .channel('global_announcements_channel_${DateTime.now().millisecondsSinceEpoch}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'system_announcements',
+            callback: (_) {
+              if (mounted) _fetchAnnouncements();
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    try {
+      _realtimeChannel?.unsubscribe();
+    } catch (_) {}
+    super.dispose();
   }
 
   Future<void> _fetchAnnouncements() async {
@@ -45,7 +73,10 @@ class _GlobalAnnouncementListenerState extends State<GlobalAnnouncementListener>
     if (popups.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         for (var p in popups) {
-          _showPopup(p);
+          if (!_shownPopups.contains(p.id)) {
+            _shownPopups.add(p.id);
+            _showPopup(p);
+          }
         }
       });
     }

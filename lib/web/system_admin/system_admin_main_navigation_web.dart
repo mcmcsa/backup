@@ -1,10 +1,6 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../authentication/services/auth_service.dart';
-import '../../shared/services/app_notification_service.dart';
-import '../../shared/services/app_settings_service.dart';
 import '../../shared/utils/workflow_guide_dialog.dart';
 
 
@@ -111,64 +107,10 @@ class _SystemAdminMainNavigationWebState
     });
   }
 
-  int _unreadNotificationCount = 0;
-  RealtimeChannel? _notificationsChannel;
-  StreamSubscription<void>? _settingsSubscription;
-
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
-    _loadUnreadNotificationCount();
-    _subscribeNotifications();
-    _settingsSubscription = AppSettingsService.changes.listen((_) {
-      _loadUnreadNotificationCount();
-    });
-  }
-
-  @override
-  void dispose() {
-    _settingsSubscription?.cancel();
-    if (_notificationsChannel != null) {
-      Supabase.instance.client.removeChannel(_notificationsChannel!);
-    }
-    super.dispose();
-  }
-
-  Future<void> _loadUnreadNotificationCount() async {
-    try {
-      final authService = context.read<AuthService>();
-      final currentUser = authService.currentUser;
-      if (currentUser == null) return;
-
-      final count = await AppNotificationService.getUnreadCount(
-        role: currentUser.role.name,
-        userId: currentUser.id,
-      );
-      if (mounted) {
-        setState(() {
-          _unreadNotificationCount = count;
-        });
-      }
-    } catch (_) {}
-  }
-
-  void _subscribeNotifications() {
-    final authService = context.read<AuthService>();
-    final currentUser = authService.currentUser;
-    if (currentUser == null) return;
-
-    _notificationsChannel = Supabase.instance.client
-        .channel('sysadmin_notifications_realtime_${currentUser.id}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'app_notifications',
-          callback: (_) {
-            _loadUnreadNotificationCount();
-          },
-        )
-        .subscribe();
   }
 
   Future<void> _loadUserInfo() async {
@@ -805,37 +747,7 @@ class _SystemAdminMainNavigationWebState
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  // Notification Button
-                  Tooltip(
-                    message: 'Notifications',
-                    child: InkWell(
-                      onTap: () {
-                        setState(() => _selectedIndex = 7);
-                      },
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0F766E).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Center(
-                          child: Badge(
-                            isLabelVisible: _unreadNotificationCount > 0,
-                            label: Text('$_unreadNotificationCount'),
-                            child: const Icon(
-                              Icons.notifications_outlined,
-                              color: Color(0xFF0F766E),
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

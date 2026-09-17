@@ -55,12 +55,24 @@ class SystemAdminService {
       }
     } catch (_) {}
 
-    // 5. Merge and map to AppUser
+    // 5. Admin profiles (separate query)
+    final adminMap = <String, Map<String, dynamic>>{};
+    try {
+      final List<dynamic> adminJson = await _db.from('admin_users').select('*');
+      for (final a in adminJson) {
+        if (a is Map && a['user_id'] != null) {
+          adminMap[a['user_id'].toString()] = Map<String, dynamic>.from(a);
+        }
+      }
+    } catch (_) {}
+
+    // 6. Merge and map to AppUser
     return usersJson.map((json) {
       final map = Map<String, dynamic>.from(json);
       final userId = map['id']?.toString() ?? '';
       if (teacherMap.containsKey(userId)) map['teacher_users'] = teacherMap[userId];
       if (maintenanceMap.containsKey(userId)) map['maintenance_users'] = maintenanceMap[userId];
+      if (adminMap.containsKey(userId)) map['admin_users'] = adminMap[userId];
       return AppUser.fromMap(map, deptMap: deptMap);
     }).toList();
   }
@@ -118,6 +130,23 @@ class SystemAdminService {
             'specialization': specialization?.trim().isNotEmpty == true ? specialization!.trim() : null,
             'employee_id': employeeId?.trim().isNotEmpty == true ? employeeId!.trim() : null,
           }, onConflict: 'user_id');
+        } else if (role == 'admin' || role == 'campadmin') {
+          try {
+            await _db.from('admin_users').upsert({
+              'user_id': id,
+              'position': position?.trim().isNotEmpty == true ? position!.trim() : null,
+              'employee_id': employeeId?.trim().isNotEmpty == true ? employeeId!.trim() : null,
+              'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
+            }, onConflict: 'user_id');
+          } catch (e) {
+            debugPrint('admin_users update fallback: $e');
+            try {
+              await _db.from('admin_users').upsert({
+                'user_id': id,
+                'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
+              }, onConflict: 'user_id');
+            } catch (_) {}
+          }
         }
       }
 
@@ -246,6 +275,23 @@ class SystemAdminService {
           'specialization': specialization?.trim().isNotEmpty == true ? specialization!.trim() : null,
           'employee_id': employeeId?.trim().isNotEmpty == true ? employeeId!.trim() : null,
         }, onConflict: 'user_id');
+      } else if (role == 'admin' || role == 'campadmin') {
+        try {
+          await _db.from('admin_users').upsert({
+            'user_id': newUserId,
+            'position': position?.trim().isNotEmpty == true ? position!.trim() : null,
+            'employee_id': employeeId?.trim().isNotEmpty == true ? employeeId!.trim() : null,
+            'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
+          }, onConflict: 'user_id');
+        } catch (e) {
+          debugPrint('admin_users create fallback: $e');
+          try {
+            await _db.from('admin_users').upsert({
+              'user_id': newUserId,
+              'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
+            }, onConflict: 'user_id');
+          } catch (_) {}
+        }
       }
 
       debugPrint('[SystemAdminService] User $normalizedEmail created successfully.');

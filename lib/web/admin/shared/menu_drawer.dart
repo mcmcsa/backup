@@ -70,6 +70,7 @@ class MenuDrawer extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
                   const SizedBox(height: 16),
                   const Text(
                     'PANGASINAN',

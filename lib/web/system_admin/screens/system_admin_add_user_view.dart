@@ -274,7 +274,10 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                       const SizedBox(height: 32),
 
                       // Role Specific Details
-                      if (_selectedRole == 'teacher' || _selectedRole == 'maintenance') ...[
+                      if (_selectedRole == 'teacher' ||
+                          _selectedRole == 'maintenance' ||
+                          _selectedRole == 'campadmin' ||
+                          _selectedRole == 'admin') ...[
                         _buildSectionTitle('Profile Details'),
                         const SizedBox(height: 16),
                         Container(
@@ -324,6 +327,17 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                         child: _buildTextField(
                                           controller: _posController,
                                           hint: 'e.g. Associate Professor',
+                                          icon: Icons.work_outline_rounded,
+                                        ),
+                                      ),
+                                    ],
+                                    if (_selectedRole == 'campadmin' || _selectedRole == 'admin') ...[
+                                      const SizedBox(height: 20),
+                                      _buildInputWrapper(
+                                        label: 'Designation / Position',
+                                        child: _buildTextField(
+                                          controller: _posController,
+                                          hint: 'e.g. Campus Administrator',
                                           icon: Icons.work_outline_rounded,
                                         ),
                                       ),
@@ -402,6 +416,26 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                               ),
                                             ),
                                           ),
+                                        ],
+                                      ),
+                                    ],
+                                    if (_selectedRole == 'campadmin' || _selectedRole == 'admin') ...[
+                                      const SizedBox(height: 20),
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: _buildInputWrapper(
+                                              label: 'Designation / Position',
+                                              child: _buildTextField(
+                                                controller: _posController,
+                                                hint: 'e.g. Campus Administrator',
+                                                icon: Icons.work_outline_rounded,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 24),
+                                          const Expanded(child: SizedBox()),
                                         ],
                                       ),
                                     ],

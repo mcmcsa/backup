@@ -264,9 +264,12 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
       }
 
       // ── Duplicate detection ─────────────────────────────────────────────
+      final specify = _otherRequestTypeController.text.trim();
       final typeLabel = _selectedRequestType == 'Others'
-          ? _otherRequestTypeController.text.trim()
-          : '$_selectedRequestType: ${_otherRequestTypeController.text.trim()}';
+          ? (specify.isNotEmpty ? 'Others: $specify' : 'Others')
+          : (specify.isNotEmpty
+              ? '$_selectedRequestType: $specify'
+              : _selectedRequestType.trim());
 
       final duplicates = await DuplicateDetectionService.detect(
         roomId: room.id,
@@ -329,13 +332,16 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
       final dept = await helper.getDepartmentByName(_selectedCollege);
 
       final baseType = _selectedRequestType == 'Others'
-          ? _otherRequestTypeController.text.trim()
+          ? (specify.isNotEmpty ? 'Others: $specify' : 'Others')
           : _selectedRequestType.trim();
 
-      var typeRecord = await helper.getRequestTypeByName(baseType);
+      var typeRecord = await helper.getRequestTypeByName(_selectedRequestType == 'Others' ? 'Others' : baseType);
+      if (typeRecord == null && _selectedRequestType == 'Others') {
+        typeRecord = await helper.getRequestTypeByName('Other');
+      }
       if (typeRecord == null) {
         try {
-          final res = await Supabase.instance.client.from('request_types').insert({'name': baseType}).select().maybeSingle();
+          final res = await Supabase.instance.client.from('request_types').insert({'name': _selectedRequestType == 'Others' ? 'Others' : baseType}).select().maybeSingle();
           if (res != null) typeRecord = RequestType.fromMap(res);
         } catch (_) {}
       }

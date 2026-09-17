@@ -7,6 +7,7 @@ import 'task/maintenance_reports_page.dart';
 import 'history/maintenance_staff_history_page.dart';
 import 'profile/maintenance_staff_profile_page.dart';
 import 'chat/maintenance_chat_page.dart';
+import '../../shared/widgets/announcements/global_announcement_listener.dart';
 
 class MaintenanceNavigation extends StatefulWidget {
   final int initialIndex;
@@ -61,7 +62,8 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
       const MaintenanceStaffProfilePage(),
     ];
 
-    return Scaffold(
+    return GlobalAnnouncementListener(
+      child: Scaffold(
       drawer: Drawer(
         width: 280,
         child: Container(
@@ -163,7 +165,8 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
         children: pages,
       ),
       bottomNavigationBar: _buildBottomNavBar(),
-    );
+    ),
+  );
   }
 
   Widget _buildBottomNavBar() {

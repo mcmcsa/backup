@@ -6,6 +6,7 @@ import 'chat/admin_chat_page.dart';
 import '../../shared/screens/unified_analytics_page.dart';
 import 'profile/profile_page.dart';
 import 'shared/menu_drawer.dart';
+import '../../shared/widgets/announcements/global_announcement_listener.dart';
 
 class MainNavigation extends StatefulWidget {
   final int initialIndex;
@@ -51,22 +52,24 @@ class _MainNavigationState extends State<MainNavigation> {
       ProfilePage(openDrawer: _openDrawer),
     ];
 
-    Widget content = Scaffold(
-      key: _scaffoldKey,
-      drawer: MenuDrawer(
-        currentTab: _selectedIndex,
-        onSelectTab: _onNavItemTapped,
+    Widget content = GlobalAnnouncementListener(
+      child: Scaffold(
+        key: _scaffoldKey,
+        drawer: MenuDrawer(
+          currentTab: _selectedIndex,
+          onSelectTab: _onNavItemTapped,
+        ),
+        onDrawerChanged: (isOpen) {
+          setState(() {
+            _isDrawerOpen = isOpen;
+          });
+        },
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: pages,
+        ),
+        bottomNavigationBar: _isDrawerOpen ? null : _buildBottomNavBar(),
       ),
-      onDrawerChanged: (isOpen) {
-        setState(() {
-          _isDrawerOpen = isOpen;
-        });
-      },
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: pages,
-      ),
-      bottomNavigationBar: _isDrawerOpen ? null : _buildBottomNavBar(),
     );
 
     if (isCompactMobile) {

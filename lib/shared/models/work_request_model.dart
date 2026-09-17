@@ -74,12 +74,11 @@ class WorkRequest {
         'Ocular Inspection of',
         'Ocular inspection',
         'Ocular Inspection',
-        'Cleaning of',
-        'Cleaning',
         'Replacement',
         'Installation',
         'Repair',
         'Remediation',
+        'Others',
       ];
 
       for (final kt in knownTypes) {
@@ -116,6 +115,26 @@ class WorkRequest {
       return title.substring(colonIdx + 1).trim();
     }
     return title.isNotEmpty ? title : 'N/A';
+  }
+
+  /// Returns the normalized standardized request type:
+  /// 'Replacement of', 'Installation of', 'Repair of', 'Ocular Inspection of', or 'Others'.
+  String get standardizedType {
+    final raw = (typeDisplay.isNotEmpty && typeDisplay != 'N/A' ? typeDisplay : typeOfRequest).trim();
+    final lower = raw.toLowerCase();
+    final titleLower = title.toLowerCase();
+
+    if (lower.contains('replace') || titleLower.contains('replacement')) {
+      return 'Replacement of';
+    } else if (lower.contains('install') || titleLower.contains('installation')) {
+      return 'Installation of';
+    } else if (lower.contains('repair') || lower.contains('fix') || titleLower.contains('repair')) {
+      return 'Repair of';
+    } else if (lower.contains('ocular') || lower.contains('inspection') || titleLower.contains('ocular inspection')) {
+      return 'Ocular Inspection of';
+    } else {
+      return 'Others';
+    }
   }
 
   /// Extracts the specific item the requestor typed (e.g. "Door Knob" from

@@ -17,7 +17,7 @@ class MaintenanceStatusService {
     sendHeartbeat(userId);
     
     // Periodic heartbeat every 10 seconds while the app is active
-    _heartbeatTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       sendHeartbeat(userId);
     });
   }
@@ -28,88 +28,150 @@ class MaintenanceStatusService {
     _heartbeatTimer = null;
   }
 
+  /// Returns true if a work request status represents an ongoing/active assignment for a technician
+  static bool isOngoingWorkRequestStatus(String status) {
+    final s = status.toLowerCase().trim();
+    return s == 'assigned' ||
+        s == 'in progress' ||
+        s == 'in_progress' ||
+        s == 'accepted' ||
+        s == 'accepted by maintenance' ||
+        s == 'under_maintenance' ||
+        s == 'rework' ||
+        s == 'for rework' ||
+        s == 'rework needed';
+  }
+
+  /// Unified real-time dynamic status detection:
+  /// 1. If user has no active heartbeat within threshold (default 90s) -> 'offline'
+  /// 2. If user is online AND assigned to an ongoing work request -> 'busy'
+  /// 3. If user is online AND has no ongoing work request -> 'online'
+  static String computeDynamicStatus({
+    required bool hasActiveAssignment,
+    required DateTime? lastActiveAt,
+    required DateTime now,
+    int activeThresholdSeconds = 90,
+  }) {
+    if (lastActiveAt == null) {
+      return 'offline';
+    }
+
+    final diff = now.difference(lastActiveAt.toUtc()).inSeconds;
+    // Allow up to activeThresholdSeconds (90s) and handle minor clock skew down to -120s
+    final bool isOnline = diff >= -120 && diff <= activeThresholdSeconds;
+
+    if (!isOnline) {
+      return 'offline';
+    }
+
+    if (hasActiveAssignment) {
+      return 'busy';
+    }
+
+    return 'online';
+  }
+
   /// Heartbeat ping to mark user as active and detect online vs busy
   static Future<void> sendHeartbeat(String userId) async {
     try {
       final activeRequests = await _db
           .from('work_requests')
-          .select('id')
-          .eq('assigned_to_id', userId)
-          .inFilter('status', [
-            'Accepted',
-            'Confirmed',
-            'Pre-Inspection Approved',
-            'Rework',
-            'For Rework',
-            'Rework Needed',
-            'Pre-Inspection Submitted',
-            'Post-Repair Submitted',
-            'Under Evaluation',
-            'In Progress',
-            'in_progress',
-            'accepted by maintenance'
-          ]);
+          .select('id, status')
+          .eq('assigned_to_id', userId);
 
-      final String nextStatus = activeRequests.isNotEmpty ? 'busy' : 'online';
+      final hasActive = (activeRequests as List).any((r) {
+        final st = r['status']?.toString() ?? '';
+        return isOngoingWorkRequestStatus(st);
+      });
+
+      final String nextStatus = hasActive ? 'busy' : 'online';
+      final String? assignmentId = hasActive
+          ? activeRequests.firstWhere(
+              (r) => isOngoingWorkRequestStatus(r['status']?.toString() ?? ''),
+              orElse: () => <String, dynamic>{},
+            )['id']?.toString()
+          : null;
 
       await _db.from(_table).update({
         'availability_status': nextStatus,
         'last_active_at': DateTime.now().toUtc().toIso8601String(),
         'status_updated_at': DateTime.now().toUtc().toIso8601String(),
-        if (activeRequests.isNotEmpty) 'current_assignment_id': activeRequests.first['id'],
+        'current_assignment_id': assignmentId,
       }).eq('user_id', userId);
     } catch (e) {
       debugPrint('Heartbeat error: $e');
     }
   }
 
+  /// Syncs the status of a specific user based on active assignments and heartbeat
+  static Future<void> syncStatusForUser(String userId) async {
+    try {
+      final profile = await _db
+          .from(_table)
+          .select('last_active_at')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      final activeRequests = await _db
+          .from('work_requests')
+          .select('id, status')
+          .eq('assigned_to_id', userId);
+
+      final hasActive = (activeRequests as List).any((r) {
+        final st = r['status']?.toString() ?? '';
+        return isOngoingWorkRequestStatus(st);
+      });
+
+      final DateTime? lastActive = profile?['last_active_at'] != null
+          ? DateTime.tryParse(profile!['last_active_at'].toString())
+          : null;
+
+      final dynamicStatus = computeDynamicStatus(
+        hasActiveAssignment: hasActive,
+        lastActiveAt: lastActive,
+        now: DateTime.now().toUtc(),
+      );
+
+      final String? assignmentId = hasActive
+          ? activeRequests.firstWhere(
+              (r) => isOngoingWorkRequestStatus(r['status']?.toString() ?? ''),
+              orElse: () => <String, dynamic>{},
+            )['id']?.toString()
+          : null;
+
+      await _db.from(_table).update({
+        'availability_status': dynamicStatus,
+        'status_updated_at': DateTime.now().toUtc().toIso8601String(),
+        'current_assignment_id': assignmentId,
+      }).eq('user_id', userId);
+    } catch (e) {
+      debugPrint('Failed to sync maintenance status: $e');
+    }
+  }
+
   /// Fetch all active maintenance staff along with their live availability status
   static Future<List<MaintenanceAccount>> fetchAllWithStatus() async {
-    return await MaintenanceAccountService.fetchCreatedByCurrentAdmin();
+    return await MaintenanceAccountService.fetchAllActiveMaintenance();
   }
 
   /// Manually override availability status for a user
   static Future<void> updateStatus(String userId, String status) async {
-    await _db.from(_table).update({
+    final Map<String, dynamic> data = {
       'availability_status': status,
-      'last_active_at': status.toLowerCase() == 'offline' ? null : DateTime.now().toUtc().toIso8601String(),
       'status_updated_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('user_id', userId);
+    };
+    if (status.toLowerCase() == 'offline') {
+      data['last_active_at'] = null;
+    }
+    await _db.from(_table).update(data).eq('user_id', userId);
   }
 
   /// Called upon successful login
   static Future<void> setOnlineOnLogin(String userId) async {
     try {
-      // Check if they have active assignments
-      final activeRequests = await _db
-          .from('work_requests')
-          .select('id')
-          .eq('assigned_to_id', userId)
-          .inFilter('status', [
-            'Accepted',
-            'Confirmed',
-            'Pre-Inspection Approved',
-            'Rework',
-            'For Rework',
-            'Rework Needed',
-            'Pre-Inspection Submitted',
-            'Post-Repair Submitted',
-            'Under Evaluation',
-            'In Progress',
-            'in_progress',
-            'accepted by maintenance'
-          ]);
-
-      final String nextStatus = activeRequests.isNotEmpty ? 'busy' : 'online';
-
-      await _db.from(_table).update({
-        'availability_status': nextStatus,
-        'last_active_at': DateTime.now().toUtc().toIso8601String(),
-        'status_updated_at': DateTime.now().toUtc().toIso8601String(),
-        if (activeRequests.isNotEmpty) 'current_assignment_id': activeRequests.first['id'],
-      }).eq('user_id', userId);
+      await sendHeartbeat(userId);
     } catch (e) {
-      debugPrint('Failed to set online status: $e');
+      debugPrint('Failed to set online status on login: $e');
     }
   }
 
@@ -119,6 +181,7 @@ class MaintenanceStatusService {
       await _db.from(_table).update({
         'availability_status': 'offline',
         'current_assignment_id': null,
+        'last_active_at': null,
         'status_updated_at': DateTime.now().toUtc().toIso8601String(),
       }).eq('user_id', userId);
     } catch (e) {
@@ -142,35 +205,9 @@ class MaintenanceStatusService {
   /// Called when a maintenance user completes a work request
   static Future<void> setAvailableOnCompletion(String userId) async {
     try {
-      // Check if they still have other active/accepted work requests assigned to them
-      final activeRequests = await _db
-          .from('work_requests')
-          .select('id')
-          .eq('assigned_to_id', userId)
-          .inFilter('status', [
-            'Accepted',
-            'Confirmed',
-            'Pre-Inspection Approved',
-            'Rework',
-            'For Rework',
-            'Rework Needed',
-            'Pre-Inspection Submitted',
-            'Post-Repair Submitted',
-            'Under Evaluation',
-            'In Progress',
-            'in_progress',
-            'accepted by maintenance'
-          ]);
-      
-      final String nextStatus = activeRequests.isNotEmpty ? 'busy' : 'online';
-
-      await _db.from(_table).update({
-        'availability_status': nextStatus,
-        'current_assignment_id': activeRequests.isNotEmpty ? activeRequests.first['id'] : null,
-        'status_updated_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('user_id', userId);
+      await syncStatusForUser(userId);
     } catch (e) {
-      debugPrint('Failed to set online status on completion: $e');
+      debugPrint('Failed to set available status on completion: $e');
     }
   }
 

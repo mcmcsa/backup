@@ -56,7 +56,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
-  String _selectedPriority = ''; // Priority is set by admin, not on submission
+  final String _selectedPriority = 'medium';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
   Uint8List? _recordedVoiceBytes;
@@ -298,9 +298,12 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         }
 
         // ── Duplicate detection ─────────────────────────────────────────────
+        final specify = _otherRequestTypeController.text.trim();
         final typeLabel = _selectedRequestType == 'Others'
-            ? _otherRequestTypeController.text.trim()
-            : _selectedRequestType.trim();
+            ? (specify.isNotEmpty ? 'Others: $specify' : 'Others')
+            : (specify.isNotEmpty
+                ? '$_selectedRequestType: $specify'
+                : _selectedRequestType.trim());
 
         final duplicates = await DuplicateDetectionService.detect(
           roomId: selectedRoom.id,
@@ -367,12 +370,16 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           return;
         }
 
-        var selectedRequestTypeRecord = await helper.getRequestTypeByName(typeLabel);
+        final lookupName = _selectedRequestType == 'Others' ? 'Others' : typeLabel;
+        var selectedRequestTypeRecord = await helper.getRequestTypeByName(lookupName);
+        if (selectedRequestTypeRecord == null && _selectedRequestType == 'Others') {
+          selectedRequestTypeRecord = await helper.getRequestTypeByName('Other');
+        }
         if (selectedRequestTypeRecord == null) {
           try {
             final createdType = await Supabase.instance.client
                 .from('request_types')
-                .insert({'name': typeLabel})
+                .insert({'name': lookupName})
                 .select()
                 .maybeSingle();
             if (createdType != null) {
@@ -651,49 +658,45 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                 title: '2. Request Type',
                 children: [
                   const SizedBox(height: 16),
-                  ..._requestTypes.map(_buildRadioOption),
-                  _buildRadioOption('Others'),
-                  if (_selectedRequestType == 'Others')
-                    Padding(
-                      padding: const EdgeInsets.only(left: 32, top: 8),
-                      child: _buildTextField(
-                        controller: _otherRequestTypeController,
-                        hint: 'Please specify...',
-                        validator: (value) {
-                          if (_selectedRequestType == 'Others' &&
-                              (value == null || value.isEmpty)) {
-                            return 'Please specify the request type';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Priority Level Section
-              _buildSectionCard(
-                title: '3. Priority Level',
-                children: [
-                  const SizedBox(height: 16),
-                  _buildDropdown(
-                    value: _selectedPriority,
-                    items: const ['low', 'medium', 'high'],
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          _selectedPriority = value;
-                        });
-                      }
-                    },
-                    enabled: true,
+                  _buildLabel('Type of Request *'),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      ..._requestTypes.map((t) => _buildChoiceChip(t)),
+                      _buildChoiceChip('Others'),
+                    ],
                   ),
+                  if (_selectedRequestType.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    _buildLabel(
+                      _selectedRequestType == 'Others'
+                          ? 'Specify Other Type *'
+                          : 'Specify Details (what is to be ${_selectedRequestType.split(" ").first.toLowerCase()}?) *',
+                    ),
+                    const SizedBox(height: 8),
+                    _buildTextField(
+                      controller: _otherRequestTypeController,
+                      hint: _selectedRequestType == 'Others'
+                          ? 'What kind of request is needed?'
+                          : 'e.g. Aircon, Door Lock, Whiteboard, Window Glass',
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return _selectedRequestType == 'Others'
+                              ? 'Please specify the request type'
+                              : 'Please specify details';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 20),
               // Issue Details Section
               _buildSectionCard(
-                title: '4. Issue Details',
+                title: '3. Issue Details',
                 children: [
                   const SizedBox(height: 16),
                   _buildLabel('Describe the issue in detail'),
@@ -844,7 +847,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
               const SizedBox(height: 20),
               // Requester Info Section
               _buildSectionCard(
-                title: '5. Requester Info',
+                title: '4. Requester Info',
                 children: [
                   const SizedBox(height: 16),
                   _buildLabel('Full Name'),
@@ -1174,56 +1177,29 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
     );
   }
 
-  Widget _buildRadioOption(String value) {
-    return InkWell(
-      onTap: () {
+  Widget _buildChoiceChip(String label) {
+    final isSelected = _selectedRequestType == label;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (s) {
         setState(() {
-          _selectedRequestType = value;
+          _selectedRequestType = s ? label : '';
         });
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          children: [
-            Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: _selectedRequestType == value
-                      ? const Color(0xFF00BFA5)
-                      : Colors.grey.shade400,
-                  width: 2,
-                ),
-              ),
-              child: _selectedRequestType == value
-                  ? Center(
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Color(0xFF00BFA5),
-                        ),
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: _selectedRequestType == value
-                    ? FontWeight.w600
-                    : FontWeight.w400,
-                color: Colors.black87,
-              ),
-            ),
-          ],
+      selectedColor: const Color(0xFF00BFA5).withValues(alpha: 0.15),
+      labelStyle: TextStyle(
+        color: isSelected ? const Color(0xFF00BFA5) : Colors.black87,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+        fontSize: 13,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(
+          color: isSelected ? const Color(0xFF00BFA5) : Colors.grey.shade300,
         ),
       ),
+      backgroundColor: Colors.white,
     );
   }
 }

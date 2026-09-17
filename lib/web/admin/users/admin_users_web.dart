@@ -1,12 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../authentication/services/auth_service.dart';
-import '../../../shared/services/faculty_user_service.dart';
+import '../../../shared/models/department_model.dart';
 import '../../../shared/services/chat_service.dart';
-import '../shared/admin_styles.dart';
+import '../../../shared/services/department_service.dart';
+import '../../../shared/services/faculty_user_service.dart';
 import '../admin_main_navigation_web.dart';
 import '../admin_nav_controller.dart';
+import '../shared/admin_styles.dart';
 
 class AdminUsersWeb extends StatefulWidget {
   const AdminUsersWeb({super.key});
@@ -17,292 +22,563 @@ class AdminUsersWeb extends StatefulWidget {
 
 class _AdminUsersWebState extends State<AdminUsersWeb> {
   final TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _users = [];
-  bool _isLoading = true;
 
-  // Mapping local colors to AdminStyles
-  static const Color _primaryBlue = AdminStyles.primary;
-  static const Color _subtleText = AdminStyles.textSecondary;
-  static const Color _pageBg = AdminStyles.bg;
-  static const Color _borderColor = AdminStyles.border;
+  List<FacultyUserAccount> _users = [];
+  List<Department> _departments = [];
+  bool _isLoading = true;
+  String? _startingChatUserId;
+
+  String _selectedDepartmentFilter = 'All';
+  String _selectedStatusFilter = 'All';
+
+  RealtimeChannel? _usersChannel;
+  RealtimeChannel? _teacherUsersChannel;
+  RealtimeChannel? _departmentsChannel;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadUsers();
+    _loadData();
+    _setupRealtime();
   }
 
-  Future<void> _loadUsers() async {
+  void _setupRealtime() {
     try {
-      final users = await FacultyUserService.fetchAllFacultyUsers();
+      _usersChannel = Supabase.instance.client
+          .channel('public:users_admin_faculty_sync')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'users',
+            callback: (_) {
+              if (mounted) _loadData(showLoading: false);
+            },
+          )
+          .subscribe();
+    } catch (_) {}
 
-      if (!mounted) return;
+    try {
+      _teacherUsersChannel = Supabase.instance.client
+          .channel('public:teacher_users_admin_faculty_sync')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'teacher_users',
+            callback: (_) {
+              if (mounted) _loadData(showLoading: false);
+            },
+          )
+          .subscribe();
+    } catch (_) {}
 
-      final mapped = users.map((user) {
-        return {
-          'id': user.userId,
-          'name': user.fullName,
-          'email': user.email,
-          'department': user.department ?? '-',
-          'status': user.isActive ? 'Active' : 'Inactive',
-        };
-      }).toList();
+    try {
+      _departmentsChannel = Supabase.instance.client
+          .channel('public:departments_admin_faculty_sync')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'departments',
+            callback: (_) {
+              if (mounted) _loadData(showLoading: false);
+            },
+          )
+          .subscribe();
+    } catch (_) {}
 
-      setState(() {
-        _users = mapped;
-        _isLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Error loading faculty users: $e');
-      if (!mounted) return;
-      setState(() {
-        _users = [];
-        _isLoading = false;
-      });
-    }
-  }
-
-  List<Map<String, dynamic>> get _filteredUsers {
-    final query = _searchController.text.toLowerCase();
-    if (query.isEmpty) return _users;
-    return _users
-        .where((u) =>
-            u['name'].toLowerCase().contains(query) ||
-            u['email'].toLowerCase().contains(query) ||
-            u['department'].toLowerCase().contains(query))
-        .toList();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) _loadData(showLoading: false);
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _autoRefreshTimer?.cancel();
+    if (_usersChannel != null) Supabase.instance.client.removeChannel(_usersChannel!);
+    if (_teacherUsersChannel != null) Supabase.instance.client.removeChannel(_teacherUsersChannel!);
+    if (_departmentsChannel != null) Supabase.instance.client.removeChannel(_departmentsChannel!);
     super.dispose();
+  }
+
+  Future<void> _loadData({bool showLoading = true}) async {
+    if (showLoading) setState(() => _isLoading = true);
+    try {
+      final results = await Future.wait([
+        FacultyUserService.fetchAllFacultyUsers(),
+        DepartmentService.fetchAll(),
+      ]);
+
+      if (!mounted) return;
+
+      setState(() {
+        _users = results[0] as List<FacultyUserAccount>;
+        _departments = results[1] as List<Department>;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading faculty users: $e');
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
+
+  List<FacultyUserAccount> get _filteredUsers {
+    var list = _users;
+
+    // Filter by department
+    if (_selectedDepartmentFilter != 'All') {
+      if (_selectedDepartmentFilter == 'No Department') {
+        list = list.where((u) {
+          final dept = (u.department ?? '').trim();
+          return dept.isEmpty || dept.toLowerCase() == 'no department' || dept == '-';
+        }).toList();
+      } else {
+        list = list.where((u) {
+          return (u.department ?? '').trim().toLowerCase() ==
+              _selectedDepartmentFilter.trim().toLowerCase();
+        }).toList();
+      }
+    }
+
+    // Filter by status
+    if (_selectedStatusFilter == 'Active') {
+      list = list.where((u) => u.isActive).toList();
+    } else if (_selectedStatusFilter == 'Inactive') {
+      list = list.where((u) => !u.isActive).toList();
+    }
+
+    // Search query
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return list;
+
+    return list.where((u) {
+      final haystack =
+          '${u.fullName} ${u.email} ${u.employeeId ?? ''} ${u.department ?? ''} ${u.position ?? ''}'
+              .toLowerCase();
+      return haystack.contains(query);
+    }).toList();
+  }
+
+  Future<void> _startChat(FacultyUserAccount user) async {
+    setState(() => _startingChatUserId = user.userId);
+    try {
+      final authService = context.read<AuthService>();
+      final currentUser = authService.currentUser;
+      if (currentUser == null) return;
+
+      final room = await ChatService.findOrCreateDirectRoom(
+        currentUserId: currentUser.id,
+        currentUserName: currentUser.name,
+        currentUserRole: currentUser.role.name,
+        otherUserId: user.userId,
+        otherUserName: user.fullName,
+        otherUserRole: 'teacher',
+      );
+
+      if (mounted) {
+        AdminNavController.of(context)?.navigateTo(
+          AdminMainNavigationWeb.chatIndex,
+          chatRoom: room,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start chat: $e'),
+            backgroundColor: AdminStyles.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _startingChatUserId = null);
+      }
+    }
+  }
+
+  Future<void> _showFacultyDetails(FacultyUserAccount user) async {
+    final formattedDate = DateFormat('MMMM dd, yyyy').format(user.createdAt.toLocal());
+    final hasDept = (user.department ?? '').trim().isNotEmpty &&
+        user.department?.toLowerCase() != 'no department' &&
+        user.department != '-';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: AdminStyles.primary.withValues(alpha: 0.12),
+              child: Text(
+                _getInitials(user.fullName),
+                style: const TextStyle(
+                  color: AdminStyles.primary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.fullName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AdminStyles.headingStyle(fontSize: 18),
+                  ),
+                  Text(
+                    user.email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Divider(height: 24),
+              _detailRow('Department', hasDept ? user.department! : 'No Department (Unassigned)', isHighlighted: hasDept),
+              _detailRow('Employee ID', user.employeeId?.isNotEmpty == true ? user.employeeId! : 'Not Provided'),
+              _detailRow('Position', user.position ?? 'Faculty Member'),
+              _detailRow('Account Status', user.isActive ? 'Active' : 'Inactive'),
+              _detailRow('Date Registered', formattedDate),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value, {bool isHighlighted = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isHighlighted ? FontWeight.w700 : FontWeight.w600,
+                color: isHighlighted ? AdminStyles.primary : const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getInitials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return 'U';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 900;
+    final isCompact = width < 800;
+    final paddingVal = isCompact ? 16.0 : 28.0;
+
+    final users = _filteredUsers;
+
+    // Distinct department names present in current dataset for filtering
+    final Set<String> deptSet = {};
+    for (final u in _users) {
+      final d = (u.department ?? '').trim();
+      if (d.isNotEmpty && d.toLowerCase() != 'no department' && d != '-') {
+        deptSet.add(d);
+      }
+    }
+    for (final d in _departments) {
+      if (d.name.trim().isNotEmpty) {
+        deptSet.add(d.name.trim());
+      }
+    }
+    final sortedDepts = deptSet.toList()..sort();
 
     return Container(
-      color: _pageBg,
+      color: AdminStyles.bg,
       child: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 16 : 32,
-          vertical: isMobile ? 16 : 32,
-        ),
+        padding: EdgeInsets.all(paddingVal),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            _buildHeader(),
-            SizedBox(height: isMobile ? 20 : 24),
+            // Page Header with Refresh
+            _buildPageHeader(isCompact),
+            const SizedBox(height: 20),
 
-            // Search and Add button
-            _buildSearchAndActions(isMobile),
-            SizedBox(height: isMobile ? 20 : 32),
+            // Search & Filter Bar
+            _buildSearchAndFilters(
+              departments: sortedDepts,
+              isCompact: isCompact,
+            ),
+            const SizedBox(height: 18),
 
-            // Users Table
+            // Table or Card List
             if (_isLoading)
-              const Center(child: CircularProgressIndicator(color: _primaryBlue))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(50),
+                  child: CircularProgressIndicator(color: AdminStyles.primary),
+                ),
+              )
+            else if (users.isEmpty)
+              _buildEmptyState()
             else
-              _buildUsersTable(isMobile),
+              isCompact
+                  ? _buildMobileCards(users)
+                  : _buildDesktopTable(users),
+            const SizedBox(height: 30),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildPageHeader(bool isCompact) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          'Users',
-          style: AdminStyles.headingStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.w800,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Users', style: AdminStyles.pageTitleStyle(fontSize: 26)),
+            const SizedBox(height: 4),
+            Text(
+              'Manage and view faculty accounts and departmental assignments',
+              style: AdminStyles.pageSubtitleStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        OutlinedButton.icon(
+          onPressed: _loadData,
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          label: Text(isCompact ? '' : 'Refresh'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AdminStyles.textPrimary,
+            side: const BorderSide(color: AdminStyles.border),
+            padding: EdgeInsets.symmetric(
+              horizontal: isCompact ? 12 : 16,
+              vertical: 12,
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            backgroundColor: Colors.white,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSearchAndActions(bool isMobile) {
-    final searchField = Container(
-      width: isMobile ? double.infinity : 350,
-      height: 48,
-      decoration: AdminStyles.cardDecoration(borderRadius: 14, hasShadow: false),
+  Widget _buildSearchAndFilters({
+    required List<String> departments,
+    required bool isCompact,
+  }) {
+    final searchInput = Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AdminStyles.border),
+      ),
       child: TextField(
         controller: _searchController,
         onChanged: (_) => setState(() {}),
-        decoration: InputDecoration(
-          hintText: 'Search users by name or email...',
-          hintStyle: AdminStyles.bodyStyle(color: Colors.grey.shade400, fontSize: 13),
-          prefixIcon: Padding(
-            padding: const EdgeInsets.only(left: 12, right: 8),
-            child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
-          ),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          disabledBorder: InputBorder.none,
-          errorBorder: InputBorder.none,
-          focusedErrorBorder: InputBorder.none,
-          filled: false,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: AdminStyles.searchInputDecoration(
+          hintText: 'Search faculty by name, email, employee ID, or department...',
+          prefixIcon: Icons.search_rounded,
+        ).copyWith(
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear_rounded, size: 18),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {});
+                  },
+                )
+              : null,
         ),
       ),
     );
 
-    return searchField;
+    final deptDropdown = Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AdminStyles.border),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _selectedDepartmentFilter,
+          icon: const Icon(Icons.arrow_drop_down_rounded, color: AdminStyles.primary),
+          style: AdminStyles.bodyStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AdminStyles.textPrimary,
+          ),
+          items: [
+            const DropdownMenuItem(value: 'All', child: Text('All Departments')),
+            const DropdownMenuItem(value: 'No Department', child: Text('Unassigned (No Dept)')),
+            ...departments.map((d) {
+              return DropdownMenuItem(
+                value: d,
+                child: Text(d, maxLines: 1, overflow: TextOverflow.ellipsis),
+              );
+            }),
+          ],
+          onChanged: (val) {
+            if (val != null) setState(() => _selectedDepartmentFilter = val);
+          },
+        ),
+      ),
+    );
+
+    final statusPills = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildFilterPill('All'),
+        const SizedBox(width: 8),
+        _buildFilterPill('Active'),
+        const SizedBox(width: 8),
+        _buildFilterPill('Inactive'),
+      ],
+    );
+
+    if (isCompact) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          searchInput,
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: deptDropdown),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: statusPills,
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(flex: 3, child: searchInput),
+        const SizedBox(width: 12),
+        SizedBox(width: 240, child: deptDropdown),
+        const SizedBox(width: 16),
+        statusPills,
+      ],
+    );
   }
 
-  Widget _buildUsersTable(bool isMobile) {
-    final filtered = _filteredUsers;
-
-    if (filtered.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 60),
-        decoration: AdminStyles.cardDecoration(),
-        child: Column(
-          children: [
-            Icon(Icons.people_outline_rounded, size: 48, color: _subtleText.withValues(alpha: 0.3)),
-            const SizedBox(height: 12),
-            Text(
-              'No users found',
-              style: AdminStyles.bodyStyle(fontSize: 16, fontWeight: FontWeight.w500),
-            ),
-          ],
+  Widget _buildFilterPill(String label) {
+    final isSelected = _selectedStatusFilter == label;
+    return InkWell(
+      onTap: () => setState(() => _selectedStatusFilter = label),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AdminStyles.primary : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AdminStyles.primary : AdminStyles.border,
+          ),
         ),
-      );
-    }
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected ? Colors.white : AdminStyles.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
 
-    if (isMobile) {
-      return ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: filtered.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) {
-          final user = filtered[index];
-          final statusColor = user['status'] == 'Active' ? AdminStyles.success : AdminStyles.textMuted;
-          return Container(
-            decoration: AdminStyles.cardDecoration(borderRadius: 16),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        user['name'],
-                        style: AdminStyles.bodyStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AdminStyles.textPrimary,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: AdminStyles.pillDecoration(color: statusColor, isSecondary: true),
-                      child: Text(
-                        user['status'].toUpperCase(),
-                        style: AdminStyles.headingStyle(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          color: statusColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  user['email'],
-                  style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Dept: ${user['department']}',
-                      style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20, color: AdminStyles.primary),
-                      onPressed: () async {
-                        final currentUser = context.read<AuthService>().currentUser;
-                        if (currentUser == null) return;
-                        
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (c) => const Center(child: CircularProgressIndicator(color: AdminStyles.primary)),
-                        );
-
-                        try {
-                          final room = await ChatService.findOrCreateDirectRoom(
-                            currentUserId: currentUser.id,
-                            currentUserName: currentUser.name,
-                            currentUserRole: currentUser.role.name,
-                            otherUserId: user['id'],
-                            otherUserName: user['name'],
-                            otherUserRole: 'teacher',
-                          );
-                          if (!context.mounted) return;
-                          Navigator.of(context).pop();
-                          AdminNavController.of(context)?.navigateTo(AdminMainNavigationWeb.chatIndex, chatRoom: room);
-                        } catch (e) {
-                          if (!context.mounted) return;
-                          Navigator.of(context).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error starting chat: $e')));
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      );
-    }
-
+  Widget _buildDesktopTable(List<FacultyUserAccount> users) {
     return Container(
-      decoration: AdminStyles.cardDecoration(borderRadius: 20),
+      decoration: AdminStyles.cardDecoration(borderRadius: 18),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
+          // Table Header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-            decoration: BoxDecoration(
-              color: AdminStyles.bg.withValues(alpha: 0.5),
-              border: Border(bottom: BorderSide(color: _borderColor)),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            color: AdminStyles.bg.withValues(alpha: 0.6),
             child: Row(
               children: [
-                Expanded(flex: 2, child: _buildTableHeader('Full Name')),
-                Expanded(flex: 2, child: _buildTableHeader('Email Address', align: TextAlign.center)),
-                Expanded(flex: 1, child: _buildTableHeader('Department', align: TextAlign.center)),
-                Expanded(flex: 1, child: _buildTableHeader('Status', align: TextAlign.center)),
-                SizedBox(width: 60, child: _buildTableHeader('Action', align: TextAlign.center)),
+                Expanded(flex: 3, child: _tableHeaderTitle('Faculty Member')),
+                Expanded(flex: 3, child: _tableHeaderTitle('Email Address', align: TextAlign.center)),
+                Expanded(flex: 3, child: _tableHeaderTitle('Department', align: TextAlign.center)),
+                SizedBox(width: 90, child: _tableHeaderTitle('Status', align: TextAlign.center)),
+                const SizedBox(width: 16),
+                SizedBox(width: 90, child: _tableHeaderTitle('Actions', align: TextAlign.center)),
               ],
             ),
           ),
+          const Divider(height: 1, color: AdminStyles.border),
+          // Rows
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: filtered.length,
-            separatorBuilder: (_, __) => Divider(height: 1, color: _borderColor.withValues(alpha: 0.5)),
+            itemCount: users.length,
+            separatorBuilder: (context, index) => Divider(
+              height: 1,
+              color: AdminStyles.border.withValues(alpha: 0.6),
+            ),
             itemBuilder: (context, index) {
-              final user = filtered[index];
-              return _UserTableRow(user: user);
+              final user = users[index];
+              return _DesktopTableRow(
+                user: user,
+                initials: _getInitials(user.fullName),
+                isStartingChat: _startingChatUserId == user.userId,
+                onChat: () => _startChat(user),
+                onView: () => _showFacultyDetails(user),
+              );
             },
           ),
         ],
@@ -310,36 +586,267 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
     );
   }
 
-  Widget _buildTableHeader(String title, {TextAlign align = TextAlign.left}) {
+  Widget _buildMobileCards(List<FacultyUserAccount> users) {
+    return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: users.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final user = users[index];
+        final hasDept = (user.department ?? '').trim().isNotEmpty &&
+            user.department?.toLowerCase() != 'no department' &&
+            user.department != '-';
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: AdminStyles.cardDecoration(borderRadius: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AdminStyles.primary.withValues(alpha: 0.12),
+                    child: Text(
+                      _getInitials(user.fullName),
+                      style: const TextStyle(
+                        color: AdminStyles.primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AdminStyles.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          user.email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 12,
+                            color: AdminStyles.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildStatusBadge(user.isActive),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Department pill
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDepartmentBadge(user.department, hasDept),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: AdminStyles.border),
+              const SizedBox(height: 10),
+              // Actions
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _ActionButton(
+                    tooltip: 'Send Message',
+                    icon: Icons.chat_bubble_outline_rounded,
+                    color: AdminStyles.primary,
+                    hoverBg: AdminStyles.primary.withValues(alpha: 0.1),
+                    isLoading: _startingChatUserId == user.userId,
+                    onTap: () => _startChat(user),
+                  ),
+                  const SizedBox(width: 8),
+                  _ActionButton(
+                    tooltip: 'View Details',
+                    icon: Icons.visibility_outlined,
+                    color: const Color(0xFF64748B),
+                    hoverBg: const Color(0xFFF1F5F9),
+                    onTap: () => _showFacultyDetails(user),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
+      decoration: AdminStyles.cardDecoration(borderRadius: 18),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: AdminStyles.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.people_outline_rounded,
+              size: 32,
+              color: AdminStyles.primary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No faculty members found',
+            style: AdminStyles.headingStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Try adjusting your search criteria or filter options.',
+            style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _tableHeaderTitle(String title, {TextAlign align = TextAlign.left}) {
     return Text(
       title.toUpperCase(),
       textAlign: align,
-      style: AdminStyles.headingStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _subtleText),
+      style: AdminStyles.headingStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        color: AdminStyles.textSecondary,
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+
+  static Widget _buildStatusBadge(bool isActive) {
+    final color = isActive ? AdminStyles.success : AdminStyles.textMuted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: AdminStyles.pillDecoration(color: color, isSecondary: true),
+      child: Text(
+        isActive ? 'ACTIVE' : 'INACTIVE',
+        style: AdminStyles.headingStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildDepartmentBadge(String? dept, bool hasDept) {
+    if (hasDept) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AdminStyles.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AdminStyles.primary.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.school_rounded, size: 14, color: AdminStyles.primary),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                dept!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AdminStyles.bodyStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AdminStyles.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AdminStyles.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AdminStyles.warning.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.help_outline_rounded, size: 14, color: AdminStyles.warning),
+          const SizedBox(width: 6),
+          Text(
+            'No Department (Unassigned)',
+            style: AdminStyles.bodyStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AdminStyles.warning,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _UserTableRow extends StatefulWidget {
-  final Map<String, dynamic> user;
-  const _UserTableRow({required this.user});
+class _DesktopTableRow extends StatefulWidget {
+  final FacultyUserAccount user;
+  final String initials;
+  final bool isStartingChat;
+  final VoidCallback onChat;
+  final VoidCallback onView;
+
+  const _DesktopTableRow({
+    required this.user,
+    required this.initials,
+    required this.isStartingChat,
+    required this.onChat,
+    required this.onView,
+  });
 
   @override
-  State<_UserTableRow> createState() => _UserTableRowState();
+  State<_DesktopTableRow> createState() => _DesktopTableRowState();
 }
 
-class _UserTableRowState extends State<_UserTableRow> {
+class _DesktopTableRowState extends State<_DesktopTableRow> {
   bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = widget.user['status'] == 'Active' ? AdminStyles.success : AdminStyles.textMuted;
+    final hasDept = (widget.user.department ?? '').trim().isNotEmpty &&
+        widget.user.department?.toLowerCase() != 'no department' &&
+        widget.user.department != '-';
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         decoration: BoxDecoration(
           color: _isHovered ? AdminStyles.primary.withValues(alpha: 0.03) : Colors.white,
           border: Border(
@@ -351,87 +858,176 @@ class _UserTableRowState extends State<_UserTableRow> {
         ),
         child: Row(
           children: [
+            // Faculty Member Name & Avatar
             Expanded(
-              flex: 2,
-              child: Text(
-                widget.user['name'],
-                style: AdminStyles.bodyStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AdminStyles.textPrimary,
-                ),
-              ),
-            ),
-            Expanded(
-              flex: 2,
-              child: Text(
-                widget.user['email'],
-                textAlign: TextAlign.center,
-                style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Text(
-                widget.user['department'],
-                textAlign: TextAlign.center,
-                style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
-              ),
-            ),
-            Expanded(
-              flex: 1,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: AdminStyles.pillDecoration(color: statusColor, isSecondary: true),
-                  child: Text(
-                    widget.user['status'].toUpperCase(),
-                    style: AdminStyles.headingStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w900,
-                      color: statusColor,
+              flex: 3,
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: AdminStyles.primary.withValues(alpha: 0.12),
+                    child: Text(
+                      widget.initials,
+                      style: const TextStyle(
+                        color: AdminStyles.primary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.user.fullName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AdminStyles.textPrimary,
+                          ),
+                        ),
+                        if (widget.user.employeeId != null && widget.user.employeeId!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'ID: ${widget.user.employeeId}',
+                              style: AdminStyles.bodyStyle(
+                                fontSize: 11,
+                                color: AdminStyles.textSecondary,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Email (Centered)
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.mail_outline_rounded, size: 15, color: Color(0xFF94A3B8)),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        widget.user.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-            SizedBox(
-              width: 60,
-              child: Center(
-                child: IconButton(
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 20, color: AdminStyles.primary),
-                  onPressed: () async {
-                    final currentUser = context.read<AuthService>().currentUser;
-                    if (currentUser == null) return;
-                    
-                    showDialog(
-                      context: context,
-                      barrierDismissible: false,
-                      builder: (c) => const Center(child: CircularProgressIndicator(color: AdminStyles.primary)),
-                    );
-
-                    try {
-                      final room = await ChatService.findOrCreateDirectRoom(
-                        currentUserId: currentUser.id,
-                        currentUserName: currentUser.name,
-                        currentUserRole: currentUser.role.name,
-                        otherUserId: widget.user['id'],
-                        otherUserName: widget.user['name'],
-                        otherUserRole: 'teacher',
-                      );
-                      if (!mounted) return;
-                      Navigator.of(context).pop();
-                      AdminNavController.of(context)?.navigateTo(AdminMainNavigationWeb.chatIndex, chatRoom: room);
-                    } catch (e) {
-                      if (!mounted) return;
-                      Navigator.of(context).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error starting chat: $e')));
-                    }
-                  },
+            // Department (Centered)
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Align(
+                  alignment: Alignment.center,
+                  child: _AdminUsersWebState._buildDepartmentBadge(widget.user.department, hasDept),
                 ),
+              ),
+            ),
+            // Status
+            SizedBox(
+              width: 90,
+              child: Center(
+                child: _AdminUsersWebState._buildStatusBadge(widget.user.isActive),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // Actions
+            SizedBox(
+              width: 90,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _ActionButton(
+                    tooltip: 'Send Message',
+                    icon: Icons.chat_bubble_outline_rounded,
+                    color: AdminStyles.primary,
+                    hoverBg: AdminStyles.primary.withValues(alpha: 0.1),
+                    isLoading: widget.isStartingChat,
+                    onTap: widget.onChat,
+                  ),
+                  const SizedBox(width: 8),
+                  _ActionButton(
+                    tooltip: 'View Details',
+                    icon: Icons.visibility_outlined,
+                    color: const Color(0xFF64748B),
+                    hoverBg: const Color(0xFFF1F5F9),
+                    onTap: widget.onView,
+                  ),
+                ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final Color color;
+  final Color hoverBg;
+  final VoidCallback onTap;
+  final bool isLoading;
+
+  const _ActionButton({
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.hoverBg,
+    required this.onTap,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: isLoading ? null : onTap,
+          borderRadius: BorderRadius.circular(8),
+          hoverColor: hoverBg,
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AdminStyles.border.withValues(alpha: 0.8)),
+            ),
+            alignment: Alignment.center,
+            child: isLoading
+                ? SizedBox(
+                    width: 15,
+                    height: 15,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                  )
+                : Icon(icon, size: 17, color: color),
+          ),
         ),
       ),
     );

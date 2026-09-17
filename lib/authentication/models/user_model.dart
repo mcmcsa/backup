@@ -38,6 +38,7 @@ class AppUser {
   }) {
     final teacherProfile = _asMap(map['teacher_users']);
     final maintenanceProfile = _asMap(map['maintenance_users']);
+    final adminProfile = _asMap(map['admin_users']);
     final teacherDepartment = _asMap(teacherProfile['departments']);
     final userMetadata = _asMap(map['user_metadata']);
 
@@ -54,20 +55,34 @@ class AppUser {
       role: _parseRole(map['role']),
       isActive: map['is_active'] ?? true,
       mustChangePassword: mustChange,
-      campus: map['campus'],
+      campus: _nonEmptyString(map['campus']) ?? _nonEmptyString(adminProfile['office']),
       department: _nonEmptyString(teacherDepartment['name']) ??
           _nonEmptyString(teacherProfile['department_name']) ??
           _nonEmptyString(teacherProfile['department']) ??
           _nonEmptyString(fallbackDeptName) ??
           _nonEmptyString(map['department_name']) ??
           _nonEmptyString(map['department']),
-      position: _nonEmptyString(teacherProfile['position']) ??
+      position: _nonEmptyString(adminProfile['position']) ??
+          _nonEmptyString(adminProfile['designation']) ??
+          _nonEmptyString(teacherProfile['position']) ??
           _nonEmptyString(maintenanceProfile['specialization']) ??
+          _nonEmptyString(userMetadata['position']) ??
           _nonEmptyString(map['position']),
-      employeeId: _nonEmptyString(teacherProfile['employee_id']) ??
-          _nonEmptyString(maintenanceProfile['employee_id']),
-      phone: map['phone'],
-      profileImage: map['profile_image'],
+      employeeId: _nonEmptyString(adminProfile['employee_id']) ??
+          _nonEmptyString(teacherProfile['employee_id']) ??
+          _nonEmptyString(maintenanceProfile['employee_id']) ??
+          _nonEmptyString(userMetadata['employee_id']) ??
+          _nonEmptyString(map['employee_id']),
+      phone: _nonEmptyString(adminProfile['phone']) ??
+          _nonEmptyString(teacherProfile['phone']) ??
+          _nonEmptyString(maintenanceProfile['phone']) ??
+          _nonEmptyString(userMetadata['phone']) ??
+          _nonEmptyString(map['phone']),
+      profileImage: _nonEmptyString(adminProfile['profile_image']) ??
+          _nonEmptyString(teacherProfile['profile_image']) ??
+          _nonEmptyString(maintenanceProfile['profile_image']) ??
+          _nonEmptyString(userMetadata['profile_image']) ??
+          map['profile_image'],
       createdAt: map['created_at'] != null
           ? DateTime.tryParse(map['created_at'].toString())
           : null,

@@ -67,15 +67,22 @@ class AppNotificationService {
   }
 
   static String normalizeRole(String roleName) {
-    switch (roleName.toLowerCase()) {
+    switch (roleName.toLowerCase().trim()) {
       case 'teacher':
+      case 'faculty':
         return 'teacher';
       case 'admin':
         return 'admin';
+      case 'campadmin':
+      case 'campus_admin':
+        return 'campadmin';
       case 'maintenance':
         return 'maintenance';
+      case 'all':
+      case 'everyone':
+        return 'all';
       default:
-        return roleName.toLowerCase();
+        return roleName.toLowerCase().trim();
     }
   }
 

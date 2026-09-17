@@ -271,11 +271,161 @@ class _HistoryCardState extends State<_HistoryCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final date = widget.request.dateCompleted ?? widget.request.dateSubmitted;
     String displayDate = 'N/A';
     try {
       displayDate = DateFormat('h:mm a').format(DateTime.parse(date.toString()));
     } catch (_) {}
+
+    final isCompleted = widget.request.status.toLowerCase() == 'completed';
+    final statusColor = isCompleted ? _green : const Color(0xFFEF4444);
+    final statusText = isCompleted ? 'COMPLETED' : 'DECLINED';
+    final iconData = isCompleted ? Icons.check_circle_rounded : Icons.cancel_rounded;
+    final ticketId = widget.request.id.length > 8 ? widget.request.id.substring(0, 8) : widget.request.id;
+
+    if (isMobile) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _card,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: _blue.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '#$ticketId',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _blue,
+                        ),
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            statusText,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: statusColor,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          displayDate,
+                          style: const TextStyle(fontSize: 11, color: _muted, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(iconData, color: statusColor, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.request.title,
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _ink),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          _InfoChip(Icons.room_rounded, widget.request.roomName ?? 'N/A'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Divider(color: _border, height: 1),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (widget.request.roomId != null && widget.request.roomId!.isNotEmpty) ...[
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => RoomComparisonDialog(roomId: widget.request.roomId!),
+                          );
+                        },
+                        icon: const Icon(Icons.difference_outlined, size: 14, color: _green),
+                        label: const Text(
+                          'Compare',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _green),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          side: BorderSide(color: _green.withValues(alpha: 0.5)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    TextButton.icon(
+                      onPressed: widget.onTap,
+                      icon: const Icon(Icons.visibility_outlined, size: 15, color: _blue),
+                      label: const Text(
+                        'View Details',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _blue),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -290,10 +440,10 @@ class _HistoryCardState extends State<_HistoryCard> {
             color: _hovered ? const Color(0xFFF0FDF4) : _card,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: _hovered ? _green.withValues(alpha: 0.4) : _border,
+              color: _hovered ? statusColor.withValues(alpha: 0.4) : _border,
             ),
             boxShadow: _hovered
-                ? [BoxShadow(color: _green.withValues(alpha: 0.1), blurRadius: 14, offset: const Offset(0, 4))]
+                ? [BoxShadow(color: statusColor.withValues(alpha: 0.1), blurRadius: 14, offset: const Offset(0, 4))]
                 : [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 6, offset: const Offset(0, 2))],
           ),
           child: Row(
@@ -303,11 +453,11 @@ class _HistoryCardState extends State<_HistoryCard> {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: _green.withValues(alpha: 0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _green.withValues(alpha: 0.3)),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
-                child: const Icon(Icons.check_circle_rounded, color: _green, size: 24),
+                child: Icon(iconData, color: statusColor, size: 24),
               ),
               const SizedBox(width: 16),
               // Content
@@ -326,24 +476,24 @@ class _HistoryCardState extends State<_HistoryCard> {
                       spacing: 12,
                       children: [
                         _InfoChip(Icons.room_rounded, widget.request.roomName ?? 'N/A'),
-                        _InfoChip(Icons.tag_rounded, widget.request.id.substring(0, 8)),
+                        _InfoChip(Icons.tag_rounded, ticketId),
                       ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 12),
-              // Time
+              // Time & status
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _green.withValues(alpha: 0.08),
+                      color: statusColor.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Text('DONE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: _green, letterSpacing: 0.5)),
+                    child: Text(statusText, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: statusColor, letterSpacing: 0.5)),
                   ),
                   const SizedBox(height: 6),
                   Text(displayDate, style: const TextStyle(fontSize: 11, color: _muted, fontWeight: FontWeight.w500)),

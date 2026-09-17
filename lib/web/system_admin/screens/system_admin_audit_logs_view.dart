@@ -135,14 +135,17 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: AdminStyles.primary));
-    if (_error != null) return Center(child: Text('Error: $_error', style: const TextStyle(color: AdminStyles.error)));
+    if (_loading) return _buildLoading();
+    if (_error != null) return _buildError();
 
     return LayoutBuilder(builder: (ctx, constraints) {
       final isMobile = constraints.maxWidth < 800;
       return Container(
+        width: double.infinity,
+        height: double.infinity,
         color: AdminStyles.bg,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
               padding: EdgeInsets.fromLTRB(isMobile ? 16 : 32, isMobile ? 16 : 28, isMobile ? 16 : 32, 0),
@@ -177,6 +180,45 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
     });
   }
 
+  Widget _buildLoading() => Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: AdminStyles.bg,
+        child: const Center(
+          child: CircularProgressIndicator(color: AdminStyles.primary, strokeWidth: 3),
+        ),
+      );
+
+  Widget _buildError() => Container(
+        width: double.infinity,
+        height: double.infinity,
+        color: AdminStyles.bg,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.cloud_off_rounded, size: 56, color: AdminStyles.error),
+              const SizedBox(height: 16),
+              Text('Failed to load audit logs', style: AdminStyles.headingStyle(fontSize: 18)),
+              const SizedBox(height: 8),
+              Text(_error ?? 'Unknown error occurred', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () => _loadData(),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminStyles.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
   Widget _buildHeader(bool isMobile) {
     return Row(
       children: [
@@ -192,6 +234,7 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
         ),
         if (!isMobile) ...[
           Container(
+            width: 200,
             height: 44,
             decoration: BoxDecoration(
               color: Colors.white,
@@ -469,70 +512,95 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
   Widget _th(String label, {int flex = 1, bool center = false}) {
     return Expanded(
       flex: flex,
-      child: Text(
-        label.toUpperCase(),
-        textAlign: center ? TextAlign.center : TextAlign.left,
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AdminStyles.textMuted, letterSpacing: 1.0),
+      child: Padding(
+        padding: EdgeInsets.only(right: center ? 0 : 12),
+        child: Text(
+          label.toUpperCase(),
+          textAlign: center ? TextAlign.center : TextAlign.left,
+          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AdminStyles.textMuted, letterSpacing: 1.0),
+        ),
       ),
     );
   }
 
   Widget _buildTableRow(LoginActivity log) {
+    final actionColor = _getActionColor(log.eventType);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Row(
         children: [
           Expanded(
             flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(DateFormat('MMM d, yyyy').format(log.loggedInAt), style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                Text(DateFormat('h:mm:ss a').format(log.loggedInAt), style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textSecondary)),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(DateFormat('MMM d, yyyy').format(log.loggedInAt), style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  Text(DateFormat('h:mm:ss a').format(log.loggedInAt), style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textSecondary)),
+                ],
+              ),
             ),
           ),
           Expanded(
             flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(log.userName, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AdminStyles.textPrimary)),
-                Text(_formatRole(log.role), style: AdminStyles.bodyStyle(fontSize: 11, color: _getRoleColor(log.role))),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(log.userName, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AdminStyles.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Text(_formatRole(log.role), style: AdminStyles.bodyStyle(fontSize: 11, color: _getRoleColor(log.role)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                ],
+              ),
             ),
           ),
           Expanded(
             flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: _getActionColor(log.eventType).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: actionColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: actionColor.withValues(alpha: 0.25), width: 1),
+                  ),
+                  child: Text(
+                    log.title,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: actionColor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12),
               child: Text(
-                log.title,
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _getActionColor(log.eventType)),
+                log.details ?? log.workRequestId ?? '-',
+                style: AdminStyles.bodyStyle(fontSize: 12),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
           Expanded(
-            flex: 3,
-            child: Text(
-              log.details ?? log.workRequestId ?? '-',
-              style: AdminStyles.bodyStyle(fontSize: 12),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Expanded(
             flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Browser', style: AdminStyles.bodyStyle(fontSize: 12)),
-                Text('Unknown IP', style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted)),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Browser', style: AdminStyles.bodyStyle(fontSize: 12)),
+                  Text('Unknown IP', style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted)),
+                ],
+              ),
             ),
           ),
           Expanded(
@@ -738,21 +806,25 @@ class _ViewToggleBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: isActive ? AdminStyles.primary.withValues(alpha: 0.1) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 16, color: isActive ? AdminStyles.primary : AdminStyles.textSecondary),
-                const SizedBox(width: 6),
-                Text(label, style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isActive ? AdminStyles.primary : AdminStyles.textSecondary)),
-              ],
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            decoration: BoxDecoration(
+              color: isActive ? AdminStyles.primary.withValues(alpha: 0.1) : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 16, color: isActive ? AdminStyles.primary : AdminStyles.textSecondary),
+                  const SizedBox(width: 6),
+                  Text(label, style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isActive ? AdminStyles.primary : AdminStyles.textSecondary)),
+                ],
+              ),
             ),
           ),
         ),

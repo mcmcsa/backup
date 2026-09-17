@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../shared/models/system_announcement_model.dart';
+import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/system_announcement_service.dart';
 import '../../admin/shared/admin_styles.dart';
 
@@ -613,7 +614,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
   late final _contentCtrl = TextEditingController(text: widget.announcement?.content ?? '');
   
   String _priority = 'normal';
-  String _status = 'draft';
+  String _status = 'published';
   DateTime? _scheduledFor;
   DateTime? _expiresAt;
   bool _isPinned = false;
@@ -982,9 +983,9 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                   spacing: 8, runSpacing: 8,
                   children: [
                     _buildAudienceChip('all', 'Everyone'),
-                    _buildAudienceChip('faculty', 'Faculty'),
+                    _buildAudienceChip('teacher', 'Faculty'),
                     _buildAudienceChip('maintenance', 'Maintenance'),
-                    _buildAudienceChip('campus_admin', 'Campus Admin'),
+                    _buildAudienceChip('campadmin', 'Campus Admin'),
                   ],
                 ),
 
@@ -1037,21 +1038,22 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
   }
 
   Widget _buildAudienceChip(String role, String label) {
-    final selected = _targetAudience.contains(role);
+    final normalizedChipRole = AppNotificationService.normalizeRole(role);
+    final selected = _targetAudience.any((r) => AppNotificationService.normalizeRole(r) == normalizedChipRole);
     return FilterChip(
       label: Text(label),
       selected: selected,
       onSelected: (bool isSelected) {
         setState(() {
-          if (role == 'all') {
+          if (normalizedChipRole == 'all') {
             _targetAudience.clear();
             if (isSelected) _targetAudience.add('all');
           } else {
-            _targetAudience.remove('all');
+            _targetAudience.removeWhere((r) => AppNotificationService.normalizeRole(r) == 'all');
             if (isSelected) {
-              _targetAudience.add(role);
+              _targetAudience.add(normalizedChipRole);
             } else {
-              _targetAudience.remove(role);
+              _targetAudience.removeWhere((r) => AppNotificationService.normalizeRole(r) == normalizedChipRole);
             }
             if (_targetAudience.isEmpty) _targetAudience.add('all');
           }

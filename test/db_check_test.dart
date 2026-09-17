@@ -65,15 +65,31 @@ void main() {
       print('Error fetching raw rooms: $e');
     }
 
-    print('\n=== Active Work Requests in Database ===');
+    print('\n=== Maintenance Users in Database ===');
     try {
-      final wrData = await db.from('work_requests').select('id, room_id, status, title').neq('status', 'Completed').neq('status', 'Declined');
-      if (wrData.isEmpty) {
-        print('No active work requests found.');
-      } else {
-        for (final wr in wrData) {
-          print('Request ID: ${wr['id']} | Room ID: ${wr['room_id']} | Status: ${wr['status']} | Title: ${wr['title']}');
-        }
+      final maint = await db.from('maintenance_users').select();
+      for (final m in maint) {
+        print('Maintenance user: $m');
+      }
+    } catch (e) {
+      print('Error fetching maintenance users: $e');
+    }
+
+    print('\n=== Users Table ===');
+    try {
+      final users = await db.from('users').select('id, name, email, role, is_active');
+      for (final u in users) {
+        print('User: $u');
+      }
+    } catch (e) {
+      print('Error fetching users: $e');
+    }
+
+    print('\n=== Work Requests ===');
+    try {
+      final wrData = await db.from('work_requests').select('id, title, status, assigned_to_id');
+      for (final wr in wrData) {
+        print('WR: ${wr['id']} | ${wr['title']} | ${wr['status']} | assigned_to: ${wr['assigned_to_id']}');
       }
     } catch (e) {
       print('Error fetching work requests: $e');

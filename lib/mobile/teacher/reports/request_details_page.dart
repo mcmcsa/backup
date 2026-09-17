@@ -18,6 +18,7 @@ import '../../../shared/services/pre_inspection_service.dart';
 import '../../../shared/services/post_repair_service.dart';
 import '../../../shared/services/user_service.dart';
 import '../../../web/teacher/reports/teacher_official_form_web.dart';
+import '../../../shared/widgets/attachment_image_widget.dart';
 
 import 'package:printing/printing.dart';
 import '../../../shared/services/iso_pdf_service.dart';
@@ -47,6 +48,83 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
   final Map<String, String> _userNames = {};
 
   RealtimeChannel? _realtimeChannel;
+  String _selectedFilter = 'Timeline';
+  List<String> _recoveredAttachments = [];
+
+  List<String> get _attachments {
+    final list = <String>[];
+    if (_request?.attachmentUrls != null && _request!.attachmentUrls!.isNotEmpty) {
+      for (final u in _request!.attachmentUrls!) {
+        final trimmed = u.trim();
+        if (trimmed.isNotEmpty && !list.contains(trimmed)) {
+          list.add(trimmed);
+        }
+      }
+    }
+    if (_request?.workEvidence != null && _request!.workEvidence!.trim().isNotEmpty) {
+      final ev = _request!.workEvidence!.trim();
+      try {
+        final decoded = jsonDecode(ev);
+        if (decoded is List) {
+          for (final item in decoded) {
+            final s = item?.toString().trim() ?? '';
+            if (s.isNotEmpty && !list.contains(s)) {
+              list.add(s);
+            }
+          }
+        }
+      } catch (_) {
+        if (ev.startsWith('data:image')) {
+          if (!list.contains(ev)) list.add(ev);
+        } else {
+          for (final part in ev.split(',')) {
+            final s = part.trim();
+            if (s.isNotEmpty && !list.contains(s)) {
+              list.add(s);
+            }
+          }
+        }
+      }
+    }
+    for (final r in _recoveredAttachments) {
+      final trimmed = r.trim();
+      if (trimmed.isNotEmpty && !list.contains(trimmed)) {
+        list.add(trimmed);
+      }
+    }
+    return list;
+  }
+
+  Future<List<String>> _recoverStorageAttachments(String requestId) async {
+    final results = <String>[];
+    try {
+      final client = Supabase.instance.client;
+      final candidateBuckets = ['work-evidence', 'evidence', 'work_evidence', 'attachments'];
+      for (final b in candidateBuckets) {
+        try {
+          final files = await client.storage.from(b).list(path: requestId);
+          for (final f in files) {
+            if (f.name.isNotEmpty && !f.name.startsWith('.')) {
+              final pubUrl = client.storage.from(b).getPublicUrl('$requestId/${f.name}');
+              if (!results.contains(pubUrl)) {
+                results.add(pubUrl);
+              }
+            }
+          }
+          final subFiles = await client.storage.from(b).list(path: 'work-evidence/$requestId');
+          for (final f in subFiles) {
+            if (f.name.isNotEmpty && !f.name.startsWith('.')) {
+              final pubUrl = client.storage.from(b).getPublicUrl('work-evidence/$requestId/${f.name}');
+              if (!results.contains(pubUrl)) {
+                results.add(pubUrl);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    return results;
+  }
 
   @override
   void initState() {
@@ -119,6 +197,16 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
           ? await PostRepairService.fetchByWorkRequest(request.id)
           : <PostRepairReport>[];
 
+      List<String> recoveredAttachments = _recoveredAttachments;
+      if (request != null &&
+          (request.attachmentUrls == null || request.attachmentUrls!.isEmpty) &&
+          (request.workEvidence == null || request.workEvidence!.trim().isEmpty)) {
+        final found = await _recoverStorageAttachments(request.id);
+        if (found.isNotEmpty) {
+          recoveredAttachments = found;
+        }
+      }
+
       final userIds = <String>{};
       if (preInspection?.adminApprovedBy != null) userIds.add(preInspection!.adminApprovedBy!);
       for (final report in postRepairs) {
@@ -138,6 +226,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
           _signatures = signatures;
           _preInspectionReport = preInspection;
           _postRepairReports = postRepairs;
+          _recoveredAttachments = recoveredAttachments;
         });
       }
       await _markRelatedNotificationsRead();
@@ -298,125 +387,22 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            // Location and Category Row
-            Row(
-              children: [
-                Expanded(
-                  child: _buildInfoBox(
-                    icon: Icons.place_outlined,
-                    label: 'LOCATION',
-                    value1: _request?.officeRoom ?? 'N/A',
-                    value2: _request?.buildingName ?? 'N/A',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildInfoBox(
-                    icon: Icons.flag_outlined,
-                    label: 'PRIORITY',
-                    value1: _request?.priority.isNotEmpty == true ? _request!.priority : 'Normal',
-                    value2: 'Pending Review',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            // Problem Description
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.description_outlined,
-                        size: 18,
-                        color: Colors.grey.shade700,
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Problem Description',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _request?.description ?? 'No description provided.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade700,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Assigned Users
-                  Row(
-                    children: [
-                      _buildAvatar('assets/images/avatar1.png'),
-                      Transform.translate(
-                        offset: const Offset(-8, 0),
-                        child: _buildAvatar('assets/images/avatar2.png'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            // View Digital Form Link
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _openOfficialForm,
-                icon: const Icon(
-                  Icons.description,
-                  size: 18,
-                  color: Color(0xFF4169E1),
-                ),
-                label: const Text(
-                  'View Digital Form',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF4169E1),
-                  ),
-                ),
-              ),
-            ),
             const SizedBox(height: 16),
-            // Requestor E-Signature Card
-            _buildSignaturesCard(),
-            const SizedBox(height: 24),
-            // Workflow Timeline
-            const Text(
-              'Workflow Timeline',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+            // Segmented Filter Tabs
+            _buildFilterButtons(),
+            const SizedBox(height: 16),
+            // Active Tab Content
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: KeyedSubtree(
+                key: ValueKey(_selectedFilter),
+                child: _selectedFilter == 'Timeline'
+                    ? _buildTimelineSection()
+                    : (_selectedFilter == 'Details'
+                        ? _buildDetailsSection()
+                        : _buildSignaturesCard()),
               ),
             ),
-            const SizedBox(height: 20),
-            _buildWorkflowTimeline(),
             const SizedBox(height: 24),
             // Maintenance Office Contact Card
             Container(
@@ -522,6 +508,445 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     );
   }
 
+  Widget _buildFilterButtons() {
+    final filters = [
+      {'label': 'Timeline', 'icon': Icons.timeline_rounded},
+      {'label': 'Details', 'icon': Icons.description_outlined},
+      {'label': 'Signature', 'icon': Icons.draw_outlined},
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x06000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: filters.map((f) {
+          final label = f['label'] as String;
+          final icon = f['icon'] as IconData;
+          final isSelected = _selectedFilter == label;
+
+          return Expanded(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  if (_selectedFilter != label) {
+                    setState(() => _selectedFilter = label);
+                  }
+                },
+                borderRadius: BorderRadius.circular(9),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFF00BFA5) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(9),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: const Color(0xFF00BFA5).withValues(alpha: 0.28),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 16,
+                        color: isSelected ? Colors.white : Colors.grey.shade600,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected ? Colors.white : Colors.grey.shade700,
+                        ),
+                      ),
+                      if (label == 'Signature' && _requestorSignatures.isNotEmpty) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.white.withValues(alpha: 0.25)
+                                : const Color(0xFF00BFA5).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${_requestorSignatures.length}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected ? Colors.white : const Color(0xFF00BFA5),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildTimelineSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Workflow Timeline',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _openOfficialForm,
+              icon: const Icon(
+                Icons.description,
+                size: 16,
+                color: Color(0xFF00BFA5),
+              ),
+              label: const Text(
+                'View Official Form',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF00BFA5),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildWorkflowTimeline(),
+      ],
+    );
+  }
+
+  Widget _buildDetailsSection() {
+    final isPendingReview = _request?.status.toLowerCase() == 'pending';
+    final priorityDisplay = isPendingReview
+        ? '--'
+        : (_request?.priority.isNotEmpty == true ? _request!.priority : 'Normal');
+    final prioritySub = isPendingReview ? 'Pending Review' : 'Assigned';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Location and Priority Row
+        Row(
+          children: [
+            Expanded(
+              child: _buildInfoBox(
+                icon: Icons.place_outlined,
+                label: 'LOCATION',
+                value1: _request?.officeRoom ?? _request?.roomName ?? 'N/A',
+                value2: _request?.buildingName ?? 'N/A',
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildInfoBox(
+                icon: Icons.flag_outlined,
+                label: 'PRIORITY',
+                value1: priorityDisplay,
+                value2: prioritySub,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        // Additional details card (Dates, Requestor)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF00BFA5)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Date Submitted',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const Spacer(),
+                  Text(
+                    _request != null
+                        ? DateFormat('MMM dd, yyyy • hh:mm a').format(_request!.dateSubmitted)
+                        : 'N/A',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+                  ),
+                ],
+              ),
+              if (_request != null && (_request!.requestorName.isNotEmpty || _request!.displayRequestorName.isNotEmpty)) ...[
+                const Divider(height: 20, color: Color(0xFFF1F5F9)),
+                Row(
+                  children: [
+                    const Icon(Icons.person_outline_rounded, size: 16, color: Color(0xFF00BFA5)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Requested By',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    const Spacer(),
+                    Text(
+                      _request!.requestorName.isNotEmpty
+                          ? _request!.requestorName
+                          : _request!.displayRequestorName,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Problem Description
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.description_outlined,
+                    size: 18,
+                    color: Colors.grey.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Problem Description',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _request?.description ?? 'No description provided.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Attached Photos Carousel
+        _buildAttachedPhotosCard(),
+        const SizedBox(height: 12),
+        // View Digital Form Link
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: _openOfficialForm,
+            icon: const Icon(
+              Icons.assignment_rounded,
+              size: 16,
+              color: Color(0xFF00BFA5),
+            ),
+            label: const Text(
+              'View Digital Form',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF00BFA5),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAttachedPhotosCard() {
+    final photos = _attachments;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.image_rounded, size: 18, color: Color(0xFF00BFA5)),
+              const SizedBox(width: 8),
+              const Text(
+                'Attached Photos',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              if (photos.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00BFA5).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${photos.length}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF00BFA5),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (photos.isNotEmpty)
+            SizedBox(
+              height: 110,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: photos.length,
+                itemBuilder: (context, index) {
+                  final url = photos[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => showAttachmentZoomDialog(context, url),
+                      child: Container(
+                        width: 110,
+                        height: 110,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          color: const Color(0xFFF8FAFC),
+                        ),
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: AppAttachmentImage(
+                                url: url,
+                                fit: BoxFit.cover,
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                            ),
+                            Positioned(
+                              bottom: 6,
+                              right: 6,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.6),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.zoom_in_rounded,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            )
+          else
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 16, color: Colors.grey.shade400),
+                  const SizedBox(width: 8),
+                  Text(
+                    'No photos attached to this request.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInfoBox({
     required IconData icon,
     required String label,
@@ -578,20 +1003,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     );
   }
 
-  Widget _buildAvatar(String imagePath) {
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: Colors.grey.shade300,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-      ),
-      child: ClipOval(
-        child: Icon(Icons.person, size: 18, color: Colors.grey.shade600),
-      ),
-    );
-  }
+
 
   bool _isUnassigned(String? staffId) {
     final normalized = staffId?.trim().toLowerCase();

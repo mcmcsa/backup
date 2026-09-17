@@ -204,11 +204,11 @@ class MaintenanceAccountService {
   }
 
   static Future<List<MaintenanceAccount>> fetchCreatedByCurrentAdmin() async {
-    return _fetchByArchiveState(includeArchived: false);
+    return _fetchActiveFallback();
   }
 
   static Future<List<MaintenanceAccount>> fetchArchivedByCurrentAdmin() async {
-    return _fetchByArchiveState(includeArchived: true);
+    return _fetchArchivedFallback();
   }
 
   static Future<List<MaintenanceAccount>> _fetchByArchiveState({

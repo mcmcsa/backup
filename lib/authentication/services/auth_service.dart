@@ -150,6 +150,7 @@ class AuthService extends ChangeNotifier {
     if (_currentUser?.role == UserRole.maintenance) {
       try {
         await MaintenanceStatusService.setOnlineOnLogin(_currentUser!.id);
+        MaintenanceStatusService.startHeartbeat(_currentUser!.id);
       } catch (_) {}
     }
     if (_currentUser != null) {
@@ -301,6 +302,7 @@ class AuthService extends ChangeNotifier {
         await LoginActivityService.recordLogin(profile);
         if (profile.role == UserRole.maintenance) {
           await MaintenanceStatusService.setOnlineOnLogin(profile.id);
+          MaintenanceStatusService.startHeartbeat(profile.id);
         }
         await AppSettingsService.loadAndApplyForUser(profile.id);
         if (kIsWeb) {
@@ -407,6 +409,7 @@ class AuthService extends ChangeNotifier {
             details: 'Logged out from the system',
           );
           if (current.role == UserRole.maintenance) {
+            MaintenanceStatusService.stopHeartbeat();
             await MaintenanceStatusService.setOfflineOnLogout(current.id);
           }
           // Remove FCM device token and stop watchers so user stops receiving notifications after logout.
@@ -446,6 +449,7 @@ class AuthService extends ChangeNotifier {
           await LoginActivityService.recordLogin(profile);
           if (profile.role == UserRole.maintenance) {
             await MaintenanceStatusService.setOnlineOnLogin(profile.id);
+            MaintenanceStatusService.startHeartbeat(profile.id);
           }
         } catch (e) {
           debugPrint('Session login activity recording failed: $e');
@@ -696,6 +700,24 @@ class AuthService extends ChangeNotifier {
           'employee_id': updatedUser.employeeId,
           'specialization': updatedUser.position,
         }, onConflict: 'user_id');
+      } else if (updatedUser.role == UserRole.admin ||
+          updatedUser.role == UserRole.campadmin) {
+        try {
+          await _auth.from('admin_users').upsert({
+            'user_id': updatedUser.id,
+            'employee_id': updatedUser.employeeId,
+            'position': updatedUser.position,
+            'phone': updatedUser.phone,
+          }, onConflict: 'user_id');
+        } catch (e) {
+          debugPrint('admin_users upsert warning (migration may be pending): $e');
+          try {
+            await _auth.from('admin_users').upsert({
+              'user_id': updatedUser.id,
+              'phone': updatedUser.phone,
+            }, onConflict: 'user_id');
+          } catch (_) {}
+        }
       }
 
       // 3. Keep auth.users userMetadata in sync
@@ -749,6 +771,15 @@ class AuthService extends ChangeNotifier {
       await _auth.from('users').update({
         'profile_image': clear ? null : profileImage,
       }).eq('id', userId);
+
+      if (role == UserRole.admin || role == UserRole.campadmin) {
+        try {
+          await _auth.from('admin_users').upsert({
+            'user_id': userId,
+            'profile_image': clear ? null : profileImage,
+          }, onConflict: 'user_id');
+        } catch (_) {}
+      }
 
       _currentUser = await _fetchProfile(userId) ?? _currentUser;
       notifyListeners();
@@ -927,6 +958,22 @@ class AuthService extends ChangeNotifier {
           .maybeSingle();
       if (maintenanceProfile != null) {
         mergedProfile['maintenance_users'] = maintenanceProfile;
+      }
+    } else if (role == UserRole.admin.name ||
+        role == UserRole.campadmin.name ||
+        role == 'admin' ||
+        role == 'campadmin') {
+      try {
+        final adminProfile = await _auth
+            .from('admin_users')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (adminProfile != null) {
+          mergedProfile['admin_users'] = adminProfile;
+        }
+      } catch (e) {
+        debugPrint('admin_users fetch note: $e');
       }
     }
 

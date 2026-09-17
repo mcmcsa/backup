@@ -9,6 +9,7 @@ import 'reports/student_reports_page.dart';
 import 'profile/student_profile_page.dart';
 import 'widgets/student_drawer.dart';
 import 'chat/teacher_chat_page.dart';
+import '../../shared/widgets/announcements/global_announcement_listener.dart';
 
 class StudentTeacherNavigation extends StatefulWidget {
   final int initialIndex;
@@ -69,23 +70,25 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
       ),
     ];
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        if (_selectedIndex != 0) {
-          setState(() => _selectedIndex = 0);
-        }
-      },
-      child: Scaffold(
-        key: _scaffoldKey,
-        backgroundColor: themeProvider.backgroundColor,
-        body: IndexedStack(
-          index: _selectedIndex,
-          children: pages,
+    return GlobalAnnouncementListener(
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          if (_selectedIndex != 0) {
+            setState(() => _selectedIndex = 0);
+          }
+        },
+        child: Scaffold(
+          key: _scaffoldKey,
+          backgroundColor: themeProvider.backgroundColor,
+          body: IndexedStack(
+            index: _selectedIndex,
+            children: pages,
+          ),
+          drawer: StudentDrawer(onSelectTab: _onNavItemTapped),
+          bottomNavigationBar: _buildBottomNavBar(themeProvider),
         ),
-        drawer: StudentDrawer(onSelectTab: _onNavItemTapped),
-        bottomNavigationBar: _buildBottomNavBar(themeProvider),
       ),
     );
   }

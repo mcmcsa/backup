@@ -7,6 +7,7 @@ import '../../shared/widgets/lazy_indexed_stack.dart';
 import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
 import '../admin/shared/admin_styles.dart';
+import '../../shared/widgets/announcements/global_announcement_listener.dart';
 import '../../shared/services/app_notification_service.dart';
 import '../../shared/services/app_settings_service.dart';
 import '../../shared/services/maintenance_status_service.dart';
@@ -261,7 +262,8 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
           }
         });
       },
-      child: LayoutBuilder(
+      child: GlobalAnnouncementListener(
+        child: LayoutBuilder(
         builder: (context, constraints) {
           final isCompact = constraints.maxWidth < 1100;
 
@@ -319,7 +321,8 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
           );
         },
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildSidebar({double width = 260, bool closeDrawerOnTap = false}) {

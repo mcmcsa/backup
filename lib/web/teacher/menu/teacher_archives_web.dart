@@ -154,13 +154,15 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
   }
 
   Widget _buildFilterChip(String label) {
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 650;
     final isSelected = _selectedFilter == label;
     return InkWell(
       onTap: () => setState(() => _selectedFilter = label),
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        padding: EdgeInsets.symmetric(horizontal: isNarrow ? 14 : 20, vertical: isNarrow ? 8 : 12),
         decoration: BoxDecoration(
           color: isSelected ? AdminStyles.primary : AdminStyles.bg,
           borderRadius: BorderRadius.circular(12),
@@ -171,6 +173,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
           style: AdminStyles.bodyStyle(
             color: isSelected ? Colors.white : AdminStyles.textPrimary,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontSize: isNarrow ? 12 : 14,
           ),
         ),
       ),
@@ -208,6 +211,146 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
     final isCompleted = request.status.toLowerCase() == 'completed';
     final color = isCompleted ? AdminStyles.success : AdminStyles.error;
 
+    if (isNarrow) {
+      return GestureDetector(
+        onTap: () {
+          TeacherNavController.of(context)?.navigateTo(3, request: request);
+        },
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: AdminStyles.cardDecoration(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AdminStyles.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      request.id.length > 8 ? '#${request.id.substring(0, 8)}' : '#${request.id}',
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AdminStyles.primary,
+                      ),
+                    ),
+                  ),
+                  _buildStatusPill(request.status),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      isCompleted ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                      color: color,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          request.title,
+                          style: AdminStyles.headingStyle(fontSize: 15),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textSecondary),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                request.roomName ?? 'N/A',
+                                style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(Icons.calendar_today_outlined, size: 13, color: AdminStyles.textSecondary),
+                            const SizedBox(width: 4),
+                            Text(
+                              DateFormat('MMM dd, yyyy').format(request.dateSubmitted),
+                              style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: AdminStyles.border),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (request.roomId != null && request.roomId!.isNotEmpty) ...[
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (context) => RoomComparisonDialog(roomId: request.roomId!),
+                        );
+                      },
+                      icon: const Icon(Icons.difference_outlined, size: 14, color: Color(0xFF16A34A)),
+                      label: Text(
+                        'Compare',
+                        style: AdminStyles.bodyStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF16A34A),
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        side: const BorderSide(color: Color(0xFF86EFAC)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  TextButton.icon(
+                    onPressed: () {
+                      TeacherNavController.of(context)?.navigateTo(3, request: request);
+                    },
+                    icon: const Icon(Icons.visibility_outlined, size: 15, color: AdminStyles.primary),
+                    label: Text(
+                      'View Details',
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AdminStyles.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: () {
         TeacherNavController.of(context)?.navigateTo(3, request: request);
@@ -215,24 +358,24 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
-          padding: EdgeInsets.all(isNarrow ? 16 : 24),
+          padding: const EdgeInsets.all(24),
           decoration: AdminStyles.cardDecoration(),
           child: Row(
             children: [
               Container(
-                width: isNarrow ? 44 : 56,
-                height: isNarrow ? 44 : 56,
+                width: 56,
+                height: 56,
                 decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                child: Icon(isCompleted ? Icons.check_circle_rounded : Icons.cancel_rounded, color: color, size: isNarrow ? 20 : 28),
+                child: Icon(isCompleted ? Icons.check_circle_rounded : Icons.cancel_rounded, color: color, size: 28),
               ),
-              SizedBox(width: isNarrow ? 16 : 24),
+              const SizedBox(width: 24),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       request.title,
-                      style: AdminStyles.headingStyle(fontSize: isNarrow ? 14 : 16),
+                      style: AdminStyles.headingStyle(fontSize: 16),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -248,7 +391,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                             Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textSecondary),
                             const SizedBox(width: 4),
                             Container(
-                              constraints: BoxConstraints(maxWidth: isNarrow ? 120 : 180),
+                              constraints: const BoxConstraints(maxWidth: 180),
                               child: Text(
                                 request.roomName ?? 'N/A',
                                 style: AdminStyles.bodyStyle(fontSize: 12),

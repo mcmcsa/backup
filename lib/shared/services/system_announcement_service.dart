@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/system_announcement_model.dart';
 import 'admin_audit_log_service.dart';
+import 'app_notification_service.dart';
 
 class SystemAnnouncementService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -32,8 +33,9 @@ class SystemAnnouncementService {
       // Filter in-memory for role audience
       final filtered = list.where((a) {
         if (userRole == null) return true;
-        final aud = a.targetAudience.map((e) => e.trim().toLowerCase()).toList();
-        return aud.contains('all') || aud.contains(userRole.trim().toLowerCase());
+        final normalizedUser = AppNotificationService.normalizeRole(userRole);
+        final aud = a.targetAudience.map((e) => AppNotificationService.normalizeRole(e)).toList();
+        return aud.contains('all') || aud.contains(normalizedUser);
       }).toList();
 
       // Order by pinned first, then newest
@@ -87,6 +89,18 @@ class SystemAnnouncementService {
 
       await _db.from(_table).insert(payload);
 
+      if (status.toLowerCase() == 'published') {
+        final roles = targetAudience.map((e) => AppNotificationService.normalizeRole(e)).toList();
+        try {
+          await AppNotificationService.createForRoles(
+            targetRoles: roles.contains('all') ? ['all'] : roles,
+            title: 'Announcement: ${title.trim()}',
+            message: content.trim(),
+            type: 'announcement',
+          );
+        } catch (_) {}
+      }
+
       await AdminAuditLogService.logAction(
         title: 'Created Announcement',
         details: 'Title: $title | Status: $status',
@@ -126,6 +140,20 @@ class SystemAnnouncementService {
         'expires_at': expiresAt?.toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
       }).eq('id', id);
+
+      if (status.toLowerCase() == 'published') {
+        final roles = (targetAudience ?? const ['all'])
+            .map((e) => AppNotificationService.normalizeRole(e))
+            .toList();
+        try {
+          await AppNotificationService.createForRoles(
+            targetRoles: roles.contains('all') ? ['all'] : roles,
+            title: 'Announcement: ${title.trim()}',
+            message: content.trim(),
+            type: 'announcement',
+          );
+        } catch (_) {}
+      }
 
       await AdminAuditLogService.logAction(
         title: 'Updated Announcement',

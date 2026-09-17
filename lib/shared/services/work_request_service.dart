@@ -408,6 +408,9 @@ class WorkRequestService {
       if (request?.roomId != null) {
         await updateRoomStatusFromRequests(request!.roomId!);
       }
+      if (request?.assignedToId != null) {
+        await MaintenanceStatusService.syncStatusForUser(request!.assignedToId!);
+      }
     } catch (_) {}
   }
 
@@ -470,11 +473,21 @@ class WorkRequestService {
   }
 
   static Future<void> assignTo(String id, String userId) async {
+    final oldReq = await fetchById(id);
+    final oldAssigneeId = oldReq?.assignedToId;
+
     if (id.startsWith('WR-')) {
       await _db.from(_table).update({'assigned_to_id': userId}).eq('legacy_id', id);
     } else {
       await _db.from(_table).update({'assigned_to_id': userId}).eq('id', id);
     }
+
+    try {
+      await MaintenanceStatusService.setBusyOnAssignment(userId, id);
+      if (oldAssigneeId != null && oldAssigneeId != userId) {
+        await MaintenanceStatusService.syncStatusForUser(oldAssigneeId);
+      }
+    } catch (_) {}
   }
 
   static Future<void> approveRequest(
