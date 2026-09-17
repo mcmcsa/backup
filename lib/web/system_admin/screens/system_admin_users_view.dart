@@ -189,6 +189,31 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
         }
       }
 
+      // Query auth.users via RPC if available for authoritative last sign-in timestamp
+      try {
+        final dynamic rpcLogins =
+            await Supabase.instance.client.rpc('get_users_last_login');
+        if (rpcLogins is List) {
+          for (final item in rpcLogins) {
+            if (item is Map &&
+                item['user_id'] != null &&
+                item['last_sign_in_at'] != null) {
+              final dt = DateTime.tryParse(item['last_sign_in_at'].toString());
+              if (dt != null) {
+                final uid = item['user_id'].toString();
+                final existing = loginMap[uid];
+                final localTime = LoginActivity.toPhilippineTime(dt);
+                if (existing == null || localTime.isAfter(existing)) {
+                  loginMap[uid] = localTime;
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {
+        // Silently fall back to activity logs if RPC is not present
+      }
+
       if (!mounted) return;
       setState(() {
         _allUsers = users;

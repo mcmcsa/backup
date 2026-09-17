@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -198,8 +199,9 @@ class LoginActivityService {
         'work_request_id': entry['work_request_id'],
         'logged_at': isoUtc,
       });
-    } catch (_) {
+    } catch (e) {
       // Keep local fallback so logging never blocks business actions.
+      debugPrint('LoginActivityService: insert to $_table error: $e');
     }
 
     final prefs = await SharedPreferences.getInstance();

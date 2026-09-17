@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 
@@ -51,6 +52,11 @@ class _ForceChangePasswordScreenState
 
     if (error != null) {
       setState(() => _errorMessage = error);
+    } else {
+      final user = authService.currentUser;
+      if (user != null && mounted) {
+        context.go(user.dashboardRoute);
+      }
     }
   }
 

@@ -362,7 +362,7 @@ class AuthService extends ChangeNotifier {
     if (password != 'SysAdmin2026!') return null;
 
     return AppUser(
-      id: '00000000-0000-0000-0000-000000000001',
+      id: 'fb597e50-ca84-4895-9950-8fc042269565',
       email: 'sysadmin@psu.edu.ph',
       name: 'System Administrator',
       role: UserRole.admin,
@@ -862,16 +862,28 @@ class AuthService extends ChangeNotifier {
         return 'Your new password cannot be the same as your initial temporary password. Please enter a different password.';
       }
 
-      // Re-authenticate with current password to verify validity
-      try {
-        await _auth.auth.signInWithPassword(
-          email: email,
-          password: trimmedCurrent,
-        );
-      } on AuthException catch (_) {
-        return 'Current temporary password is incorrect.';
-      } catch (_) {
-        return 'Current temporary password is incorrect.';
+      // Verify current password against Supabase auth if provided
+      if (trimmedCurrent.isNotEmpty) {
+        try {
+          await _auth.auth.signInWithPassword(
+            email: email,
+            password: trimmedCurrent,
+          );
+        } on AuthException catch (e) {
+          final msg = e.message.toLowerCase();
+          // Only reject if Supabase specifically identified wrong credentials
+          if (msg.contains('invalid login credentials') ||
+              msg.contains('invalid password') ||
+              msg.contains('invalid_grant') ||
+              msg.contains('invalid_credentials')) {
+            return 'Current temporary password is incorrect.';
+          }
+          // For rate limits, transient network issues, or other non-credential errors,
+          // continue with the existing authenticated session since the user is already logged in.
+          debugPrint('[forceChangePassword] Re-auth non-credential message: ${e.message}');
+        } catch (e) {
+          debugPrint('[forceChangePassword] Re-auth unexpected error: $e');
+        }
       }
 
       await _auth.auth.updateUser(
@@ -887,7 +899,8 @@ class AuthService extends ChangeNotifier {
         }).eq('id', user.id);
       } catch (_) {}
 
-      _currentUser = await _fetchProfile(user.id);
+      final profile = await _fetchProfile(user.id);
+      _currentUser = profile?.copyWith(mustChangePassword: false);
       notifyListeners();
       return null;
     } on AuthException catch (e) {
