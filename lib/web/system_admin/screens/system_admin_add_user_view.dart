@@ -194,7 +194,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                     label: 'Password',
                                     child: _buildTextField(
                                       controller: _passwordController,
-                                      hint: 'Min. 6 characters',
+                                      hint: 'e.g. Password_12345',
                                       icon: Icons.lock_outline_rounded,
                                       obscure: _obscurePassword,
                                       validator: (v) => v!.length < 6 ? 'Min 6 characters' : null,
@@ -249,7 +249,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                           label: 'Password',
                                           child: _buildTextField(
                                             controller: _passwordController,
-                                            hint: 'Min. 6 characters',
+                                            hint: 'e.g. Password_12345',
                                             icon: Icons.lock_outline_rounded,
                                             obscure: _obscurePassword,
                                             validator: (v) => v!.length < 6 ? 'Min 6 characters' : null,

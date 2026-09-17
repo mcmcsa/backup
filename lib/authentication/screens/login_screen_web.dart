@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
+import '../widgets/forgot_password_dialog.dart';
 
 class LoginScreenWeb extends StatefulWidget {
   const LoginScreenWeb({super.key});
@@ -339,7 +340,9 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
   }
 
   Widget _buildBrandHeader() {
-    return Column(
+    return FadeTransition(
+      opacity: _fadeHeader,
+      child: Column(
       children: [
         Center(
           child: Image.asset(
@@ -371,7 +374,8 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
           ),
         ),
       ],
-    );
+    ),
+  );
   }
 
   Widget _buildFormBody(Size size) {
@@ -412,7 +416,29 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          ForgotPasswordDialog.show(
+                            context,
+                            initialEmail: _emailController.text.trim(),
+                            onPasswordResetSuccess: (email) {
+                              _emailController.text = email;
+                              _passwordController.clear();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(Icons.check_circle_rounded, color: Colors.white),
+                                      SizedBox(width: 10),
+                                      Text('Password reset successful! Please sign in with your new password.'),
+                                    ],
+                                  ),
+                                  backgroundColor: Color(0xFF16A34A),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            },
+                          );
+                        },
                         style: TextButton.styleFrom(
                           foregroundColor: _brandNavy,
                           minimumSize: Size.zero,
@@ -669,17 +695,6 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
     );
   }
 
-  Widget _buildMetric(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
-      ],
-    );
-  }
-
   Widget _buildFooter() {
     return const Center(
       child: Column(
@@ -692,33 +707,6 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
             style: TextStyle(color: Color(0xFF94A3B8), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 1, height: 1.8),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _FeatureChip extends StatelessWidget {
-  const _FeatureChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0xFFCBD5E1)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF334155),
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.4,
-        ),
       ),
     );
   }

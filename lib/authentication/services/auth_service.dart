@@ -67,6 +67,26 @@ class AuthService extends ChangeNotifier {
   bool get isPostLoginSplashActive => _isPostLoginSplashActive;
   String? get loginError => _loginError;
 
+  bool _isPasswordResetInProgress = false;
+  bool get isPasswordResetInProgress => _isPasswordResetInProgress;
+
+  void beginPasswordReset() {
+    _isPasswordResetInProgress = true;
+    debugPrint('[AuthService] Password reset started: suppressing auto-login redirects.');
+  }
+
+  Future<void> cancelPasswordReset() async {
+    if (_isPasswordResetInProgress) {
+      _isPasswordResetInProgress = false;
+      debugPrint('[AuthService] Password reset cancelled.');
+      try {
+        await _auth.auth.signOut();
+      } catch (_) {}
+      _currentUser = null;
+      notifyListeners();
+    }
+  }
+
   static SupabaseClient get _auth => Supabase.instance.client;
 
   AuthService({bool restoreSessionOnStartup = true})
@@ -98,10 +118,10 @@ class AuthService extends ChangeNotifier {
     AuthChangeEvent event,
     Session? session,
   ) async {
-    // While an admin is creating a user account, all auth state events from
-    // the isolated Supabase client are suppressed to prevent session hijacking.
-    if (_suppressAuthChanges) {
-      debugPrint('[AuthService] Auth state change suppressed during user creation: $event');
+    // While an admin is creating a user account or a user is resetting their password,
+    // auth state events are suppressed to prevent session hijacking and premature redirects.
+    if (_suppressAuthChanges || _isPasswordResetInProgress) {
+      debugPrint('[AuthService] Auth state change suppressed (userCreation=$_suppressAuthChanges, resetInProgress=$_isPasswordResetInProgress): $event');
       _isSessionInitialized = true;
       return;
     }
@@ -512,22 +532,127 @@ class AuthService extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------
-  // Send password-reset email
   // ---------------------------------------------------------------
-  Future<bool> resetPassword(String email) async {
-    _isLoading = true;
-    notifyListeners();
+  // Send password-reset email with OTP
+  // ---------------------------------------------------------------
+  Future<String?> sendPasswordResetOtp(String email) async {
+    final normalized = email.trim().toLowerCase();
+    if (normalized.isEmpty || !normalized.contains('@')) {
+      return 'Please enter a valid email address.';
+    }
+
+    _isPasswordResetInProgress = true;
 
     try {
-      await _auth.auth.resetPasswordForEmail(email);
-      return true;
+      await _auth.auth.resetPasswordForEmail(normalized);
+      return null;
+    } on AuthException catch (e) {
+      debugPrint('Supabase AuthException on resetPasswordForEmail: ${e.message}');
+      final msg = e.message.toLowerCase();
+      if (msg.contains('rate limit') || msg.contains('over_request_rate_limit')) {
+        return 'Too many password reset requests. Please wait a moment before trying again.';
+      }
+      return e.message;
     } catch (e) {
-      debugPrint('Password reset error: $e');
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
+      debugPrint('Unexpected error sending reset OTP: $e');
+      return 'Unable to send verification code. Please check your internet connection and try again.';
     }
+  }
+
+  // ---------------------------------------------------------------
+  // Verify 6-digit recovery OTP
+  // ---------------------------------------------------------------
+  Future<String?> verifyPasswordResetOtp({
+    required String email,
+    required String token,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final cleanToken = token.trim();
+
+    if (cleanToken.length < 6) {
+      return 'Please enter the complete verification code sent to your email.';
+    }
+
+    try {
+      final res = await _auth.auth.verifyOTP(
+        email: normalizedEmail,
+        token: cleanToken,
+        type: OtpType.recovery,
+      );
+
+      if (res.session == null && res.user == null) {
+        return 'Verification failed. The code may be invalid or expired.';
+      }
+
+      return null; // Success! Active recovery session established.
+    } on AuthException catch (e) {
+      debugPrint('Supabase verifyOTP error: ${e.message}');
+      final msg = e.message.toLowerCase();
+      if (msg.contains('invalid') || msg.contains('expired') || msg.contains('token')) {
+        return 'The verification code is incorrect or has expired. Please check your email or request a new code.';
+      }
+      return e.message;
+    } catch (e) {
+      debugPrint('Unexpected verifyOTP error: $e');
+      return 'Verification failed. Please try again.';
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Set new password after OTP verification
+  // ---------------------------------------------------------------
+  Future<String?> completePasswordReset({
+    required String newPassword,
+  }) async {
+    final trimmedNew = newPassword.trim();
+    if (trimmedNew.length < 6) {
+      return 'Password must be at least 6 characters long.';
+    }
+
+    try {
+      final currentUser = _auth.auth.currentUser;
+      if (currentUser == null) {
+        return 'Session expired. Please restart the password reset process.';
+      }
+
+      await _auth.auth.updateUser(
+        UserAttributes(
+          password: trimmedNew,
+          data: {'must_change_password': false},
+        ),
+      );
+
+      try {
+        await _auth.from('users').update({
+          'must_change_password': false,
+        }).eq('id', currentUser.id);
+      } catch (_) {}
+
+      // Sign out recovery session cleanly so user can log in fresh
+      _isPasswordResetInProgress = false;
+      await _auth.auth.signOut();
+      _currentUser = null;
+      notifyListeners();
+
+      return null; // Password reset successfully!
+    } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('different from the old password') ||
+          msg.contains('same as old password') ||
+          msg.contains('same as the old')) {
+        return 'Your new password cannot be the same as your old password. Please choose a different password.';
+      }
+      return e.message;
+    } catch (e) {
+      debugPrint('Error updating password: $e');
+      return 'Unable to update password. Please try again.';
+    }
+  }
+
+  // Backward-compatible wrapper
+  Future<bool> resetPassword(String email) async {
+    final err = await sendPasswordResetOtp(email);
+    return err == null;
   }
 
   bool isInstitutionalEmail(String email) {

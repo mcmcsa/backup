@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
+import '../widgets/forgot_password_dialog.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,64 +18,29 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscurePassword = true;
 
   Future<void> _showResetPasswordDialog() async {
-    final emailController = TextEditingController(
-      text: _emailController.text.trim(),
-    );
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Forgot Password'),
-          content: TextField(
-            controller: emailController,
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              hintText: 'Enter your account email',
+    await ForgotPasswordDialog.show(
+      context,
+      initialEmail: _emailController.text.trim(),
+      onPasswordResetSuccess: (email) {
+        _emailController.text = email;
+        _passwordController.clear();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text('Password reset successful! Please sign in with your new password.'),
+                ),
+              ],
             ),
+            backgroundColor: Color(0xFF16A34A),
+            behavior: SnackBarBehavior.floating,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final email = emailController.text.trim();
-                if (email.isEmpty || !email.contains('@')) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter a valid email.'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  return;
-                }
-                final sent = await context.read<AuthService>().resetPassword(
-                  email,
-                );
-                if (!mounted) return;
-                Navigator.of(dialogContext).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      sent
-                          ? 'Password reset email sent. Check your inbox.'
-                          : 'Unable to send reset email right now.',
-                    ),
-                    backgroundColor: sent ? Colors.green : Colors.red,
-                  ),
-                );
-              },
-              child: const Text('Send Link'),
-            ),
-          ],
         );
       },
     );
-
-    emailController.dispose();
   }
 
   @override

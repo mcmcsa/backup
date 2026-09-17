@@ -186,7 +186,7 @@ class _ForceChangePasswordScreenState
                           return null;
                         },
                         decoration: InputDecoration(
-                          hintText: 'Enter initial password (e.g. Rizza_123)',
+                          hintText: 'Password_12345',
                           prefixIcon: const Icon(Icons.lock_clock_rounded,
                               size: 20, color: Color(0xFF64748B)),
                           suffixIcon: IconButton(

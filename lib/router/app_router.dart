@@ -63,7 +63,12 @@ String? resolveAuthRedirect({
   required bool isPostLoginSplashActive,
   required AppUser? user,
   required bool Function() consumeLoginRedirectPause,
+  bool isPasswordResetInProgress = false,
 }) {
+  if (isPasswordResetInProgress) {
+    return null; // Stay on current screen while user is resetting their password!
+  }
+
   final isAtStartup = location == appStartupRoute;
   final isAtLogin = location == '/login';
   final isAtRoot = location == '/';
@@ -162,6 +167,7 @@ GoRouter buildAppRouter(AuthService authService) {
         isPostLoginSplashActive: authService.isPostLoginSplashActive,
         user: authService.currentUser,
         consumeLoginRedirectPause: authService.consumeLoginRedirectPause,
+        isPasswordResetInProgress: authService.isPasswordResetInProgress,
       );
     },
     errorBuilder: (context, state) => Scaffold(
