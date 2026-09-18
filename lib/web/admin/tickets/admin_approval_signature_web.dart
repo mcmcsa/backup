@@ -212,12 +212,16 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
       
       // Invite secondary collaborators
       for (int i = 1; i < _selectedMaintenanceIds.length; i++) {
-        await CollaborationService.inviteCollaborator(
-          widget.request.id,
-          _selectedMaintenanceIds[i],
-          'secondary',
-          user.id,
-        );
+        try {
+          await CollaborationService.inviteCollaborator(
+            widget.request.id,
+            _selectedMaintenanceIds[i],
+            'secondary',
+            user.id,
+          );
+        } catch (collabErr) {
+          debugPrint('Error inviting secondary collaborator ${_selectedMaintenanceIds[i]}: $collabErr');
+        }
       }
 
       await AppNotificationService.notifyApprovedToMaintenance(

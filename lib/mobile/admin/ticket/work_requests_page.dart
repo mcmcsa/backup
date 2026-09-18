@@ -1,15 +1,16 @@
 import 'dart:async';
-
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/maintenance_account_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import 'request_details_page.dart';
 import 'admin_pre_inspection_review_page.dart';
 import 'admin_post_repair_evaluation_page.dart';
-import 'admin_request_history_page.dart';
-import 'admin_work_process_page.dart';
-import '../shared/notifications_page.dart';
+import 'admin_room_verification_page.dart';
+import '../shared/admin_app_bar.dart';
 
 class WorkRequestsPage extends StatefulWidget {
   final VoidCallback openDrawer;
@@ -189,132 +190,71 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    final totalCompleted = _requests
-        .where((r) => r.status == 'Completed')
-        .length;
-    final readyCount = _requests.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').length;
-    final ongoingRequests = _requests
-        .where((r) =>
-          r.status.toLowerCase() != 'completed' &&
-          r.status.toLowerCase() != 'declined' &&
-          r.status.toLowerCase() != 'cancelled' &&
-          r.status.toLowerCase() != 'declined/cancelled'
-        )
-        .toList();
-    final ongoingRequest = ongoingRequests.isNotEmpty
-        ? ongoingRequests.firstWhere(
-            (r) => (r.officeRoom ?? '').contains('CLR'),
-            orElse: () => ongoingRequests.first,
-          )
-        : null;
+    final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: GestureDetector(
-            onTap: widget.openDrawer,
-            child: const Icon(Icons.menu, color: Colors.black87, size: 28),
+      backgroundColor: themeProvider.backgroundColor,
+      appBar: AdminAppBar(
+        openDrawer: widget.openDrawer,
+      ),
+      floatingActionButton: Container(
+        height: 52,
+        width: 52,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF4169E1), Color(0xFF6366F1)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ),
-        title: Row(
-          children: [
-            SizedBox(
-              height: 35,
-              width: 35,
-              child: Image.asset(
-                'assets/images/PsuLogo.png',
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, _) =>
-                    const Icon(Icons.school, color: Colors.white, size: 18),
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'PSU',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    height: 1,
-                  ),
-                ),
-                Text(
-                  'CAMPUS ADMINISTRATOR',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.black54,
-                    height: 1.2,
-                  ),
-                ),
-              ],
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF4169E1).withValues(alpha: 0.4),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.notifications_outlined,
-                    color: Colors.black87,
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const NotificationsPage(),
-                      ),
-                    );
-                  },
-                ),
-                Positioned(
-                  right: 12,
-                  top: 12,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: Colors.red,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        child: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AdminRoomVerificationPage(),
+              ),
+            ).then((_) => _loadRequests());
+          },
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
+        ),
       ),
       body: Column(
         children: [
           // Search Bar & Filters
           Container(
-            color: Colors.white,
+            color: themeProvider.cardColor,
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 TextField(
                   controller: _searchController,
                   onChanged: (_) => setState(() {}),
+                  style: TextStyle(
+                    color: themeProvider.textColor,
+                    fontSize: 14,
+                  ),
                   decoration: InputDecoration(
                     hintText: 'Search requests, rooms, or IDs...',
                     hintStyle: TextStyle(
-                      color: Colors.grey.shade400,
+                      color: themeProvider.subtitleColor,
                       fontSize: 14,
                     ),
                     prefixIcon: Padding(
                       padding: const EdgeInsets.only(left: 12, right: 8),
                       child: Icon(
                         Icons.search_rounded,
-                        color: Colors.grey.shade400,
+                        color: themeProvider.subtitleColor,
                         size: 20,
                       ),
                     ),
@@ -323,14 +263,14 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
                       minHeight: 44,
                     ),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: themeProvider.inputFillColor,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(999),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                      borderSide: BorderSide(color: themeProvider.borderColor),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(999),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
+                      borderSide: BorderSide(color: themeProvider.borderColor),
                     ),
                     focusedBorder: const OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(999)),
@@ -361,12 +301,12 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? const Color(0xFF4169E1)
-                                  : Colors.white,
+                                  : themeProvider.cardColor,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: isSelected
                                     ? const Color(0xFF4169E1)
-                                    : Colors.grey.shade300,
+                                    : themeProvider.borderColor,
                               ),
                             ),
                             child: Text(
@@ -376,7 +316,7 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
                                 fontWeight: FontWeight.w500,
                                 color: isSelected
                                     ? Colors.white
-                                    : Colors.grey.shade700,
+                                    : themeProvider.textColor,
                               ),
                             ),
                           ),
@@ -394,62 +334,7 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                if (ongoingRequest != null) ...[
-                  _buildInProgressCard(ongoingRequest),
-                  const SizedBox(height: 12),
-                ],
-
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final stackStats = constraints.maxWidth < 320;
-
-                    if (stackStats) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildStatCard(
-                            'Total Completed',
-                            '$totalCompleted',
-                            '',
-                            Colors.black87,
-                          ),
-                          const SizedBox(height: 12),
-                          _buildStatCard(
-                            'Pending',
-                            '$readyCount',
-                            '',
-                            Colors.orange,
-                          ),
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            'Total Completed',
-                            '$totalCompleted',
-                            '',
-                            Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildStatCard(
-                            'Pending',
-                            '$readyCount',
-                            '',
-                            Colors.orange,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                ..._filteredRequests.map((request) => _buildRequestCard(request)),
+                ..._filteredRequests.map((request) => _buildRequestCard(request, themeProvider)),
               ],
             ),
           ),
@@ -458,777 +343,353 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
     );
   }
 
-  Widget _buildInProgressCard(WorkRequest? request) {
-    if (request == null) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF4169E1), Color(0xFF5B7FE8)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF4169E1).withValues(alpha: 0.1),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            runSpacing: 8,
-            children: [
-              const Text(
-                'REQUEST BY',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'IN PROGRESS',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            request.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Icon(Icons.room, color: Colors.white, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                request.officeRoom ?? '',
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stackActions = constraints.maxWidth < 350;
+  Widget _buildRequestCard(WorkRequest request, ThemeProvider themeProvider) {
+    final isDark = themeProvider.isDarkMode;
 
-              if (stackActions) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'STARTED',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${request.dateSubmitted.hour > 12 ? request.dateSubmitted.hour - 12 : request.dateSubmitted.hour}:${request.dateSubmitted.minute.toString().padLeft(2, '0')} ${request.dateSubmitted.hour >= 12 ? 'PM' : 'AM'}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  AdminWorkProcessPage(request: request),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: const Color(0xFF4169E1),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'View Progress',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'STARTED',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${request.dateSubmitted.hour > 12 ? request.dateSubmitted.hour - 12 : request.dateSubmitted.hour}:${request.dateSubmitted.minute.toString().padLeft(2, '0')} ${request.dateSubmitted.hour >= 12 ? 'PM' : 'AM'}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              AdminWorkProcessPage(request: request),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF4169E1),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'View Progress',
-                      style:
-                          TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatCard(
-    String label,
-    String value,
-    String percentage,
-    Color valueColor,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: valueColor,
-                    height: 1,
-                  ),
-                ),
-                if (percentage.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(
-                      percentage,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.green.shade600,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRequestCard(WorkRequest request) {
     Color urgencyColor;
     Color urgencyBgColor;
-    switch (request.priority) {
+    switch (request.priority.toLowerCase()) {
       case 'high':
-        urgencyColor = Colors.red;
-        urgencyBgColor = const Color(0xFFFEE2E2);
+        urgencyColor = const Color(0xFFEF4444);
+        urgencyBgColor = isDark ? const Color(0xFF451A1A) : const Color(0xFFFEE2E2);
         break;
       case 'medium':
-        urgencyColor = Colors.orange;
-        urgencyBgColor = const Color(0xFFFFF7ED);
+        urgencyColor = const Color(0xFFF59E0B);
+        urgencyBgColor = isDark ? const Color(0xFF452E10) : const Color(0xFFFFF7ED);
         break;
       case 'low':
-        urgencyColor = const Color(0xFF4169E1);
-        urgencyBgColor = const Color(0xFFEEF2FF);
+        urgencyColor = const Color(0xFF3B82F6);
+        urgencyBgColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF);
         break;
       default:
         urgencyColor = Colors.grey;
-        urgencyBgColor = Colors.grey.shade100;
+        urgencyBgColor = isDark ? const Color(0xFF262626) : Colors.grey.shade100;
     }
 
     Color statusColor;
+    Color statusBgColor;
     String statusLabel = request.status.toUpperCase();
 
     switch (request.status.toLowerCase()) {
       case 'pending':
       case 'pending assignment':
-        statusColor = Colors.grey;
+        statusColor = const Color(0xFFF97316);
+        statusBgColor = isDark ? const Color(0xFF431D08) : const Color(0xFFFFF7ED);
         statusLabel = 'PENDING';
         break;
       case 'in progress':
       case 'in_progress':
       case 'assigned':
       case 'accepted by maintenance':
-        statusColor = const Color(0xFF2196F3);
+        statusColor = const Color(0xFF3B82F6);
+        statusBgColor = isDark ? const Color(0xFF1E293B) : const Color(0xFFEFF6FF);
         statusLabel = 'IN PROGRESS';
         break;
       case 'declined':
       case 'cancelled':
       case 'declined/cancelled':
       case 'pre-inspection declined':
-        statusColor = Colors.red;
+        statusColor = const Color(0xFFEF4444);
+        statusBgColor = isDark ? const Color(0xFF451A1A) : const Color(0xFFFEE2E2);
         statusLabel = 'DECLINED';
         break;
       case 'confirmed':
       case 'pre-inspection approved':
       case 'under_maintenance':
-        statusColor = const Color(0xFF00BFA5);
+        statusColor = const Color(0xFF14B8A6);
+        statusBgColor = isDark ? const Color(0xFF113835) : const Color(0xFFF0FDFA);
         statusLabel = 'CONFIRMED';
         break;
       case 'rework':
       case 'for rework':
-        statusColor = const Color(0xFFFF9800);
+        statusColor = const Color(0xFFF59E0B);
+        statusBgColor = isDark ? const Color(0xFF452E10) : const Color(0xFFFFFBEB);
         statusLabel = 'REWORK';
         break;
       case 'completed':
-        statusColor = Colors.green;
+        statusColor = const Color(0xFF22C55E);
+        statusBgColor = isDark ? const Color(0xFF14381C) : const Color(0xFFF0FDF4);
         statusLabel = 'COMPLETED';
         break;
       default:
-        statusColor = Colors.grey;
+        statusColor = const Color(0xFF64748B);
+        statusBgColor = isDark ? const Color(0xFF262626) : const Color(0xFFF1F5F9);
         statusLabel = request.status.toUpperCase();
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: urgencyColor.withValues(alpha: 0.1), width: 1.5),
+        color: themeProvider.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: themeProvider.shadowColor,
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header with urgency badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: urgencyBgColor,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  statusLabel,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: statusColor,
+          // Top Row: Ticket ID + Date (Web-Style)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4169E1).withValues(alpha: isDark ? 0.2 : 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '#${request.id.length > 8 ? request.id.substring(0, 8).toUpperCase() : request.id.toUpperCase()}',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF4169E1),
                     letterSpacing: 0.5,
                   ),
                 ),
+              ),
+              Text(
+                DateFormat('MMM d, yyyy').format(request.dateSubmitted),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: themeProvider.subtitleColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Title
+          Text(
+            request.title,
+            style: TextStyle(
+              fontSize: 15.5,
+              fontWeight: FontWeight.w700,
+              color: themeProvider.textColor,
+              height: 1.25,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 10),
+
+          // Requestor Row (Web-Style)
+          if (request.requestorName.isNotEmpty) ...[
+            Row(
+              children: [
+                Icon(Icons.person_outline_rounded, size: 14, color: themeProvider.subtitleColor),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    request.requestorName,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w500,
+                      color: themeProvider.subtitleColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
-          ),
+            const SizedBox(height: 5),
+          ],
 
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Request ID
-                Text(
-                  request.id,
+          // Room & Department Row (Web-Style)
+          Row(
+            children: [
+              Icon(Icons.location_on_outlined, size: 14, color: themeProvider.subtitleColor),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${request.officeRoom ?? 'N/A'}${request.department != null && request.department!.isNotEmpty ? ' • ${request.department}' : ''}',
                   style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade600,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: themeProvider.subtitleColor,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 8),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
 
-                // Title
-                Text(
-                  request.title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF111827),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Details Grid
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final stackDetails = constraints.maxWidth < 320;
-
-                    if (stackDetails) {
-                      return Column(
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'DEPARTMENT',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade500,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                request.department ?? '',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF111827),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'ROOM',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade500,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                request.officeRoom ?? '',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF111827),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'DEPARTMENT',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade500,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            request.department ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF111827),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ROOM',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade500,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            request.officeRoom ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF111827),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 12),
-
-                // Date
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'REQUESTED ON',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade500,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${request.dateSubmitted.month < 10 ? 'Oct' : 'Nov'} ${request.dateSubmitted.day}, ${request.dateSubmitted.year}',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Assigned to
-                Text(
+          // Assigned Technician Row (Web-Style)
+          Row(
+            children: [
+              Icon(Icons.engineering_outlined, size: 14, color: themeProvider.subtitleColor),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
                   'Assigned to: ${_assignedMaintenanceName(request)}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: themeProvider.subtitleColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
 
-                // Action Buttons
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final wrapActions = constraints.maxWidth < 340;
-
-                    if (wrapActions) {
-                      return Column(
-                        children: [
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        AdminPreInspectionReviewPage(
-                                          request: request,
-                                        ),
-                                  ),
-                                ).then((_) => _loadRequests());
-                              },
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                              ),
-                              child: const Text(
-                                'Pre-Inspect',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        AdminPostRepairEvaluationPage(
-                                          request: request,
-                                        ),
-                                  ),
-                                ).then((_) => _loadRequests());
-                              },
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                              ),
-                              child: const Text(
-                                'Post-Repair',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () => _openLatestRequestDetails(request),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4169E1),
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: const Text(
-                                'View Details',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      AdminPreInspectionReviewPage(
-                                        request: request,
-                                      ),
-                                ),
-                              ).then((_) => _loadRequests());
-                            },
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                            child: const Text(
-                              'Pre-Inspect',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      AdminPostRepairEvaluationPage(
-                                        request: request,
-                                      ),
-                                ),
-                              ).then((_) => _loadRequests());
-                            },
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                            ),
-                            child: const Text(
-                              'Post-Repair',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => _openLatestRequestDetails(request),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4169E1),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              elevation: 0,
-                            ),
-                            child: const Text(
-                              'View Details',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
+          // Badges Row: Status + Priority
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusBgColor,
+                  borderRadius: BorderRadius.circular(6),
                 ),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: statusColor,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+              if (request.priority.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: urgencyBgColor,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    request.priority.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: urgencyColor,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 14),
 
-                // View History button for low urgency
-                if (request.priority == 'low') ...[
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                const AdminRequestHistoryPage(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.history, size: 14),
-                      label: const Text(
-                        'View History',
+          // 1-LINE HORIZONTAL ACTION BUTTONS (Pre-Inspect, Post-Repair, View Details)
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 36,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AdminPreInspectionReviewPage(request: request),
+                        ),
+                      ).then((_) => _loadRequests());
+                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF3F3F46) : const Color(0xFFCBD5E1),
+                        width: 1,
+                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      backgroundColor: isDark ? const Color(0xFF262626) : const Color(0xFFF8FAFC),
+                    ),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Pre-Inspect',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.grey.shade300 : const Color(0xFF334155),
                         ),
                       ),
                     ),
                   ),
-                ],
-              ],
-            ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: SizedBox(
+                  height: 36,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AdminPostRepairEvaluationPage(request: request),
+                        ),
+                      ).then((_) => _loadRequests());
+                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF3F3F46) : const Color(0xFFCBD5E1),
+                        width: 1,
+                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      backgroundColor: isDark ? const Color(0xFF262626) : const Color(0xFFF8FAFC),
+                    ),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'Post-Repair',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.grey.shade300 : const Color(0xFF334155),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: SizedBox(
+                  height: 36,
+                  child: ElevatedButton(
+                    onPressed: () => _openLatestRequestDetails(request),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4169E1),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'View Details',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

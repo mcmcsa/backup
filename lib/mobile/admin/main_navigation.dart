@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../shared/providers/theme_provider.dart';
 import '../../shared/screens/unified_dashboard_page.dart';
 import 'rooms/room_management_page.dart';
 import 'ticket/work_requests_page.dart';
@@ -40,6 +42,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompactMobile = screenWidth <= 430;
 
@@ -55,6 +58,7 @@ class _MainNavigationState extends State<MainNavigation> {
     Widget content = GlobalAnnouncementListener(
       child: Scaffold(
         key: _scaffoldKey,
+        backgroundColor: themeProvider.backgroundColor,
         drawer: MenuDrawer(
           currentTab: _selectedIndex,
           onSelectTab: _onNavItemTapped,
@@ -68,7 +72,7 @@ class _MainNavigationState extends State<MainNavigation> {
           index: _selectedIndex,
           children: pages,
         ),
-        bottomNavigationBar: _isDrawerOpen ? null : _buildBottomNavBar(),
+        bottomNavigationBar: _isDrawerOpen ? null : _buildBottomNavBar(themeProvider),
       ),
     );
 
@@ -126,16 +130,22 @@ class _MainNavigationState extends State<MainNavigation> {
     return content;
   }
 
-  Widget _buildBottomNavBar() {
+  Widget _buildBottomNavBar(ThemeProvider themeProvider) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth <= 430;
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.navBarColor,
+        border: Border(
+          top: BorderSide(
+            color: themeProvider.borderColor,
+            width: 0.8,
+          ),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: themeProvider.shadowColor,
             blurRadius: 12,
             offset: const Offset(0, -3),
           ),
@@ -156,6 +166,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 label: 'Home',
                 index: 0,
                 isCompact: isCompact,
+                themeProvider: themeProvider,
               ),
               _buildNavItem(
                 icon: Icons.meeting_room_outlined,
@@ -163,6 +174,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 label: 'Rooms',
                 index: 1,
                 isCompact: isCompact,
+                themeProvider: themeProvider,
               ),
               _buildNavItem(
                 icon: Icons.assignment_outlined,
@@ -170,6 +182,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 label: 'Tickets',
                 index: 2,
                 isCompact: isCompact,
+                themeProvider: themeProvider,
               ),
               _buildNavItem(
                 icon: Icons.chat_bubble_outline_rounded,
@@ -177,6 +190,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 label: 'Messages',
                 index: 3,
                 isCompact: isCompact,
+                themeProvider: themeProvider,
               ),
               _buildNavItem(
                 icon: Icons.bar_chart_outlined,
@@ -184,6 +198,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 label: 'Stats',
                 index: 4,
                 isCompact: isCompact,
+                themeProvider: themeProvider,
               ),
             ],
           ),
@@ -198,6 +213,7 @@ class _MainNavigationState extends State<MainNavigation> {
     required String label,
     required int index,
     required bool isCompact,
+    required ThemeProvider themeProvider,
   }) {
     final isSelected = _selectedIndex == index;
     return GestureDetector(
@@ -231,7 +247,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 key: ValueKey(isSelected),
                 color: isSelected 
                     ? const Color(0xFF4169E1) 
-                    : Colors.grey.shade500,
+                    : themeProvider.navBarTextColor,
                 size: isCompact
                     ? (isSelected ? 23 : 21)
                     : (isSelected ? 26 : 24),
@@ -245,7 +261,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: isSelected 
                     ? const Color(0xFF4169E1) 
-                    : Colors.grey.shade600,
+                    : themeProvider.navBarTextColor,
                 letterSpacing: 0.3,
               ),
             ),

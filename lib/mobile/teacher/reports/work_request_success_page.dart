@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../router/app_router.dart';
+import '../../../authentication/services/auth_service.dart';
 
 class WorkRequestSuccessPage extends StatelessWidget {
   final String trackingNumber;
@@ -189,7 +190,12 @@ class WorkRequestSuccessPage extends StatelessWidget {
             // Back to Home Link
             TextButton(
               onPressed: () {
-                context.go(teacherDashboardRoute);
+                final user = context.read<AuthService>().currentUser;
+                if (user != null) {
+                  context.go(user.dashboardRoute);
+                } else {
+                  context.go(teacherDashboardRoute);
+                }
               },
               child: Text(
                 'Back to Home',

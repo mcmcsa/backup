@@ -1,9 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../utils/signature_image_helper.dart';
 
@@ -34,6 +34,7 @@ enum _SignatureMode { draw, upload }
 
 class _SignaturePadWidgetState extends State<SignaturePadWidget> {
   // â”€â”€ Draw mode state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  final GlobalKey _canvasKey = GlobalKey();
   final List<List<Offset>> _strokes = [];
   List<Offset> _currentStroke = [];
   bool _hasSigned = false;
@@ -71,12 +72,11 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
     if (!_hasSigned) return;
 
     final pixelRatio = MediaQuery.of(context).devicePixelRatio;
-    final size = (context.findRenderObject() as RenderBox).size;
-    final width = size.width * pixelRatio;
-    final height = widget.height * pixelRatio;
-
-    final confirmed = await _showConfirmDialog();
-    if (!confirmed) return;
+    final RenderBox? canvasBox = _canvasKey.currentContext?.findRenderObject() as RenderBox?;
+    final canvasWidth = canvasBox?.size.width ?? (MediaQuery.of(context).size.width - 64);
+    final canvasHeight = canvasBox?.size.height ?? widget.height;
+    final width = canvasWidth * pixelRatio;
+    final height = canvasHeight * pixelRatio;
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
@@ -126,7 +126,13 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
     if (result == null || result.files.isEmpty) return;
 
     final file = result.files.first;
-    if (file.bytes == null) return;
+    Uint8List? fileBytes = file.bytes;
+    if (fileBytes == null && file.path != null) {
+      try {
+        fileBytes = await File(file.path!).readAsBytes();
+      } catch (_) {}
+    }
+    if (fileBytes == null) return;
 
     setState(() {
       _isAnalyzing = true;
@@ -134,7 +140,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
       _uploadError = null;
     });
 
-    final clarityResult = await _analyzeImageClarity(file.bytes!);
+    final clarityResult = await _analyzeImageClarity(fileBytes);
 
     if (!clarityResult.isAcceptable) {
       setState(() {
@@ -145,7 +151,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
     }
 
     // Automatically remove paper/photo background and extract signature ink
-    final transparentBytes = await SignatureImageHelper.removeBackground(file.bytes!);
+    final transparentBytes = await SignatureImageHelper.removeBackground(fileBytes);
 
     setState(() {
       _isAnalyzing = false;
@@ -282,58 +288,10 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
   Future<void> _saveUploadedSignature() async {
     if (_uploadedBytes == null) return;
 
-    final confirmed = await _showConfirmDialog();
-    if (!confirmed) return;
-
     // _uploadedBytes is already processed with pure black ink and transparent background
     final base64 = base64Encode(_uploadedBytes!);
     setState(() => _isConfirmed = true);
     widget.onSignatureComplete(base64);
-  }
-
-  // ── Shared: confirmation dialog ───────────────────────────────────────────
-  Future<bool> _showConfirmDialog() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.draw_rounded, color: Color(0xFF4169E1)),
-            SizedBox(width: 10),
-            Text(
-              'Confirm Signature',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-          ],
-        ),
-        content: const Text(
-          'Are you sure you want to save and confirm this signature for your request?',
-          style: TextStyle(fontSize: 14, color: Color(0xFF4B5563)),
-        ),
-        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(
-              'No',
-              style: TextStyle(color: Color(0xFF6B7280), fontWeight: FontWeight.w600),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4169E1),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Yes'),
-          ),
-        ],
-      ),
-    );
-    return result == true;
   }
 
   bool get _canConfirm =>
@@ -510,6 +468,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
         final canvasWidth = constraints.maxWidth - 32;
         final canvasHeight = widget.height;
         return Container(
+          key: _canvasKey,
           margin: const EdgeInsets.symmetric(horizontal: 16),
           height: canvasHeight,
           decoration: BoxDecoration(
@@ -524,50 +483,51 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(7),
-            child: RawGestureDetector(
-              gestures: {
-                EagerGestureRecognizer:
-                    GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
-                  () => EagerGestureRecognizer(),
-                  (EagerGestureRecognizer instance) {},
-                ),
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: (event) {
+                if (_isConfirmed) return;
+                final clamped = _clamp(
+                  event.localPosition,
+                  Size(canvasWidth, canvasHeight),
+                );
+                setState(() {
+                  _currentStroke = [clamped];
+                  _hasSigned = true;
+                });
               },
-              child: GestureDetector(
-                onPanStart: (details) {
-                  if (_isConfirmed) return;
-                  final clamped = _clamp(
-                    details.localPosition,
-                    Size(canvasWidth, canvasHeight),
-                  );
-                  setState(() {
-                    _currentStroke = [clamped];
-                    _hasSigned = true;
-                  });
-                },
-                onPanUpdate: (details) {
-                  if (_isConfirmed) return;
-                  final clamped = _clamp(
-                    details.localPosition,
-                    Size(canvasWidth, canvasHeight),
-                  );
-                  setState(() {
-                    _currentStroke.add(clamped);
-                  });
-                },
-                onPanEnd: (details) {
-                  if (_isConfirmed) return;
-                  setState(() {
+              onPointerMove: (event) {
+                if (_isConfirmed) return;
+                final clamped = _clamp(
+                  event.localPosition,
+                  Size(canvasWidth, canvasHeight),
+                );
+                setState(() {
+                  _currentStroke.add(clamped);
+                });
+              },
+              onPointerUp: (event) {
+                if (_isConfirmed) return;
+                setState(() {
+                  _strokes.add(List.from(_currentStroke));
+                  _currentStroke = [];
+                });
+              },
+              onPointerCancel: (event) {
+                if (_isConfirmed) return;
+                setState(() {
+                  if (_currentStroke.isNotEmpty) {
                     _strokes.add(List.from(_currentStroke));
-                    _currentStroke = [];
-                  });
-                },
-                child: CustomPaint(
-                  painter: _SignaturePainter(
-                    strokes: _strokes,
-                    currentStroke: _currentStroke,
-                  ),
-                  size: Size(canvasWidth, canvasHeight),
+                  }
+                  _currentStroke = [];
+                });
+              },
+              child: CustomPaint(
+                painter: _SignaturePainter(
+                  strokes: _strokes,
+                  currentStroke: _currentStroke,
                 ),
+                size: Size(canvasWidth, canvasHeight),
               ),
             ),
           ),

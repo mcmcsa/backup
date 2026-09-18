@@ -43,6 +43,13 @@ class ThemeProvider extends ChangeNotifier {
   // Shadow color
   Color get shadowColor => isDarkMode ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.08);
 
+  // Semantic & Role helper colors
+  Color get surfaceColor => cardColor;
+  Color get chipColor => isDarkMode ? const Color(0xFF2A2A2A) : const Color(0xFFF1F5F9);
+  Color get adminHeaderColor => isDarkMode ? const Color(0xFF1E1E1E) : const Color(0xFFF2F4F7);
+  Color get secondaryBackgroundColor => isDarkMode ? const Color(0xFF242424) : const Color(0xFFF1F5F9);
+  Color get mutedTextColor => isDarkMode ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
   ThemeData get themeData {
     return ThemeData(
       useMaterial3: true,

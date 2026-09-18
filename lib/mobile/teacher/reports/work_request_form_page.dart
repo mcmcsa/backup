@@ -18,6 +18,8 @@ import '../../../shared/services/duplicate_detection_service.dart';
 import '../../../shared/widgets/duplicate_detection_dialog.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/services/login_activity_service.dart';
+import '../../../authentication/models/user_model.dart';
 
 class WorkRequestFormPage extends StatefulWidget {
   final String? roomId;
@@ -506,19 +508,33 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
 
 
         if (authUser != null) {
+          if (!mounted) return;
+          final currentUser = context.read<AuthService>().currentUser;
+          final isAdmin = currentUser?.role == UserRole.campadmin || currentUser?.role == UserRole.admin;
+          final signerRole = isAdmin ? 'admin' : 'teacher';
+
           await ESignatureService.insert(
             ESignature(
               id: '',
               workRequestId: insertedRequest.id,
               signerId: authUser.id,
               signerName: _fullNameController.text.trim(),
-              signerRole: 'teacher',
+              signerRole: signerRole,
               signatureType: 'requestor',
               signatureData: _requesterSignatureBase64!,
               signedAt: DateTime.now(),
               notes: 'Requester e-signature at submission',
             ),
           );
+
+          if (isAdmin && currentUser != null) {
+            await LoginActivityService.recordAdminAction(
+              user: currentUser,
+              title: 'Created Work Request',
+              details: 'Created work request for $_selectedBuilding • ${_officeRoomNameController.text.trim()}',
+              workRequestId: insertedRequest.id,
+            );
+          }
         }
 
         await AppNotificationService.createForRoles(

@@ -20,11 +20,6 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
   List<WorkRequest> _postRepairRequests = [];
   bool _isLoading = true;
 
-  bool _isUnassigned(String? staffId) {
-    final normalized = staffId?.trim().toLowerCase();
-    return normalized == null || normalized.isEmpty || normalized == 'null';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -50,28 +45,6 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
   }
 
   void _approveRequest(WorkRequest request) {
-    if (_isUnassigned(request.assignedToId)) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text('Assign Maintenance First'),
-          content: const Text(
-            'Please assign maintenance staff before approving this request.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
     Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -80,6 +53,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
     ).then((isApproved) {
       if (isApproved == true) {
         _loadRequests();
+        _showApprovedSuccess(request);
       }
     });
   }

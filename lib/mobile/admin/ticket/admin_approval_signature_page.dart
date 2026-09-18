@@ -9,9 +9,12 @@ import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/login_activity_service.dart';
+import '../../../shared/services/maintenance_account_service.dart';
+import '../../../shared/widgets/availability_status_badge.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/providers/theme_provider.dart';
 
-/// Admin screen to review a work request and sign E-signature for approval
+/// Campus Admin screen to review a work request and sign E-signature for approval
 class AdminApprovalSignaturePage extends StatefulWidget {
   final WorkRequest request;
 
@@ -27,40 +30,92 @@ class _AdminApprovalSignaturePageState
   bool _isLoading = false;
   bool _isApproved = false;
   List<ESignature> _signatures = [];
-  String _selectedPriority = 'medium';
+  List<MaintenanceAccount> _maintenanceStaff = [];
+  String? _selectedMaintenanceId;
+  String? _selectedPriority;
   String _selectedDuration = '2 Hours';
+  bool _isCustomDuration = false;
+  final TextEditingController _customDurationController = TextEditingController();
   String? _pendingSignatureBase64;
 
   @override
   void initState() {
     super.initState();
-    _loadSignatures();
-    _isApproved = widget.request.status != 'Pending';
-    if (widget.request.priority.isNotEmpty) {
-      _selectedPriority = widget.request.priority;
+    _isApproved = widget.request.status.toLowerCase() != 'pending';
+    if (_isApproved) {
+      if (widget.request.priority.isNotEmpty) {
+        _selectedPriority = widget.request.priority.toLowerCase();
+      }
+      if (widget.request.assignedToId != null && widget.request.assignedToId!.isNotEmpty) {
+        _selectedMaintenanceId = widget.request.assignedToId;
+      }
     }
+    _loadData();
   }
 
-  Future<void> _loadSignatures() async {
-    final sigs = await ESignatureService.fetchByWorkRequest(widget.request.id);
-    if (mounted) {
-      setState(() {
-        _signatures = sigs;
-        if (_isApproved) {
-          final adminSig = _signatures.cast<ESignature?>().firstWhere(
-            (s) =>
-                s != null &&
-                (s.signatureType == 'approval' || s.signatureType == 'admin_approval') &&
-                s.signatureData.isNotEmpty,
-            orElse: () => null,
-          );
-          if (adminSig != null) {
-            _pendingSignatureBase64 = adminSig.signatureData;
+  @override
+  void dispose() {
+    _customDurationController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final results = await Future.wait([
+        ESignatureService.fetchByWorkRequest(widget.request.id),
+        MaintenanceAccountService.fetchAllActiveMaintenance(),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _signatures = results[0] as List<ESignature>;
+          _maintenanceStaff = results[1] as List<MaintenanceAccount>;
+
+          if (_isApproved) {
+            if (_selectedMaintenanceId == null && widget.request.assignedToId != null && widget.request.assignedToId!.isNotEmpty) {
+              _selectedMaintenanceId = widget.request.assignedToId;
+            }
+            final adminSig = _signatures.cast<ESignature?>().firstWhere(
+              (s) =>
+                  s != null &&
+                  (s.signatureType == 'approval' || s.signatureType == 'admin_approval') &&
+                  s.signatureData.isNotEmpty,
+              orElse: () => null,
+            );
+            if (adminSig != null) {
+              _pendingSignatureBase64 = adminSig.signatureData;
+            }
+          } else {
+            _pendingSignatureBase64 = null;
           }
-        } else {
-          _pendingSignatureBase64 = null;
-        }
-      });
+        });
+      }
+    } catch (_) {}
+  }
+
+  String _assignedStaffName() {
+    if (_selectedMaintenanceId != null && _selectedMaintenanceId!.isNotEmpty) {
+      final staff = _maintenanceStaff.cast<MaintenanceAccount?>().firstWhere(
+        (m) => m?.userId == _selectedMaintenanceId,
+        orElse: () => null,
+      );
+      if (staff != null && staff.fullName.isNotEmpty) {
+        return staff.fullName;
+      }
+    }
+    return 'Unassigned';
+  }
+
+  Color _getPriorityColor(String priority) {
+    switch (priority.toLowerCase()) {
+      case 'high':
+        return const Color(0xFFEF4444);
+      case 'medium':
+        return const Color(0xFFF59E0B);
+      case 'low':
+        return const Color(0xFF10B981);
+      default:
+        return const Color(0xFF6B7280);
     }
   }
 
@@ -71,6 +126,7 @@ class _AdminApprovalSignaturePageState
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
+        final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
         return StatefulBuilder(
           builder: (context, setDialogState) {
             Uint8List? signatureBytes;
@@ -88,105 +144,118 @@ class _AdminApprovalSignaturePageState
             final showViewMode = !isEditing && signatureBytes != null;
 
             return Dialog(
+              backgroundColor: themeProvider.cardColor,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          showViewMode
-                              ? 'Current Signature'
-                              : (_pendingSignatureBase64 != null ? 'Change Signature' : 'Admin E-Signature'),
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(ctx),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    if (showViewMode) ...[
-                      Container(
-                        width: double.infinity,
-                        height: 180,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF9FAFB),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE5E7EB)),
-                        ),
-                        child: Center(
-                          child: Image.memory(
-                            signatureBytes,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) => const Text('Unable to preview signature'),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+              child: SingleChildScrollView(
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          if (!_isApproved) ...[
-                            TextButton.icon(
-                              onPressed: () {
-                                setState(() => _pendingSignatureBase64 = null);
-                                setDialogState(() => isEditing = true);
-                              },
-                              icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                              label: const Text('Remove', style: TextStyle(color: Colors.red, fontSize: 13)),
+                          Text(
+                            showViewMode
+                                ? 'Current Signature'
+                                : (_pendingSignatureBase64 != null ? 'Change Signature' : 'Admin E-Signature'),
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: themeProvider.textColor,
                             ),
-                          ],
-                          const Spacer(),
-                          if (!_isApproved) ...[
-                            OutlinedButton.icon(
-                              onPressed: () => setDialogState(() => isEditing = true),
-                              icon: const Icon(Icons.edit, size: 16),
-                              label: const Text('Change'),
-                            ),
-                            const SizedBox(width: 8),
-                          ],
-                          ElevatedButton(
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.close, color: themeProvider.textColor),
                             onPressed: () => Navigator.pop(ctx),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4169E1),
-                              foregroundColor: Colors.white,
-                            ),
-                            child: Text(_isApproved ? 'Close' : 'Keep'),
                           ),
                         ],
                       ),
-                    ] else ...[
-                      SignaturePadWidget(
-                        title: '',
-                        subtitle: '',
-                        height: 200,
-                        onSignatureComplete: (base64) {
-                          if (base64.isNotEmpty) {
-                            setState(() {
-                              _pendingSignatureBase64 = base64;
-                            });
-                            Navigator.pop(ctx);
-                          }
-                        },
-                      ),
-                      if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Center(
-                          child: TextButton.icon(
-                            onPressed: () => setDialogState(() => isEditing = false),
-                            icon: const Icon(Icons.arrow_back, size: 14),
-                            label: const Text('Back to current signature'),
+                      const SizedBox(height: 12),
+                      if (showViewMode) ...[
+                        Container(
+                          width: double.infinity,
+                          height: 180,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE5E7EB)),
+                          ),
+                          child: Center(
+                            child: Image.memory(
+                              signatureBytes,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Text('Unable to preview signature', style: TextStyle(color: Colors.black54)),
+                            ),
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            if (!_isApproved) ...[
+                              TextButton.icon(
+                                onPressed: () {
+                                  setState(() => _pendingSignatureBase64 = null);
+                                  setDialogState(() => isEditing = true);
+                                },
+                                icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                label: const Text('Remove', style: TextStyle(color: Colors.red, fontSize: 13)),
+                              ),
+                            ],
+                            const Spacer(),
+                            if (!_isApproved) ...[
+                              OutlinedButton.icon(
+                                onPressed: () => setDialogState(() => isEditing = true),
+                                icon: const Icon(Icons.edit, size: 16),
+                                label: const Text('Change'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: themeProvider.textColor,
+                                  side: BorderSide(color: themeProvider.borderColor),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4169E1),
+                                foregroundColor: Colors.white,
+                              ),
+                              child: Text(_isApproved ? 'Close' : 'Keep'),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        SignaturePadWidget(
+                          title: 'Campus Admin Signature',
+                          subtitle: 'Sign below or upload image to approve',
+                          height: 200,
+                          onSignatureComplete: (base64) {
+                            if (base64.isNotEmpty) {
+                              setState(() {
+                                _pendingSignatureBase64 = base64;
+                              });
+                              Navigator.pop(ctx);
+                            }
+                          },
+                        ),
+                        if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Center(
+                            child: TextButton.icon(
+                              onPressed: () => setDialogState(() => isEditing = false),
+                              icon: const Icon(Icons.arrow_back, size: 14),
+                              label: const Text('Back to current signature'),
+                              style: TextButton.styleFrom(foregroundColor: const Color(0xFF4169E1)),
+                            ),
+                          ),
+                        ],
                       ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             );
@@ -201,12 +270,38 @@ class _AdminApprovalSignaturePageState
     final user = authService.currentUser;
     if (user == null) return;
 
+    if (_selectedPriority == null || _selectedPriority!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a priority level before approving.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedMaintenanceId == null || _selectedMaintenanceId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a maintenance staff member to assign.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     if (_pendingSignatureBase64 == null || _pendingSignatureBase64!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please add your signature first.'), backgroundColor: Colors.orange),
       );
       return;
     }
+
+    final durationToSave = _isCustomDuration
+        ? (_customDurationController.text.trim().isNotEmpty
+            ? _customDurationController.text.trim()
+            : '2 Hours')
+        : _selectedDuration;
 
     setState(() => _isLoading = true);
 
@@ -227,20 +322,32 @@ class _AdminApprovalSignaturePageState
         widget.request.id,
         user.id,
         user.name,
-        priority: _selectedPriority,
-        estimatedDuration: _selectedDuration,
+        priority: _selectedPriority!,
+        estimatedDuration: durationToSave,
       );
+
+      await WorkRequestService.assignTo(widget.request.id, _selectedMaintenanceId!);
 
       await AppNotificationService.notifyApprovedToMaintenance(
         workRequestId: widget.request.id,
         adminName: user.name,
-        assignedMaintenanceId: widget.request.assignedToId,
+        assignedMaintenanceId: _selectedMaintenanceId!,
       );
+
+      try {
+        await AppNotificationService.createForUser(
+          targetUserId: _selectedMaintenanceId!,
+          title: 'New Work Request Assignment',
+          message: 'You were assigned to work request ${widget.request.id} by admin ${user.name}.',
+          type: 'work_request_assigned',
+          workRequestId: widget.request.id,
+        );
+      } catch (_) {}
 
       await LoginActivityService.recordAdminAction(
         user: user,
         title: 'Approved Request',
-        details: 'Approved work request for ${widget.request.officeRoom}',
+        details: 'Approved work request for ${widget.request.officeRoom} and assigned to ${_assignedStaffName()}',
         workRequestId: widget.request.id,
       );
 
@@ -251,11 +358,11 @@ class _AdminApprovalSignaturePageState
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Work request approved successfully!'),
+            content: Text('Work request approved and maintenance assigned!'),
             backgroundColor: Color(0xFF059669),
           ),
         );
-        _loadSignatures();
+        _loadData();
       }
     } catch (e) {
       if (mounted) {
@@ -269,25 +376,31 @@ class _AdminApprovalSignaturePageState
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final requestorName = widget.request.requestorName.isNotEmpty
         ? widget.request.requestorName
         : (widget.request.reportedByName ?? 'Requestor');
 
+    final assignedStaff = _maintenanceStaff.cast<MaintenanceAccount?>().firstWhere(
+      (m) => m?.userId == _selectedMaintenanceId,
+      orElse: () => null,
+    );
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.cardColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
           onPressed: () => Navigator.pop(context, _isApproved),
         ),
-        title: const Text(
-          'Executive Approval',
+        title: Text(
+          'Campus Admin Approval',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: themeProvider.textColor,
           ),
         ),
         centerTitle: true,
@@ -302,12 +415,28 @@ class _AdminApprovalSignaturePageState
                 // 1. Information Card
                 _buildCardContainer(
                   title: 'INFORMATION',
+                  themeProvider: themeProvider,
                   children: [
-                    _buildInfoRow('Tracking #', widget.request.id.substring(0, 8).toUpperCase()),
-                    _buildInfoRow('Request Type', widget.request.typeOfRequest.replaceAll('_', ' ').toUpperCase()),
-                    _buildInfoRow('Requestor', requestorName),
-                    _buildInfoRow('Priority Level', _isApproved ? widget.request.priorityLabel : '--'),
-                    _buildInfoRow('Submitted Date', _formatDate(widget.request.dateSubmitted)),
+                    _buildInfoRow('Tracking #', widget.request.id.substring(0, 8).toUpperCase(), themeProvider),
+                    _buildInfoRow('Request Type', widget.request.typeOfRequest.replaceAll('_', ' ').toUpperCase(), themeProvider),
+                    _buildInfoRow('Requestor', requestorName, themeProvider),
+                    _buildInfoRow(
+                      'Priority Level',
+                      _selectedPriority != null && _selectedPriority!.isNotEmpty
+                          ? _selectedPriority!.toUpperCase()
+                          : 'NOT SET',
+                      themeProvider,
+                      valueColor: _selectedPriority != null && _selectedPriority!.isNotEmpty
+                          ? _getPriorityColor(_selectedPriority!)
+                          : themeProvider.mutedTextColor,
+                    ),
+                    _buildInfoRow(
+                      'Assigned Staff',
+                      _assignedStaffName(),
+                      themeProvider,
+                      valueColor: _selectedMaintenanceId != null ? const Color(0xFF4169E1) : themeProvider.mutedTextColor,
+                    ),
+                    _buildInfoRow('Submitted Date', _formatDate(widget.request.dateSubmitted), themeProvider),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -315,34 +444,39 @@ class _AdminApprovalSignaturePageState
                 // 2. Location Card
                 _buildCardContainer(
                   title: 'LOCATION',
+                  themeProvider: themeProvider,
                   children: [
-                    _buildInfoRow('Building', widget.request.buildingName ?? 'Main Building'),
-                    _buildInfoRow('Room / Facility', widget.request.officeRoom ?? 'N/A'),
-                    _buildInfoRow('Department', widget.request.department ?? 'General Services'),
+                    _buildInfoRow('Building', widget.request.buildingName ?? 'Main Building', themeProvider),
+                    _buildInfoRow('Room / Facility', widget.request.officeRoom ?? 'N/A', themeProvider),
+                    _buildInfoRow('Department', widget.request.department ?? 'General Services', themeProvider),
                   ],
                 ),
                 const SizedBox(height: 16),
 
                 // 3. Signatures Captured Card
-                _buildSignaturesCapturedCard(),
+                _buildSignaturesCapturedCard(themeProvider),
                 const SizedBox(height: 20),
 
                 // Approval Form Flow
                 if (!_isApproved) ...[
-                  // Priority Selection
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: themeProvider.cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                      border: Border.all(color: themeProvider.borderColor),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        // Step 1: Priority Level (Updates information card in real-time)
+                        Text(
                           'Step 1 — Priority Level',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: themeProvider.textColor,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -350,61 +484,302 @@ class _AdminApprovalSignaturePageState
                             final isSel = _selectedPriority == p;
                             return Expanded(
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 3),
                                 child: ChoiceChip(
-                                  label: Text(p.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isSel ? Colors.white : Colors.black87)),
+                                  label: Text(
+                                    p.toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: isSel ? Colors.white : themeProvider.textColor,
+                                    ),
+                                  ),
                                   selected: isSel,
-                                  selectedColor: const Color(0xFF4169E1),
+                                  selectedColor: _getPriorityColor(p),
+                                  backgroundColor: themeProvider.isDarkMode
+                                      ? Colors.white.withValues(alpha: 0.06)
+                                      : Colors.grey.shade100,
+                                  side: BorderSide(
+                                    color: isSel ? _getPriorityColor(p) : themeProvider.borderColor,
+                                    width: 1,
+                                  ),
                                   onSelected: (_) => setState(() => _selectedPriority = p),
                                 ),
                               ),
                             );
                           }).toList(),
                         ),
-                        const SizedBox(height: 16),
-
-                        const Text(
-                          'Step 2 — Target Duration',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          value: _selectedDuration,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          items: ['1 Hour', '2 Hours', '4 Hours', '1 Day', '2 Days', '1 Week']
-                              .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-                              .toList(),
-                          onChanged: (v) => setState(() => _selectedDuration = v ?? '2 Hours'),
-                        ),
                         const SizedBox(height: 20),
 
-                        const Text(
-                          'Step 3 — E-Signature',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                        // Step 2: Target Duration
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Step 2 — Target Duration',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: themeProvider.textColor,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _isCustomDuration = !_isCustomDuration;
+                                  if (!_isCustomDuration) {
+                                    _selectedDuration = '2 Hours';
+                                  }
+                                });
+                              },
+                              icon: Icon(_isCustomDuration ? Icons.list_rounded : Icons.edit_calendar_rounded, size: 14),
+                              label: Text(
+                                _isCustomDuration ? 'Choose Preset' : 'Custom Time',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFF4169E1),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        if (_isCustomDuration) ...[
+                          TextFormField(
+                            controller: _customDurationController,
+                            style: TextStyle(color: themeProvider.textColor, fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: 'e.g. 3 Hours, 45 Minutes, 3 Days',
+                              hintStyle: TextStyle(fontSize: 13, color: themeProvider.subtitleColor),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: themeProvider.borderColor),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: themeProvider.borderColor),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              filled: true,
+                              fillColor: themeProvider.inputFillColor,
+                              prefixIcon: const Icon(Icons.timer_outlined, size: 18, color: Color(0xFF4169E1)),
+                            ),
+                          ),
+                        ] else ...[
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedDuration,
+                            dropdownColor: themeProvider.cardColor,
+                            style: TextStyle(color: themeProvider.textColor, fontSize: 13),
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: themeProvider.borderColor),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: themeProvider.borderColor),
+                              ),
+                              filled: true,
+                              fillColor: themeProvider.inputFillColor,
+                            ),
+                            items: ['1 Hour', '2 Hours', '4 Hours', '1 Day', '2 Days', '1 Week', 'Custom...']
+                                .map((d) => DropdownMenuItem(
+                                      value: d,
+                                      child: Text(d, style: TextStyle(color: themeProvider.textColor)),
+                                    ))
+                                .toList(),
+                            onChanged: (v) {
+                              if (v == 'Custom...') {
+                                setState(() {
+                                  _isCustomDuration = true;
+                                });
+                              } else {
+                                setState(() {
+                                  _selectedDuration = v ?? '2 Hours';
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+
+                        // Step 3: Maintenance Assignment
+                        Text(
+                          'Step 3 — Maintenance Assignment',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: themeProvider.textColor,
+                          ),
                         ),
                         const SizedBox(height: 8),
-                        Row(
+                        if (_maintenanceStaff.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Loading active maintenance personnel...',
+                                    style: TextStyle(fontSize: 12, color: Colors.orange),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedMaintenanceId,
+                            isExpanded: true,
+                            dropdownColor: themeProvider.cardColor,
+                            style: TextStyle(color: themeProvider.textColor, fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: 'Select maintenance technician...',
+                              hintStyle: TextStyle(fontSize: 13, color: themeProvider.subtitleColor),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: themeProvider.borderColor),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(color: themeProvider.borderColor),
+                              ),
+                              filled: true,
+                              fillColor: themeProvider.inputFillColor,
+                              prefixIcon: const Icon(Icons.engineering_outlined, size: 20, color: Color(0xFF4169E1)),
+                            ),
+                            items: _maintenanceStaff.map((staff) {
+                              return DropdownMenuItem<String>(
+                                value: staff.userId,
+                                child: Row(
+                                  children: [
+                                    AvailabilityStatusBadge(
+                                      status: staff.availabilityStatus,
+                                      size: BadgeSize.small,
+                                      showLabel: false,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '${staff.fullName} (${staff.specialization ?? "General"})',
+                                        style: TextStyle(
+                                          color: themeProvider.textColor,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (v) {
+                              setState(() {
+                                _selectedMaintenanceId = v;
+                              });
+                            },
+                          ),
+
+                        if (assignedStaff != null) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF4169E1).withValues(alpha: 0.25)),
+                            ),
+                            child: Row(
+                              children: [
+                                AvailabilityStatusBadge(
+                                  status: assignedStaff.availabilityStatus,
+                                  size: BadgeSize.small,
+                                  showLabel: true,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        assignedStaff.fullName,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.bold,
+                                          color: themeProvider.textColor,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Specialization: ${assignedStaff.specialization ?? "General Maintenance"}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: themeProvider.subtitleColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.check_circle_rounded, color: Color(0xFF4169E1), size: 18),
+                              ],
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+
+                        // Step 4: E-Signature
+                        Text(
+                          'Step 4 — E-Signature',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: themeProvider.textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 10,
+                          runSpacing: 10,
                           children: [
                             ElevatedButton.icon(
                               onPressed: _openSignatureDialog,
-                              icon: Icon(_pendingSignatureBase64 != null ? Icons.edit_note_rounded : Icons.draw_rounded, size: 18),
+                              icon: Icon(
+                                _pendingSignatureBase64 != null ? Icons.edit_note_rounded : Icons.draw_rounded,
+                                size: 18,
+                              ),
                               label: Text(_pendingSignatureBase64 != null ? 'View / Change Signature' : 'Sign Approval'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: _pendingSignatureBase64 != null ? const Color(0xFF4169E1).withValues(alpha: 0.1) : const Color(0xFF4169E1),
+                                backgroundColor: _pendingSignatureBase64 != null
+                                    ? const Color(0xFF4169E1).withValues(alpha: 0.1)
+                                    : const Color(0xFF4169E1),
                                 foregroundColor: _pendingSignatureBase64 != null ? const Color(0xFF4169E1) : Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               ),
                             ),
-                            if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty) ...[
-                              const SizedBox(width: 12),
-                              const Icon(Icons.verified, color: Color(0xFF059669), size: 20),
-                              const SizedBox(width: 4),
-                              const Text('Signature Confirmed', style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold, fontSize: 13)),
-                            ],
+                            if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.verified, color: Color(0xFF059669), size: 18),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Signature Confirmed',
+                                    style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold, fontSize: 12),
+                                  ),
+                                ],
+                              ),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -427,7 +802,7 @@ class _AdminApprovalSignaturePageState
                     ),
                   ),
                 ] else ...[
-                  _buildApprovedBanner(),
+                  _buildApprovedBanner(themeProvider),
                 ],
                 const SizedBox(height: 24),
               ],
@@ -435,23 +810,27 @@ class _AdminApprovalSignaturePageState
     );
   }
 
-  Widget _buildCardContainer({required String title, required List<Widget> children}) {
+  Widget _buildCardContainer({
+    required String title,
+    required List<Widget> children,
+    required ThemeProvider themeProvider,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: themeProvider.borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF6B7280),
+              color: themeProvider.subtitleColor,
               letterSpacing: 0.8,
             ),
           ),
@@ -462,7 +841,7 @@ class _AdminApprovalSignaturePageState
     );
   }
 
-  Widget _buildSignaturesCapturedCard() {
+  Widget _buildSignaturesCapturedCard(ThemeProvider themeProvider) {
     final list = <Widget>[];
 
     final reqName = widget.request.requestorName.isNotEmpty
@@ -476,7 +855,7 @@ class _AdminApprovalSignaturePageState
         s.signerRole == 'teacher');
 
     if (!hasReqSig && reqName.isNotEmpty) {
-      list.add(_buildSignatureItem(reqName, 'Requestor', widget.request.dateSubmitted));
+      list.add(_buildSignatureItem(reqName, 'Requestor', widget.request.dateSubmitted, themeProvider));
     }
 
     final displaySigs = List<ESignature>.from(_signatures);
@@ -511,22 +890,29 @@ class _AdminApprovalSignaturePageState
       } else if (sig.signerRole == 'admin') {
         label = 'Admin Approval';
       }
-      list.add(_buildSignatureItem(sig.signerName, label, sig.signedAt));
+      list.add(_buildSignatureItem(sig.signerName, label, sig.signedAt, themeProvider));
     }
 
     if (list.isEmpty) return const SizedBox.shrink();
 
-    return _buildCardContainer(title: 'SIGNATURES CAPTURED', children: list);
+    return _buildCardContainer(
+      title: 'SIGNATURES CAPTURED',
+      children: list,
+      themeProvider: themeProvider,
+    );
   }
 
-  Widget _buildSignatureItem(String name, String label, DateTime date) {
+  Widget _buildSignatureItem(String name, String label, DateTime date, ThemeProvider themeProvider) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(color: const Color(0xFF4169E1).withValues(alpha: 0.1), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
             child: const Icon(Icons.verified, size: 14, color: Color(0xFF4169E1)),
           ),
           const SizedBox(width: 10),
@@ -534,8 +920,18 @@ class _AdminApprovalSignaturePageState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87)),
-                Text('$label • ${_formatDate(date)}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: themeProvider.textColor,
+                  ),
+                ),
+                Text(
+                  '$label • ${_formatDate(date)}',
+                  style: TextStyle(fontSize: 11, color: themeProvider.subtitleColor),
+                ),
               ],
             ),
           ),
@@ -544,7 +940,7 @@ class _AdminApprovalSignaturePageState
     );
   }
 
-  Widget _buildApprovedBanner() {
+  Widget _buildApprovedBanner(ThemeProvider themeProvider) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -585,9 +981,9 @@ class _AdminApprovalSignaturePageState
                   widget.request.approvedBy != null
                       ? 'Approved by ${widget.request.approvedBy} on ${_formatDate(widget.request.approvedDate ?? DateTime.now())}'
                       : 'This request has been approved',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF6B7280),
+                    color: themeProvider.subtitleColor,
                   ),
                 ),
               ],
@@ -598,7 +994,12 @@ class _AdminApprovalSignaturePageState
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(
+    String label,
+    String value,
+    ThemeProvider themeProvider, {
+    Color? valueColor,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -608,16 +1009,16 @@ class _AdminApprovalSignaturePageState
             width: 110,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+              style: TextStyle(fontSize: 12, color: themeProvider.subtitleColor),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF111827),
+                color: valueColor ?? themeProvider.textColor,
               ),
             ),
           ),

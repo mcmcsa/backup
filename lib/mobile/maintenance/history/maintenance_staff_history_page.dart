@@ -5,6 +5,7 @@ import '../../../shared/widgets/common_app_bar.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/providers/theme_provider.dart';
 
 class MaintenanceStaffHistoryPage extends StatefulWidget {
   const MaintenanceStaffHistoryPage({super.key});
@@ -177,7 +178,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
     return filtered;
   }
 
-  Future<void> _showDateRangePicker() async {
+  Future<void> _showDateRangePicker(bool isDark) async {
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
@@ -187,13 +188,22 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
           : null,
       builder: (context, child) {
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF4169E1),
-              onPrimary: Colors.white,
-              onSurface: Colors.black87,
-            ),
-          ),
+          data: isDark
+              ? ThemeData.dark().copyWith(
+                  colorScheme: const ColorScheme.dark(
+                    primary: Color(0xFF4169E1),
+                    onPrimary: Colors.white,
+                    surface: Color(0xFF1E1E2E),
+                    onSurface: Colors.white,
+                  ),
+                )
+              : Theme.of(context).copyWith(
+                  colorScheme: const ColorScheme.light(
+                    primary: Color(0xFF4169E1),
+                    onPrimary: Colors.white,
+                    onSurface: Colors.black87,
+                  ),
+                ),
           child: child!,
         );
       },
@@ -230,10 +240,12 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final filteredItems = _filteredItems;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: const CommonAppBar(
         roleText: 'Welcome Maintenance Staff',
         primaryColor: Color(0xFF4169E1),
@@ -245,34 +257,35 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
         children: [
           // Search Bar
           Container(
-            color: Colors.white,
+            color: themeProvider.cardColor,
             padding: const EdgeInsets.all(16),
             child: TextField(
               controller: _searchController,
               onChanged: (value) => setState(() {}),
+              style: TextStyle(color: themeProvider.textColor, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search by ID, title or location...',
                 hintStyle: TextStyle(
-                  color: Colors.grey.shade400,
+                  color: themeProvider.subtitleColor,
                   fontSize: 14,
                 ),
                 prefixIcon: Padding(
                   padding: const EdgeInsets.only(left: 12, right: 8),
-                  child: Icon(Icons.search_rounded, color: Colors.grey.shade400, size: 20),
+                  child: Icon(Icons.search_rounded, color: themeProvider.subtitleColor, size: 20),
                 ),
                 prefixIconConstraints: const BoxConstraints(
                   minWidth: 44,
                   minHeight: 44,
                 ),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: isDark ? const Color(0xFF1E1E2E) : Colors.grey.shade100,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(color: themeProvider.borderColor),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(color: themeProvider.borderColor),
                 ),
                 focusedBorder: const OutlineInputBorder(
                   borderRadius: BorderRadius.all(Radius.circular(999)),
@@ -288,19 +301,19 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
 
           // Filter Tabs
           Container(
-            color: Colors.white,
+            color: themeProvider.cardColor,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _buildFilterChip('All'),
+                  _buildFilterChip('All', themeProvider),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Completed'),
+                  _buildFilterChip('Completed', themeProvider),
                   const SizedBox(width: 8),
-                  _buildFilterChip('In Progress'),
+                  _buildFilterChip('In Progress', themeProvider),
                   const SizedBox(width: 8),
-                  _buildFilterChip('Cancelled'),
+                  _buildFilterChip('Cancelled', themeProvider),
                 ],
               ),
             ),
@@ -308,23 +321,23 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
 
           // Action Buttons
           Container(
-            color: Colors.white,
+            color: themeProvider.cardColor,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: _startDate == null || _endDate == null
                 ? Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: _showDateRangePicker,
-                          icon: const Icon(Icons.calendar_today, size: 16),
+                          onPressed: () => _showDateRangePicker(isDark),
+                          icon: Icon(Icons.calendar_today, size: 16, color: themeProvider.textColor),
                           label: Text(
                             _formatRangeLabel(),
-                            style: const TextStyle(fontSize: 11),
+                            style: TextStyle(fontSize: 11, color: themeProvider.textColor),
                             overflow: TextOverflow.ellipsis,
                           ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.black87,
-                            side: BorderSide(color: Colors.grey.shade300),
+                            foregroundColor: themeProvider.textColor,
+                            side: BorderSide(color: themeProvider.borderColor),
                             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
                           ),
                         ),
@@ -336,14 +349,15 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                           icon: Icon(
                             _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
                             size: 16,
+                            color: themeProvider.textColor,
                           ),
                           label: Text(
                             _sortAscending ? 'Oldest' : 'Newest',
-                            style: const TextStyle(fontSize: 11),
+                            style: TextStyle(fontSize: 11, color: themeProvider.textColor),
                           ),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.black87,
-                            side: BorderSide(color: Colors.grey.shade300),
+                            foregroundColor: themeProvider.textColor,
+                            side: BorderSide(color: themeProvider.borderColor),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
                         ),
@@ -358,7 +372,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade600,
+                          color: themeProvider.subtitleColor,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -368,7 +382,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                             child: Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                                color: const Color(0xFF4169E1).withValues(alpha: isDark ? 0.2 : 0.08),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
                                   color: const Color(0xFF4169E1),
@@ -383,16 +397,16 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w500,
-                                      color: Colors.grey.shade600,
+                                      color: themeProvider.subtitleColor,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     _formatDate(_startDate!),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
-                                      color: Color(0xFF1E293B),
+                                      color: themeProvider.textColor,
                                     ),
                                   ),
                                 ],
@@ -403,7 +417,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                             child: Icon(
                               Icons.arrow_forward_rounded,
-                              color: Colors.grey.shade400,
+                              color: themeProvider.subtitleColor,
                               size: 16,
                             ),
                           ),
@@ -411,7 +425,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                             child: Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                                color: const Color(0xFF4169E1).withValues(alpha: isDark ? 0.2 : 0.08),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
                                   color: const Color(0xFF4169E1),
@@ -426,16 +440,16 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w500,
-                                      color: Colors.grey.shade600,
+                                      color: themeProvider.subtitleColor,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     _formatDate(_endDate!),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
-                                      color: Color(0xFF1E293B),
+                                      color: themeProvider.textColor,
                                     ),
                                   ),
                                 ],
@@ -453,44 +467,28 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                               icon: Icon(
                                 _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
                                 size: 14,
+                                color: themeProvider.textColor,
                               ),
                               label: Text(
                                 _sortAscending ? 'Oldest' : 'Newest',
-                                style: const TextStyle(fontSize: 11),
+                                style: TextStyle(fontSize: 11, color: themeProvider.textColor),
                               ),
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.black87,
-                                side: BorderSide(color: Colors.grey.shade300),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                foregroundColor: themeProvider.textColor,
+                                side: BorderSide(color: themeProvider.borderColor),
+                                padding: const EdgeInsets.symmetric(vertical: 8),
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
-                          IconButton(
-                            tooltip: 'Change date range',
-                            onPressed: _showDateRangePicker,
-                            icon: const Icon(Icons.edit_rounded),
-                            style: IconButton.styleFrom(
-                              backgroundColor: const Color(0xFFF1F5F9),
-                              foregroundColor: const Color(0xFF4169E1),
-                              minimumSize: const Size(36, 36),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            tooltip: 'Clear date range',
+                          TextButton(
                             onPressed: () {
                               setState(() {
                                 _startDate = null;
                                 _endDate = null;
                               });
                             },
-                            icon: const Icon(Icons.close_rounded),
-                            style: IconButton.styleFrom(
-                              backgroundColor: const Color(0xFFF1F5F9),
-                              foregroundColor: const Color(0xFFDC2626),
-                              minimumSize: const Size(36, 36),
-                            ),
+                            child: const Text('Clear', style: TextStyle(fontSize: 12)),
                           ),
                         ],
                       ),
@@ -508,14 +506,14 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                         Icon(
                           Icons.history,
                           size: 64,
-                          color: Colors.grey.shade300,
+                          color: Colors.grey.shade400,
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'No history records found',
                           style: TextStyle(
                             fontSize: 16,
-                            color: Colors.grey.shade600,
+                            color: themeProvider.textColor,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -524,7 +522,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                           'Try adjusting your filters',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.grey.shade500,
+                            color: themeProvider.subtitleColor,
                           ),
                         ),
                       ],
@@ -535,7 +533,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                     itemCount: filteredItems.length,
                     itemBuilder: (context, index) {
                       final item = filteredItems[index];
-                      return _buildHistoryCard(item);
+                      return _buildHistoryCard(item, themeProvider);
                     },
                   ),
           ),
@@ -544,7 +542,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
     );
   }
 
-  Widget _buildFilterChip(String label) {
+  Widget _buildFilterChip(String label, ThemeProvider themeProvider) {
     final isSelected = _selectedFilter == label;
     return FilterChip(
       label: Text(label),
@@ -554,27 +552,35 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
           _selectedFilter = label;
         });
       },
-      backgroundColor: Colors.white,
-      selectedColor: const Color(0xFF1A1A2E),
+      backgroundColor: themeProvider.cardColor,
+      selectedColor: const Color(0xFF4169E1),
       labelStyle: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: isSelected ? Colors.white : Colors.black87,
+        color: isSelected ? Colors.white : themeProvider.textColor,
       ),
       side: BorderSide(
-        color: isSelected ? const Color(0xFF1A1A2E) : Colors.grey.shade300,
+        color: isSelected ? const Color(0xFF4169E1) : themeProvider.borderColor,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     );
   }
 
-  Widget _buildHistoryCard(Map<String, dynamic> item) {
+  Widget _buildHistoryCard(Map<String, dynamic> item, ThemeProvider themeProvider) {
+    final isDark = themeProvider.isDarkMode;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: themeProvider.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: themeProvider.shadowColor,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: InkWell(
         onTap: () {
@@ -602,7 +608,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: (item['categoryColor'] as Color).withValues(alpha: 0.1),
+                      color: (item['categoryColor'] as Color).withValues(alpha: isDark ? 0.2 : 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -621,16 +627,16 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: Colors.grey[600],
+                            color: themeProvider.subtitleColor,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           item['title'],
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: themeProvider.textColor,
                           ),
                         ),
                       ],
@@ -640,7 +646,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
-                      color: (item['statusColor'] as Color).withValues(alpha: 0.1),
+                      color: (item['statusColor'] as Color).withValues(alpha: isDark ? 0.2 : 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
@@ -659,14 +665,14 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
               // Location
               Row(
                 children: [
-                  Icon(Icons.location_on_outlined, size: 16, color: Colors.grey[600]),
+                  Icon(Icons.location_on_outlined, size: 16, color: themeProvider.subtitleColor),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       item['location'],
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[700],
+                        color: themeProvider.subtitleColor,
                       ),
                     ),
                   ),
@@ -677,24 +683,24 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
               // Date Info
               Row(
                 children: [
-                  Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+                  Icon(Icons.calendar_today, size: 16, color: themeProvider.subtitleColor),
                   const SizedBox(width: 6),
                   Text(
                     'Started: ${_formatDate(item['date'] as DateTime)}',
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey[700],
+                      color: themeProvider.subtitleColor,
                     ),
                   ),
                   if (item['completedDate'] != null) ...[
                     const SizedBox(width: 12),
-                    Icon(Icons.check_circle, size: 16, color: Colors.green),
+                    const Icon(Icons.check_circle, size: 16, color: Colors.green),
                     const SizedBox(width: 4),
                     Text(
                       'Completed: ${_formatDate(item['completedDate'] as DateTime)}',
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.grey[700],
+                        color: themeProvider.subtitleColor,
                       ),
                     ),
                   ],
@@ -708,7 +714,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getPriorityColor(item['priority']).withValues(alpha: 0.1),
+                      color: _getPriorityColor(item['priority']).withValues(alpha: isDark ? 0.2 : 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
@@ -734,7 +740,7 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                   const Spacer(),
                   Icon(
                     Icons.chevron_right,
-                    color: Colors.grey[400],
+                    color: themeProvider.subtitleColor,
                     size: 20,
                   ),
                 ],

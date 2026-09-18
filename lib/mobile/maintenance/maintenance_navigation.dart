@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../authentication/services/auth_service.dart';
 import '../../shared/services/maintenance_status_service.dart';
+import '../../shared/providers/theme_provider.dart';
 import 'dashboard/maintenance_dashboard.dart';
 import 'task/maintenance_reports_page.dart';
 import 'history/maintenance_staff_history_page.dart';
@@ -49,6 +50,8 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final auth = context.watch<AuthService>();
     final user = auth.currentUser;
     final userName = user?.name ?? 'Maintenance';
@@ -64,15 +67,16 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
 
     return GlobalAnnouncementListener(
       child: Scaffold(
+      backgroundColor: themeProvider.backgroundColor,
       drawer: Drawer(
         width: 280,
         child: Container(
-          color: Colors.white,
+          color: themeProvider.cardColor,
           child: Column(
             children: [
               UserAccountsDrawerHeader(
-                decoration: const BoxDecoration(
-                  color: Color(0xFF4169E1),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF141724) : const Color(0xFF4169E1),
                 ),
                 currentAccountPicture: CircleAvatar(
                   backgroundColor: Colors.white,
@@ -96,7 +100,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
               ),
               ListTile(
                 leading: const Icon(Icons.home_rounded, color: Color(0xFF4169E1)),
-                title: const Text('Home', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: Text('Home', style: TextStyle(fontWeight: FontWeight.w600, color: themeProvider.textColor)),
                 selected: _selectedIndex == 0,
                 selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
                 onTap: () {
@@ -106,7 +110,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
               ),
               ListTile(
                 leading: const Icon(Icons.work_rounded, color: Color(0xFF4169E1)),
-                title: const Text('Tasks', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: Text('Tasks', style: TextStyle(fontWeight: FontWeight.w600, color: themeProvider.textColor)),
                 selected: _selectedIndex == 1,
                 selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
                 onTap: () {
@@ -116,7 +120,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
               ),
               ListTile(
                 leading: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF4169E1)),
-                title: const Text('Chat', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: Text('Chat', style: TextStyle(fontWeight: FontWeight.w600, color: themeProvider.textColor)),
                 selected: _selectedIndex == 2,
                 selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
                 onTap: () {
@@ -126,7 +130,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
               ),
               ListTile(
                 leading: const Icon(Icons.history_rounded, color: Color(0xFF4169E1)),
-                title: const Text('History', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: Text('History', style: TextStyle(fontWeight: FontWeight.w600, color: themeProvider.textColor)),
                 selected: _selectedIndex == 3,
                 selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
                 onTap: () {
@@ -136,7 +140,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
               ),
               ListTile(
                 leading: const Icon(Icons.person_rounded, color: Color(0xFF4169E1)),
-                title: const Text('Profile', style: TextStyle(fontWeight: FontWeight.w600)),
+                title: Text('Profile', style: TextStyle(fontWeight: FontWeight.w600, color: themeProvider.textColor)),
                 selected: _selectedIndex == 4,
                 selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
                 onTap: () {
@@ -144,7 +148,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                   _onNavItemTapped(4);
                 },
               ),
-              const Divider(),
+              Divider(color: themeProvider.dividerColor),
               const Spacer(),
               ListTile(
                 leading: const Icon(Icons.logout_rounded, color: Colors.red),
@@ -164,18 +168,19 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
         index: _selectedIndex,
         children: pages,
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
+      bottomNavigationBar: _buildBottomNavBar(themeProvider),
     ),
   );
   }
 
-  Widget _buildBottomNavBar() {
+  Widget _buildBottomNavBar(ThemeProvider themeProvider) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.navBarColor,
+        border: Border(top: BorderSide(color: themeProvider.borderColor, width: 0.5)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
+            color: themeProvider.shadowColor,
             blurRadius: 12,
             offset: const Offset(0, -3),
           ),
@@ -192,30 +197,35 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                 activeIcon: Icons.home_rounded,
                 label: 'Home',
                 index: 0,
+                themeProvider: themeProvider,
               ),
               _buildNavItem(
                 icon: Icons.work_outline_rounded,
                 activeIcon: Icons.work_rounded,
                 label: 'Tasks',
                 index: 1,
+                themeProvider: themeProvider,
               ),
               _buildNavItem(
                 icon: Icons.chat_bubble_outline_rounded,
                 activeIcon: Icons.chat_bubble_rounded,
                 label: 'Chat',
                 index: 2,
+                themeProvider: themeProvider,
               ),
               _buildNavItem(
                 icon: Icons.history_outlined,
                 activeIcon: Icons.history_rounded,
                 label: 'History',
                 index: 3,
+                themeProvider: themeProvider,
               ),
               _buildNavItem(
                 icon: Icons.person_outline_rounded,
                 activeIcon: Icons.person_rounded,
                 label: 'Profile',
                 index: 4,
+                themeProvider: themeProvider,
               ),
             ],
           ),
@@ -229,6 +239,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
     required IconData activeIcon,
     required String label,
     required int index,
+    required ThemeProvider themeProvider,
   }) {
     final isSelected = _selectedIndex == index;
     return GestureDetector(
@@ -259,7 +270,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                 key: ValueKey(isSelected),
                 color: isSelected 
                     ? const Color(0xFF4169E1) 
-                    : Colors.grey.shade500,
+                    : themeProvider.navBarTextColor,
                 size: isSelected ? 26 : 24,
               ),
             ),
@@ -271,7 +282,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 color: isSelected 
                     ? const Color(0xFF4169E1) 
-                    : Colors.grey.shade600,
+                    : themeProvider.navBarTextColor,
                 letterSpacing: 0.3,
               ),
             ),

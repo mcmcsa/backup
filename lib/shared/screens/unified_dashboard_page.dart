@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/work_request_model.dart';
 import '../providers/work_request_provider.dart';
+import '../providers/theme_provider.dart';
 import '../../web/admin/shared/admin_styles.dart';
 import '../../mobile/admin/shared/admin_app_bar.dart';
 
 // Mapping local colors to AdminStyles for compatibility and modularity
-const Color _bg = AdminStyles.bg;
-const Color _surface = AdminStyles.surface;
 const Color _border = AdminStyles.border;
 const Color _textPrimary = AdminStyles.textPrimary;
 const Color _textMuted = AdminStyles.textMuted;
@@ -144,10 +143,11 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
     final completedCount = _getCountByStatus('completed');
 
     final isMobile = width < 900;
+    final themeProvider = Provider.of<ThemeProvider>(context);
     
     Widget content = Container(
-      decoration: const BoxDecoration(
-        color: _bg,
+      decoration: BoxDecoration(
+        color: themeProvider.backgroundColor,
       ),
       child: _isLoading
           ? const Center(
@@ -213,10 +213,9 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
 
     if (widget.openDrawer != null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF5F7FA),
+        backgroundColor: themeProvider.backgroundColor,
         appBar: AdminAppBar(
           openDrawer: widget.openDrawer!,
-          subtitle: 'Campus Administrator',
         ),
         body: content,
       );
@@ -324,9 +323,7 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
       builder: (context, constraints) {
         final perRow = constraints.maxWidth > 1024
             ? 4
-            : constraints.maxWidth > 600
-                ? 2
-                : 1;
+            : 2;
         final cardWidth = (constraints.maxWidth - ((perRow - 1) * 12)) / perRow;
 
         final cards = [
@@ -469,6 +466,7 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
 
   Widget _buildLatestRequestsCard() {
     final latestRequests = _getLatestRequests(limit: 6);
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return _SectionCard(
       title: 'Recent Requests',
@@ -491,49 +489,50 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
       contentPadding: EdgeInsets.zero,
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-            decoration: BoxDecoration(
-              color: AdminStyles.bg,
-              border: Border(
-                bottom: BorderSide(color: AdminStyles.border),
+          if (!isMobile)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              decoration: BoxDecoration(
+                color: AdminStyles.bg,
+                border: Border(
+                  bottom: BorderSide(color: AdminStyles.border),
+                ),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 130,
+                    child: Text(
+                      'TICKET',
+                      style: AdminStyles.headingStyle(
+                        color: AdminStyles.textMuted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'SUBJECT',
+                      style: AdminStyles.headingStyle(
+                        color: AdminStyles.textMuted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 130,
+                    child: Text(
+                      'STATUS',
+                      textAlign: TextAlign.center,
+                      style: AdminStyles.headingStyle(
+                        color: AdminStyles.textMuted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 130,
-                  child: Text(
-                    'TICKET',
-                    style: AdminStyles.headingStyle(
-                      color: AdminStyles.textMuted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    'SUBJECT',
-                    style: AdminStyles.headingStyle(
-                      color: AdminStyles.textMuted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: 130,
-                  child: Text(
-                    'STATUS',
-                    textAlign: TextAlign.center,
-                    style: AdminStyles.headingStyle(
-                      color: AdminStyles.textMuted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
           if (latestRequests.isEmpty)
             const Padding(
               padding: EdgeInsets.all(36),
@@ -576,10 +575,22 @@ class _KpiCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
       padding: EdgeInsets.all(isMobile ? 12 : 16),
-      decoration: AdminStyles.cardDecoration(borderRadius: isMobile ? 12 : 16),
+      decoration: BoxDecoration(
+        color: themeProvider.cardColor,
+        borderRadius: BorderRadius.circular(isMobile ? 12 : 16),
+        border: Border.all(color: themeProvider.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: themeProvider.shadowColor,
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -596,10 +607,10 @@ class _KpiCard extends StatelessWidget {
           SizedBox(height: isMobile ? 10 : 16),
           Text(
             data.value.toString(),
-            style: AdminStyles.headingStyle(
+            style: TextStyle(
               fontSize: isMobile ? 22 : 26,
               fontWeight: FontWeight.w900,
-              color: AdminStyles.textPrimary,
+              color: themeProvider.textColor,
             ),
           ),
           const SizedBox(height: 4),
@@ -607,10 +618,10 @@ class _KpiCard extends StatelessWidget {
             data.title.toUpperCase(),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AdminStyles.bodyStyle(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w800,
-              color: AdminStyles.textSecondary,
+              color: themeProvider.subtitleColor,
             ),
           ),
         ],
@@ -638,8 +649,20 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     return Container(
-      decoration: AdminStyles.cardDecoration(borderRadius: 20),
+      decoration: BoxDecoration(
+        color: themeProvider.cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: themeProvider.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: themeProvider.shadowColor,
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -663,17 +686,18 @@ class _SectionCard extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: AdminStyles.headingStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
+                          color: themeProvider.textColor,
                         ),
                       ),
                       if (subtitle != null)
                         Text(
                           subtitle!,
-                          style: AdminStyles.bodyStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: _textMuted,
+                            color: themeProvider.subtitleColor,
                           ),
                         ),
                     ],
@@ -708,6 +732,7 @@ class _MiniProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -716,16 +741,16 @@ class _MiniProgress extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(
-                color: _textMuted,
+              style: TextStyle(
+                color: themeProvider.subtitleColor,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
             ),
             Text(
               value,
-              style: const TextStyle(
-                color: _textPrimary,
+              style: TextStyle(
+                color: themeProvider.textColor,
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
               ),
@@ -789,6 +814,81 @@ class _RequestTableRowState extends State<_RequestTableRow> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final ticketCode = '#${widget.request.id.substring(0, widget.request.id.length < 8 ? widget.request.id.length : 8).toUpperCase()}';
+
+    if (isMobile) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: themeProvider.cardColor,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    ticketCode,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F766E),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                _StatusBadge(status: widget.request.status),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              widget.request.title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: themeProvider.textColor,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(
+                  Icons.location_on_outlined,
+                  size: 14,
+                  color: themeProvider.subtitleColor,
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    '${widget.request.officeRoom} • ${widget.request.buildingName}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: themeProvider.subtitleColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -796,9 +896,11 @@ class _RequestTableRowState extends State<_RequestTableRow> {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(
-          color: _isHovered ? AdminStyles.bg : Colors.white,
+          color: _isHovered
+              ? (isDark ? const Color(0xFF262626) : AdminStyles.bg)
+              : themeProvider.cardColor,
           border: Border(
-            bottom: BorderSide(color: AdminStyles.border),
+            bottom: BorderSide(color: themeProvider.borderColor),
           ),
         ),
         child: Row(
@@ -806,11 +908,12 @@ class _RequestTableRowState extends State<_RequestTableRow> {
             SizedBox(
               width: 130,
               child: Text(
-                '#${widget.request.id.substring(0, 8).toUpperCase()}',
-                style: AdminStyles.dataStyle(
+                ticketCode,
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AdminStyles.textPrimary,
+                  color: themeProvider.textColor,
+                  fontFamily: 'monospace',
                 ),
               ),
             ),
@@ -820,18 +923,18 @@ class _RequestTableRowState extends State<_RequestTableRow> {
                 children: [
                   Text(
                     widget.request.title,
-                    style: AdminStyles.bodyStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AdminStyles.textPrimary,
+                      color: themeProvider.textColor,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${widget.request.officeRoom} • ${widget.request.buildingName}',
-                    style: AdminStyles.bodyStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: AdminStyles.textSecondary,
+                      color: themeProvider.subtitleColor,
                     ),
                   ),
                 ],
@@ -948,6 +1051,8 @@ class _AgingTicketItemState extends State<_AgingTicketItem> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final days = DateTime.now().difference(widget.ticket.dateSubmitted).inDays;
     
     return MouseRegion(
@@ -958,12 +1063,14 @@ class _AgingTicketItemState extends State<_AgingTicketItem> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: _isHovered ? AdminStyles.bg.withValues(alpha: 0.5) : Colors.white,
+          color: _isHovered
+              ? (isDark ? const Color(0xFF262626) : AdminStyles.bg.withValues(alpha: 0.5))
+              : themeProvider.cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: _isHovered
                 ? AdminStyles.error.withValues(alpha: 0.4)
-                : AdminStyles.border,
+                : themeProvider.borderColor,
           ),
           boxShadow: [
             if (_isHovered)
@@ -991,10 +1098,10 @@ class _AgingTicketItemState extends State<_AgingTicketItem> {
                 children: [
                   Text(
                     widget.ticket.title,
-                    style: AdminStyles.bodyStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: AdminStyles.textPrimary,
+                      color: themeProvider.textColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1002,16 +1109,16 @@ class _AgingTicketItemState extends State<_AgingTicketItem> {
                   const SizedBox(height: 2),
                   Text(
                     '${widget.ticket.buildingName} • $days days ago',
-                    style: AdminStyles.bodyStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: AdminStyles.textSecondary,
+                      color: themeProvider.subtitleColor,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: _textMuted, size: 18),
+            Icon(Icons.chevron_right_rounded, color: themeProvider.subtitleColor, size: 18),
           ],
         ),
       ),

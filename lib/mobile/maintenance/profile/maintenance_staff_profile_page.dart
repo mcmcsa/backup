@@ -21,8 +21,6 @@ class MaintenanceStaffProfilePage extends StatefulWidget {
 class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePage> {
   static const Color _primaryBlue = Color(0xFF0EA5E9);
   static const Color _subtleText = Color(0xFF64748B);
-  static const Color _borderColor = Color(0xFFE2E8F0);
-  static const Color _textPrimary = Color(0xFF0F172A);
 
   final _formKey = GlobalKey<FormState>();
 
@@ -199,15 +197,15 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
           key: _formKey,
           child: Column(
             children: [
-              _buildProfileHero(user, authService.isLoading),
+              _buildProfileHero(user, authService.isLoading, themeProvider),
               const SizedBox(height: 20),
-              _buildRegistrationDetails(),
+              _buildRegistrationDetails(themeProvider),
               const SizedBox(height: 20),
-              _buildSettingsMenu(),
+              _buildSettingsMenu(themeProvider),
               const SizedBox(height: 20),
-              _buildSupportMenu(),
+              _buildSupportMenu(themeProvider),
               const SizedBox(height: 20),
-              _buildLogoutButton(),
+              _buildLogoutButton(themeProvider),
               const SizedBox(height: 24),
             ],
           ),
@@ -216,7 +214,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     );
   }
 
-  Widget _buildProfileHero(AppUser? user, bool isLoading) {
+  Widget _buildProfileHero(AppUser? user, bool isLoading, ThemeProvider themeProvider) {
     final avatar = _buildAvatar(user);
     final details = Column(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -233,13 +231,13 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
         const SizedBox(height: 6),
         Text(
           user?.name ?? 'Maintenance Account',
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _textPrimary, letterSpacing: -0.5),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: themeProvider.textColor, letterSpacing: -0.5),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
         Text(
           user?.email ?? '',
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _subtleText),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: themeProvider.subtitleColor),
           textAlign: TextAlign.center,
         ),
       ],
@@ -250,12 +248,12 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: themeProvider.shadowColor,
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -269,18 +267,18 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
           const SizedBox(height: 24),
           actionBtn,
           const SizedBox(height: 20),
-          const Divider(color: _borderColor),
+          Divider(color: themeProvider.borderColor),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildStatItem('$_completedCount', 'Completed', Icons.check_circle_outline),
+              _buildStatItem('$_completedCount', 'Completed', Icons.check_circle_outline, themeProvider),
               Container(
                 width: 1,
                 height: 50,
-                color: _borderColor,
+                color: themeProvider.borderColor,
               ),
-              _buildStatItem('$_inProgressCount', 'In Progress', Icons.pending_outlined),
+              _buildStatItem('$_inProgressCount', 'In Progress', Icons.pending_outlined, themeProvider),
             ],
           ),
         ],
@@ -430,24 +428,24 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     );
   }
 
-  Widget _buildRegistrationDetails() {
+  Widget _buildRegistrationDetails(ThemeProvider themeProvider) {
     final fields = [
-      _buildField(Icons.person_outline_rounded, 'Full Name', _nameController, _isEditing),
-      _buildField(Icons.email_outlined, 'Email Address', _emailController, false, helperText: 'Email address cannot be changed here.'),
-      _buildField(Icons.badge_outlined, 'Employee ID', _employeeIdController, _isEditing),
-      _buildField(Icons.phone_outlined, 'Contact Number', _phoneController, _isEditing),
-      _buildField(Icons.engineering_outlined, 'Specialization', _specializationController, _isEditing),
+      _buildField(Icons.person_outline_rounded, 'Full Name', _nameController, _isEditing, themeProvider),
+      _buildField(Icons.email_outlined, 'Email Address', _emailController, false, themeProvider, helperText: 'Email address cannot be changed here.'),
+      _buildField(Icons.badge_outlined, 'Employee ID', _employeeIdController, _isEditing, themeProvider),
+      _buildField(Icons.phone_outlined, 'Contact Number', _phoneController, _isEditing, themeProvider),
+      _buildField(Icons.engineering_outlined, 'Specialization', _specializationController, _isEditing, themeProvider),
     ];
 
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: themeProvider.shadowColor,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -456,11 +454,11 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Account Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _textPrimary)),
+          Text('Account Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: themeProvider.textColor)),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'These details were set by the System Admin when your account was created. You may update them here.',
-            style: TextStyle(fontSize: 12, color: _subtleText, fontWeight: FontWeight.w500),
+            style: TextStyle(fontSize: 12, color: themeProvider.subtitleColor, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 28),
           Column(
@@ -478,21 +476,23 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     IconData icon,
     String label,
     TextEditingController controller,
-    bool enabled, {
+    bool enabled,
+    ThemeProvider themeProvider, {
     String? helperText,
   }) {
+    final isDark = themeProvider.isDarkMode;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, size: 16, color: _subtleText),
+            Icon(icon, size: 16, color: themeProvider.subtitleColor),
             const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13,
-                  color: _subtleText,
+                  color: themeProvider.subtitleColor,
                   fontWeight: FontWeight.bold),
             ),
           ],
@@ -504,27 +504,29 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
           style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: enabled ? _textPrimary : _subtleText),
+              color: enabled ? themeProvider.textColor : themeProvider.subtitleColor),
           decoration: InputDecoration(
             helperText: helperText,
-            helperStyle: const TextStyle(fontSize: 11, color: _subtleText),
+            helperStyle: TextStyle(fontSize: 11, color: themeProvider.subtitleColor),
             filled: true,
-            fillColor: enabled ? Colors.white : const Color(0xFFF1F5F9),
+            fillColor: enabled
+                ? (isDark ? const Color(0xFF1E1E2E) : Colors.white)
+                : (isDark ? const Color(0xFF181824) : const Color(0xFFF1F5F9)),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _borderColor),
+              borderSide: BorderSide(color: themeProvider.borderColor),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _borderColor),
+              borderSide: BorderSide(color: themeProvider.borderColor),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _borderColor.withValues(alpha: 0.5)),
+              borderSide: BorderSide(color: themeProvider.borderColor.withValues(alpha: 0.5)),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _primaryBlue, width: 2),
+            focusedBorder: const OutlineInputBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
+              borderSide: BorderSide(color: _primaryBlue, width: 2),
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
@@ -533,7 +535,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     );
   }
 
-  Widget _buildStatItem(String value, String label, IconData icon) {
+  Widget _buildStatItem(String value, String label, IconData icon, ThemeProvider themeProvider) {
     return Column(
       children: [
         Icon(
@@ -544,33 +546,33 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
         const SizedBox(height: 6),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF111827),
+            color: themeProvider.textColor,
           ),
         ),
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
-            color: _subtleText,
+            color: themeProvider.subtitleColor,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSettingsMenu() {
+  Widget _buildSettingsMenu(ThemeProvider themeProvider) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: themeProvider.shadowColor,
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -583,30 +585,33 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
             iconColor: Colors.orange,
             title: 'Notifications',
             subtitle: 'Manage notification preferences',
+            themeProvider: themeProvider,
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Notification preferences coming soon')),
               );
             },
           ),
-          _buildDivider(),
+          _buildDivider(themeProvider),
           _buildMenuItem(
             icon: Icons.lock_outline,
             iconColor: Colors.green,
             title: 'Security',
             subtitle: 'Change password & security settings',
+            themeProvider: themeProvider,
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Security settings coming soon')),
               );
             },
           ),
-          _buildDivider(),
+          _buildDivider(themeProvider),
           _buildMenuItem(
             icon: Icons.settings_outlined,
             iconColor: Colors.grey,
             title: 'Settings',
             subtitle: 'App preferences and configurations',
+            themeProvider: themeProvider,
             onTap: () {
               Navigator.push(
                 context,
@@ -621,15 +626,15 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     );
   }
 
-  Widget _buildSupportMenu() {
+  Widget _buildSupportMenu(ThemeProvider themeProvider) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: themeProvider.shadowColor,
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -642,6 +647,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
             iconColor: Colors.purple,
             title: 'Help & Support',
             subtitle: 'Get help and contact support',
+            themeProvider: themeProvider,
             onTap: () {
               Navigator.push(
                 context,
@@ -651,12 +657,13 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
               );
             },
           ),
-          _buildDivider(),
+          _buildDivider(themeProvider),
           _buildMenuItem(
             icon: Icons.info_outline,
             iconColor: Colors.cyan,
             title: 'About',
             subtitle: 'App version and information',
+            themeProvider: themeProvider,
             onTap: () {
               Navigator.push(
                 context,
@@ -671,12 +678,12 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     );
   }
 
-  Widget _buildLogoutButton() {
+  Widget _buildLogoutButton(ThemeProvider themeProvider) {
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
         onPressed: () {
-          _showLogoutDialog(context);
+          _showLogoutDialog(context, themeProvider);
         },
         icon: const Icon(Icons.logout, size: 20),
         label: const Text(
@@ -704,6 +711,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    required ThemeProvider themeProvider,
   }) {
     return InkWell(
       onTap: onTap,
@@ -714,7 +722,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
+                color: iconColor.withValues(alpha: themeProvider.isDarkMode ? 0.2 : 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -730,26 +738,26 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF111827),
+                      color: themeProvider.textColor,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: _subtleText,
+                      color: themeProvider.subtitleColor,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right,
-              color: Colors.grey,
+              color: themeProvider.subtitleColor,
               size: 24,
             ),
           ],
@@ -758,47 +766,49 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     );
   }
 
-  Widget _buildDivider() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16),
+  Widget _buildDivider(ThemeProvider themeProvider) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Divider(
         height: 1,
-        color: _borderColor,
+        color: themeProvider.borderColor,
       ),
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
+  void _showLogoutDialog(BuildContext context, ThemeProvider themeProvider) {
     showDialog(
       context: context,
       useRootNavigator: true,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
+          backgroundColor: themeProvider.cardColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          title: const Text(
+          title: Text(
             'Logout',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
+              color: themeProvider.textColor,
             ),
           ),
-          content: const Text(
+          content: Text(
             'Are you sure you want to logout?',
             style: TextStyle(
               fontSize: 15,
-              color: Colors.black87,
+              color: themeProvider.textColor,
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text(
+              child: Text(
                 'Cancel',
                 style: TextStyle(
                   fontSize: 15,
-                  color: _subtleText,
+                  color: themeProvider.subtitleColor,
                 ),
               ),
             ),

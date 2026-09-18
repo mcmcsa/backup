@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'task_details_page.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../admin/shared/notifications_page.dart';
 
 class MaintenanceReportsPage extends StatefulWidget {
@@ -108,8 +110,10 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
         roleText: 'Welcome Maintenance Staff',
         primaryColor: const Color(0xFF4169E1),
@@ -132,12 +136,12 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
               padding: const EdgeInsets.all(16),
               children: [
                 // Title
-                const Text(
+                Text(
                   'Maintenance Reports',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: themeProvider.textColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -149,20 +153,20 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: themeProvider.cardColor,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: themeProvider.borderColor),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.search, color: Colors.grey.shade600, size: 20),
+                      Icon(Icons.search, color: themeProvider.subtitleColor, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Search tracking ID or location',
                           style: TextStyle(
                             fontSize: 13,
-                            color: Colors.grey.shade600,
+                            color: themeProvider.subtitleColor,
                           ),
                         ),
                       ),
@@ -190,17 +194,17 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
                               _selectedCategory = category;
                             });
                           },
-                          backgroundColor: Colors.white,
-                          selectedColor: const Color(0xFF1A1A2E),
+                          backgroundColor: themeProvider.cardColor,
+                          selectedColor: const Color(0xFF4169E1),
                           labelStyle: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: isSelected ? Colors.white : Colors.black87,
+                            color: isSelected ? Colors.white : themeProvider.textColor,
                           ),
                           side: BorderSide(
                             color: isSelected
-                                ? const Color(0xFF1A1A2E)
-                                : Colors.grey.shade300,
+                                ? const Color(0xFF4169E1)
+                                : themeProvider.borderColor,
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                         ),
@@ -222,14 +226,14 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
                           Icon(
                             Icons.assignment_outlined,
                             size: 48,
-                            color: Colors.grey.shade300,
+                            color: Colors.grey.shade400,
                           ),
                           const SizedBox(height: 12),
                           Text(
                             'No reports found',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.grey.shade600,
+                              color: themeProvider.subtitleColor,
                             ),
                           ),
                         ],
@@ -280,6 +284,7 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
                         categoryColor: catColor,
                         location: '${r.buildingName}, ${r.officeRoom}',
                         assignedTo: r.requestorName,
+                        themeProvider: themeProvider,
                       ),
                     );
                   }),
@@ -301,7 +306,9 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
     required Color categoryColor,
     required String location,
     required String assignedTo,
+    required ThemeProvider themeProvider,
   }) {
+    final isDark = themeProvider.isDarkMode;
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -318,13 +325,13 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: themeProvider.cardColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: themeProvider.borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.shade100,
-              blurRadius: 4,
+              color: themeProvider.shadowColor,
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -355,7 +362,7 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade700,
+                        color: themeProvider.subtitleColor,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -387,10 +394,10 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
             // Request ID
             Text(
               id,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: themeProvider.textColor,
               ),
             ),
             const SizedBox(height: 12),
@@ -401,7 +408,7 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: categoryColor.withValues(alpha: 0.1),
+                    color: categoryColor.withValues(alpha: isDark ? 0.2 : 0.1),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(categoryIcon, color: categoryColor, size: 16),
@@ -409,10 +416,10 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
                 const SizedBox(width: 8),
                 Text(
                   category,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                    color: themeProvider.textColor,
                   ),
                 ),
               ],
@@ -425,24 +432,24 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
                 Icon(
                   Icons.location_on_outlined,
                   size: 14,
-                  color: Colors.grey.shade600,
+                  color: themeProvider.subtitleColor,
                 ),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     location,
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: themeProvider.subtitleColor),
                   ),
                 ),
                 Icon(
                   Icons.person_outline,
                   size: 14,
-                  color: Colors.grey.shade600,
+                  color: themeProvider.subtitleColor,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   assignedTo,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 11, color: themeProvider.subtitleColor),
                 ),
               ],
             ),

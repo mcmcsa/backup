@@ -6,6 +6,7 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/maintenance_account_service.dart';
 import '../../../shared/widgets/status_selector_widget.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../admin/shared/notifications_page.dart';
 import '../task/task_details_page.dart';
 import '../maintenance_navigation.dart';
@@ -110,18 +111,20 @@ class _MaintenanceDashboardMobileState
         .where((r) => r.priority == 'high' && r.status != 'Completed' && r.status != 'Declined/Cancelled')
         .toList();
 
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: themeProvider.backgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
         roleText: 'Welcome Maintenance Staff',
-        primaryColor: Color(0xFF4169E1),
+        primaryColor: const Color(0xFF4169E1),
         onNotificationPressed: () async {
           await Navigator.push(
             context,
@@ -143,9 +146,9 @@ class _MaintenanceDashboardMobileState
             // Status Override Section
             Row(
               children: [
-                const Text(
+                Text(
                   'My Status:',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: themeProvider.textColor),
                 ),
                 const SizedBox(width: 12),
                 StatusSelectorWidget(
@@ -221,12 +224,12 @@ class _MaintenanceDashboardMobileState
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Overview',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: themeProvider.textColor,
                   ),
                 ),
                 Container(
@@ -261,6 +264,7 @@ class _MaintenanceDashboardMobileState
                     '$assigned',
                     Icons.add_box_outlined,
                     Colors.blue,
+                    themeProvider,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -270,6 +274,7 @@ class _MaintenanceDashboardMobileState
                     '$inspection',
                     Icons.remove_red_eye_outlined,
                     Colors.blue,
+                    themeProvider,
                   ),
                 ),
               ],
@@ -283,6 +288,7 @@ class _MaintenanceDashboardMobileState
                     '$repair',
                     Icons.build_outlined,
                     Colors.orange,
+                    themeProvider,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -292,6 +298,7 @@ class _MaintenanceDashboardMobileState
                     '$completed',
                     Icons.check_circle_outline,
                     Colors.green,
+                    themeProvider,
                   ),
                 ),
               ],
@@ -304,14 +311,14 @@ class _MaintenanceDashboardMobileState
               children: [
                 Row(
                   children: [
-                    Icon(Icons.access_time, size: 16, color: Colors.orange),
+                    const Icon(Icons.access_time, size: 16, color: Colors.orange),
                     const SizedBox(width: 4),
-                    const Text(
+                    Text(
                       'Ticket Aging (FIFO)',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+                        color: themeProvider.textColor,
                       ),
                     ),
                   ],
@@ -346,7 +353,7 @@ class _MaintenanceDashboardMobileState
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Text(
                     'No priority tickets',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    style: TextStyle(color: themeProvider.subtitleColor, fontSize: 13),
                   ),
                 ),
               )
@@ -370,6 +377,7 @@ class _MaintenanceDashboardMobileState
                                   ? 'HIGH ATTENTION'
                                   : 'JUST ASSIGNED',
                               r.priority == 'high' ? Colors.red : Colors.orange,
+                              themeProvider,
                             ),
                           ),
                         ),
@@ -382,12 +390,12 @@ class _MaintenanceDashboardMobileState
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'My Active Tasks',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: themeProvider.textColor,
                   ),
                 ),
                 TextButton(
@@ -416,7 +424,7 @@ class _MaintenanceDashboardMobileState
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Text(
                     'No active tasks',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    style: TextStyle(color: themeProvider.subtitleColor, fontSize: 13),
                   ),
                 ),
               )
@@ -454,6 +462,7 @@ class _MaintenanceDashboardMobileState
                       r.statusLabel,
                       priorityLabel,
                       priorityColor,
+                      themeProvider,
                     ),
                   ),
                 );
@@ -470,13 +479,21 @@ class _MaintenanceDashboardMobileState
     String value,
     IconData icon,
     Color color,
+    ThemeProvider themeProvider,
   ) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: themeProvider.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: themeProvider.shadowColor,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -484,7 +501,7 @@ class _MaintenanceDashboardMobileState
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(icon, color: color, size: 18),
@@ -494,17 +511,18 @@ class _MaintenanceDashboardMobileState
             label,
             style: TextStyle(
               fontSize: 10,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
+              color: themeProvider.subtitleColor,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: themeProvider.textColor,
             ),
           ),
         ],
@@ -519,13 +537,22 @@ class _MaintenanceDashboardMobileState
     String status,
     String badge,
     Color badgeColor,
+    ThemeProvider themeProvider,
   ) {
+    final isDark = themeProvider.isDarkMode;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: themeProvider.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: themeProvider.shadowColor,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -533,7 +560,7 @@ class _MaintenanceDashboardMobileState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.1),
+              color: badgeColor.withValues(alpha: isDark ? 0.2 : 0.1),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
@@ -551,23 +578,27 @@ class _MaintenanceDashboardMobileState
             id,
             style: TextStyle(
               fontSize: 10,
-              color: Colors.grey.shade600,
+              color: themeProvider.subtitleColor,
               fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             title,
-            style: const TextStyle(
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: themeProvider.textColor,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             location,
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 10, color: themeProvider.subtitleColor),
           ),
           const SizedBox(height: 8),
           Text(
@@ -575,7 +606,7 @@ class _MaintenanceDashboardMobileState
             style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
+              color: themeProvider.subtitleColor,
             ),
           ),
         ],
@@ -590,13 +621,22 @@ class _MaintenanceDashboardMobileState
     String status,
     String priority,
     Color priorityColor,
+    ThemeProvider themeProvider,
   ) {
+    final isDark = themeProvider.isDarkMode;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: themeProvider.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: themeProvider.shadowColor,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -606,12 +646,12 @@ class _MaintenanceDashboardMobileState
             children: [
               Text(
                 id,
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 10, color: themeProvider.subtitleColor),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: priorityColor.withValues(alpha: 0.1),
+                  color: priorityColor.withValues(alpha: isDark ? 0.2 : 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -629,10 +669,10 @@ class _MaintenanceDashboardMobileState
           const SizedBox(height: 8),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: themeProvider.textColor,
             ),
           ),
           const SizedBox(height: 4),
@@ -641,13 +681,13 @@ class _MaintenanceDashboardMobileState
               Icon(
                 Icons.location_on_outlined,
                 size: 14,
-                color: Colors.grey.shade600,
+                color: themeProvider.subtitleColor,
               ),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
                   location,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 11, color: themeProvider.subtitleColor),
                 ),
               ),
             ],
@@ -668,15 +708,15 @@ class _MaintenanceDashboardMobileState
                     status,
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey.shade700,
+                      color: themeProvider.subtitleColor,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
-              Row(
+              const Row(
                 children: [
-                  const Text(
+                  Text(
                     'Details',
                     style: TextStyle(
                       fontSize: 11,
@@ -687,7 +727,7 @@ class _MaintenanceDashboardMobileState
                   Icon(
                     Icons.chevron_right,
                     size: 16,
-                    color: const Color(0xFF4169E1),
+                    color: Color(0xFF4169E1),
                   ),
                 ],
               ),

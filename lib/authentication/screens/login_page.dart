@@ -114,7 +114,11 @@ class _LoginPageState extends State<LoginPage> {
 
             return Center(
               child: SingleChildScrollView(
-                padding: EdgeInsets.all(isMobile ? 24 : 48),
+                physics: const ClampingScrollPhysics(),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 24 : 48,
+                  vertical: isMobile ? 12 : 32,
+                ),
                 child: Container(
                   constraints: BoxConstraints(
                     maxWidth: isMobile ? double.infinity : 450,
@@ -123,14 +127,14 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // PSU Logo - official circular seal
+                      // PSU MMS App Logo
                       Container(
-                        width: isMobile ? 120 : 140,
-                        height: isMobile ? 120 : 140,
-                        margin: const EdgeInsets.only(bottom: 32),
+                        width: isMobile ? 85 : 110,
+                        height: isMobile ? 85 : 110,
+                        margin: EdgeInsets.only(bottom: isMobile ? 14 : 24),
                         alignment: Alignment.center,
                         child: Image.asset(
-                          'assets/images/psu_logo_v3.png',
+                          'assets/images/app_logo_v2.png',
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) => const Icon(
                             Icons.school,
@@ -141,27 +145,27 @@ class _LoginPageState extends State<LoginPage> {
                       ),
 
                       // Title
-                      const Text(
+                      Text(
                         'Welcome',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 28,
+                          fontSize: isMobile ? 24 : 28,
                           fontWeight: FontWeight.bold,
                           color: Colors.black87,
                           letterSpacing: 0.5,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       Text(
                         'Sign in to your PSU Account',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: isMobile ? 13 : 14,
                           color: Colors.grey.shade600,
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      SizedBox(height: isMobile ? 20 : 32),
 
                       // Login Form
                       Form(
@@ -173,12 +177,12 @@ class _LoginPageState extends State<LoginPage> {
                             Text(
                               'Email',
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 13.5,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.grey.shade800,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
@@ -192,6 +196,11 @@ class _LoginPageState extends State<LoginPage> {
                                 prefixIcon: Icon(
                                   Icons.email_outlined,
                                   color: Colors.grey.shade700,
+                                ),
+                                isDense: isMobile,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: isMobile ? 12 : 16,
                                 ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -223,40 +232,18 @@ class _LoginPageState extends State<LoginPage> {
                               },
                             ),
 
-                            const SizedBox(height: 24),
+                            SizedBox(height: isMobile ? 14 : 20),
 
                             // Password Field
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Password',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey.shade800,
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: isLoading
-                                      ? null
-                                      : _showResetPasswordDialog,
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    minimumSize: const Size(0, 0),
-                                  ),
-                                  child: const Text(
-                                    'Forgot password?',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF0F766E),
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            Text(
+                              'Password',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey.shade800,
+                              ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: _passwordController,
                               obscureText: _obscurePassword,
@@ -283,6 +270,11 @@ class _LoginPageState extends State<LoginPage> {
                                       _obscurePassword = !_obscurePassword;
                                     });
                                   },
+                                ),
+                                isDense: isMobile,
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: isMobile ? 12 : 16,
                                 ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -314,11 +306,37 @@ class _LoginPageState extends State<LoginPage> {
                               },
                             ),
 
-                            const SizedBox(height: 32),
+                            // Forgot Password below password field
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: TextButton(
+                                  onPressed: isLoading
+                                      ? null
+                                      : _showResetPasswordDialog,
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text(
+                                    'Forgot password?',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: Color(0xFF0F766E),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            SizedBox(height: isMobile ? 16 : 24),
 
                             // Login Button
                             SizedBox(
-                              height: 56,
+                              height: isMobile ? 48 : 54,
                               child: ElevatedButton(
                                 onPressed: isLoading ? null : _handleLogin,
                                 style: ElevatedButton.styleFrom(
@@ -351,9 +369,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
 
-
-
-                            const SizedBox(height: 40),
+                            SizedBox(height: isMobile ? 16 : 28),
 
                             // Help & Support Section
                             Column(
@@ -362,20 +378,20 @@ class _LoginPageState extends State<LoginPage> {
                                 Divider(
                                   color: Colors.grey.shade300,
                                   thickness: 1,
-                                  height: 32,
+                                  height: isMobile ? 16 : 28,
                                 ),
                                 Center(
                                   child: Text(
                                     'HELP & SUPPORT',
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 10.5,
                                       fontWeight: FontWeight.w600,
                                       color: Colors.grey.shade500,
                                       letterSpacing: 1.5,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 20),
+                                SizedBox(height: isMobile ? 10 : 16),
                                 InkWell(
                                   onTap: isLoading
                                       ? null
@@ -394,8 +410,8 @@ class _LoginPageState extends State<LoginPage> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Container(
-                                        width: 32,
-                                        height: 32,
+                                        width: 30,
+                                        height: 30,
                                         decoration: BoxDecoration(
                                           color: const Color(
                                             0xFF0F766E,
@@ -404,15 +420,15 @@ class _LoginPageState extends State<LoginPage> {
                                         ),
                                         child: const Icon(
                                           Icons.help_outline,
-                                          size: 18,
+                                          size: 17,
                                           color: Color(0xFF0F766E),
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
+                                      const SizedBox(width: 10),
                                       Text(
                                         'Need technical assistance?',
                                         style: TextStyle(
-                                          fontSize: 14,
+                                          fontSize: 13.5,
                                           color: Colors.grey.shade700,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -426,14 +442,14 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      SizedBox(height: isMobile ? 16 : 28),
 
                       // Footer
                       Text(
                         '© ${DateTime.now().year} Pangasinan State University',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11.5,
                           color: Colors.grey.shade500,
                         ),
                       ),

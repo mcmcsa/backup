@@ -610,7 +610,14 @@ class _PostRepairPageState extends State<PostRepairPage> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            _buildInfoRow('Evaluated By', adminSig.signerName.isNotEmpty ? adminSig.signerName : (report.adminEvaluatedBy ?? 'Admin')),
+                            _buildInfoRow(
+                              'Evaluated By',
+                              adminSig.signerName.isNotEmpty
+                                  ? adminSig.signerName
+                                  : ((report.adminEvaluatedBy != null && report.adminEvaluatedBy!.length < 20)
+                                      ? report.adminEvaluatedBy!
+                                      : 'Campus Administrator'),
+                            ),
                             _buildInfoRow('Evaluated Date', _formatDate(report.adminEvaluatedDate ?? report.updatedAt)),
                             if (report.adminEvaluationNotes != null)
                               _buildInfoRow('Evaluation Notes', report.adminEvaluationNotes!),

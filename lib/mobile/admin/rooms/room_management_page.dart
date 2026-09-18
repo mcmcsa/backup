@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/models/room_model.dart';
 import '../../../shared/services/room_service.dart';
-import 'edit_room_page.dart';
+import 'room_details_page.dart';
 import 'add_room_page.dart';
 import 'qr_code_history_page.dart';
 import '../shared/admin_app_bar.dart';
@@ -25,11 +28,11 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
   final _dropdownHelper = DropdownDataHelper();
   int _selectedFilter = 0;
   final TextEditingController _searchController = TextEditingController();
-  final List<String> _filters = ['All Rooms', 'Available', 'Maintenance'];
+  final List<String> _filters = ['All Rooms', 'Available', 'Unavailable'];
   final List<IconData> _filterIcons = [
     Icons.grid_view_rounded,
     Icons.check_circle_outline,
-    Icons.build_outlined,
+    Icons.cancel_outlined,
   ];
   List<Room> _rooms = [];
   List<String> _departmentOptions = [_allDepartmentsOption];
@@ -94,8 +97,59 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
 
   Future<void> _loadRooms() async {
     try {
-      final data = await RoomService.fetchAll();
-      if (mounted) setState(() { _rooms = data; _isLoading = false; });
+      final roomsFuture = RoomService.fetchAll();
+      final requestsFuture = Supabase.instance.client
+          .from('work_requests')
+          .select('id, room_id, room, room_name, status');
+
+      final results = await Future.wait([
+        roomsFuture,
+        requestsFuture.catchError((_) => <dynamic>[]),
+      ]);
+
+      final rooms = (results[0] as List).cast<Room>();
+      final rawRequests = results[1] as List;
+
+      final activeRoomIds = <String>{};
+      final activeRoomNames = <String>{};
+
+      for (final req in rawRequests) {
+        if (req is! Map) continue;
+        final status = (req['status'] ?? '').toString().toLowerCase();
+        final isClosed = status == 'completed' ||
+            status == 'declined' ||
+            status == 'cancelled' ||
+            status == 'declined/cancelled';
+        if (isClosed) continue;
+
+        final roomId = (req['room_id'] ?? '').toString().trim().toLowerCase();
+        if (roomId.isNotEmpty) activeRoomIds.add(roomId);
+
+        final roomCodeOrName = (req['room'] ?? '').toString().trim().toLowerCase();
+        if (roomCodeOrName.isNotEmpty) activeRoomNames.add(roomCodeOrName);
+
+        final roomName = (req['room_name'] ?? '').toString().trim().toLowerCase();
+        if (roomName.isNotEmpty) activeRoomNames.add(roomName);
+      }
+
+      final mapped = rooms.map((room) {
+        final roomIdLower = room.id.trim().toLowerCase();
+        final roomCodeLower = room.code.trim().toLowerCase();
+        final roomNameLower = room.name.trim().toLowerCase();
+
+        final isReported = activeRoomIds.contains(roomIdLower) ||
+            (roomCodeLower.isNotEmpty && activeRoomIds.contains(roomCodeLower)) ||
+            (roomCodeLower.isNotEmpty && activeRoomNames.contains(roomCodeLower)) ||
+            (roomNameLower.isNotEmpty && activeRoomNames.contains(roomNameLower));
+
+        final effectiveStatus = (isReported || room.status.toLowerCase() != 'available')
+            ? 'unavailable'
+            : 'available';
+
+        return room.copyWith(status: effectiveStatus);
+      }).toList();
+
+      if (mounted) setState(() { _rooms = mapped; _isLoading = false; });
     } catch (_) {
       if (mounted) setState(() { _isLoading = false; });
     }
@@ -107,9 +161,9 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
 
     // Apply filter
     if (_selectedFilter == 1) {
-      rooms = rooms.where((r) => r.status == 'available').toList();
+      rooms = rooms.where((r) => r.status.toLowerCase() == 'available').toList();
     } else if (_selectedFilter == 2) {
-      rooms = rooms.where((r) => r.status == 'maintenance').toList();
+      rooms = rooms.where((r) => r.status.toLowerCase() != 'available').toList();
     }
 
     // Apply search
@@ -165,21 +219,22 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AdminAppBar(
         openDrawer: widget.openDrawer,
-        subtitle: 'Campus Administrator',
       ),
       body: Column(
         children: [
           // Search & Filters Section
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.cardColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: themeProvider.shadowColor,
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -192,30 +247,30 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                 // Search Bar
                 Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: themeProvider.inputFillColor,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: TextField(
                     controller: _searchController,
                     onChanged: (_) => setState(() {}),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
-                      color: Color(0xFF1E293B),
+                      color: themeProvider.textColor,
                     ),
                     decoration: InputDecoration(
                       hintText: 'Search Room Code',
                       hintStyle: TextStyle(
-                        color: Colors.grey.shade400,
+                        color: themeProvider.subtitleColor,
                         fontSize: 14,
                         fontWeight: FontWeight.w400,
                       ),
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: themeProvider.inputFillColor,
                       prefixIcon: Padding(
                         padding: const EdgeInsets.only(left: 12, right: 8),
                         child: Icon(
                           Icons.search_rounded,
-                          color: Colors.grey.shade400,
+                          color: themeProvider.subtitleColor,
                           size: 20,
                         ),
                       ),
@@ -231,22 +286,22 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                               },
                               child: Icon(
                                 Icons.close_rounded,
-                                color: Colors.grey.shade400,
+                                color: themeProvider.subtitleColor,
                                 size: 20,
                               ),
                             )
                           : null,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(999),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        borderSide: BorderSide(color: themeProvider.borderColor),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(999),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                        borderSide: BorderSide(color: themeProvider.borderColor),
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(999),
-                        borderSide: const BorderSide(
+                      focusedBorder: const OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(999)),
+                        borderSide: BorderSide(
                           color: Color(0xFF4169E1),
                           width: 1.4,
                         ),
@@ -337,7 +392,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                       style: TextStyle(
                         fontSize: isCompact ? 12 : 13,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF64748B),
+                        color: themeProvider.subtitleColor,
                       ),
                     ),
                     Row(
@@ -349,7 +404,9 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFDCFCE7),
+                            color: themeProvider.isDarkMode
+                                ? const Color(0xFF14381C)
+                                : const Color(0xFFDCFCE7),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
@@ -382,7 +439,9 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFFF7ED),
+                            color: themeProvider.isDarkMode
+                                ? const Color(0xFF451A1A)
+                                : const Color(0xFFFEE2E2),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(
@@ -392,17 +451,17 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                                 width: 6,
                                 height: 6,
                                 decoration: const BoxDecoration(
-                                  color: Color(0xFFF97316),
+                                  color: Color(0xFFEF4444),
                                   shape: BoxShape.circle,
                                 ),
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                '${_rooms.where((r) => r.status == 'maintenance').length} Maintenance',
+                                '${_rooms.where((r) => r.status.toLowerCase() != 'available').length} Unavailable',
                                 style: TextStyle(
                                   fontSize: isCompact ? 10.5 : 11,
                                   fontWeight: FontWeight.w600,
-                                  color: const Color(0xFFF97316),
+                                  color: const Color(0xFFEF4444),
                                 ),
                               ),
                             ],
@@ -448,11 +507,11 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                           ),
                         ),
                         const SizedBox(height: 16),
-                        const Text(
+                        Text(
                           'Loading rooms...',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Color(0xFF64748B),
+                            color: themeProvider.subtitleColor,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -468,22 +527,22 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                               width: 80,
                               height: 80,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
+                                color: themeProvider.chipColor,
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.meeting_room_outlined,
                                 size: 40,
-                                color: Color(0xFF94A3B8),
+                                color: themeProvider.subtitleColor,
                               ),
                             ),
                             const SizedBox(height: 16),
-                            const Text(
+                            Text(
                               'No rooms found',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF475569),
+                                color: themeProvider.textColor,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -491,7 +550,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                               'Try adjusting your search or filter',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: Colors.grey.shade500,
+                                color: themeProvider.subtitleColor,
                               ),
                             ),
                           ],
@@ -543,33 +602,39 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
   }
 
   Widget _buildRoomCard(Room room, int index) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final isCompact = MediaQuery.of(context).size.width <= 430;
-    final isAvailable = room.status == 'available';
-    final statusColor = isAvailable ? const Color(0xFF22C55E) : const Color(0xFFF97316);
-    final statusText = isAvailable ? 'Available' : 'Maintenance';
+    final isAvailable = room.status.toLowerCase() == 'available';
+    final statusColor = isAvailable ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+    final statusText = isAvailable ? 'Available' : 'Unavailable';
     final statusBgColor = isAvailable
-        ? const Color(0xFFDCFCE7)
-        : const Color(0xFFFFF7ED);
+        ? (isDark ? const Color(0xFF14381C) : const Color(0xFFDCFCE7))
+        : (isDark ? const Color(0xFF451A1A) : const Color(0xFFFEE2E2));
     final iconBgGradient = isAvailable
-        ? [const Color(0xFFEEF2FF), const Color(0xFFE0E7FF)]
-        : [const Color(0xFFFFF7ED), const Color(0xFFFFEDD5)];
+        ? (isDark
+            ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
+            : [const Color(0xFFEEF2FF), const Color(0xFFE0E7FF)])
+        : (isDark
+            ? [const Color(0xFF451A1A), const Color(0xFF2D1212)]
+            : [const Color(0xFFFEE2E2), const Color(0xFFFFEDD5)]);
 
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => EditRoomPage(room: room)),
-        );
+          MaterialPageRoute(builder: (context) => RoomDetailsPage(room: room)),
+        ).then((_) => _loadRooms());
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: themeProvider.cardColor,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFF1F5F9)),
+          border: Border.all(color: themeProvider.borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
+              color: themeProvider.shadowColor,
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -599,7 +664,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                             Icons.meeting_room_rounded,
                             color: isAvailable
                                 ? const Color(0xFF4169E1)
-                                : const Color(0xFFF97316),
+                                : const Color(0xFFEF4444),
                             size: 22,
                           ),
                         ),
@@ -610,10 +675,10 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                             children: [
                               Text(
                                 room.name,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14.5,
                                   fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1E293B),
+                                  color: themeProvider.textColor,
                                   letterSpacing: -0.2,
                                 ),
                                 maxLines: 2,
@@ -644,14 +709,14 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                         Icon(
                           Icons.location_on_outlined,
                           size: 13,
-                          color: Colors.grey.shade500,
+                          color: themeProvider.subtitleColor,
                         ),
                         Text(
                           room.building,
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w500,
-                            color: Colors.grey.shade600,
+                            color: themeProvider.subtitleColor,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -660,21 +725,21 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                           width: 4,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade400,
+                            color: themeProvider.subtitleColor.withValues(alpha: 0.5),
                             shape: BoxShape.circle,
                           ),
                         ),
                         Icon(
                           Icons.event_seat_outlined,
                           size: 13,
-                          color: Colors.grey.shade500,
+                          color: themeProvider.subtitleColor,
                         ),
                         Text(
                           '${room.seats} seats',
                           style: TextStyle(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w500,
-                            color: Colors.grey.shade600,
+                            color: themeProvider.subtitleColor,
                           ),
                         ),
                       ],
@@ -720,22 +785,22 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => EditRoomPage(room: room),
+                                builder: (context) => RoomDetailsPage(room: room),
                               ),
-                            );
+                            ).then((_) => _loadRooms());
                           },
                           child: Container(
                             width: 34,
                             height: 34,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
+                              color: themeProvider.chipColor,
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              border: Border.all(color: themeProvider.borderColor),
                             ),
                             child: const Icon(
-                              Icons.edit_outlined,
-                              size: 15,
-                              color: Color(0xFF64748B),
+                              Icons.visibility_outlined,
+                              size: 16,
+                              color: Color(0xFF4169E1),
                             ),
                           ),
                         ),
@@ -759,7 +824,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                       ),
                       child: Icon(
                         Icons.meeting_room_rounded,
-                        color: isAvailable ? const Color(0xFF4169E1) : const Color(0xFFF97316),
+                        color: isAvailable ? const Color(0xFF4169E1) : const Color(0xFFEF4444),
                         size: 26,
                       ),
                     ),
@@ -771,10 +836,10 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                         children: [
                           Text(
                             room.name,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF1E293B),
+                              color: themeProvider.textColor,
                               letterSpacing: -0.3,
                             ),
                           ),
@@ -795,7 +860,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                               Icon(
                                 Icons.location_on_outlined,
                                 size: 14,
-                                color: Colors.grey.shade500,
+                                color: themeProvider.subtitleColor,
                               ),
                               const SizedBox(width: 4),
                               Flexible(
@@ -804,7 +869,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
-                                    color: Colors.grey.shade600,
+                                    color: themeProvider.subtitleColor,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -814,14 +879,14 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                                 width: 4,
                                 height: 4,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade400,
+                                  color: themeProvider.subtitleColor.withValues(alpha: 0.5),
                                   shape: BoxShape.circle,
                                 ),
                               ),
                               Icon(
                                 Icons.event_seat_outlined,
                                 size: 14,
-                                color: Colors.grey.shade500,
+                                color: themeProvider.subtitleColor,
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -829,7 +894,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
-                                  color: Colors.grey.shade600,
+                                  color: themeProvider.subtitleColor,
                                 ),
                               ),
                             ],
@@ -872,28 +937,28 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Edit Icon Button
+                    // View Details Icon Button
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => EditRoomPage(room: room),
+                            builder: (context) => RoomDetailsPage(room: room),
                           ),
-                        );
+                        ).then((_) => _loadRooms());
                       },
                       child: Container(
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
+                          color: themeProvider.chipColor,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          border: Border.all(color: themeProvider.borderColor),
                         ),
                         child: const Icon(
-                          Icons.edit_outlined,
+                          Icons.visibility_outlined,
                           size: 18,
-                          color: Color(0xFF64748B),
+                          color: Color(0xFF4169E1),
                         ),
                       ),
                     ),
@@ -912,6 +977,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
     bool compact = false,
     double? width,
   }) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final controlWidth = width ?? (compact ? 110.0 : double.infinity);
     final labelSize = compact ? 11.0 : 12.0;
     final itemTextSize = compact ? 10.5 : 14.0;
@@ -927,7 +993,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
               style: TextStyle(
                 fontSize: labelSize,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF64748B),
+                color: themeProvider.subtitleColor,
               ),
             ),
           SizedBox(height: compact ? 0 : 6),
@@ -938,18 +1004,19 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
               right: compact ? 4 : 12,
             ),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.inputFillColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFDDE3ED)),
+              border: Border.all(color: themeProvider.borderColor),
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: value,
+                dropdownColor: themeProvider.cardColor,
                 isExpanded: true,
-                icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+                icon: Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: themeProvider.subtitleColor),
                 style: TextStyle(
                   fontSize: itemTextSize,
-                  color: const Color(0xFF1E293B),
+                  color: themeProvider.textColor,
                   fontWeight: FontWeight.w500,
                 ),
                 isDense: true,
@@ -961,7 +1028,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                           item,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11),
+                          style: TextStyle(fontSize: 11, color: themeProvider.textColor),
                         ),
                       ),
                     )
@@ -976,6 +1043,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
   }
 
   Widget _buildStatusFilterChip(int index) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final isSelected = _selectedFilter == index;
     return GestureDetector(
       onTap: () => setState(() => _selectedFilter = index),
@@ -991,10 +1059,10 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                   end: Alignment.bottomRight,
                 )
               : null,
-          color: isSelected ? null : Colors.white,
+          color: isSelected ? null : themeProvider.cardColor,
           borderRadius: BorderRadius.circular(21),
           border: Border.all(
-            color: isSelected ? Colors.transparent : const Color(0xFFDDE3ED),
+            color: isSelected ? Colors.transparent : themeProvider.borderColor,
             width: 1.2,
           ),
           boxShadow: isSelected
@@ -1013,7 +1081,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
             Icon(
               _filterIcons[index],
               size: 14,
-              color: isSelected ? Colors.white : const Color(0xFF64748B),
+              color: isSelected ? Colors.white : themeProvider.subtitleColor,
             ),
             const SizedBox(width: 6),
             Text(
@@ -1023,7 +1091,7 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
               style: TextStyle(
                 fontSize: 10.8,
                 fontWeight: FontWeight.w600,
-                color: isSelected ? Colors.white : const Color(0xFF475569),
+                color: isSelected ? Colors.white : themeProvider.subtitleColor,
               ),
             ),
           ],

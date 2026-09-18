@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/utils/workflow_guide_dialog.dart';
 import 'notifications_page.dart';
@@ -33,61 +34,73 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final headerBg = isDark ? themeProvider.appBarColor : _headerColor;
+    final primaryTextColor = isDark ? Colors.white : Colors.black87;
+    final iconColor = isDark ? Colors.white : Colors.black87;
+    final subtitleColor = isDark ? Colors.grey.shade400 : const Color(0xFF64748B);
+
     return AppBar(
-      backgroundColor: _headerColor,
+      backgroundColor: headerBg,
       surfaceTintColor: Colors.transparent,
-      shadowColor: Colors.black12,
-      elevation: 1,
+      shadowColor: themeProvider.shadowColor,
+      elevation: isDark ? 0 : 1,
       leadingWidth: 56,
       leading: Padding(
         padding: const EdgeInsets.only(left: 12, right: 8, top: 8, bottom: 8),
         child: GestureDetector(
           onTap: openDrawer,
-          child: const Icon(Icons.menu, color: Colors.black87, size: 28),
+          child: Icon(Icons.menu, color: iconColor, size: 28),
         ),
       ),
       titleSpacing: 0,
       title: Padding(
-        padding: const EdgeInsets.only(left: 0),
-        child: Row(
-          children: [
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
+        padding: const EdgeInsets.only(left: 12),
+        child: (subtitle != null &&
+                subtitle!.trim().isNotEmpty &&
+                subtitle!.toUpperCase() != 'CAMPUS ADMINISTRATOR')
+            ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text(
+                  Text(
                     'PSU MMS',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: primaryTextColor,
                       height: 1.2,
                       letterSpacing: 0.5,
                     ),
                   ),
                   Text(
-                    subtitle?.toUpperCase() ?? 'CAMPUS ADMINISTRATOR',
-                    style: const TextStyle(
+                    subtitle!.toUpperCase(),
+                    style: TextStyle(
                       fontSize: 8,
                       fontWeight: FontWeight.w500,
-                      color: Color(0xFF64748B),
+                      color: subtitleColor,
                       height: 1.2,
                       letterSpacing: 0.3,
                     ),
                   ),
                 ],
+              )
+            : Text(
+                'PSU MMS',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: primaryTextColor,
+                  letterSpacing: 0.5,
+                ),
               ),
-            ),
-          ],
-        ),
       ),
       actions: [
         IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.help_outline_rounded,
-            color: Colors.black87,
+            color: iconColor,
           ),
           tooltip: 'Workflow Guide',
           onPressed: () {
@@ -104,9 +117,9 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
                 Padding(
                   padding: const EdgeInsets.only(left: 8, right: 10),
                   child: IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.notifications_outlined,
-                      color: Colors.black87,
+                      color: iconColor,
                     ),
                     onPressed: () async {
                       await Navigator.push(
