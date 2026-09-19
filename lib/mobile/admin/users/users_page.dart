@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/services/faculty_user_service.dart';
+import '../../../shared/services/chat_service.dart';
+import '../../../shared/widgets/chat/chat_messages_panel.dart';
+import '../../../shared/providers/theme_provider.dart';
 
 class UsersPage extends StatefulWidget {
   final VoidCallback openDrawer;
@@ -48,6 +53,61 @@ class _UsersPageState extends State<UsersPage> {
     }).toList();
   }
 
+  Future<void> _startChatWithFaculty(FacultyUserAccount faculty) async {
+    final authService = context.read<AuthService>();
+    final currentUser = authService.currentUser;
+    if (currentUser == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF4169E1)),
+      ),
+    );
+
+    try {
+      final room = await ChatService.findOrCreateDirectRoom(
+        currentUserId: currentUser.id,
+        currentUserName: currentUser.name,
+        currentUserRole: currentUser.role.name,
+        otherUserId: faculty.userId,
+        otherUserName: faculty.fullName,
+        otherUserRole: 'teacher',
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => Scaffold(
+            backgroundColor: themeProvider.backgroundColor,
+            body: SafeArea(
+              top: false,
+              child: ChatMessagesPanel(
+                key: ValueKey(room.id),
+                room: room,
+                currentUserId: currentUser.id,
+                currentUserName: currentUser.name,
+                currentUserRole: currentUser.role.name,
+                onBack: () => Navigator.pop(context),
+                onRoomDeleted: () => Navigator.pop(context),
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to start chat: $e')),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -56,21 +116,22 @@ class _UsersPageState extends State<UsersPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final filteredUsers = _filteredUsers;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.cardColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           'Users',
           style: TextStyle(
-            color: Colors.black87,
+            color: themeProvider.textColor,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -79,10 +140,10 @@ class _UsersPageState extends State<UsersPage> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: themeProvider.cardColor,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
+                  color: Colors.black.withValues(alpha: themeProvider.isDarkMode ? 0.2 : 0.04),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -91,30 +152,30 @@ class _UsersPageState extends State<UsersPage> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: themeProvider.inputFillColor,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: TextField(
                 controller: _searchController,
                 onChanged: (_) => setState(() {}),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
-                  color: Color(0xFF1E293B),
+                  color: themeProvider.textColor,
                 ),
                 decoration: InputDecoration(
                   hintText: 'Search faculty users...',
                   hintStyle: TextStyle(
-                    color: Colors.grey.shade400,
+                    color: themeProvider.subtitleColor,
                     fontSize: 14,
                     fontWeight: FontWeight.w400,
                   ),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: themeProvider.inputFillColor,
                   prefixIcon: Padding(
                     padding: const EdgeInsets.only(left: 12, right: 8),
                     child: Icon(
                       Icons.search_rounded,
-                      color: Colors.grey.shade400,
+                      color: themeProvider.subtitleColor,
                       size: 20,
                     ),
                   ),
@@ -130,22 +191,22 @@ class _UsersPageState extends State<UsersPage> {
                           },
                           child: Icon(
                             Icons.close_rounded,
-                            color: Colors.grey.shade400,
+                            color: themeProvider.subtitleColor,
                             size: 20,
                           ),
                         )
                       : null,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(999),
-                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    borderSide: BorderSide(color: themeProvider.borderColor),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(999),
-                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    borderSide: BorderSide(color: themeProvider.borderColor),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(999),
-                    borderSide: const BorderSide(
+                  focusedBorder: const OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(999)),
+                    borderSide: BorderSide(
                       color: Color(0xFF4169E1),
                       width: 1.4,
                     ),
@@ -161,10 +222,10 @@ class _UsersPageState extends State<UsersPage> {
               children: [
                 Text(
                   '${filteredUsers.length} faculty users found',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF64748B),
+                    color: themeProvider.subtitleColor,
                   ),
                 ),
               ],
@@ -172,7 +233,7 @@ class _UsersPageState extends State<UsersPage> {
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFF4169E1)))
                 : filteredUsers.isEmpty
                     ? Center(
                         child: Column(
@@ -181,15 +242,15 @@ class _UsersPageState extends State<UsersPage> {
                             Icon(
                               Icons.group_outlined,
                               size: 64,
-                              color: Colors.grey.shade300,
+                              color: themeProvider.subtitleColor.withValues(alpha: 0.4),
                             ),
                             const SizedBox(height: 16),
-                            const Text(
+                            Text(
                               'No faculty users found',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: Color(0xFF475569),
+                                color: themeProvider.textColor,
                               ),
                             ),
                           ],
@@ -206,125 +267,190 @@ class _UsersPageState extends State<UsersPage> {
                             final isActive = user.isActive;
                             final statusColor =
                                 isActive ? const Color(0xFF22C55E) : const Color(0xFFF97316);
-                            final statusBg =
-                                isActive ? const Color(0xFFDCFCE7) : const Color(0xFFFFF7ED);
+                            final statusBg = themeProvider.isDarkMode
+                                ? (isActive ? const Color(0xFF14381C) : const Color(0xFF3B1D0E))
+                                : (isActive ? const Color(0xFFDCFCE7) : const Color(0xFFFFF7ED));
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: const Color(0xFFF1F5F9)),
+                                color: themeProvider.cardColor,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: themeProvider.borderColor),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.04),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 4),
+                                    color: Colors.black.withValues(alpha: themeProvider.isDarkMode ? 0.2 : 0.04),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
                                   ),
                                 ],
                               ),
                               child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Row(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Container(
-                                      width: 56,
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(
-                                          colors: [
-                                            Color(0xFFEEF2FF),
-                                            Color(0xFFE0E7FF),
-                                          ],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
+                                    // Row 1: Avatar, Name & Email, Status Pill
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 44,
+                                          height: 44,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF4169E1).withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: const Icon(
+                                            Icons.person_rounded,
+                                            color: Color(0xFF4169E1),
+                                            size: 22,
+                                          ),
                                         ),
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: const Icon(
-                                        Icons.person_outline,
-                                        color: Color(0xFF4169E1),
-                                        size: 28,
-                                      ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                user.fullName,
+                                                style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: themeProvider.textColor,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                user.email,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: themeProvider.subtitleColor,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 9,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: statusBg,
+                                            borderRadius: BorderRadius.circular(20),
+                                            border: Border.all(
+                                              color: statusColor.withValues(alpha: 0.3),
+                                              width: 0.8,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                width: 6,
+                                                height: 6,
+                                                decoration: BoxDecoration(
+                                                  color: statusColor,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 5),
+                                              Text(
+                                                isActive ? 'Active' : 'Inactive',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: statusColor,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            user.fullName,
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w700,
-                                              color: Color(0xFF1E293B),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            user.email,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF64748B),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          Wrap(
-                                            spacing: 10,
-                                            runSpacing: 4,
+                                    const SizedBox(height: 12),
+                                    // Row 2: Metadata Chips + Chat Button
+                                    Row(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Expanded(
+                                          child: Wrap(
+                                            spacing: 6,
+                                            runSpacing: 6,
                                             children: [
                                               if ((user.department ?? '').isNotEmpty)
                                                 _metaChip(
-                                                  icon: Icons.apartment_outlined,
+                                                  icon: Icons.apartment_rounded,
                                                   label: user.department!,
+                                                  themeProvider: themeProvider,
                                                 ),
                                               if ((user.position ?? '').isNotEmpty)
                                                 _metaChip(
-                                                  icon: Icons.badge_outlined,
+                                                  icon: Icons.badge_rounded,
                                                   label: user.position!,
+                                                  themeProvider: themeProvider,
                                                 ),
                                               if ((user.employeeId ?? '').isNotEmpty)
                                                 _metaChip(
-                                                  icon: Icons.tag_outlined,
+                                                  icon: Icons.tag_rounded,
                                                   label: user.employeeId!,
+                                                  themeProvider: themeProvider,
                                                 ),
                                             ],
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: statusBg,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 6,
-                                            height: 6,
-                                            decoration: BoxDecoration(
-                                              color: statusColor,
-                                              shape: BoxShape.circle,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            onTap: () => _startChatWithFaculty(user),
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 10,
+                                                vertical: 6,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF4169E1).withValues(
+                                                  alpha: themeProvider.isDarkMode ? 0.2 : 0.08,
+                                                ),
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: const Color(0xFF4169E1).withValues(
+                                                    alpha: themeProvider.isDarkMode ? 0.4 : 0.25,
+                                                  ),
+                                                ),
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.chat_bubble_outline_rounded,
+                                                    size: 14,
+                                                    color: Color(0xFF4169E1),
+                                                  ),
+                                                  SizedBox(width: 5),
+                                                  Text(
+                                                    'Chat',
+                                                    style: TextStyle(
+                                                      fontSize: 11.5,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: Color(0xFF4169E1),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
                                           ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            isActive ? 'Active' : 'Inactive',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                              color: statusColor,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -339,25 +465,29 @@ class _UsersPageState extends State<UsersPage> {
     );
   }
 
-  Widget _metaChip({required IconData icon, required String label}) {
+  Widget _metaChip({
+    required IconData icon,
+    required String label,
+    required ThemeProvider themeProvider,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: themeProvider.inputFillColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: themeProvider.borderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: const Color(0xFF64748B)),
+          Icon(icon, size: 12, color: themeProvider.subtitleColor),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w500,
-              color: Color(0xFF64748B),
+              color: themeProvider.subtitleColor,
             ),
           ),
         ],

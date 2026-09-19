@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:provider/provider.dart';
 import '../../models/chat_model.dart';
+import '../../providers/theme_provider.dart';
 import '../voice_recorder_widget.dart';
 
 class ChatComposer extends StatefulWidget {
@@ -167,38 +168,46 @@ class _ChatComposerState extends State<ChatComposer> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
+    final isDark = theme.isDarkMode;
+    final bgColor = theme.cardColor;
+    final borderColor = theme.borderColor;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgColor,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
         ],
+        border: Border(
+          top: BorderSide(color: borderColor, width: 0.8),
+        ),
       ),
       child: SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (widget.replyTo != null) _buildReplyBar(),
-            if (widget.editingMessage != null) _buildEditBar(),
-            if (_selectedAttachments.isNotEmpty) _buildAttachmentPreviewBar(),
-            if (_showVoiceRecorder) _buildVoiceRecorder() else _buildInputRow(),
+            if (widget.replyTo != null) _buildReplyBar(theme),
+            if (widget.editingMessage != null) _buildEditBar(theme),
+            if (_selectedAttachments.isNotEmpty) _buildAttachmentPreviewBar(theme),
+            if (_showVoiceRecorder) _buildVoiceRecorder() else _buildInputRow(theme),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildReplyBar() {
+  Widget _buildReplyBar(ThemeProvider theme) {
     final msg = widget.replyTo!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F766E).withValues(alpha: 0.06),
+        color: const Color(0xFF0F766E).withValues(alpha: 0.08),
         border: const Border(
           left: BorderSide(color: Color(0xFF0F766E), width: 3),
         ),
@@ -220,7 +229,7 @@ class _ChatComposerState extends State<ChatComposer> {
                 const SizedBox(height: 2),
                 Text(
                   msg.previewText,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 12, color: theme.subtitleColor),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -229,7 +238,7 @@ class _ChatComposerState extends State<ChatComposer> {
           ),
           IconButton(
             icon: const Icon(Icons.close_rounded, size: 18),
-            color: Colors.grey,
+            color: theme.subtitleColor,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             onPressed: widget.onCancelReply,
@@ -239,12 +248,12 @@ class _ChatComposerState extends State<ChatComposer> {
     );
   }
 
-  Widget _buildEditBar() {
+  Widget _buildEditBar(ThemeProvider theme) {
     final msg = widget.editingMessage!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F766E).withValues(alpha: 0.06),
+        color: const Color(0xFF0F766E).withValues(alpha: 0.08),
         border: const Border(
           left: BorderSide(color: Color(0xFF0F766E), width: 3),
         ),
@@ -266,7 +275,7 @@ class _ChatComposerState extends State<ChatComposer> {
                 const SizedBox(height: 2),
                 Text(
                   msg.content ?? '',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 12, color: theme.subtitleColor),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -275,7 +284,7 @@ class _ChatComposerState extends State<ChatComposer> {
           ),
           IconButton(
             icon: const Icon(Icons.close_rounded, size: 18),
-            color: Colors.grey,
+            color: theme.subtitleColor,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
             onPressed: widget.onCancelEdit,
@@ -287,7 +296,7 @@ class _ChatComposerState extends State<ChatComposer> {
 
   Widget _buildVoiceRecorder() {
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: VoiceRecorderWidget(
         onRecordingComplete: (bytes, path) {
           if (bytes.isNotEmpty) {
@@ -312,14 +321,15 @@ class _ChatComposerState extends State<ChatComposer> {
     );
   }
 
-  Widget _buildAttachmentPreviewBar() {
+  Widget _buildAttachmentPreviewBar(ThemeProvider theme) {
+    final isDark = theme.isDarkMode;
     return Container(
       height: 90,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8FAFC),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
         border: Border(
-          bottom: BorderSide(color: Color(0xFFE2E8F0)),
+          bottom: BorderSide(color: theme.borderColor),
         ),
       ),
       child: ListView.separated(
@@ -335,9 +345,9 @@ class _ChatComposerState extends State<ChatComposer> {
                 width: 74,
                 height: 74,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.cardColor,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  border: Border.all(color: theme.borderColor),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(7),
@@ -359,7 +369,7 @@ class _ChatComposerState extends State<ChatComposer> {
                               padding: const EdgeInsets.symmetric(horizontal: 4),
                               child: Text(
                                 item.name,
-                                style: const TextStyle(fontSize: 10),
+                                style: TextStyle(fontSize: 10, color: theme.textColor),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 textAlign: TextAlign.center,
@@ -402,9 +412,10 @@ class _ChatComposerState extends State<ChatComposer> {
     );
   }
 
-  Widget _buildInputRow() {
+  Widget _buildInputRow(ThemeProvider theme) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 700;
+    final isDark = theme.isDarkMode;
 
     final hasImages = _selectedAttachments.any((a) => a.type == MessageType.image);
     final hasFiles = _selectedAttachments.any((a) => a.type == MessageType.file);
@@ -428,7 +439,7 @@ class _ChatComposerState extends State<ChatComposer> {
             IconButton(
               icon: Icon(
                 Icons.photo_library_rounded,
-                color: disablePhoto ? Colors.grey.shade300 : const Color(0xFF0F766E),
+                color: disablePhoto ? Colors.grey.shade400 : const Color(0xFF0F766E),
                 size: 24,
               ),
               tooltip: 'Photo',
@@ -437,7 +448,7 @@ class _ChatComposerState extends State<ChatComposer> {
             IconButton(
               icon: Icon(
                 Icons.attach_file_rounded,
-                color: disableFile ? Colors.grey.shade300 : const Color(0xFF0F766E),
+                color: disableFile ? Colors.grey.shade400 : const Color(0xFF0F766E),
                 size: 24,
               ),
               tooltip: 'File',
@@ -459,9 +470,9 @@ class _ChatComposerState extends State<ChatComposer> {
             child: Container(
               constraints: const BoxConstraints(minHeight: 42, maxHeight: 120),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
+                border: Border.all(color: theme.borderColor),
               ),
               child: TextField(
                 controller: _textCtrl,
@@ -469,10 +480,10 @@ class _ChatComposerState extends State<ChatComposer> {
                 maxLines: null,
                 textInputAction: TextInputAction.newline,
                 onChanged: _handleTextChange,
-                style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
+                style: TextStyle(fontSize: 14, color: theme.textColor),
                 decoration: InputDecoration(
                   hintText: 'Message…',
-                  hintStyle: TextStyle(fontSize: 14, color: Colors.grey.shade400),
+                  hintStyle: TextStyle(fontSize: 14, color: theme.subtitleColor),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
@@ -492,14 +503,16 @@ class _ChatComposerState extends State<ChatComposer> {
           // Send button
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: _textCtrl,
-            builder: (_, value, _c) {
+            builder: (_, value, child) {
               final hasText = value.text.trim().isNotEmpty;
               final hasAttachments = _selectedAttachments.isNotEmpty;
               final canSend = hasText || hasAttachments;
               return AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 child: Material(
-                  color: canSend ? const Color(0xFF0F766E) : Colors.grey.shade300,
+                  color: canSend
+                      ? const Color(0xFF0F766E)
+                      : (isDark ? const Color(0xFF334155) : Colors.grey.shade300),
                   shape: const CircleBorder(),
                   child: InkWell(
                     customBorder: const CircleBorder(),
@@ -509,7 +522,9 @@ class _ChatComposerState extends State<ChatComposer> {
                       child: Icon(
                         Icons.send_rounded,
                         size: 20,
-                        color: canSend ? Colors.white : Colors.grey.shade500,
+                        color: canSend
+                            ? Colors.white
+                            : (isDark ? const Color(0xFF64748B) : Colors.grey.shade500),
                       ),
                     ),
                   ),

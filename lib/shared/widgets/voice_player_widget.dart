@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 
 class VoicePlayerWidget extends StatefulWidget {
   final String audioUrl;
@@ -98,36 +100,55 @@ class _VoicePlayerWidgetState extends State<VoicePlayerWidget> {
 
   @override
   Widget build(BuildContext context) {
+    ThemeProvider? themeProvider;
+    try {
+      themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    } catch (_) {}
+    final isDark = themeProvider?.isDarkMode ?? (Theme.of(context).brightness == Brightness.dark);
+    final pillBg = isDark ? const Color(0xFF1E293B) : Colors.blue.shade50;
+    final pillBorder = isDark ? const Color(0xFF334155) : Colors.blue.shade100;
+    final iconColor = isDark ? const Color(0xFF38BDF8) : Colors.blue.shade700;
+    final activeTrackColor = isDark ? const Color(0xFF38BDF8) : Colors.blue.shade600;
+    final inactiveTrackColor = isDark ? const Color(0xFF475569) : Colors.blue.shade200;
+    final textColor = isDark ? const Color(0xFFE2E8F0) : Colors.blue.shade800;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: pillBg,
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.blue.shade100),
+        border: Border.all(color: pillBorder),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _isLoading
-              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+              ? SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: iconColor,
+                  ),
+                )
               : IconButton(
                   icon: Icon(_isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded),
-                  color: Colors.blue.shade700,
-                  iconSize: 32,
+                  color: iconColor,
+                  iconSize: 30,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   onPressed: _togglePlayPause,
                 ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: SliderTheme(
               data: SliderThemeData(
                 trackHeight: 4,
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                activeTrackColor: Colors.blue.shade600,
-                inactiveTrackColor: Colors.blue.shade200,
-                thumbColor: Colors.blue.shade700,
+                activeTrackColor: activeTrackColor,
+                inactiveTrackColor: inactiveTrackColor,
+                thumbColor: iconColor,
               ),
               child: Slider(
                 value: _position.inSeconds.toDouble(),
@@ -139,10 +160,10 @@ class _VoicePlayerWidgetState extends State<VoicePlayerWidget> {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           Text(
             '${_formatDuration(_position)} / ${_formatDuration(_duration)}',
-            style: TextStyle(fontSize: 12, color: Colors.blue.shade800, fontWeight: FontWeight.w500),
+            style: TextStyle(fontSize: 11.5, color: textColor, fontWeight: FontWeight.w600),
           ),
         ],
       ),

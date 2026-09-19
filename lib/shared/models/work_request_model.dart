@@ -13,6 +13,7 @@ class WorkRequest {
   final String? departmentName;
   final String? roomId;
   final String? roomName;
+  final String? roomCode;
   final String? requestTypeId;
   final String typeOfRequest;
   final DateTime dateSubmitted;
@@ -167,6 +168,7 @@ class WorkRequest {
     this.departmentName,
     this.roomId,
     this.roomName,
+    this.roomCode,
     this.requestTypeId,
     required this.typeOfRequest,
     required this.dateSubmitted,
@@ -214,6 +216,7 @@ class WorkRequest {
           map['department_name'] ?? _nestedText(map['department'], 'name'),
       roomId: map['room_id'],
       roomName: map['room_name'] ?? _nestedText(map['room'], 'name'),
+      roomCode: map['room_code'] ?? _nestedText(map['room'], 'code'),
       requestTypeId: map['request_type_id']?.toString(),
       typeOfRequest: extractTypeOfRequest(
         rawType: map['type_of_request'] ?? _nestedText(map['request_type'], 'name'),
@@ -345,6 +348,7 @@ class WorkRequest {
       'department_name': departmentName,
       'room_id': roomId,
       'room_name': roomName,
+      if (roomCode != null) 'room_code': roomCode,
       'date_submitted': dateSubmitted.toIso8601String(),
       'date_completed': dateCompleted?.toIso8601String(),
       'date_due': dateDue?.toIso8601String(),
@@ -386,6 +390,7 @@ class WorkRequest {
     String? departmentName,
     String? roomId,
     String? roomName,
+    String? roomCode,
     String? requestTypeId,
     String? typeOfRequest,
     DateTime? dateSubmitted,
@@ -429,6 +434,7 @@ class WorkRequest {
       departmentName: departmentName ?? this.departmentName,
       roomId: roomId ?? this.roomId,
       roomName: roomName ?? this.roomName,
+      roomCode: roomCode ?? this.roomCode,
       requestTypeId: requestTypeId ?? this.requestTypeId,
       typeOfRequest: typeOfRequest ?? this.typeOfRequest,
       dateSubmitted: dateSubmitted ?? this.dateSubmitted,
@@ -526,6 +532,10 @@ class WorkRequest {
   }
 
   String get priorityLabel {
+    final statusLower = status.trim().toLowerCase();
+    if (statusLower == 'pending' || statusLower == 'pending assignment' || statusLower == 'pending_assignment') {
+      return 'PENDING ADMIN REVIEW';
+    }
     if (priority.trim().isEmpty) return 'PENDING ADMIN REVIEW';
     switch (priority.toLowerCase()) {
       case 'high':

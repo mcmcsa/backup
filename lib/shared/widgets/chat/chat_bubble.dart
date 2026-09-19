@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:universal_html/html.dart' as html;
 import '../../models/chat_model.dart';
+import '../../providers/theme_provider.dart';
 import '../voice_player_widget.dart';
 
 class ChatBubble extends StatelessWidget {
@@ -33,6 +35,8 @@ class ChatBubble extends StatelessWidget {
       return _buildDeletedBubble(context);
     }
 
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     final mainBubbleWithMenu = Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -55,12 +59,12 @@ class ChatBubble extends StatelessWidget {
             crossAxisAlignment:
                 isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              if (showSenderName && !isMine) _buildSenderName(),
+              if (showSenderName && !isMine) _buildSenderName(themeProvider),
               if (message.isForwarded) _buildForwardedLabel(),
               if (message.replyToId != null) _buildReplyPreview(),
               mainBubbleWithMenu,
               const SizedBox(height: 2),
-              _buildTimestamp(),
+              _buildTimestamp(themeProvider),
             ],
           ),
         ),
@@ -91,15 +95,15 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildSenderName() {
+  Widget _buildSenderName(ThemeProvider themeProvider) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 2),
       child: Text(
         message.senderName,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF0F766E),
+          color: themeProvider.isDarkMode ? Colors.tealAccent.shade200 : const Color(0xFF0F766E),
         ),
       ),
     );
@@ -171,25 +175,33 @@ class ChatBubble extends StatelessWidget {
   }
 
   Widget _buildMainBubble(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final otherBg = themeProvider.isDarkMode ? themeProvider.cardColor : Colors.white;
+    final otherBorder = themeProvider.isDarkMode ? Border.all(color: themeProvider.borderColor) : null;
+    final isVoice = message.messageType == MessageType.voice;
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 1),
       padding: _bubblePadding,
-      decoration: BoxDecoration(
-        color: isMine ? const Color(0xFF0F766E) : Colors.white,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(18),
-          topRight: const Radius.circular(18),
-          bottomLeft: Radius.circular(isMine ? 18 : 4),
-          bottomRight: Radius.circular(isMine ? 4 : 18),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      decoration: isVoice
+          ? null
+          : BoxDecoration(
+              color: isMine ? const Color(0xFF0F766E) : otherBg,
+              border: isMine ? null : otherBorder,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft: Radius.circular(isMine ? 18 : 4),
+                bottomRight: Radius.circular(isMine ? 4 : 18),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: themeProvider.isDarkMode ? 0.2 : 0.06),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
       child: _buildContent(context),
     );
   }
@@ -197,9 +209,8 @@ class ChatBubble extends StatelessWidget {
   EdgeInsets get _bubblePadding {
     switch (message.messageType) {
       case MessageType.image:
-        return EdgeInsets.zero;
       case MessageType.voice:
-        return const EdgeInsets.symmetric(horizontal: 12, vertical: 8);
+        return EdgeInsets.zero;
       default:
         return const EdgeInsets.symmetric(horizontal: 14, vertical: 10);
     }
@@ -214,18 +225,22 @@ class ChatBubble extends StatelessWidget {
       case MessageType.file:
         return _buildFileContent(context);
       default:
-        return _buildTextContent();
+        return _buildTextContent(context);
     }
   }
 
-  Widget _buildTextContent() {
+  Widget _buildTextContent(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final textColor = isMine
+        ? Colors.white
+        : (themeProvider.isDarkMode ? Colors.white : const Color(0xFF1A1A1A));
     final text = message.content ?? '';
     if (text.isEmpty && message.attachmentUrl != null && message.attachmentUrl!.isNotEmpty) {
       return Text(
         '📎 ${message.attachmentName ?? 'Attachment'}',
         style: TextStyle(
           fontSize: 14,
-          color: isMine ? Colors.white : const Color(0xFF1A1A1A),
+          color: textColor,
           height: 1.4,
         ),
       );
@@ -234,7 +249,7 @@ class ChatBubble extends StatelessWidget {
       text,
       style: TextStyle(
         fontSize: 14,
-        color: isMine ? Colors.white : const Color(0xFF1A1A1A),
+        color: textColor,
         height: 1.4,
       ),
     );
@@ -275,7 +290,7 @@ class ChatBubble extends StatelessWidget {
               child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
             );
           },
-          errorBuilder: (_, __, ___) => Container(
+          errorBuilder: (_, error, stackTrace) => Container(
             width: 240,
             height: 100,
             color: Colors.grey.shade200,
@@ -364,7 +379,7 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildTimestamp() {
+  Widget _buildTimestamp(ThemeProvider themeProvider) {
     return Padding(
       padding: EdgeInsets.only(
         left: isMine ? 0 : 4,
@@ -384,7 +399,7 @@ class ChatBubble extends StatelessWidget {
                         message.updatedAt.difference(message.createdAt).inSeconds > 2
                     ? ' (edited)'
                     : ''),
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 10, color: themeProvider.subtitleColor),
           ),
         ],
       ),

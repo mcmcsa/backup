@@ -1638,7 +1638,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
     // 2. Assignment
     final isAssigned = !_isUnassigned(request.assignedToId);
     final assignSig = _signatures.firstWhere(
-      (s) => s.signatureType == 'approval',
+      (s) => s.signatureType == 'approval' || s.signatureType == 'admin_approval',
       orElse: () => ESignature(
         id: '',
         workRequestId: '',
@@ -1650,14 +1650,27 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
         signedAt: DateTime.now(),
       ),
     );
+
+    final hasAdminSig = assignSig.signatureData.isNotEmpty ||
+        _signatures.any((s) =>
+            (s.signatureType == 'approval' || s.signatureType == 'admin_approval') &&
+            s.signatureData.isNotEmpty);
+    final isStatusApproved = request.status.toLowerCase() != 'pending' &&
+        request.status.toLowerCase() != 'pending approval' &&
+        request.status.toLowerCase() != 'rejected' &&
+        request.status.toLowerCase() != 'cancelled';
+    final isAdminApproved = isStatusApproved && hasAdminSig && isAssigned;
+
     items.add(
       _buildTimelineItem(
         title: 'Admin Approved & Assigned',
-        isDone: isAssigned,
-        subtitle: isAssigned
+        isDone: isAdminApproved,
+        subtitle: isAdminApproved
             ? 'Approved and assigned to ${_assignedMaintenanceName(request.assignedToId)}'
-            : 'Awaiting admin review & assignment',
-        signature: assignSig.signatureData.isNotEmpty ? assignSig : null,
+            : (isAssigned
+                ? 'Assigned to ${_assignedMaintenanceName(request.assignedToId)} (Awaiting admin approval & signature)'
+                : 'Awaiting admin review & assignment'),
+        signature: isAdminApproved && assignSig.signatureData.isNotEmpty ? assignSig : null,
       ),
     );
 
@@ -1675,8 +1688,11 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
         signedAt: DateTime.now(),
       ),
     );
-    final isAccepted = acceptSig.signatureData.isNotEmpty ||
-        (request.status.toLowerCase() != 'pending' && request.status.toLowerCase() != 'pending assignment');
+    final isAccepted = isAdminApproved &&
+        (acceptSig.signatureData.isNotEmpty ||
+            (request.status.toLowerCase() != 'pending' &&
+                request.status.toLowerCase() != 'pending assignment' &&
+                request.status.toLowerCase() != 'approved'));
     items.add(
       _buildTimelineItem(
         title: 'Technician Accepted Task',
@@ -1684,7 +1700,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
         subtitle: isAccepted
             ? 'Accepted by ${request.acceptedByName ?? _assignedMaintenanceName(request.assignedToId)} on ${_formatDateTime(request.acceptedDate ?? acceptSig.signedAt)}'
             : 'Awaiting technician acceptance',
-        signature: acceptSig.signatureData.isNotEmpty ? acceptSig : null,
+        signature: isAccepted && acceptSig.signatureData.isNotEmpty ? acceptSig : null,
       ),
     );
 

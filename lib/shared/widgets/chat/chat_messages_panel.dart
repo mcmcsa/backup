@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/chat_model.dart';
+import '../../providers/theme_provider.dart';
 import '../../services/chat_service.dart';
 import 'chat_bubble.dart';
 import 'chat_composer.dart';
@@ -395,73 +397,93 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final roomName = widget.room.displayName(widget.currentUserId);
 
-    return Column(
-      children: [
-        _buildTopBar(roomName),
-        if (_pinnedMessages.isNotEmpty) _buildPinBar(),
-        if (_showSearch) _buildSearchBar(),
-        Expanded(
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _showSearch && _searchQuery.isNotEmpty
-                  ? _buildSearchResults()
-                  : _buildMessageList(),
-        ),
-        if (_typingUsers.isNotEmpty) _buildTypingIndicator(),
-        ChatComposer(
-          replyTo: _replyTo,
-          editingMessage: _editingMessage,
-          onSend: _handleSend,
-          onCancelReply: () => setState(() => _replyTo = null),
-          onCancelEdit: () => setState(() => _editingMessage = null),
-          onTypingChanged: (isTyping) {
-            ChatService.setTyping(
-              widget.room.id,
-              widget.currentUserId,
-              widget.currentUserName,
-              isTyping: isTyping,
-            );
-          },
-        ),
-      ],
+    return Container(
+      color: themeProvider.backgroundColor,
+      child: Column(
+        children: [
+          _buildTopBar(roomName, themeProvider),
+          if (_pinnedMessages.isNotEmpty) _buildPinBar(themeProvider),
+          if (_showSearch) _buildSearchBar(themeProvider),
+          Expanded(
+            child: _isLoading
+                ? Center(
+                    child: CircularProgressIndicator(
+                      color: themeProvider.primaryColor,
+                    ),
+                  )
+                : _showSearch && _searchQuery.isNotEmpty
+                    ? _buildSearchResults(themeProvider)
+                    : _buildMessageList(themeProvider),
+          ),
+          if (_typingUsers.isNotEmpty) _buildTypingIndicator(),
+          ChatComposer(
+            replyTo: _replyTo,
+            editingMessage: _editingMessage,
+            onSend: _handleSend,
+            onCancelReply: () => setState(() => _replyTo = null),
+            onCancelEdit: () => setState(() => _editingMessage = null),
+            onTypingChanged: (isTyping) {
+              ChatService.setTyping(
+                widget.room.id,
+                widget.currentUserId,
+                widget.currentUserName,
+                isTyping: isTyping,
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildTopBar(String roomName) {
+  Widget _buildTopBar(String roomName, ThemeProvider themeProvider) {
     final other = widget.room.participants
         .where((p) => p.userId != widget.currentUserId)
         .firstOrNull;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: const Color(0xFFE2E8F0))),
+        color: themeProvider.cardColor,
+        border: Border(bottom: BorderSide(color: themeProvider.borderColor)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6),
+          BoxShadow(
+            color: themeProvider.shadowColor,
+            blurRadius: 6,
+          ),
         ],
       ),
       child: Row(
         children: [
-          if (widget.onBack != null) ...[
-            IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-              onPressed: widget.onBack,
-              color: const Color(0xFF0F766E),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-            const SizedBox(width: 8),
-          ],
+          IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, size: 24),
+            onPressed: () {
+              if (widget.onBack != null) {
+                widget.onBack!();
+              } else if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              }
+            },
+            color: themeProvider.textColor,
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            tooltip: 'Back',
+          ),
+          const SizedBox(width: 4),
           CircleAvatar(
             radius: 18,
-            backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.12),
+            backgroundColor: themeProvider.isDarkMode
+                ? themeProvider.primaryColor.withValues(alpha: 0.25)
+                : const Color(0xFF0F766E).withValues(alpha: 0.12),
             child: Text(
               roomName.isNotEmpty ? roomName[0].toUpperCase() : '?',
-              style: const TextStyle(
-                color: Color(0xFF0F766E),
+              style: TextStyle(
+                color: themeProvider.isDarkMode
+                    ? Colors.tealAccent.shade200
+                    : const Color(0xFF0F766E),
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
               ),
@@ -474,10 +496,10 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
               children: [
                 Text(
                   roomName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF134E4A),
+                    color: themeProvider.textColor,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -485,7 +507,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
                 if (other != null)
                   Text(
                     _roleLabel(other.role),
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                    style: TextStyle(fontSize: 11, color: themeProvider.subtitleColor),
                   ),
               ],
             ),
@@ -497,15 +519,15 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
                 margin: const EdgeInsets.only(right: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0369A1).withValues(alpha: 0.1),
+                  color: const Color(0xFF0369A1).withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.build_rounded, size: 12, color: Color(0xFF0369A1)),
+                    Icon(Icons.build_rounded, size: 12, color: Color(0xFF0EA5E9)),
                     SizedBox(width: 4),
-                    Text('Request', style: TextStyle(fontSize: 11, color: Color(0xFF0369A1), fontWeight: FontWeight.w600)),
+                    Text('Request', style: TextStyle(fontSize: 11, color: Color(0xFF0EA5E9), fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
@@ -516,13 +538,14 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
               _showSearch = !_showSearch;
               if (!_showSearch) { _searchQuery = ''; _searchResults = []; }
             }),
-            color: const Color(0xFF0F766E),
+            color: themeProvider.isDarkMode ? Colors.white70 : const Color(0xFF0F766E),
             tooltip: 'Search messages',
           ),
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded, size: 20, color: Color(0xFF0F766E)),
+            icon: Icon(Icons.more_vert_rounded, size: 20, color: themeProvider.isDarkMode ? Colors.white70 : const Color(0xFF0F766E)),
             tooltip: 'Options',
             padding: EdgeInsets.zero,
+            color: themeProvider.cardColor,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             onSelected: (val) {
               if (val == 'delete_conversation') {
@@ -555,22 +578,37 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
     );
   }
 
-  Widget _buildPinBar() {
+  Widget _buildPinBar(ThemeProvider themeProvider) {
     final pin = _pinnedMessages.first;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.amber.shade50,
-        border: Border(bottom: BorderSide(color: Colors.amber.shade200)),
+        color: themeProvider.isDarkMode
+            ? Colors.amber.shade900.withValues(alpha: 0.25)
+            : Colors.amber.shade50,
+        border: Border(
+          bottom: BorderSide(
+            color: themeProvider.isDarkMode
+                ? Colors.amber.shade800.withValues(alpha: 0.5)
+                : Colors.amber.shade200,
+          ),
+        ),
       ),
       child: Row(
         children: [
-          Icon(Icons.push_pin_rounded, size: 14, color: Colors.amber.shade700),
+          Icon(
+            Icons.push_pin_rounded,
+            size: 14,
+            color: themeProvider.isDarkMode ? Colors.amber.shade300 : Colors.amber.shade700,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               pin.previewText,
-              style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+              style: TextStyle(
+                fontSize: 12,
+                color: themeProvider.isDarkMode ? Colors.amber.shade200 : Colors.amber.shade900,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -578,57 +616,62 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
           if (_pinnedMessages.length > 1)
             Text(
               '+${_pinnedMessages.length - 1} more',
-              style: TextStyle(fontSize: 11, color: Colors.amber.shade700),
+              style: TextStyle(
+                fontSize: 11,
+                color: themeProvider.isDarkMode ? Colors.amber.shade300 : Colors.amber.shade700,
+              ),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(ThemeProvider themeProvider) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      color: const Color(0xFFF8FAFC),
+      color: themeProvider.cardColor,
       child: TextField(
         controller: _searchCtrl,
         autofocus: true,
         onChanged: _searchMessages,
+        style: TextStyle(fontSize: 13, color: themeProvider.textColor),
         decoration: InputDecoration(
           hintText: 'Search messages…',
-          prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+          hintStyle: TextStyle(fontSize: 13, color: themeProvider.subtitleColor),
+          prefixIcon: Icon(Icons.search_rounded, size: 18, color: themeProvider.subtitleColor),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear_rounded, size: 18),
+                  icon: Icon(Icons.clear_rounded, size: 18, color: themeProvider.subtitleColor),
                   onPressed: () { _searchCtrl.clear(); _searchMessages(''); },
                 )
               : null,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            borderSide: BorderSide(color: themeProvider.borderColor),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            borderSide: BorderSide(color: themeProvider.borderColor),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFF0F766E)),
+            borderSide: BorderSide(color: themeProvider.primaryColor),
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 8),
           isDense: true,
           filled: true,
-          fillColor: Colors.white,
+          fillColor: themeProvider.inputFillColor,
         ),
       ),
     );
   }
 
-  Widget _buildSearchResults() {
+  Widget _buildSearchResults(ThemeProvider themeProvider) {
     if (_searchResults.isEmpty) {
       return Center(
         child: Text(
           'No messages found for "$_searchQuery"',
-          style: const TextStyle(color: Colors.grey),
+          style: TextStyle(color: themeProvider.subtitleColor),
         ),
       );
     }
@@ -639,32 +682,62 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
         final msg = _searchResults[i];
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
+          color: themeProvider.cardColor,
           child: ListTile(
             leading: CircleAvatar(
               radius: 14,
-              backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.1),
-              child: Text(msg.senderName[0], style: const TextStyle(fontSize: 12, color: Color(0xFF0F766E))),
+              backgroundColor: themeProvider.isDarkMode
+                  ? themeProvider.primaryColor.withValues(alpha: 0.25)
+                  : const Color(0xFF0F766E).withValues(alpha: 0.1),
+              child: Text(
+                msg.senderName[0],
+                style: TextStyle(
+                  fontSize: 12,
+                  color: themeProvider.isDarkMode
+                      ? Colors.tealAccent.shade200
+                      : const Color(0xFF0F766E),
+                ),
+              ),
             ),
-            title: Text(msg.senderName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-            subtitle: Text(msg.content ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-            trailing: Text(DateFormat('MMM d, HH:mm').format(msg.createdAt.toLocal()), style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            title: Text(
+              msg.senderName,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: themeProvider.textColor,
+              ),
+            ),
+            subtitle: Text(
+              msg.content ?? '',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: themeProvider.subtitleColor),
+            ),
+            trailing: Text(
+              DateFormat('MMM d, HH:mm').format(msg.createdAt.toLocal()),
+              style: TextStyle(fontSize: 10, color: themeProvider.subtitleColor),
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildMessageList() {
+  Widget _buildMessageList(ThemeProvider themeProvider) {
     if (_messages.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.waving_hand_rounded, size: 48, color: Colors.grey.shade300),
+            Icon(
+              Icons.waving_hand_rounded,
+              size: 48,
+              color: themeProvider.subtitleColor.withValues(alpha: 0.4),
+            ),
             const SizedBox(height: 12),
             Text(
               'Say hello! Start the conversation.',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+              style: TextStyle(color: themeProvider.subtitleColor, fontSize: 14),
             ),
           ],
         ),

@@ -59,7 +59,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   String _selectedCollege = '';
   String _selectedFloor = '';
   String _selectedRequestType = '';
-  final String _selectedPriority = 'medium';
+  final String _selectedPriority = '';
   String? _requesterSignatureBase64;
   bool _isSubmitting = false;
 

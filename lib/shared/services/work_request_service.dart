@@ -30,7 +30,7 @@ class WorkRequestService {
       '*, '
       'building:buildings(name), '
       'department:departments(name), '
-      'room:rooms(name), '
+      'room:rooms(name, code), '
       'request_type:request_types(name), '
       'requestor:users!work_requests_requestor_id_fkey(name, teacher_users(position)), '
       'approver:users!work_requests_approved_by_id_fkey(name), '

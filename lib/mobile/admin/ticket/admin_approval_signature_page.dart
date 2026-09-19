@@ -12,6 +12,8 @@ import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/services/maintenance_account_service.dart';
 import '../../../shared/services/maintenance_status_service.dart';
 import '../../../shared/services/maintenance_schedule_service.dart';
+import '../../../shared/services/collaboration_service.dart';
+import '../../../shared/models/collaboration_models.dart';
 import '../../../shared/widgets/maintenance_schedule_dialog.dart';
 import '../../../shared/widgets/availability_status_badge.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
@@ -35,7 +37,9 @@ class _AdminApprovalSignaturePageState
   List<ESignature> _signatures = [];
   List<MaintenanceAccount> _maintenanceStaff = [];
   String? _masterScheduleUrl;
-  String? _selectedMaintenanceId;
+  final List<String> _selectedMaintenanceIds = [];
+  String? get _selectedMaintenanceId =>
+      _selectedMaintenanceIds.isNotEmpty ? _selectedMaintenanceIds.first : null;
   String? _selectedPriority;
   String _selectedDuration = '2 Hours';
   bool _isCustomDuration = false;
@@ -51,7 +55,9 @@ class _AdminApprovalSignaturePageState
         _selectedPriority = widget.request.priority.toLowerCase();
       }
       if (widget.request.assignedToId != null && widget.request.assignedToId!.isNotEmpty) {
-        _selectedMaintenanceId = widget.request.assignedToId;
+        if (!_selectedMaintenanceIds.contains(widget.request.assignedToId!)) {
+          _selectedMaintenanceIds.add(widget.request.assignedToId!);
+        }
       }
     }
     _loadData();
@@ -69,6 +75,7 @@ class _AdminApprovalSignaturePageState
         ESignatureService.fetchByWorkRequest(widget.request.id),
         MaintenanceStatusService.fetchActiveMaintenanceWithDynamicStatus(),
         MaintenanceScheduleService.getMasterScheduleUrl(),
+        CollaborationService.fetchCollaborators(widget.request.id),
       ]);
 
       if (mounted) {
@@ -76,11 +83,21 @@ class _AdminApprovalSignaturePageState
           _signatures = results[0] as List<ESignature>;
           _maintenanceStaff = results[1] as List<MaintenanceAccount>;
           _masterScheduleUrl = results[2] as String?;
+          final collabs = results[3] as List<WorkRequestCollaborator>;
+
+          if (widget.request.assignedToId != null && widget.request.assignedToId!.isNotEmpty) {
+            if (!_selectedMaintenanceIds.contains(widget.request.assignedToId!)) {
+              _selectedMaintenanceIds.insert(0, widget.request.assignedToId!);
+            }
+          }
+
+          for (final c in collabs) {
+            if (!_selectedMaintenanceIds.contains(c.userId)) {
+              _selectedMaintenanceIds.add(c.userId);
+            }
+          }
 
           if (_isApproved) {
-            if (_selectedMaintenanceId == null && widget.request.assignedToId != null && widget.request.assignedToId!.isNotEmpty) {
-              _selectedMaintenanceId = widget.request.assignedToId;
-            }
             final adminSig = _signatures.cast<ESignature?>().firstWhere(
               (s) =>
                   s != null &&
@@ -301,10 +318,10 @@ class _AdminApprovalSignaturePageState
       return;
     }
 
-    if (_selectedMaintenanceId == null || _selectedMaintenanceId!.isEmpty) {
+    if (_selectedMaintenanceIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a maintenance staff member to assign.'),
+          content: Text('Please select at least one maintenance staff member to assign.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -347,23 +364,43 @@ class _AdminApprovalSignaturePageState
         estimatedDuration: durationToSave,
       );
 
-      await WorkRequestService.assignTo(widget.request.id, _selectedMaintenanceId!);
+      final primaryId = _selectedMaintenanceIds.first;
+      await WorkRequestService.assignTo(widget.request.id, primaryId);
+
+      // Invite secondary collaborators
+      for (int i = 1; i < _selectedMaintenanceIds.length; i++) {
+        try {
+          await CollaborationService.inviteCollaborator(
+            widget.request.id,
+            _selectedMaintenanceIds[i],
+            'secondary',
+            user.id,
+          );
+        } catch (collabErr) {
+          debugPrint('Error inviting secondary collaborator ${_selectedMaintenanceIds[i]}: $collabErr');
+        }
+      }
 
       await AppNotificationService.notifyApprovedToMaintenance(
         workRequestId: widget.request.id,
         adminName: user.name,
-        assignedMaintenanceId: _selectedMaintenanceId!,
+        assignedMaintenanceId: primaryId,
       );
 
-      try {
-        await AppNotificationService.createForUser(
-          targetUserId: _selectedMaintenanceId!,
-          title: 'New Work Request Assignment',
-          message: 'You were assigned to work request ${widget.request.id} by admin ${user.name}.',
-          type: 'work_request_assigned',
-          workRequestId: widget.request.id,
-        );
-      } catch (_) {}
+      for (final staffId in _selectedMaintenanceIds) {
+        try {
+          final isPrimary = staffId == primaryId;
+          await AppNotificationService.createForUser(
+            targetUserId: staffId,
+            title: isPrimary ? 'New Work Request Assignment' : 'Collaboration Assignment',
+            message: isPrimary
+                ? 'You were assigned to work request ${widget.request.id} by admin ${user.name}.'
+                : 'You were invited to collaborate on work request ${widget.request.id} by admin ${user.name}.',
+            type: 'work_request_assigned',
+            workRequestId: widget.request.id,
+          );
+        } catch (_) {}
+      }
 
       await LoginActivityService.recordAdminAction(
         user: user,
@@ -631,35 +668,51 @@ class _AdminApprovalSignaturePageState
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Text(
-                              'Step 3 — Maintenance Assignment',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: themeProvider.textColor,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Step 3 — Maintenance Assignment',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: themeProvider.textColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Assign primary technician & secondary collaborators.',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: themeProvider.subtitleColor,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
+                            const SizedBox(width: 8),
                             TextButton.icon(
                               onPressed: _viewMasterSchedule,
                               icon: const Icon(Icons.calendar_month_rounded, size: 14, color: Color(0xFF0F766E)),
                               label: const Text(
                                 'View Schedule',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 11.5,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFF0F766E),
                                 ),
                               ),
                               style: TextButton.styleFrom(
                                 visualDensity: VisualDensity.compact,
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.08),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         if (_maintenanceStaff.isEmpty)
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -681,103 +734,221 @@ class _AdminApprovalSignaturePageState
                               ],
                             ),
                           )
-                        else
-                          DropdownButtonFormField<String>(
-                            initialValue: _selectedMaintenanceId,
-                            isExpanded: true,
-                            dropdownColor: themeProvider.cardColor,
-                            style: TextStyle(color: themeProvider.textColor, fontSize: 13),
-                            decoration: InputDecoration(
-                              hintText: 'Select maintenance technician...',
-                              hintStyle: TextStyle(fontSize: 13, color: themeProvider.subtitleColor),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: themeProvider.borderColor),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide(color: themeProvider.borderColor),
-                              ),
-                              filled: true,
-                              fillColor: themeProvider.inputFillColor,
-                              prefixIcon: const Icon(Icons.engineering_outlined, size: 20, color: Color(0xFF4169E1)),
-                            ),
-                            items: _maintenanceStaff.map((staff) {
-                              return DropdownMenuItem<String>(
-                                value: staff.userId,
-                                child: Row(
-                                  children: [
-                                    AvailabilityStatusBadge(
-                                      status: staff.availabilityStatus,
-                                      size: BadgeSize.small,
-                                      showLabel: true,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        '${staff.fullName} (${staff.specialization ?? "General"})',
-                                        style: TextStyle(
-                                          color: themeProvider.textColor,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (v) {
-                              setState(() {
-                                _selectedMaintenanceId = v;
-                              });
-                            },
-                          ),
-
-                        if (assignedStaff != null) ...[
-                          const SizedBox(height: 8),
+                        else ...[
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF4169E1).withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFF4169E1).withValues(alpha: 0.25)),
+                              color: themeProvider.inputFillColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: themeProvider.borderColor),
                             ),
-                            child: Row(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                AvailabilityStatusBadge(
-                                  status: assignedStaff.availabilityStatus,
-                                  size: BadgeSize.small,
-                                  showLabel: true,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        assignedStaff.fullName,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                          color: themeProvider.textColor,
+                                if (_selectedMaintenanceIds.isNotEmpty) ...[
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: _selectedMaintenanceIds.map((id) {
+                                      final staff = _maintenanceStaff.cast<MaintenanceAccount?>().firstWhere(
+                                        (m) => m?.userId == id,
+                                        orElse: () => null,
+                                      );
+                                      final isPrimary = _selectedMaintenanceIds.indexOf(id) == 0;
+                                      final staffName = staff?.fullName ?? 'Technician';
+
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: isPrimary
+                                              ? const Color(0xFF4169E1).withValues(alpha: 0.12)
+                                              : (themeProvider.isDarkMode
+                                                  ? Colors.white.withValues(alpha: 0.06)
+                                                  : Colors.grey.shade100),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: isPrimary
+                                                ? const Color(0xFF4169E1).withValues(alpha: 0.4)
+                                                : themeProvider.borderColor,
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        'Specialization: ${assignedStaff.specialization ?? "General Maintenance"}',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: themeProvider.subtitleColor,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (staff != null)
+                                              AvailabilityStatusBadge(
+                                                status: staff.availabilityStatus,
+                                                size: BadgeSize.small,
+                                              ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              '$staffName ${isPrimary ? "(Primary)" : "(Secondary)"}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: isPrimary
+                                                    ? const Color(0xFF4169E1)
+                                                    : themeProvider.textColor,
+                                              ),
+                                            ),
+                                            if (!_isApproved) ...[
+                                              const SizedBox(width: 6),
+                                              InkWell(
+                                                onTap: () {
+                                                  setState(() {
+                                                    _selectedMaintenanceIds.remove(id);
+                                                  });
+                                                },
+                                                child: Icon(
+                                                  Icons.close_rounded,
+                                                  size: 16,
+                                                  color: themeProvider.subtitleColor,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
-                                      ),
-                                    ],
+                                      );
+                                    }).toList(),
                                   ),
-                                ),
+                                  const SizedBox(height: 10),
+                                ],
+                                if (!_isApproved)
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: themeProvider.cardColor,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: themeProvider.borderColor),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: null,
+                                        isExpanded: true,
+                                        dropdownColor: themeProvider.cardColor,
+                                        icon: Icon(Icons.arrow_drop_down_rounded, color: themeProvider.subtitleColor),
+                                        hint: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.engineering_outlined,
+                                              size: 20,
+                                              color: Color(0xFF4169E1),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              _selectedMaintenanceIds.isEmpty
+                                                  ? 'Select primary technician...'
+                                                  : '+ Add collaborator technician...',
+                                              style: TextStyle(fontSize: 13, color: themeProvider.subtitleColor),
+                                            ),
+                                          ],
+                                        ),
+                                        items: _maintenanceStaff
+                                            .where((staff) => !_selectedMaintenanceIds.contains(staff.userId))
+                                            .map((staff) {
+                                          return DropdownMenuItem<String>(
+                                            value: staff.userId,
+                                            child: Row(
+                                              children: [
+                                                AvailabilityStatusBadge(
+                                                  status: staff.availabilityStatus,
+                                                  size: BadgeSize.small,
+                                                  showLabel: true,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    '${staff.fullName} (${staff.specialization ?? "General"})',
+                                                    style: TextStyle(
+                                                      color: themeProvider.textColor,
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w500,
+                                                    ),
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (v) {
+                                          if (v != null) {
+                                            setState(() {
+                                              _selectedMaintenanceIds.add(v);
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
+                          if (assignedStaff != null) ...[
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4169E1).withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFF4169E1).withValues(alpha: 0.25)),
+                              ),
+                              child: Row(
+                                children: [
+                                  AvailabilityStatusBadge(
+                                    status: assignedStaff.availabilityStatus,
+                                    size: BadgeSize.small,
+                                    showLabel: true,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text(
+                                              assignedStaff.fullName,
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: themeProvider.textColor,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF4169E1).withValues(alpha: 0.15),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: const Text(
+                                                'Primary Lead',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Color(0xFF4169E1),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          'Specialization: ${assignedStaff.specialization ?? "General Maintenance"}'
+                                          '${_selectedMaintenanceIds.length > 1 ? " • +${_selectedMaintenanceIds.length - 1} Collaborator(s)" : ""}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: themeProvider.subtitleColor,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                         const SizedBox(height: 20),
 

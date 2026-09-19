@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 
 void showWorkflowGuideDialog(BuildContext context, {String? role}) {
   final cleanRole = role?.toLowerCase() ?? '';
@@ -160,12 +162,6 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
             'Review submitted Pre-Inspection reports to confirm work starts, and inspect Post-Repair reports to close tickets or request Rework.',
       ),
       GuideActionItem(
-        icon: Icons.campaign_rounded,
-        title: 'System Announcements',
-        description:
-            'Broadcast system-wide notices to inform requestors and maintenance staff about schedules or outages.',
-      ),
-      GuideActionItem(
         icon: Icons.chat_rounded,
         title: 'Ticket Chat Control',
         description:
@@ -208,14 +204,36 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
   showDialog(
     context: context,
     barrierDismissible: true,
-    builder: (BuildContext context) {
+    builder: (BuildContext dialogContext) {
+      ThemeProvider? themeProvider;
+      try {
+        themeProvider = Provider.of<ThemeProvider>(dialogContext, listen: false);
+      } catch (_) {
+        try {
+          themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+        } catch (_) {}
+      }
+
+      final isDark = themeProvider?.isDarkMode ?? (Theme.of(dialogContext).brightness == Brightness.dark);
+      final bgColor = isDark ? (themeProvider?.cardColor ?? const Color(0xFF1E1E1E)) : Colors.white;
+      final borderColor = isDark ? (themeProvider?.borderColor ?? const Color(0xFF2C2C2C)) : Colors.transparent;
+      final textColor = isDark ? (themeProvider?.textColor ?? Colors.white) : const Color(0xFF1E293B);
+      final subtitleColor = isDark ? (themeProvider?.subtitleColor ?? const Color(0xFF94A3B8)) : Colors.grey.shade600;
+      final footerBg = isDark ? const Color(0xFF161616) : Colors.grey.shade50;
+      final iconBg = isDark ? const Color(0xFF0F766E).withValues(alpha: 0.25) : const Color(0xFF0F766E).withValues(alpha: 0.1);
+      final iconColor = isDark ? Colors.tealAccent.shade400 : const Color(0xFF0F766E);
+
       return Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: isDark ? BorderSide(color: borderColor) : BorderSide.none,
+        ),
         clipBehavior: Clip.antiAlias,
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: Container(
           constraints: const BoxConstraints(maxWidth: 550, maxHeight: 650),
-          color: Colors.white,
+          color: bgColor,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -247,7 +265,7 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
                       icon: const Icon(Icons.close, color: Colors.white, size: 22),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () => Navigator.of(dialogContext).pop(),
                     ),
                   ],
                 ),
@@ -263,7 +281,7 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade800,
+                        color: textColor.withValues(alpha: 0.9),
                         height: 1.4,
                       ),
                     ),
@@ -276,12 +294,12 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                              color: iconBg,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
                               item.icon,
-                              color: const Color(0xFF0F766E),
+                              color: iconColor,
                               size: 20,
                             ),
                           ),
@@ -292,10 +310,10 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
                               children: [
                                 Text(
                                   item.title,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 13.5,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1E293B),
+                                    color: textColor,
                                   ),
                                 ),
                                 const SizedBox(height: 3),
@@ -303,7 +321,7 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
                                   item.description,
                                   style: TextStyle(
                                     fontSize: 11.5,
-                                    color: Colors.grey.shade600,
+                                    color: subtitleColor,
                                     height: 1.35,
                                   ),
                                 ),
@@ -320,7 +338,7 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
               // Action Footer
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                color: Colors.grey.shade50,
+                color: footerBg,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -331,7 +349,7 @@ void showWorkflowGuideDialog(BuildContext context, {String? role}) {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: () => Navigator.of(dialogContext).pop(),
                       child: const Text('GOT IT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     ),
                   ],

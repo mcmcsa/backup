@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/chat_model.dart';
+import '../../providers/theme_provider.dart';
 
 class ChatRoomTile extends StatelessWidget {
   final ChatRoom room;
@@ -26,6 +28,7 @@ class ChatRoomTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final name = room.displayName(currentUserId);
     final unread = room.unreadCount(currentUserId);
     final lastMsg = room.lastMessage ?? '';
@@ -39,11 +42,17 @@ class ChatRoomTile extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: isSelected
-            ? const Color(0xFF0F766E).withValues(alpha: 0.12)
+            ? (themeProvider.isDarkMode
+                ? themeProvider.primaryColor.withValues(alpha: 0.2)
+                : const Color(0xFF0F766E).withValues(alpha: 0.12))
             : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         border: isSelected
-            ? Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.3))
+            ? Border.all(
+                color: themeProvider.isDarkMode
+                    ? themeProvider.primaryColor.withValues(alpha: 0.5)
+                    : const Color(0xFF0F766E).withValues(alpha: 0.3),
+              )
             : null,
       ),
       child: InkWell(
@@ -53,7 +62,7 @@ class ChatRoomTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
-              _buildAvatar(name, otherParticipant),
+              _buildAvatar(name, otherParticipant, themeProvider),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -69,7 +78,9 @@ class ChatRoomTile extends StatelessWidget {
                               fontWeight: unread > 0
                                   ? FontWeight.w700
                                   : FontWeight.w600,
-                              color: const Color(0xFF134E4A),
+                              color: themeProvider.isDarkMode
+                                  ? Colors.white
+                                  : const Color(0xFF134E4A),
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -81,8 +92,10 @@ class ChatRoomTile extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 11,
                               color: unread > 0
-                                  ? const Color(0xFF0F766E)
-                                  : Colors.grey.shade500,
+                                  ? (themeProvider.isDarkMode
+                                      ? Colors.tealAccent.shade400
+                                      : const Color(0xFF0F766E))
+                                  : themeProvider.subtitleColor,
                               fontWeight: unread > 0
                                   ? FontWeight.w700
                                   : FontWeight.w400,
@@ -99,8 +112,10 @@ class ChatRoomTile extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 12,
                               color: unread > 0
-                                  ? const Color(0xFF134E4A)
-                                  : Colors.grey.shade600,
+                                  ? (themeProvider.isDarkMode
+                                      ? Colors.white70
+                                      : const Color(0xFF134E4A))
+                                  : themeProvider.subtitleColor,
                               fontWeight: unread > 0
                                   ? FontWeight.w600
                                   : FontWeight.w400,
@@ -116,7 +131,9 @@ class ChatRoomTile extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0F766E),
+                              color: themeProvider.isDarkMode
+                                  ? const Color(0xFF0D9488)
+                                  : const Color(0xFF0F766E),
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -222,7 +239,7 @@ class ChatRoomTile extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(String name, ChatParticipant? participant) {
+  Widget _buildAvatar(String name, ChatParticipant? participant, ThemeProvider themeProvider) {
     final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
     final profileImage = participant?.profileImage;
 
@@ -230,14 +247,18 @@ class ChatRoomTile extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 22,
-          backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.15),
+          backgroundColor: themeProvider.isDarkMode
+              ? themeProvider.primaryColor.withValues(alpha: 0.25)
+              : const Color(0xFF0F766E).withValues(alpha: 0.15),
           backgroundImage:
               profileImage != null ? NetworkImage(profileImage) : null,
           child: profileImage == null
               ? Text(
                   initials,
-                  style: const TextStyle(
-                    color: Color(0xFF0F766E),
+                  style: TextStyle(
+                    color: themeProvider.isDarkMode
+                        ? Colors.tealAccent.shade200
+                        : const Color(0xFF0F766E),
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
                   ),

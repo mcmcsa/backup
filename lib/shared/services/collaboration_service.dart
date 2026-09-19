@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/collaboration_models.dart';
 import 'app_notification_service.dart';
@@ -24,22 +24,37 @@ class CollaborationService {
   }
 
   static Future<void> inviteCollaborator(String workRequestId, String userId, String role, String adminId) async {
-    await _supabase.from('work_request_collaborators').upsert({
-      'work_request_id': workRequestId,
-      'user_id': userId,
-      'role': role,
-      'status': 'pending',
-    });
+    try {
+      await _supabase.from('work_request_collaborators').upsert(
+        {
+          'work_request_id': workRequestId,
+          'user_id': userId,
+          'role': role,
+          'status': 'pending',
+        },
+        onConflict: 'work_request_id,user_id',
+      );
+    } catch (e) {
+      debugPrint('Error upserting collaborator: $e');
+    }
 
-    await logActivity(workRequestId, adminId, 'invited_collaborator', 'Invited user $userId as $role');
+    try {
+      await logActivity(workRequestId, adminId, 'invited_collaborator', 'Invited user $userId as $role');
+    } catch (e) {
+      debugPrint('Error logging activity: $e');
+    }
     
-    await AppNotificationService.createForUser(
-      targetUserId: userId,
-      title: 'Collaboration Invite',
-      message: 'You have been invited to collaborate on work request $workRequestId.',
-      type: 'collaboration_invite',
-      workRequestId: workRequestId,
-    );
+    try {
+      await AppNotificationService.createForUser(
+        targetUserId: userId,
+        title: 'Collaboration Invite',
+        message: 'You have been invited to collaborate on work request $workRequestId.',
+        type: 'collaboration_invite',
+        workRequestId: workRequestId,
+      );
+    } catch (e) {
+      debugPrint('Error creating notification for collaborator: $e');
+    }
   }
 
   static Future<void> respondToInvite(String workRequestId, String userId, String status) async {

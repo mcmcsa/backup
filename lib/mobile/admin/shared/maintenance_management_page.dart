@@ -1,12 +1,17 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/maintenance_account_service.dart';
 import '../../../shared/services/maintenance_status_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/maintenance_schedule_service.dart';
+import '../../../shared/services/chat_service.dart';
+import '../../../shared/widgets/chat/chat_messages_panel.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/maintenance_schedule_dialog.dart';
 import '../../../shared/widgets/availability_status_badge.dart';
 
@@ -28,6 +33,61 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
   RealtimeChannel? _workRequestsChannel;
   Timer? _autoRefreshTimer;
   StreamSubscription<String>? _scheduleSub;
+
+  Future<void> _startChatWithMaintenance(MaintenanceAccount account) async {
+    final authService = context.read<AuthService>();
+    final currentUser = authService.currentUser;
+    if (currentUser == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF4169E1)),
+      ),
+    );
+
+    try {
+      final room = await ChatService.findOrCreateDirectRoom(
+        currentUserId: currentUser.id,
+        currentUserName: currentUser.name,
+        currentUserRole: currentUser.role.name,
+        otherUserId: account.userId,
+        otherUserName: account.fullName,
+        otherUserRole: 'maintenance',
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+
+      final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => Scaffold(
+            backgroundColor: themeProvider.backgroundColor,
+            body: SafeArea(
+              top: false,
+              child: ChatMessagesPanel(
+                key: ValueKey(room.id),
+                room: room,
+                currentUserId: currentUser.id,
+                currentUserName: currentUser.name,
+                currentUserRole: currentUser.role.name,
+                onBack: () => Navigator.pop(context),
+                onRoomDeleted: () => Navigator.pop(context),
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to start chat: $e')),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -201,9 +261,8 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
         );
       }
     }
-  }
-
-  Future<void> _showMaintenanceDetails(MaintenanceAccount account) async {
+  }  Future<void> _showMaintenanceDetails(MaintenanceAccount account) async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final createdAt = account.createdAt.toLocal().toString().split('.').first;
     final archivedAt =
         account.archivedAt?.toLocal().toString().split('.').first;
@@ -211,7 +270,19 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Maintenance Details'),
+        backgroundColor: themeProvider.cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: themeProvider.borderColor),
+        ),
+        title: Text(
+          'Maintenance Details',
+          style: TextStyle(
+            color: themeProvider.textColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 17,
+          ),
+        ),
         content: SizedBox(
           width: 420,
           child: SingleChildScrollView(
@@ -219,15 +290,15 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _detailRow('Name', account.fullName),
-                _detailRow('Email', account.email),
-                _detailRow('Maintenance ID', account.employeeId ?? '-'),
-                _detailRow('Specialization', account.specialization ?? '-'),
-                _detailRow('Contact Number', account.contactNo ?? '-'),
-                _detailRow('Status', account.isActive ? 'Active' : 'Inactive'),
-                _detailRow('Availability', account.availabilityStatus),
-                _detailRow('Created At', createdAt),
-                if (archivedAt != null) _detailRow('Archived At', archivedAt),
+                _detailRow('Name', account.fullName, themeProvider),
+                _detailRow('Email', account.email, themeProvider),
+                _detailRow('Maintenance ID', account.employeeId ?? '-', themeProvider),
+                _detailRow('Specialization', account.specialization ?? '-', themeProvider),
+                _detailRow('Contact Number', account.contactNo ?? '-', themeProvider),
+                _detailRow('Status', account.isActive ? 'Active' : 'Inactive', themeProvider),
+                _detailRow('Availability', account.availabilityStatus, themeProvider),
+                _detailRow('Created At', createdAt, themeProvider),
+                if (archivedAt != null) _detailRow('Archived At', archivedAt, themeProvider),
               ],
             ),
           ),
@@ -235,14 +306,14 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Close'),
+            child: Text('Close', style: TextStyle(color: themeProvider.primaryColor, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  Widget _detailRow(String label, String value) {
+  Widget _detailRow(String label, String value, ThemeProvider themeProvider) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Column(
@@ -250,18 +321,19 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF64748B),
+              color: themeProvider.subtitleColor,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
-              color: Color(0xFF0F172A),
+              color: themeProvider.textColor,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -286,6 +358,7 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final busyCount = _activeAccounts.where((a) {
       final s = a.availabilityStatus.toLowerCase();
       return s == 'busy' || s == 'working';
@@ -299,41 +372,61 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
     final accounts = _filteredAccounts;
 
     return Scaffold(
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        title: const Text('Maintenance Management'),
+        backgroundColor: themeProvider.appBarColor,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Text(
+          'Maintenance Staff',
+          style: TextStyle(
+            color: themeProvider.textColor,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            icon: const Icon(Icons.refresh_rounded),
+            icon: Icon(Icons.refresh_rounded, color: themeProvider.textColor),
             onPressed: () => _loadAccounts(showLoading: true),
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF4169E1)))
           : Column(
               children: [
                 // ── Master Schedule Top Action Banner ──
                 Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-                  color: Colors.white,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  color: themeProvider.cardColor,
                   child: Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: _viewMasterSchedule,
-                          icon: const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xFF0F766E)),
+                          icon: const Icon(Icons.calendar_month_rounded, size: 16),
                           label: const Text(
                             'View Schedule',
                             style: TextStyle(
-                              color: Color(0xFF0F766E),
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Color(0xFF0F766E), width: 1.2),
-                            backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.06),
+                            side: BorderSide(
+                              color: themeProvider.isDarkMode ? const Color(0xFF14B8A6) : const Color(0xFF0F766E),
+                              width: 1.2,
+                            ),
+                            backgroundColor: const Color(0xFF0F766E).withValues(
+                              alpha: themeProvider.isDarkMode ? 0.15 : 0.06,
+                            ),
+                            foregroundColor: themeProvider.isDarkMode ? const Color(0xFF14B8A6) : const Color(0xFF0F766E),
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
@@ -366,133 +459,222 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
                     ],
                   ),
                 ),
-                // ── Binary Availability Filter Pills (All / Available / Busy) ──
+                // ── Availability Filter Pills (All / Available / Busy) ──
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: themeProvider.cardColor,
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _buildFilterPill('All', _activeAccounts.length, const Color(0xFF4169E1)),
+                        _buildFilterPill('All', _activeAccounts.length, const Color(0xFF4169E1), themeProvider),
                         const SizedBox(width: 8),
-                        _buildFilterPill('Available', availableCount, const Color(0xFF10B981)),
+                        _buildFilterPill('Available', availableCount, const Color(0xFF10B981), themeProvider),
                         const SizedBox(width: 8),
-                        _buildFilterPill('Busy', busyCount, const Color(0xFFF59E0B)),
+                        _buildFilterPill('Busy', busyCount, const Color(0xFFF59E0B), themeProvider),
                       ],
                     ),
                   ),
                 ),
-                const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                Divider(height: 1, color: themeProvider.dividerColor),
                 Expanded(
                   child: accounts.isEmpty
-                      ? const Center(
-                          child: Text('No maintenance accounts found.'),
+                      ? Center(
+                          child: Text(
+                            'No maintenance accounts found.',
+                            style: TextStyle(color: themeProvider.subtitleColor, fontSize: 14),
+                          ),
                         )
                       : RefreshIndicator(
                           onRefresh: _loadAccounts,
+                          color: const Color(0xFF4169E1),
                           child: ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 92),
                             children: [
                               ...accounts.map((account) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: Card(
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                      side: const BorderSide(
-                                        color: Color(0xFFE5E7EB),
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    color: themeProvider.cardColor,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: themeProvider.borderColor),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: themeProvider.isDarkMode ? 0.2 : 0.04,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 3),
                                       ),
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 10,
-                                      ),
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          CircleAvatar(
-                                            radius: 22,
-                                            backgroundColor: const Color(
-                                              0xFF4169E1,
-                                            ).withValues(alpha: 0.12),
-                                            child: const Icon(
-                                              Icons.engineering,
-                                              color: Color(0xFF4169E1),
+                                    ],
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(14),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Row 1: Avatar, Name & Email, Status Badge
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            Container(
+                                              width: 44,
+                                              height: 44,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF4169E1).withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: const Icon(
+                                                Icons.engineering_rounded,
+                                                color: Color(0xFF4169E1),
+                                                size: 24,
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Column(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: Text(
-                                                        account.fullName,
-                                                        maxLines: 1,
-                                                        overflow:
-                                                            TextOverflow.ellipsis,
-                                                        style: const TextStyle(
-                                                          fontWeight:
-                                                               FontWeight.w700,
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    account.fullName,
+                                                    style: TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: themeProvider.textColor,
                                                     ),
-                                                    const SizedBox(width: 6),
-                                                    AvailabilityStatusBadge(
-                                                      status: account
-                                                          .availabilityStatus,
-                                                      size: BadgeSize.small,
-                                                      showLabel: true,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    account.email,
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w500,
+                                                      color: themeProvider.subtitleColor,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            AvailabilityStatusBadge(
+                                              status: account.availabilityStatus,
+                                              size: BadgeSize.small,
+                                              showLabel: true,
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        // Row 2: Specialization tag + Actions (Details & Message)
+                                        Row(
+                                          children: [
+                                            // Specialization Pill
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: themeProvider.inputFillColor,
+                                                borderRadius: BorderRadius.circular(8),
+                                                border: Border.all(color: themeProvider.borderColor),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.build_circle_outlined,
+                                                    size: 13,
+                                                    color: themeProvider.subtitleColor,
+                                                  ),
+                                                  const SizedBox(width: 5),
+                                                  Text(
+                                                    account.specialization ?? 'General Maintenance',
+                                                    style: TextStyle(
+                                                      fontSize: 11.5,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: themeProvider.subtitleColor,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const Spacer(),
+                                            // View Details Button
+                                            InkWell(
+                                              onTap: () => _showMaintenanceDetails(account),
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                                                decoration: BoxDecoration(
+                                                  color: themeProvider.inputFillColor,
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  border: Border.all(color: themeProvider.borderColor),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.visibility_outlined,
+                                                      size: 14,
+                                                      color: themeProvider.subtitleColor,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'Details',
+                                                      style: TextStyle(
+                                                        fontSize: 11.5,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: themeProvider.subtitleColor,
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  'Spec: ${account.specialization ?? '-'} • ${account.email}',
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                    fontSize: 12,
-                                                    color: Color(0xFF64748B),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            // Message Button
+                                            InkWell(
+                                              onTap: () => _startChatWithMaintenance(account),
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFF4169E1).withValues(
+                                                    alpha: themeProvider.isDarkMode ? 0.2 : 0.08,
+                                                  ),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: const Color(0xFF4169E1).withValues(
+                                                      alpha: themeProvider.isDarkMode ? 0.4 : 0.25,
+                                                    ),
                                                   ),
                                                 ),
-                                              ],
+                                                child: const Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.chat_bubble_outline_rounded,
+                                                      size: 13,
+                                                      color: Color(0xFF4169E1),
+                                                    ),
+                                                    SizedBox(width: 4),
+                                                    Text(
+                                                      'Message',
+                                                      style: TextStyle(
+                                                        fontSize: 11.5,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: Color(0xFF4169E1),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          // Details Button
-                                          IconButton(
-                                            tooltip: 'View details',
-                                            iconSize: 20,
-                                            padding: EdgeInsets.zero,
-                                            constraints:
-                                                const BoxConstraints(
-                                              minWidth: 30,
-                                              minHeight: 30,
-                                            ),
-                                            icon: const Icon(
-                                              Icons.visibility_outlined,
-                                              color: Color(0xFF64748B),
-                                            ),
-                                            onPressed: () =>
-                                                _showMaintenanceDetails(
-                                              account,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 );
@@ -506,19 +688,25 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
     );
   }
 
-  Widget _buildFilterPill(String label, int count, Color color) {
+  Widget _buildFilterPill(String label, int count, Color color, ThemeProvider themeProvider) {
     final isSelected = _statusFilter == label;
+    final unselectedBg = themeProvider.isDarkMode ? themeProvider.cardColor : Colors.white;
+    final unselectedBorder = themeProvider.borderColor;
+    final unselectedText = themeProvider.subtitleColor;
+
     return InkWell(
       onTap: () => setState(() => _statusFilter = label),
       borderRadius: BorderRadius.circular(20),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.12) : Colors.white,
+          color: isSelected
+              ? color.withValues(alpha: themeProvider.isDarkMode ? 0.2 : 0.12)
+              : unselectedBg,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? color : const Color(0xFFE2E8F0),
+            color: isSelected ? color : unselectedBorder,
             width: isSelected ? 1.5 : 1,
           ),
         ),
@@ -530,13 +718,13 @@ class _MaintenanceManagementPageState extends State<MaintenanceManagementPage> {
               height: 7,
               decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 6),
             Text(
               '$label ($count)',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                color: isSelected ? color : const Color(0xFF64748B),
+                color: isSelected ? color : unselectedText,
               ),
             ),
           ],

@@ -5,7 +5,6 @@ import '../../../../shared/models/room_model.dart';
 import '../../../../shared/services/room_service.dart';
 import '../../../../shared/services/work_request_service.dart';
 import '../../../../shared/widgets/attachment_image_widget.dart';
-import 'edit_room_page.dart';
 
 class RoomDetailsPage extends StatefulWidget {
   final Room room;
@@ -83,17 +82,6 @@ class _RoomDetailsPageState extends State<RoomDetailsPage> {
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, color: Color(0xFF4169E1)),
-            tooltip: 'Edit Room',
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => EditRoomPage(room: _room)),
-              );
-              _fetchFreshRoom();
-            },
-          ),
           IconButton(
             icon: Icon(Icons.refresh_rounded, color: themeProvider.appBarIconColor),
             tooltip: 'Refresh',
@@ -300,7 +288,7 @@ class _RoomDetailsPageState extends State<RoomDetailsPage> {
                             const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFF4169E1)),
                             const SizedBox(width: 8),
                             Text(
-                              'Room Attributes',
+                              'Room Information',
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.bold,

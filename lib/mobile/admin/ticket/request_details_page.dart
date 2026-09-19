@@ -13,7 +13,6 @@ import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/services/maintenance_account_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
-import '../../../shared/widgets/availability_status_badge.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'work_request_completion_page.dart';
 import 'admin_approval_signature_page.dart';
@@ -51,7 +50,6 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
   final Map<String, String> _maintenanceStatusById = {};
   RealtimeChannel? _realtimeChannel;
   Timer? _autoRefreshTimer;
-  bool _isAssigningMaintenance = false;
   bool _isSubmittingAdminCompletionSignature = false;
   int _selectedTab = 0; // 0: Work Request Timeline, 1: Details
 
@@ -425,54 +423,6 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     return name;
   }
 
-  Future<void> _assignMaintenanceToRequest(String maintenanceId) async {
-    final normalizedId = maintenanceId.trim();
-    if (normalizedId.isEmpty) return;
-
-    final currentAssigned = _request.assignedToId?.trim();
-    if (currentAssigned == normalizedId) return;
-
-    setState(() => _isAssigningMaintenance = true);
-
-    try {
-      await WorkRequestService.assignTo(_request.id, normalizedId);
-      await _loadWorkflowData();
-
-      final maintenanceName = _assignedMaintenanceName(normalizedId);
-      try {
-        await AppNotificationService.createForUser(
-          targetUserId: normalizedId,
-          title: 'New Work Request Assignment',
-          message: 'You were assigned to work request ${_request.id} by admin.',
-          type: 'work_request_assigned',
-          workRequestId: _request.id,
-        );
-      } catch (_) {
-        // Assignment is already persisted; ignore notification failure to keep UX consistent.
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Assigned to $maintenanceName.'),
-          backgroundColor: const Color(0xFF059669),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to assign maintenance: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isAssigningMaintenance = false);
-      }
-    }
-  }
-
   Future<void> _onApproveRequest() async {
     final nav = Navigator.of(context);
     final approved = await nav.push<bool>(
@@ -843,7 +793,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                           ),
                         ),
                       ),
-                      if (request.priority == 'high')
+                      if (request.status.toLowerCase() != 'pending' &&
+                          request.status.toLowerCase() != 'pending assignment' &&
+                          request.priority == 'high')
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -1620,82 +1572,6 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                 themeProvider: themeProvider,
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: (() {
-                  final assignedId = request.assignedToId?.trim();
-                  if (assignedId == null || assignedId.isEmpty) return null;
-                  return _maintenanceNamesById.containsKey(assignedId) ? assignedId : null;
-                })(),
-                isExpanded: true,
-                dropdownColor: themeProvider.cardColor,
-                style: TextStyle(fontSize: 13, color: themeProvider.textColor),
-                hint: Text('Select maintenance staff', style: TextStyle(color: themeProvider.mutedTextColor)),
-                items: _maintenanceNamesById.entries
-                    .map(
-                      (entry) => DropdownMenuItem<String>(
-                        value: entry.key,
-                        child: Row(
-                          children: [
-                            AvailabilityStatusBadge(
-                              status: _maintenanceStatusById[entry.key] ?? 'offline',
-                              size: BadgeSize.small,
-                              showLabel: false,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                (() {
-                                  final specialization = (_maintenanceSpecializationsById[entry.key] ?? '').trim();
-                                  if (specialization.isNotEmpty) {
-                                    return '${entry.value} ($specialization)';
-                                  }
-                                  return entry.value;
-                                })(),
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(color: themeProvider.textColor),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (_isAssigningMaintenance || !_isUnassigned(request.assignedToId))
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          _assignMaintenanceToRequest(value);
-                        }
-                      },
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  filled: true,
-                  fillColor: themeProvider.inputFillColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: themeProvider.borderColor),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: themeProvider.borderColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFF4169E1)),
-                  ),
-                  suffixIcon: _isAssigningMaintenance
-                    ? const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : null,
-                ),
-              ),
-              const SizedBox(height: 12),
               _buildInfoRow(
                 'Assigned Staff',
                 _assignedMaintenanceName(request.assignedToId),
@@ -2275,7 +2151,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     // 2. Assignment
     final isAssigned = !_isUnassigned(request.assignedToId);
     final assignSig = _signatures.firstWhere(
-      (s) => s.signatureType == 'approval',
+      (s) => s.signatureType == 'approval' || s.signatureType == 'admin_approval',
       orElse: () => ESignature(
         id: '',
         workRequestId: '',
@@ -2287,14 +2163,27 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
         signedAt: DateTime.now(),
       ),
     );
+
+    final hasAdminSig = assignSig.signatureData.isNotEmpty ||
+        _signatures.any((s) =>
+            (s.signatureType == 'approval' || s.signatureType == 'admin_approval') &&
+            s.signatureData.isNotEmpty);
+    final isStatusApproved = request.status.toLowerCase() != 'pending' &&
+        request.status.toLowerCase() != 'pending approval' &&
+        request.status.toLowerCase() != 'rejected' &&
+        request.status.toLowerCase() != 'cancelled';
+    final isAdminApproved = isStatusApproved && hasAdminSig && isAssigned;
+
     items.add(
       _buildTimelineItem(
         title: 'Admin Approved & Assigned',
-        isDone: isAssigned,
-        subtitle: isAssigned
+        isDone: isAdminApproved,
+        subtitle: isAdminApproved
             ? 'Approved and assigned to ${_assignedMaintenanceName(request.assignedToId)}'
-            : 'Awaiting admin review & assignment',
-        signature: assignSig.signatureData.isNotEmpty ? assignSig : null,
+            : (isAssigned
+                ? 'Assigned to ${_assignedMaintenanceName(request.assignedToId)} (Awaiting admin approval & signature)'
+                : 'Awaiting admin review & assignment'),
+        signature: isAdminApproved && assignSig.signatureData.isNotEmpty ? assignSig : null,
         themeProvider: themeProvider,
       ),
     );
@@ -2313,8 +2202,11 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
         signedAt: DateTime.now(),
       ),
     );
-    final isAccepted = acceptSig.signatureData.isNotEmpty ||
-        (request.status.toLowerCase() != 'pending' && request.status.toLowerCase() != 'pending assignment');
+    final isAccepted = isAdminApproved &&
+        (acceptSig.signatureData.isNotEmpty ||
+            (request.status.toLowerCase() != 'pending' &&
+                request.status.toLowerCase() != 'pending assignment' &&
+                request.status.toLowerCase() != 'approved'));
     items.add(
       _buildTimelineItem(
         title: 'Technician Accepted Task',
@@ -2322,7 +2214,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
         subtitle: isAccepted
             ? 'Accepted by ${request.acceptedByName ?? _assignedMaintenanceName(request.assignedToId)} on ${_formatDateTime(request.acceptedDate ?? acceptSig.signedAt)}'
             : 'Awaiting technician acceptance',
-        signature: acceptSig.signatureData.isNotEmpty ? acceptSig : null,
+        signature: isAccepted && acceptSig.signatureData.isNotEmpty ? acceptSig : null,
         themeProvider: themeProvider,
       ),
     );

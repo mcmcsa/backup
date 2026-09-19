@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/widgets/workflow_status_badge.dart';
+import '../../../shared/providers/theme_provider.dart';
+import '../ticket/request_details_page.dart';
+import '../../../shared/widgets/room_comparison_dialog.dart';
 
 class _HistoryDayGroup {
   final DateTime day;
@@ -288,6 +292,22 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
     return DateFormat('MMM dd, yyyy').format(date);
   }
 
+  void _openRequestDetails(WorkRequest request) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RequestDetailsPage(request: request),
+      ),
+    );
+  }
+
+  void _showRoomComparison(String roomId) {
+    showDialog(
+      context: context,
+      builder: (context) => RoomComparisonDialog(roomId: roomId),
+    );
+  }
+
   Widget _buildSummaryCard(List<_HistoryDayGroup> groups) {
     final completedCount = groups.fold<int>(
       0,
@@ -297,6 +317,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
       0,
       (sum, group) => sum + group.entries.where((request) => request.status.toLowerCase() == 'cancelled' || request.status.toLowerCase() == 'declined').length,
     );
+    final totalCount = completedCount + declinedCount;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -308,14 +329,21 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4169E1).withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
+          Expanded(child: _buildSummaryItem('Total Records', totalCount.toString())),
+          Container(width: 1, height: 38, color: Colors.white.withValues(alpha: 0.2)),
           Expanded(child: _buildSummaryItem('Completed', completedCount.toString())),
           Container(width: 1, height: 38, color: Colors.white.withValues(alpha: 0.2)),
           Expanded(child: _buildSummaryItem('Declined', declinedCount.toString())),
-          Container(width: 1, height: 38, color: Colors.white.withValues(alpha: 0.2)),
-          Expanded(child: _buildSummaryItem('Days', groups.length.toString())),
         ],
       ),
     );
@@ -354,128 +382,220 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
     );
   }
 
-  Widget _buildRequestCard(WorkRequest request) {
+  Widget _buildRequestCard(WorkRequest request, ThemeProvider themeProvider) {
     final isCompleted = request.status.toLowerCase() == 'completed';
     final statusColor = isCompleted ? const Color(0xFF059669) : const Color(0xFFDC2626);
     final time = DateFormat('hh:mm a').format(request.dateSubmitted);
+    final shortId = request.id.length > 8 ? request.id.substring(0, 8) : request.id;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.isDarkMode
+            ? themeProvider.cardColor
+            : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: themeProvider.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: themeProvider.isDarkMode ? 0.2 : 0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  isCompleted ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                  color: statusColor,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _openRequestDetails(request),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            isCompleted ? 'Completed Request' : 'Declined Request',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        isCompleted ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                        color: statusColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF4169E1).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '#$shortId',
+                                  style: const TextStyle(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF4169E1),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  isCompleted ? 'Completed Request' : 'Declined Request',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: themeProvider.textColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Text(
+                                time,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: themeProvider.subtitleColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            request.title,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: themeProvider.textColor,
                             ),
                           ),
-                        ),
-                        Text(
-                          time,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF64748B),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Requestor: ${request.requestorName}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: themeProvider.subtitleColor,
+                            ),
                           ),
+                          Text(
+                            'Location: ${request.buildingName ?? "-"} • ${request.officeRoom ?? "-"}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: themeProvider.subtitleColor,
+                            ),
+                          ),
+                          if ((request.department?.isNotEmpty) ?? false)
+                            Text(
+                              'Department: ${request.department}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: themeProvider.subtitleColor,
+                              ),
+                            ),
+                          if (isCompleted && request.dateCompleted != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                'Completed: ${_formatDate(request.dateCompleted!)}',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: Color(0xFF059669),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          if (!isCompleted)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: Text(
+                                'Declined / Cancelled',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: Color(0xFFDC2626),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        WorkflowStatusBadge(status: request.status),
+                        const SizedBox(height: 8),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: themeProvider.subtitleColor,
+                          size: 20,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      request.title,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF334155),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Requestor: ${request.requestorName}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF475569),
-                      ),
-                    ),
-                    Text(
-                      'Location: ${request.buildingName} • ${request.officeRoom}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF475569),
-                      ),
-                    ),
-                    if ((request.department?.isNotEmpty) ?? false)
-                      Text(
-                        'Department: ${request.department}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF475569),
-                        ),
-                      ),
-                    if (isCompleted && request.dateCompleted != null)
-                      Text(
-                        'Completed: ${_formatDate(request.dateCompleted!)}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF059669),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    if (!isCompleted)
-                      const Text(
-                        'Declined',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFFDC2626),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              WorkflowStatusBadge(status: request.status),
-            ],
+                if (request.roomId != null && request.roomId!.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Divider(height: 1, color: themeProvider.borderColor),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () => _showRoomComparison(request.roomId!),
+                        icon: const Icon(Icons.compare_rounded, size: 14),
+                        label: const Text(
+                          'Room Comparison',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          side: BorderSide(color: const Color(0xFF4169E1).withValues(alpha: 0.4)),
+                          foregroundColor: const Color(0xFF4169E1),
+                          visualDensity: VisualDensity.compact,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: () => _openRequestDetails(request),
+                        icon: const Icon(Icons.open_in_new_rounded, size: 13),
+                        label: const Text(
+                          'View Ticket',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          foregroundColor: const Color(0xFF0F766E),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildDayCard(_HistoryDayGroup group) {
+  Widget _buildDayCard(_HistoryDayGroup group, ThemeProvider themeProvider) {
     final dateLabel = DateFormat('MMMM dd, yyyy').format(group.day);
     final completedCount = group.entries.where((request) => request.status.toLowerCase() == 'completed').length;
     final declinedCount = group.entries.where((request) => request.status.toLowerCase() == 'cancelled' || request.status.toLowerCase() == 'declined').length;
@@ -484,14 +604,14 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: const [
+        border: Border.all(color: themeProvider.borderColor),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x080F172A),
-            blurRadius: 18,
-            offset: Offset(0, 6),
+            color: Colors.black.withValues(alpha: themeProvider.isDarkMode ? 0.2 : 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -520,18 +640,18 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                   children: [
                     Text(
                       dateLabel,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF0F172A),
+                        color: themeProvider.textColor,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '$completedCount completed • $declinedCount declined',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF64748B),
+                        color: themeProvider.subtitleColor,
                       ),
                     ),
                   ],
@@ -540,7 +660,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
             ],
           ),
           const SizedBox(height: 14),
-          ...group.entries.map(_buildRequestCard),
+          ...group.entries.map((entry) => _buildRequestCard(entry, themeProvider)),
         ],
       ),
     );
@@ -548,50 +668,61 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final filteredRequests = _filteredRequests;
     final groupedRequests = _groupRequestsByDay(filteredRequests);
     final isNarrow = MediaQuery.of(context).size.width < 420;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.cardColor,
         elevation: 0,
-        title: const Text(
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
           'History',
           style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.w600,
+            color: themeProvider.textColor,
+            fontWeight: FontWeight.w700,
           ),
         ),
+        centerTitle: true,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF4169E1)))
           : RefreshIndicator(
               onRefresh: _loadRequests,
+              color: const Color(0xFF4169E1),
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.only(bottom: 16),
                 children: [
                   Container(
-                    color: Colors.white,
+                    color: themeProvider.cardColor,
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
                         TextField(
                           controller: _searchController,
                           onChanged: (_) => setState(() {}),
+                          style: TextStyle(
+                            color: themeProvider.textColor,
+                            fontSize: 14,
+                          ),
                           decoration: InputDecoration(
                             hintText: 'Search completed or declined requests...',
                             hintStyle: TextStyle(
-                              color: Colors.grey.shade400,
+                              color: themeProvider.subtitleColor,
                               fontSize: 14,
                             ),
                             prefixIcon: Padding(
                               padding: const EdgeInsets.only(left: 12, right: 8),
                               child: Icon(
                                 Icons.search_rounded,
-                                color: Colors.grey.shade400,
+                                color: themeProvider.subtitleColor,
                                 size: 20,
                               ),
                             ),
@@ -600,14 +731,14 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                               minHeight: 44,
                             ),
                             filled: true,
-                            fillColor: Colors.white,
+                            fillColor: themeProvider.inputFillColor,
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(999),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
+                              borderSide: BorderSide(color: themeProvider.borderColor),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(999),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
+                              borderSide: BorderSide(color: themeProvider.borderColor),
                             ),
                             focusedBorder: const OutlineInputBorder(
                               borderRadius: BorderRadius.all(Radius.circular(999)),
@@ -624,11 +755,11 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: [
-                              _buildFilterChip('All'),
+                              _buildFilterChip('All', themeProvider),
                               const SizedBox(width: 8),
-                              _buildFilterChip('Completed'),
+                              _buildFilterChip('Completed', themeProvider),
                               const SizedBox(width: 8),
-                              _buildFilterChip('Declined'),
+                              _buildFilterChip('Declined', themeProvider),
                             ],
                           ),
                         ),
@@ -645,8 +776,8 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF1E293B),
-                                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                foregroundColor: themeProvider.textColor,
+                                side: BorderSide(color: themeProvider.borderColor),
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 14,
                                   vertical: 12,
@@ -666,7 +797,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade600,
+                                  color: themeProvider.subtitleColor,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -686,10 +817,10 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                                         ),
                                         child: Text(
                                           '${DateFormat('MMM dd').format(_startDate!)} -> ${DateFormat('MMM dd, yyyy').format(_endDate!)}',
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 12,
                                             fontWeight: FontWeight.w700,
-                                            color: Color(0xFF1E293B),
+                                            color: themeProvider.textColor,
                                           ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -701,7 +832,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                                       onPressed: _showDateRangePicker,
                                       icon: const Icon(Icons.edit_rounded, size: 18),
                                       style: IconButton.styleFrom(
-                                        backgroundColor: const Color(0xFFF1F5F9),
+                                        backgroundColor: themeProvider.inputFillColor,
                                         foregroundColor: const Color(0xFF4169E1),
                                         minimumSize: const Size(32, 32),
                                         padding: const EdgeInsets.all(6),
@@ -713,7 +844,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                                       onPressed: _clearDateRange,
                                       icon: const Icon(Icons.close_rounded, size: 18),
                                       style: IconButton.styleFrom(
-                                        backgroundColor: const Color(0xFFF1F5F9),
+                                        backgroundColor: themeProvider.inputFillColor,
                                         foregroundColor: const Color(0xFFDC2626),
                                         minimumSize: const Size(32, 32),
                                         padding: const EdgeInsets.all(6),
@@ -743,16 +874,16 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w500,
-                                                color: Colors.grey.shade600,
+                                                color: themeProvider.subtitleColor,
                                               ),
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
                                               DateFormat('MMM dd, yyyy').format(_startDate!),
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w700,
-                                                color: Color(0xFF1E293B),
+                                                color: themeProvider.textColor,
                                               ),
                                             ),
                                           ],
@@ -763,7 +894,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                                       padding: const EdgeInsets.symmetric(horizontal: 12),
                                       child: Icon(
                                         Icons.arrow_forward_rounded,
-                                        color: Colors.grey.shade400,
+                                        color: themeProvider.subtitleColor,
                                         size: 20,
                                       ),
                                     ),
@@ -786,16 +917,16 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w500,
-                                                color: Colors.grey.shade600,
+                                                color: themeProvider.subtitleColor,
                                               ),
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
                                               DateFormat('MMM dd, yyyy').format(_endDate!),
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w700,
-                                                color: Color(0xFF1E293B),
+                                                color: themeProvider.textColor,
                                               ),
                                             ),
                                           ],
@@ -808,7 +939,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                                       onPressed: _showDateRangePicker,
                                       icon: const Icon(Icons.edit_rounded),
                                       style: IconButton.styleFrom(
-                                        backgroundColor: const Color(0xFFF1F5F9),
+                                        backgroundColor: themeProvider.inputFillColor,
                                         foregroundColor: const Color(0xFF4169E1),
                                         minimumSize: const Size(36, 36),
                                       ),
@@ -819,7 +950,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                                       onPressed: _clearDateRange,
                                       icon: const Icon(Icons.close_rounded),
                                       style: IconButton.styleFrom(
-                                        backgroundColor: const Color(0xFFF1F5F9),
+                                        backgroundColor: themeProvider.inputFillColor,
                                         foregroundColor: const Color(0xFFDC2626),
                                         minimumSize: const Size(36, 36),
                                       ),
@@ -836,10 +967,10 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
                       '${filteredRequests.length} requests found',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B),
+                        color: themeProvider.subtitleColor,
                       ),
                     ),
                   ),
@@ -849,31 +980,31 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
                       margin: const EdgeInsets.symmetric(horizontal: 16),
                       padding: const EdgeInsets.all(32),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: themeProvider.cardColor,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: themeProvider.borderColor),
                       ),
-                      child: const Column(
+                      child: Column(
                         children: [
-                          Icon(Icons.history_rounded, size: 48, color: Color(0xFF9CA3AF)),
-                          SizedBox(height: 16),
+                          Icon(Icons.history_rounded, size: 48, color: themeProvider.subtitleColor.withValues(alpha: 0.4)),
+                          const SizedBox(height: 16),
                           Text(
                             'No completed or declined requests found',
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+                            style: TextStyle(fontSize: 14, color: themeProvider.subtitleColor),
                           ),
                         ],
                       ),
                     )
                   else
-                    ...groupedRequests.map(_buildDayCard),
+                    ...groupedRequests.map((group) => _buildDayCard(group, themeProvider)),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildFilterChip(String label) {
+  Widget _buildFilterChip(String label, ThemeProvider themeProvider) {
     final isSelected = _selectedFilter == label;
 
     return ChoiceChip(
@@ -885,14 +1016,14 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
         });
       },
       selectedColor: const Color(0xFF4169E1),
-      backgroundColor: Colors.white,
+      backgroundColor: themeProvider.inputFillColor,
       labelStyle: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: isSelected ? Colors.white : const Color(0xFF1E293B),
+        color: isSelected ? Colors.white : themeProvider.textColor,
       ),
       side: BorderSide(
-        color: isSelected ? const Color(0xFF4169E1) : const Color(0xFFE2E8F0),
+        color: isSelected ? const Color(0xFF4169E1) : themeProvider.borderColor,
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(999),

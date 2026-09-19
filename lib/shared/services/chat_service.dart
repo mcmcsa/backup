@@ -626,14 +626,16 @@ class ChatService {
     List<String> allowedRoles = [];
     switch (currentUserRole) {
       case 'teacher':
-        allowedRoles = ['admin', 'campadmin'];
+        allowedRoles = ['campadmin'];
         break;
-      case 'admin':
       case 'campadmin':
-        allowedRoles = ['teacher', 'maintenance', 'admin', 'campadmin'];
+        allowedRoles = ['teacher', 'maintenance', 'campadmin'];
         break;
       case 'maintenance':
-        allowedRoles = ['admin', 'campadmin'];
+        allowedRoles = ['campadmin'];
+        break;
+      case 'admin':
+        allowedRoles = ['campadmin', 'teacher', 'maintenance'];
         break;
     }
 

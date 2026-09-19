@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../services/chat_service.dart';
 
 class NewChatDialog extends StatefulWidget {
@@ -33,14 +35,12 @@ class _NewChatDialogState extends State<NewChatDialog> {
   String? _workRequestId;
 
   static const Map<String, Color> _roleColors = {
-    'admin': Color(0xFF0369A1),
-    'campadmin': Color(0xFF0369A1),
-    'teacher': Color(0xFF7C3AED),
+    'campadmin': Color(0xFF0284C7),
+    'teacher': Color(0xFF8B5CF6),
     'maintenance': Color(0xFF0F766E),
   };
 
   static const Map<String, String> _roleLabels = {
-    'admin': 'Administrator',
     'campadmin': 'Campus Admin',
     'teacher': 'Faculty',
     'maintenance': 'Maintenance',
@@ -65,10 +65,21 @@ class _NewChatDialogState extends State<NewChatDialog> {
         currentUserId: widget.currentUserId,
         currentUserRole: widget.currentUserRole,
       );
+
+      // Filter out System Administrator entirely
+      final eligible = users.where((u) {
+        final role = (u['role'] as String? ?? '').toLowerCase();
+        final name = (u['name'] as String? ?? '').toLowerCase();
+        if (role == 'admin' || name.contains('system admin')) {
+          return false;
+        }
+        return true;
+      }).toList();
+
       if (mounted) {
         setState(() {
-          _users = users;
-          _filtered = users;
+          _users = eligible;
+          _filtered = eligible;
           _isLoading = false;
         });
       }
@@ -78,57 +89,75 @@ class _NewChatDialogState extends State<NewChatDialog> {
   }
 
   void _applyFilter() {
-    final q = _searchCtrl.text.toLowerCase();
+    final q = _searchCtrl.text.trim().toLowerCase();
     setState(() {
       _filtered = q.isEmpty
           ? _users
-          : _users
-              .where((u) =>
-                  (u['name'] as String? ?? '').toLowerCase().contains(q) ||
-                  (u['email'] as String? ?? '').toLowerCase().contains(q))
-              .toList();
+          : _users.where((u) {
+              final name = (u['name'] as String? ?? '').toLowerCase();
+              final email = (u['email'] as String? ?? '').toLowerCase();
+              final role = (u['role'] as String? ?? '').toLowerCase();
+              final roleLabel = (_roleLabels[role] ?? '').toLowerCase();
+              return name.contains(q) ||
+                  email.contains(q) ||
+                  role.contains(q) ||
+                  roleLabel.contains(q);
+            }).toList();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: themeProvider.cardColor,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isDark ? themeProvider.borderColor : Colors.transparent,
+          width: 1,
+        ),
+      ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 600),
+        constraints: const BoxConstraints(maxWidth: 440, maxHeight: 620),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildHeader(),
-            _buildSearchBar(),
-            Flexible(child: _buildUserList()),
-            _buildActions(),
+            _buildHeader(themeProvider, isDark),
+            _buildSearchBar(themeProvider, isDark),
+            const SizedBox(height: 6),
+            Flexible(child: _buildUserList(themeProvider, isDark)),
+            _buildActions(themeProvider, isDark),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(ThemeProvider themeProvider, bool isDark) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 20, 16, 12),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+              color: isDark
+                  ? const Color(0xFF0F766E).withValues(alpha: 0.25)
+                  : const Color(0xFF0F766E).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.chat_bubble_outline_rounded,
-              color: Color(0xFF0F766E),
+              color: isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0F766E),
               size: 20,
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -137,12 +166,16 @@ class _NewChatDialogState extends State<NewChatDialog> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF134E4A),
+                    color: themeProvider.textColor,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   'Select a person to message',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: themeProvider.subtitleColor,
+                  ),
                 ),
               ],
             ),
@@ -150,27 +183,36 @@ class _NewChatDialogState extends State<NewChatDialog> {
           IconButton(
             icon: const Icon(Icons.close_rounded),
             onPressed: () => Navigator.pop(context),
-            color: Colors.grey,
+            color: themeProvider.subtitleColor,
+            tooltip: 'Close',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(ThemeProvider themeProvider, bool isDark) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
+          color: isDark
+              ? themeProvider.inputFillColor
+              : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(
+            color: isDark ? themeProvider.inputBorderColor : const Color(0xFFE2E8F0),
+          ),
         ),
         child: TextField(
           controller: _searchCtrl,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Search by name or email…',
-            prefixIcon: Icon(Icons.search_rounded, size: 20, color: Color(0xFF94A3B8)),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              size: 20,
+              color: themeProvider.subtitleColor,
+            ),
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
@@ -178,31 +220,58 @@ class _NewChatDialogState extends State<NewChatDialog> {
             errorBorder: InputBorder.none,
             focusedErrorBorder: InputBorder.none,
             filled: false,
-            contentPadding: EdgeInsets.symmetric(vertical: 10),
-            hintStyle: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+            contentPadding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+            hintStyle: TextStyle(
+              fontSize: 13,
+              color: themeProvider.subtitleColor,
+            ),
           ),
-          style: const TextStyle(fontSize: 13),
+          style: TextStyle(
+            fontSize: 13,
+            color: themeProvider.textColor,
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildUserList() {
+  Widget _buildUserList(ThemeProvider themeProvider, bool isDark) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: CircularProgressIndicator(
+            color: const Color(0xFF0F766E),
+            strokeWidth: 2.5,
+          ),
+        ),
+      );
     }
     if (_filtered.isEmpty) {
-      return const Center(
-        child: Text(
-          'No users found',
-          style: TextStyle(color: Colors.grey, fontSize: 14),
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.person_off_rounded, size: 36, color: themeProvider.subtitleColor),
+              const SizedBox(height: 8),
+              Text(
+                'No eligible users found',
+                style: TextStyle(
+                  color: themeProvider.subtitleColor,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return ListView.builder(
       shrinkWrap: true,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       itemCount: _filtered.length,
       itemBuilder: (_, i) {
         final user = _filtered[i];
@@ -214,94 +283,171 @@ class _NewChatDialogState extends State<NewChatDialog> {
         final roleColor = _roleColors[role] ?? const Color(0xFF0F766E);
         final roleLabel = _roleLabels[role] ?? role;
 
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(vertical: 2),
+        final itemBg = isSelected
+            ? (isDark
+                ? const Color(0xFF0F766E).withValues(alpha: 0.22)
+                : const Color(0xFF0F766E).withValues(alpha: 0.08))
+            : (isDark
+                ? const Color(0xFF242424)
+                : const Color(0xFFF8FAFC));
+
+        final itemBorder = isSelected
+            ? const Color(0xFF0F766E)
+            : (isDark
+                ? themeProvider.borderColor.withValues(alpha: 0.5)
+                : const Color(0xFFE2E8F0));
+
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
-            color: isSelected
-                ? const Color(0xFF0F766E).withValues(alpha: 0.08)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-            border: isSelected
-                ? Border.all(
-                    color: const Color(0xFF0F766E).withValues(alpha: 0.3))
-                : null,
+            color: itemBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: itemBorder,
+              width: isSelected ? 1.5 : 1,
+            ),
           ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: roleColor.withValues(alpha: 0.12),
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: TextStyle(
-                  color: roleColor,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => setState(() => _selectedUserId = isSelected ? null : id),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                child: Row(
+                  children: [
+                    // Avatar
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? roleColor.withValues(alpha: 0.22)
+                            : roleColor.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFF5EEAD4) : roleColor,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Name & Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  name,
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: themeProvider.textColor,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? roleColor.withValues(alpha: 0.22)
+                                      : roleColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  roleLabel,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark
+                                        ? const Color(0xFF5EEAD4)
+                                        : roleColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (email.isNotEmpty) ...[
+                            const SizedBox(height: 3),
+                            Text(
+                              email,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: themeProvider.subtitleColor,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Selection indicator
+                    Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected ? const Color(0xFF0F766E) : Colors.transparent,
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFF0F766E)
+                              : (isDark ? Colors.grey.shade600 : const Color(0xFFCBD5E1)),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check, size: 14, color: Colors.white)
+                          : null,
+                    ),
+                  ],
                 ),
               ),
             ),
-            title: Text(
-              name,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF134E4A),
-              ),
-            ),
-            subtitle: Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: roleColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    roleLabel,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: roleColor,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    email,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF94A3B8),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            trailing: isSelected
-                ? const Icon(
-                    Icons.check_circle_rounded,
-                    color: Color(0xFF0F766E),
-                    size: 22,
-                  )
-                : null,
-            onTap: () => setState(() =>
-                _selectedUserId = isSelected ? null : id),
           ),
         );
       },
     );
   }
 
-  Widget _buildActions() {
+  Widget _buildActions(ThemeProvider themeProvider, bool isDark) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Row(
         children: [
           Expanded(
-            child: TextButton(
+            child: OutlinedButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: themeProvider.textColor,
+                side: BorderSide(
+                  color: isDark ? themeProvider.borderColor : const Color(0xFFCBD5E1),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -311,7 +457,8 @@ class _NewChatDialogState extends State<NewChatDialog> {
                   ? null
                   : () {
                       final user = _users.firstWhere(
-                          (u) => u['id'] == _selectedUserId);
+                        (u) => u['id'] == _selectedUserId,
+                      );
                       Navigator.pop(context);
                       widget.onStartChat(
                         user['id'] as String,
@@ -323,14 +470,19 @@ class _NewChatDialogState extends State<NewChatDialog> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0F766E),
                 foregroundColor: Colors.white,
+                disabledBackgroundColor:
+                    isDark ? const Color(0xFF333333) : Colors.grey.shade300,
+                disabledForegroundColor:
+                    isDark ? Colors.grey.shade600 : Colors.grey.shade500,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
+                elevation: 0,
               ),
               child: const Text(
                 'Start Chat',
-                style: TextStyle(fontWeight: FontWeight.w700),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
               ),
             ),
           ),

@@ -161,14 +161,35 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
 
     // Apply search
     if (query.isNotEmpty) {
-      requests = requests
-          .where(
-            (r) =>
-                r.title.toLowerCase().contains(query) ||
-                r.id.contains(query) ||
-                (r.department ?? '').toLowerCase().contains(query),
-          )
-          .toList();
+      requests = requests.where((r) {
+        final title = r.title.toLowerCase();
+        final id = r.id.toLowerCase();
+        final formattedId = r.formattedId.toLowerCase();
+        final department = (r.department ?? '').toLowerCase();
+        final deptName = (r.departmentName ?? '').toLowerCase();
+        final building = (r.buildingName ?? '').toLowerCase();
+        final room = (r.roomName ?? '').toLowerCase();
+        final officeRoom = (r.officeRoom ?? '').toLowerCase();
+        final roomCode = (r.roomCode ?? '').toLowerCase();
+        final requestor = r.requestorName.toLowerCase();
+        final typeDisplay = r.typeDisplay.toLowerCase();
+        final typeOfReq = r.typeOfRequest.toLowerCase();
+        final assigned = _assignedMaintenanceName(r).toLowerCase();
+
+        return title.contains(query) ||
+            id.contains(query) ||
+            formattedId.contains(query) ||
+            department.contains(query) ||
+            deptName.contains(query) ||
+            building.contains(query) ||
+            room.contains(query) ||
+            officeRoom.contains(query) ||
+            roomCode.contains(query) ||
+            requestor.contains(query) ||
+            typeDisplay.contains(query) ||
+            typeOfReq.contains(query) ||
+            assigned.contains(query);
+      }).toList();
     }
 
     return requests;
@@ -505,21 +526,41 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
             const SizedBox(height: 5),
           ],
 
-          // Room & Department Row (Web-Style)
+          // Room & Department / Building Row (Web-Style)
           Row(
             children: [
               Icon(Icons.location_on_outlined, size: 14, color: themeProvider.subtitleColor),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(
-                  '${request.officeRoom ?? 'N/A'}${request.department != null && request.department!.isNotEmpty ? ' • ${request.department}' : ''}',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w500,
-                    color: themeProvider.subtitleColor,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                child: Builder(
+                  builder: (context) {
+                    final roomName = request.officeRoom ?? request.roomName ?? '';
+                    final roomCode = request.roomCode ?? '';
+                    String roomDisplay = roomName;
+                    if (roomCode.isNotEmpty && !roomName.toLowerCase().contains(roomCode.toLowerCase())) {
+                      roomDisplay = roomName.isNotEmpty ? '$roomName ($roomCode)' : roomCode;
+                    }
+                    if (roomDisplay.isEmpty) roomDisplay = 'N/A';
+
+                    final deptOrBuilding = (request.department != null && request.department!.isNotEmpty)
+                        ? request.department!
+                        : (request.buildingName ?? '');
+
+                    final locationText = deptOrBuilding.isNotEmpty
+                        ? '$roomDisplay • $deptOrBuilding'
+                        : roomDisplay;
+
+                    return Text(
+                      locationText,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: themeProvider.subtitleColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  },
                 ),
               ),
             ],

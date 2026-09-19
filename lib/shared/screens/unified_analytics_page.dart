@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 import '../providers/work_request_provider.dart';
 import '../models/work_request_model.dart';
 import '../models/room_model.dart';
@@ -30,9 +31,6 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
   static const Color _infoBlue = AdminStyles.info;
   static const Color _confirmedIndigo = Color(0xFF6366F1);
   static const Color _reworkOrange = Color(0xFFEA580C);
-  static const Color _darkText = AdminStyles.textPrimary;
-  static const Color _subtleText = AdminStyles.textSecondary;
-  static const Color _pageBg = AdminStyles.bg;
 
   @override
   void initState() {
@@ -204,21 +202,24 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
+    final isDark = theme.isDarkMode;
+
     if (_error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.cloud_off_rounded, size: 64, color: _subtleText),
+            Icon(Icons.cloud_off_rounded, size: 64, color: theme.subtitleColor),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Failed to load analytics',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: _darkText),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: theme.textColor),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'We couldn\'t sync with the server.',
-              style: TextStyle(fontSize: 14, color: _subtleText),
+              style: TextStyle(fontSize: 14, color: theme.subtitleColor),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
@@ -244,7 +245,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
         final isMobile = constraints.maxWidth < 900;
         
         Widget content = Container(
-          color: _pageBg,
+          color: theme.backgroundColor,
           child: (_isLoading || _isRequestsLoading)
               ? const Center(child: CircularProgressIndicator(color: _primaryBlue))
               : SingleChildScrollView(
@@ -253,7 +254,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Header with period selector
-                      _buildHeader(isMobile),
+                      _buildHeader(isMobile, theme),
                       const SizedBox(height: 24),
 
                       // Stats Cards Row
@@ -262,9 +263,9 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
 
                       // Charts Row
                       if (isMobile) ...[
-                        _buildPerformanceCard(),
+                        _buildPerformanceCard(isDark),
                         const SizedBox(height: 16),
-                        _buildStatusDistributionCard(isMobile: true),
+                        _buildStatusDistributionCard(isMobile: true, theme: theme),
                         const SizedBox(height: 16),
                         _buildPriorityCard(),
                         const SizedBox(height: 16),
@@ -278,9 +279,9 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
                               flex: 4,
                               child: Column(
                                 children: [
-                                  _buildPerformanceCard(),
+                                  _buildPerformanceCard(isDark),
                                   const SizedBox(height: 20),
-                                  _buildStatusDistributionCard(isMobile: false),
+                                  _buildStatusDistributionCard(isMobile: false, theme: theme),
                                 ],
                               ),
                             ),
@@ -304,7 +305,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
         );
         if (widget.openDrawer != null) {
           return Scaffold(
-            backgroundColor: _pageBg,
+            backgroundColor: theme.backgroundColor,
             appBar: AdminAppBar(
               openDrawer: widget.openDrawer!,
               subtitle: 'Campus Administrator',
@@ -318,7 +319,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
     );
   }
 
-  Widget _buildHeader(bool isMobile) {
+  Widget _buildHeader(bool isMobile, ThemeProvider theme) {
     if (isMobile) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -328,23 +329,23 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: _primaryBlue.withValues(alpha: 0.1),
+                  color: _primaryBlue.withValues(alpha: theme.isDarkMode ? 0.2 : 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.bar_chart_rounded, color: _primaryBlue, size: 20),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Analytics Dashboard',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: _darkText, letterSpacing: -0.5),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: theme.textColor, letterSpacing: -0.5),
                     ),
                     Text(
                       'Performance metrics and insights',
-                      style: TextStyle(fontSize: 13, color: _subtleText, fontWeight: FontWeight.w500),
+                      style: TextStyle(fontSize: 13, color: theme.subtitleColor, fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
@@ -352,7 +353,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
             ],
           ),
           const SizedBox(height: 16),
-          _buildPeriodSelector(),
+          _buildPeriodSelector(theme),
         ],
       );
     }
@@ -361,41 +362,41 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: _primaryBlue.withValues(alpha: 0.1),
+            color: _primaryBlue.withValues(alpha: theme.isDarkMode ? 0.2 : 0.1),
             borderRadius: BorderRadius.circular(10),
           ),
           child: const Icon(Icons.bar_chart_rounded, color: _primaryBlue, size: 20),
         ),
         const SizedBox(width: 12),
-        const Column(
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Analytics Dashboard',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _darkText, letterSpacing: -0.5),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: theme.textColor, letterSpacing: -0.5),
             ),
             Text(
               'Performance metrics and insights',
-              style: TextStyle(fontSize: 14, color: _subtleText, fontWeight: FontWeight.w500),
+              style: TextStyle(fontSize: 14, color: theme.subtitleColor, fontWeight: FontWeight.w500),
             ),
           ],
         ),
         const Spacer(),
-        _buildPeriodSelector(),
+        _buildPeriodSelector(theme),
       ],
     );
   }
 
-  Widget _buildPeriodSelector() {
+  Widget _buildPeriodSelector(ThemeProvider theme) {
     return Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: theme.cardColor,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AdminStyles.border),
+            border: Border.all(color: theme.borderColor),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
+                color: theme.shadowColor,
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -404,14 +405,15 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _selectedPeriod,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _subtleText),
+              dropdownColor: theme.cardColor,
+              icon: Icon(Icons.keyboard_arrow_down_rounded, color: theme.subtitleColor),
               items: ['Today', 'This Week', 'This Month', 'This Year']
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e, style: TextStyle(color: theme.textColor))))
                   .toList(),
               onChanged: (value) {
                 if (value != null) setState(() => _selectedPeriod = value);
               },
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _darkText),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.textColor),
             ),
           ),
         );
@@ -546,7 +548,7 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
     );
   }
 
-  Widget _buildPerformanceCard() {
+  Widget _buildPerformanceCard(bool isDark) {
     final chartData = _buildDailySubmissionSeries();
 
     return _Card(
@@ -559,13 +561,14 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
           painter: _LineChartPainter(
             data: chartData,
             color: _primaryBlue,
+            isDark: isDark,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStatusDistributionCard({required bool isMobile}) {
+  Widget _buildStatusDistributionCard({required bool isMobile, required ThemeProvider theme}) {
     final segments = [
       _StatusChartSegment(
         label: 'Pending',
@@ -607,25 +610,28 @@ class _UnifiedAnalyticsPageState extends State<UnifiedAnalyticsPage> {
         children: [
           CustomPaint(
             size: const Size(160, 160),
-            painter: _DonutChartPainter(segments: segments),
+            painter: _DonutChartPainter(
+              segments: segments,
+              trackColor: theme.isDarkMode ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+            ),
           ),
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 '$_totalRequests',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF1E293B),
+                  color: theme.textColor,
                 ),
               ),
-              const Text(
+              Text(
                 'Total',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF94A3B8),
+                  color: theme.subtitleColor,
                 ),
               ),
             ],
@@ -735,6 +741,7 @@ class _StatCardState extends State<_StatCard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
     final isMobile = widget.isMobile;
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -744,17 +751,17 @@ class _StatCardState extends State<_StatCard> {
         padding: EdgeInsets.all(isMobile ? 12 : 20),
         transform: Matrix4.identity()..setTranslationRaw(0.0, _isHovered ? -2.0 : 0.0, 0.0),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.cardColor,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: _isHovered ? widget.iconColor.withValues(alpha: 0.5) : AdminStyles.border,
+            color: _isHovered ? widget.iconColor.withValues(alpha: 0.5) : theme.borderColor,
             width: _isHovered ? 1.5 : 1,
           ),
           boxShadow: [
             BoxShadow(
               color: _isHovered
                   ? widget.iconColor.withValues(alpha: 0.12)
-                  : Colors.black.withValues(alpha: 0.03),
+                  : theme.shadowColor,
               blurRadius: _isHovered ? 20 : 10,
               offset: Offset(0, _isHovered ? 6 : 4),
             ),
@@ -813,7 +820,7 @@ class _StatCardState extends State<_StatCard> {
                     style: AdminStyles.headingStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: AdminStyles.textPrimary,
+                      color: theme.textColor,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -824,7 +831,7 @@ class _StatCardState extends State<_StatCard> {
                     style: AdminStyles.bodyStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: AdminStyles.textSecondary,
+                      color: theme.subtitleColor,
                     ),
                   ),
                 ],
@@ -850,7 +857,7 @@ class _StatCardState extends State<_StatCard> {
                           style: AdminStyles.headingStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.w800,
-                            color: AdminStyles.textPrimary,
+                            color: theme.textColor,
                           ),
                         ),
                         Text(
@@ -860,7 +867,7 @@ class _StatCardState extends State<_StatCard> {
                           style: AdminStyles.bodyStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: AdminStyles.textSecondary,
+                            color: theme.subtitleColor,
                           ),
                         ),
                       ],
@@ -910,11 +917,23 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
     final isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(isMobile ? 16 : 24),
-      decoration: AdminStyles.cardDecoration(),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor,
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -923,10 +942,10 @@ class _Card extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                  color: const Color(0xFF0F766E).withValues(alpha: theme.isDarkMode ? 0.2 : 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: const Color(0xFF3B82F6), size: 18),
+                child: Icon(icon, color: const Color(0xFF14B8A6), size: 18),
               ),
               const SizedBox(width: 10),
               Text(
@@ -934,7 +953,7 @@ class _Card extends StatelessWidget {
                 style: AdminStyles.headingStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: AdminStyles.textPrimary,
+                  color: theme.textColor,
                 ),
               ),
             ],
@@ -956,6 +975,7 @@ class _LegendItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
     return Row(
       children: [
         Container(
@@ -964,10 +984,10 @@ class _LegendItem extends StatelessWidget {
           decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
         ),
         const SizedBox(width: 10),
-        Expanded(child: Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)))),
+        Expanded(child: Text(label, style: TextStyle(fontSize: 14, color: theme.subtitleColor))),
         Text(
           '$value',
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: theme.textColor),
         ),
       ],
     );
@@ -984,6 +1004,7 @@ class _PriorityBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
     final percentage = total > 0 ? value / total : 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -991,7 +1012,7 @@ class _PriorityBar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+            Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: theme.subtitleColor)),
             Text('$value', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
           ],
         ),
@@ -999,7 +1020,7 @@ class _PriorityBar extends StatelessWidget {
         Container(
           height: 8,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
+            color: color.withValues(alpha: theme.isDarkMode ? 0.2 : 0.15),
             borderRadius: BorderRadius.circular(4),
           ),
           child: FractionallySizedBox(
@@ -1025,22 +1046,23 @@ class _RoomStatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
     return Row(
       children: [
         Container(
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
+            color: color.withValues(alpha: theme.isDarkMode ? 0.2 : 0.12),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, color: color, size: 18),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Text(label, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)))),
+        Expanded(child: Text(label, style: TextStyle(fontSize: 14, color: theme.subtitleColor))),
         Text(
           '$value',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: theme.textColor),
         ),
       ],
     );
@@ -1052,8 +1074,9 @@ class _RoomStatRow extends StatelessWidget {
 class _LineChartPainter extends CustomPainter {
   final List<double> data;
   final Color color;
+  final bool isDark;
 
-  _LineChartPainter({required this.data, required this.color});
+  _LineChartPainter({required this.data, required this.color, this.isDark = false});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1106,7 +1129,7 @@ class _LineChartPainter extends CustomPainter {
       final x = i * stepX;
       final y = size.height - ((data[i] - minVal) / normalizedRange * size.height * 0.8 + size.height * 0.1);
       canvas.drawCircle(Offset(x, y), 4, dotPaint);
-      canvas.drawCircle(Offset(x, y), 2, Paint()..color = Colors.white);
+      canvas.drawCircle(Offset(x, y), 2, Paint()..color = isDark ? const Color(0xFF1E293B) : Colors.white);
     }
   }
 
@@ -1128,8 +1151,12 @@ class _StatusChartSegment {
 
 class _DonutChartPainter extends CustomPainter {
   final List<_StatusChartSegment> segments;
+  final Color trackColor;
 
-  _DonutChartPainter({required this.segments});
+  _DonutChartPainter({
+    required this.segments,
+    this.trackColor = const Color(0xFFF1F5F9),
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1138,7 +1165,7 @@ class _DonutChartPainter extends CustomPainter {
     const strokeWidth = 22.0;
 
     final bgPaint = Paint()
-      ..color = const Color(0xFFF1F5F9)
+      ..color = trackColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth;
 

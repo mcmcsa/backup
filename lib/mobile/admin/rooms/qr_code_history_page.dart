@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../../shared/models/qr_code_history_model.dart';
 import '../../../shared/services/qr_code_history_service.dart';
+import '../../../shared/providers/theme_provider.dart';
 
 class QRCodeHistoryPage extends StatefulWidget {
   const QRCodeHistoryPage({super.key});
@@ -211,23 +213,25 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F4F6),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF2F4F7),
+        backgroundColor: themeProvider.cardColor,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.black12,
-        elevation: 1,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'QR Code History',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: themeProvider.textColor,
           ),
         ),
         actions: [
@@ -235,33 +239,40 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
             padding: const EdgeInsets.only(right: 12),
             child: TextButton.icon(
               onPressed: _history.isEmpty ? null : _printAllQr,
-              icon: const Icon(Icons.print_rounded, size: 18),
+              icon: const Icon(Icons.print_rounded, size: 18, color: Color(0xFF0F766E)),
               label: const Text(
                 'Print All',
-                style: TextStyle(fontWeight: FontWeight.w600),
+                style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F766E)),
+              ),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF4169E1)))
           : _history.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.qr_code_2, size: 64, color: Colors.grey.shade400),
+                      Icon(Icons.qr_code_2, size: 64, color: themeProvider.subtitleColor.withValues(alpha: 0.4)),
                       const SizedBox(height: 16),
                       Text(
                         'No QR codes generated yet',
-                        style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 16, color: themeProvider.subtitleColor),
                       ),
                     ],
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: _loadHistory,
+                  color: const Color(0xFF4169E1),
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: _history.length,
@@ -269,17 +280,26 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
                       final qr = _history[index];
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: themeProvider.cardColor,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade200),
+                          border: Border.all(color: themeProvider.borderColor),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: themeProvider.isDarkMode ? 0.2 : 0.03),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
-                              width: 80,
-                              height: 80,
+                              width: 68,
+                              height: 68,
+                              padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(8),
@@ -288,104 +308,120 @@ class _QRCodeHistoryPageState extends State<QRCodeHistoryPage> {
                               child: QrImageView(
                                 data: qr.qrCodeValue,
                                 version: QrVersions.auto,
-                                size: 72,
+                                size: 60,
                                 gapless: true,
                               ),
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     qr.roomName ?? qr.qrCodeValue,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF111827),
+                                      fontWeight: FontWeight.w700,
+                                      color: themeProvider.textColor,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
-                                  if (qr.building != null && qr.building!.isNotEmpty || qr.department != null && qr.department!.isNotEmpty) ...[
+                                  if ((qr.building != null && qr.building!.isNotEmpty) ||
+                                      (qr.department != null && qr.department!.isNotEmpty)) ...[
                                     const SizedBox(height: 2),
                                     Text(
                                       [
                                         if (qr.building != null && qr.building!.isNotEmpty) qr.building!,
                                         if (qr.department != null && qr.department!.isNotEmpty) qr.department!,
                                       ].join(' • '),
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                        color: const Color(0xFF4169E1).withValues(alpha: 0.8),
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF4169E1),
                                       ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
-                                  const SizedBox(height: 4),
+                                  const SizedBox(height: 3),
                                   Text(
                                     'Created: ${_formatDate(qr.createdAt)}',
                                     style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey.shade600,
+                                      fontSize: 10.5,
+                                      color: themeProvider.subtitleColor,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  Row(
+                                  Wrap(
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    spacing: 4,
+                                    runSpacing: 2,
                                     children: [
-                                      Icon(Icons.qr_code_scanner, size: 14, color: Colors.grey.shade500),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${qr.scannedCount} scan${qr.scannedCount != 1 ? 's' : ''}',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.grey.shade600,
-                                        ),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.qr_code_scanner,
+                                            size: 13,
+                                            color: themeProvider.subtitleColor,
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            '${qr.scannedCount} scan${qr.scannedCount != 1 ? 's' : ''}',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: themeProvider.subtitleColor,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      if (qr.lastScanned != null) ...[
-                                        const SizedBox(width: 8),
+                                      if (qr.lastScanned != null)
                                         Text(
                                           '• Last: ${_formatDate(qr.lastScanned!)}',
                                           style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey.shade500,
+                                            fontSize: 10.5,
+                                            color: themeProvider.subtitleColor,
                                           ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ],
                                     ],
                                   ),
                                 ],
                               ),
                             ),
+                            const SizedBox(width: 8),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
                                     color: qr.isActive
-                                        ? Colors.green.withValues(alpha: 0.1)
-                                        : Colors.red.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(4),
+                                        ? const Color(0xFF059669).withValues(alpha: 0.12)
+                                        : Colors.red.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     qr.isActive ? 'Active' : 'Inactive',
                                     style: TextStyle(
                                       fontSize: 10,
-                                      fontWeight: FontWeight.w600,
-                                      color: qr.isActive ? Colors.green : Colors.red,
+                                      fontWeight: FontWeight.w700,
+                                      color: qr.isActive ? const Color(0xFF059669) : Colors.red,
                                     ),
                                   ),
                                 ),
                                 const SizedBox(height: 8),
                                 OutlinedButton.icon(
                                   onPressed: () => _printSingleQr(qr),
-                                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
-                                  label: const Text('Print', style: TextStyle(fontSize: 12)),
+                                  icon: const Icon(Icons.picture_as_pdf_rounded, size: 14),
+                                  label: const Text('Print', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                                   style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                    side: BorderSide(color: const Color(0xFF4169E1).withValues(alpha: 0.35)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                    side: BorderSide(color: const Color(0xFF4169E1).withValues(alpha: 0.4)),
                                     foregroundColor: const Color(0xFF4169E1),
                                     visualDensity: VisualDensity.compact,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   ),
                                 ),
                               ],

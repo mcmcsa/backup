@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/chat_model.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/chat/chat_list_panel.dart';
 import '../../../shared/widgets/chat/chat_messages_panel.dart';
 import '../shared/admin_app_bar.dart';
@@ -41,6 +42,7 @@ class _AdminChatPageState extends State<AdminChatPage> {
   Widget build(BuildContext context) {
     final user = context.watch<AuthService>().currentUser;
     if (user == null) return const SizedBox.shrink();
+    final themeProvider = Provider.of<ThemeProvider>(context);
 
     if (_selectedRoom != null) {
       return PopScope(
@@ -50,42 +52,44 @@ class _AdminChatPageState extends State<AdminChatPage> {
           setState(() => _selectedRoom = null);
         },
         child: Scaffold(
-          backgroundColor: Colors.white,
-          body: ChatMessagesPanel(
-            key: ValueKey(_selectedRoom!.id),
-            room: _selectedRoom!,
-            currentUserId: user.id,
-            currentUserName: user.name,
-            currentUserRole: user.role.name,
-            onBack: () => setState(() => _selectedRoom = null),
-            onRoomDeleted: () => setState(() => _selectedRoom = null),
+          backgroundColor: themeProvider.backgroundColor,
+          body: SafeArea(
+            child: ChatMessagesPanel(
+              key: ValueKey(_selectedRoom!.id),
+              room: _selectedRoom!,
+              currentUserId: user.id,
+              currentUserName: user.name,
+              currentUserRole: user.role.name,
+              onBack: () => setState(() => _selectedRoom = null),
+              onRoomDeleted: () => setState(() => _selectedRoom = null),
+            ),
           ),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: widget.openDrawer != null
           ? AdminAppBar(
               openDrawer: widget.openDrawer!,
               subtitle: 'MESSAGES',
             )
           : AppBar(
-              backgroundColor: const Color(0xFFF2F4F7),
+              backgroundColor: themeProvider.appBarColor,
               surfaceTintColor: Colors.transparent,
-              shadowColor: Colors.black12,
+              shadowColor: themeProvider.shadowColor,
               elevation: 1,
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.black87),
+                icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
                 onPressed: () => Navigator.of(context).maybePop(),
               ),
-              title: const Text(
+              title: Text(
                 'Messages',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: themeProvider.textColor,
                 ),
               ),
             ),

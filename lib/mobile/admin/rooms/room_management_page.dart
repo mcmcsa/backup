@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/providers/theme_provider.dart';
+import '../../../shared/providers/room_provider.dart';
 import '../../../shared/models/room_model.dart';
 import '../../../shared/services/room_service.dart';
 import 'room_details_page.dart';
-import 'add_room_page.dart';
 import 'qr_code_history_page.dart';
 import '../shared/admin_app_bar.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
@@ -97,39 +97,41 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
 
   Future<void> _loadRooms() async {
     try {
-      final roomsFuture = RoomService.fetchAll();
-      final requestsFuture = Supabase.instance.client
-          .from('work_requests')
-          .select('id, room_id, room, room_name, status');
+      List<Room> rooms = [];
+      try {
+        rooms = await RoomService.fetchAll();
+      } catch (e) {
+        debugPrint('RoomManagementPage: RoomService.fetchAll error: $e');
+      }
 
-      final results = await Future.wait([
-        roomsFuture,
-        requestsFuture.catchError((_) => <dynamic>[]),
-      ]);
-
-      final rooms = (results[0] as List).cast<Room>();
-      final rawRequests = results[1] as List;
+      if (rooms.isEmpty && mounted) {
+        final provRooms = context.read<RoomProvider>().rooms;
+        if (provRooms.isNotEmpty) {
+          rooms = List<Room>.from(provRooms);
+        }
+      }
 
       final activeRoomIds = <String>{};
       final activeRoomNames = <String>{};
 
-      for (final req in rawRequests) {
-        if (req is! Map) continue;
-        final status = (req['status'] ?? '').toString().toLowerCase();
-        final isClosed = status == 'completed' ||
-            status == 'declined' ||
-            status == 'cancelled' ||
-            status == 'declined/cancelled';
-        if (isClosed) continue;
+      try {
+        final rawRequests = await Supabase.instance.client
+            .from('work_requests')
+            .select('id, room_id, status');
 
-        final roomId = (req['room_id'] ?? '').toString().trim().toLowerCase();
-        if (roomId.isNotEmpty) activeRoomIds.add(roomId);
+        for (final req in rawRequests) {
+          final status = (req['status'] ?? '').toString().toLowerCase();
+          final isClosed = status == 'completed' ||
+              status == 'declined' ||
+              status == 'cancelled' ||
+              status == 'declined/cancelled';
+          if (isClosed) continue;
 
-        final roomCodeOrName = (req['room'] ?? '').toString().trim().toLowerCase();
-        if (roomCodeOrName.isNotEmpty) activeRoomNames.add(roomCodeOrName);
-
-        final roomName = (req['room_name'] ?? '').toString().trim().toLowerCase();
-        if (roomName.isNotEmpty) activeRoomNames.add(roomName);
+          final roomId = (req['room_id'] ?? '').toString().trim().toLowerCase();
+          if (roomId.isNotEmpty) activeRoomIds.add(roomId);
+        }
+      } catch (e) {
+        debugPrint('RoomManagementPage: fetch work_requests error: $e');
       }
 
       final mapped = rooms.map((room) {
@@ -149,8 +151,14 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
         return room.copyWith(status: effectiveStatus);
       }).toList();
 
-      if (mounted) setState(() { _rooms = mapped; _isLoading = false; });
-    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _rooms = mapped;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('RoomManagementPage: _loadRooms unhandled error: $e');
       if (mounted) setState(() { _isLoading = false; });
     }
   }
@@ -569,34 +577,6 @@ class _RoomManagementPageState extends State<RoomManagementPage> with RouteAware
                       ),
           ),
         ],
-      ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF4169E1), Color(0xFF6366F1)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF4169E1).withValues(alpha: 0.4),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AddRoomPage()),
-            );
-          },
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: const Icon(Icons.add_rounded, color: Colors.white, size: 24),
-        ),
       ),
     );
   }

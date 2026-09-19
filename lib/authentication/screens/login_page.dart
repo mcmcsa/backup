@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
 import '../widgets/forgot_password_dialog.dart';
 import '../../shared/providers/work_request_provider.dart';
@@ -104,15 +103,6 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.black87),
-          onPressed: () => context.go('/'),
-          tooltip: 'Back to Landing Page',
-        ),
-      ),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -134,11 +124,11 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // PSU MMS App Logo
+                      // PSU MMS App Logo (scaled +40%)
                       Container(
-                        width: isMobile ? 85 : 110,
-                        height: isMobile ? 85 : 110,
-                        margin: EdgeInsets.only(bottom: isMobile ? 14 : 24),
+                        width: isMobile ? 120 : 154,
+                        height: isMobile ? 120 : 154,
+                        margin: EdgeInsets.only(bottom: isMobile ? 16 : 24),
                         alignment: Alignment.center,
                         child: Image.asset(
                           'assets/images/app_logo_v2.png',
@@ -146,7 +136,7 @@ class _LoginPageState extends State<LoginPage> {
                           errorBuilder: (context, error, stackTrace) => const Icon(
                             Icons.school,
                             color: Color(0xFF0F766E),
-                            size: 60,
+                            size: 84,
                           ),
                         ),
                       ),

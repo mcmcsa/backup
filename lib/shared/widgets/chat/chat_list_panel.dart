@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/chat_model.dart';
+import '../../providers/theme_provider.dart';
 import '../../services/chat_service.dart';
 import 'chat_room_tile.dart';
 import 'new_chat_dialog.dart';
@@ -34,6 +36,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
   Set<String> _archivedRoomIds = {};
   ChatFilterTab _currentTab = ChatFilterTab.all;
   bool _isLoading = true;
+  bool _isRefreshing = false;
   final TextEditingController _searchCtrl = TextEditingController();
   String _query = '';
   RealtimeChannel? _roomsChannel;
@@ -69,6 +72,27 @@ class _ChatListPanelState extends State<ChatListPanel> {
     }
   }
 
+  Future<void> _handleManualRefresh() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+    try {
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Conversations updated'),
+            duration: Duration(milliseconds: 900),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
+    }
+  }
+
   int get _activeCount => _rooms.where((r) => !_archivedRoomIds.contains(r.id)).length;
   int get _archivedCount => _rooms.where((r) => _archivedRoomIds.contains(r.id)).length;
 
@@ -86,42 +110,53 @@ class _ChatListPanelState extends State<ChatListPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return Column(
       children: [
-        _buildHeader(),
-        _buildSearchBar(),
-        _buildTabBar(),
-        Expanded(child: _buildList()),
+        _buildHeader(themeProvider),
+        _buildSearchBar(themeProvider),
+        _buildTabBar(themeProvider),
+        Expanded(child: _buildList(themeProvider)),
       ],
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(ThemeProvider themeProvider) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 16, 8, 4),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
               'Messages',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF134E4A),
+                color: themeProvider.isDarkMode ? Colors.white : const Color(0xFF134E4A),
               ),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, size: 20),
-            onPressed: _load,
+            icon: _isRefreshing
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: themeProvider.isDarkMode ? themeProvider.primaryColor : const Color(0xFF0F766E),
+                    ),
+                  )
+                : const Icon(Icons.refresh_rounded, size: 20),
+            onPressed: _isRefreshing ? null : _handleManualRefresh,
             tooltip: 'Refresh',
-            color: const Color(0xFF0F766E),
+            color: themeProvider.isDarkMode ? themeProvider.primaryColor : const Color(0xFF0F766E),
           ),
           IconButton(
             icon: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: const Color(0xFF0F766E),
+                color: themeProvider.isDarkMode ? themeProvider.primaryColor : const Color(0xFF0F766E),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(Icons.edit_rounded, size: 16, color: Colors.white),
@@ -134,20 +169,30 @@ class _ChatListPanelState extends State<ChatListPanel> {
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(ThemeProvider themeProvider) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
+          color: themeProvider.inputFillColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: themeProvider.borderColor),
         ),
         child: TextField(
           controller: _searchCtrl,
-          decoration: const InputDecoration(
+          textAlign: TextAlign.center,
+          decoration: InputDecoration(
             hintText: 'Search conversations…',
-            prefixIcon: Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+            prefixIcon: Icon(Icons.search_rounded, size: 18, color: themeProvider.subtitleColor),
+            suffixIcon: _query.isNotEmpty
+                ? IconButton(
+                    icon: Icon(Icons.clear_rounded, size: 16, color: themeProvider.subtitleColor),
+                    onPressed: () {
+                      _searchCtrl.clear();
+                      setState(() => _query = '');
+                    },
+                  )
+                : const SizedBox(width: 48),
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
@@ -156,30 +201,31 @@ class _ChatListPanelState extends State<ChatListPanel> {
             focusedErrorBorder: InputBorder.none,
             filled: false,
             isDense: true,
-            contentPadding: EdgeInsets.symmetric(vertical: 10),
-            hintStyle: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+            hintStyle: TextStyle(fontSize: 13, color: themeProvider.subtitleColor),
           ),
-          style: const TextStyle(fontSize: 13),
+          style: TextStyle(fontSize: 13, color: themeProvider.textColor),
         ),
       ),
     );
   }
 
-  Widget _buildTabBar() {
+  Widget _buildTabBar(ThemeProvider themeProvider) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
       child: Container(
         height: 38,
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
+          color: themeProvider.isDarkMode ? const Color(0xFF1E1E1E) : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: themeProvider.borderColor),
         ),
         child: Row(
           children: [
             Expanded(
               child: _buildTabItem(
+                themeProvider: themeProvider,
                 tab: ChatFilterTab.all,
                 label: 'All Chats',
                 count: _activeCount,
@@ -189,6 +235,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
             const SizedBox(width: 4),
             Expanded(
               child: _buildTabItem(
+                themeProvider: themeProvider,
                 tab: ChatFilterTab.archived,
                 label: 'Archived',
                 count: _archivedCount,
@@ -202,12 +249,16 @@ class _ChatListPanelState extends State<ChatListPanel> {
   }
 
   Widget _buildTabItem({
+    required ThemeProvider themeProvider,
     required ChatFilterTab tab,
     required String label,
     required int count,
     required IconData icon,
   }) {
     final isSelected = _currentTab == tab;
+    final activeColor = themeProvider.isDarkMode ? Colors.tealAccent.shade400 : const Color(0xFF0F766E);
+    final activeBg = themeProvider.isDarkMode ? const Color(0xFF2C2C2C) : Colors.white;
+
     return InkWell(
       onTap: () => setState(() => _currentTab = tab),
       borderRadius: BorderRadius.circular(8),
@@ -215,12 +266,12 @@ class _ChatListPanelState extends State<ChatListPanel> {
         duration: const Duration(milliseconds: 150),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: isSelected ? activeBg : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
+                    color: Colors.black.withValues(alpha: themeProvider.isDarkMode ? 0.2 : 0.06),
                     blurRadius: 4,
                     offset: const Offset(0, 1),
                   ),
@@ -233,7 +284,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
             Icon(
               icon,
               size: 14,
-              color: isSelected ? const Color(0xFF0F766E) : const Color(0xFF64748B),
+              color: isSelected ? activeColor : themeProvider.subtitleColor,
             ),
             const SizedBox(width: 6),
             Text(
@@ -241,7 +292,9 @@ class _ChatListPanelState extends State<ChatListPanel> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected ? const Color(0xFF0F766E) : const Color(0xFF64748B),
+                color: isSelected
+                    ? (themeProvider.isDarkMode ? Colors.white : activeColor)
+                    : themeProvider.subtitleColor,
               ),
             ),
             if (count > 0) ...[
@@ -249,7 +302,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF0F766E) : const Color(0xFFCBD5E1),
+                  color: isSelected ? activeColor : (themeProvider.isDarkMode ? const Color(0xFF383838) : const Color(0xFFCBD5E1)),
                   borderRadius: BorderRadius.circular(99),
                 ),
                 child: Text(
@@ -257,7 +310,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: isSelected ? Colors.white : const Color(0xFF334155),
+                    color: isSelected ? Colors.white : (themeProvider.isDarkMode ? Colors.white70 : const Color(0xFF334155)),
                   ),
                 ),
               ),
@@ -268,7 +321,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
     );
   }
 
-  Widget _buildList() {
+  Widget _buildList(ThemeProvider themeProvider) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -286,7 +339,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
               Icon(
                 isArchivedTab ? Icons.archive_outlined : Icons.chat_bubble_outline_rounded,
                 size: 56,
-                color: Colors.grey.shade300,
+                color: themeProvider.subtitleColor.withValues(alpha: 0.5),
               ),
               const SizedBox(height: 16),
               Text(
@@ -298,7 +351,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey.shade500,
+                  color: themeProvider.subtitleColor,
                   height: 1.5,
                 ),
               ),
