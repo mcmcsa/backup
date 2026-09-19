@@ -544,26 +544,13 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           }
         }
 
-        await AppNotificationService.createForRoles(
-          targetRoles: const ['admin', 'maintenance'],
-          title: 'New Work Request Submitted',
-          message:
-              '$_selectedBuilding • ${_officeRoomNameController.text.trim()} has a new request from ${_fullNameController.text.trim()}.',
-          type: 'work_request_submitted',
+        await AppNotificationService.notifyWorkRequestSubmitted(
           workRequestId: insertedRequest.id,
+          roomName: _officeRoomNameController.text.trim(),
+          buildingName: _selectedBuilding ?? '',
+          requestorName: _fullNameController.text.trim(),
+          requestorId: authUser?.id,
         );
-
-        if (authUser != null) {
-          await AppNotificationService.createForUser(
-            targetUserId: authUser.id,
-            title: 'Work Request Submitted',
-            message:
-                'Your request for $_selectedBuilding • ${_officeRoomNameController.text.trim()} has been submitted and is pending admin review.',
-            type: 'work_request_submitted',
-            workRequestId: insertedRequest.id,
-            targetPage: '/reports',
-          );
-        }
 
         if (!mounted) return;
         final trackingNumber = insertedRequest.id;

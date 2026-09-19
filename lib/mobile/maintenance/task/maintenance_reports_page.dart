@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'task_details_page.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/services/work_request_service.dart';
+import 'package:psu_maintsystem/authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../admin/shared/notifications_page.dart';
@@ -64,7 +65,12 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
 
   Future<void> _loadRequests() async {
     try {
-      final data = await WorkRequestService.fetchAll();
+      final user = context.read<AuthService>().currentUser;
+      if (user == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+      final data = await WorkRequestService.fetchAssignedTo(user.id);
       final maintenanceQueue = data
           .where((r) => r.status != 'Declined/Cancelled')
           .toList();

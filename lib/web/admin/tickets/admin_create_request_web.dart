@@ -453,12 +453,12 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
         ));
       }
 
-      await AppNotificationService.createForRoles(
-        targetRoles: ['admin', 'maintenance'],
-        title: 'New Request',
-        message: 'New request for ${request.roomName} in ${request.buildingName}',
-        type: 'work_request_submitted',
+      await AppNotificationService.notifyWorkRequestSubmitted(
         workRequestId: inserted.id,
+        roomName: request.roomName ?? '',
+        buildingName: request.buildingName ?? '',
+        requestorName: _fullNameController.text.trim(),
+        requestorId: user?.id,
       );
 
       if (user != null) {

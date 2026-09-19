@@ -238,12 +238,12 @@ class _AdminWorkProcessPageState extends State<AdminWorkProcessPage> {
         title: 'Maintenance Assignment',
         subtitle: _request!.acceptedDate != null
             ? 'Accepted by ${_request!.acceptedByName ?? "Technician"}'
-            : (_request!.assignedToId != null
+            : (_request!.approvedDate != null && _request!.assignedToId != null
                 ? 'Assigned. Awaiting technician acceptance'
                 : 'Pending technician assignment'),
         time: _request!.acceptedDate != null ? DateFormat('MMM dd, HH:mm').format(_request!.acceptedDate!) : null,
         isCompleted: _request!.acceptedDate != null,
-        isActive: _request!.acceptedDate == null && _request!.assignedToId != null,
+        isActive: _request!.approvedDate != null && _request!.acceptedDate == null,
       ),
       _TimelineStep(
         title: 'Pre-Inspection',

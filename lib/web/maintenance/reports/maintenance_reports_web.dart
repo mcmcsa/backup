@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../shared/models/work_request_model.dart';
+import 'package:psu_maintsystem/authentication/services/auth_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../maintenance_nav_controller.dart';
 
@@ -27,7 +29,7 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
 
-  final _statusFilters = ['All', 'Pending', 'In Progress', 'Confirmed', 'Rework'];
+  final _statusFilters = ['All', 'In Progress', 'Confirmed', 'Rework'];
   final _priorityFilters = ['All', 'Low', 'Medium', 'High'];
 
   String _selectedStatusFilter = 'All';
@@ -50,7 +52,12 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
 
   Future<void> _loadRequests() async {
     try {
-      final data = await WorkRequestService.fetchAll();
+      final user = context.read<AuthService>().currentUser;
+      if (user == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+      final data = await WorkRequestService.fetchAssignedTo(user.id);
       if (mounted) setState(() { _requests = data; _isLoading = false; });
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);

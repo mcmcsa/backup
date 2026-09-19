@@ -445,24 +445,13 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         ));
       }
 
-      await AppNotificationService.createForRoles(
-        targetRoles: ['admin', 'maintenance'],
-        title: 'New Request',
-        message: 'New request for ${request.roomName} in ${request.buildingName}',
-        type: 'work_request_submitted',
+      await AppNotificationService.notifyWorkRequestSubmitted(
         workRequestId: inserted.id,
+        roomName: request.roomName ?? '',
+        buildingName: request.buildingName ?? '',
+        requestorName: _fullNameController.text.trim(),
+        requestorId: user?.id,
       );
-
-      if (user != null) {
-        await AppNotificationService.createForUser(
-          targetUserId: user.id,
-          title: 'Work Request Submitted',
-          message: 'Your request for ${request.roomName} in ${request.buildingName} has been submitted.',
-          type: 'work_request_submitted',
-          workRequestId: inserted.id,
-          targetPage: '/reports',
-        );
-      }
 
       if (user != null) {
         await LoginActivityService.recordAction(

@@ -1003,12 +1003,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Track the request lifecycle, review workflow milestones, and manage available actions from a single desktop workspace.',
-          style: AdminStyles.bodyStyle(fontSize: 14, color: AdminStyles.textSecondary),
-        ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 10,
           runSpacing: 10,
@@ -1204,16 +1199,17 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
 
     // 3. Maintenance Assignment & Acceptance
     final isAccepted = task.acceptedDate != null;
+    final isAssigned = isApproved && task.assignedToId != null;
     steps.add(_TimelineStep(
       title: 'Maintenance Assignment',
       subtitle: isAccepted
           ? 'Accepted by ${task.acceptedByName ?? "Technician"}.'
-          : (task.assignedToId != null
+          : (isAssigned
               ? 'Assigned to ${task.acceptedByName ?? "Technician"}. Awaiting acceptance.'
               : 'Pending technician assignment.'),
       time: formatTime(task.acceptedDate),
       isCompleted: isAccepted,
-      isActive: !isAccepted && task.assignedToId != null,
+      isActive: isApproved && !isAccepted,
     ));
 
     // 4. Pre-Inspection Report Submitted

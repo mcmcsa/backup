@@ -245,10 +245,13 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
         }
       }
 
+      final primaryStaff = _maintenanceStaff.where((s) => s.userId == primaryId).firstOrNull;
       await AppNotificationService.notifyApprovedToMaintenance(
         workRequestId: widget.request.id,
         adminName: user.name,
         assignedMaintenanceId: primaryId,
+        assignedMaintenanceName: primaryStaff?.fullName,
+        requestorId: widget.request.requestorId ?? widget.request.reportedById,
       );
 
       await LoginActivityService.recordAdminAction(

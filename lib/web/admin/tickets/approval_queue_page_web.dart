@@ -93,6 +93,8 @@ class _ApprovalQueuePageWebState extends State<ApprovalQueuePageWeb> {
       workRequestId: request.id,
       adminName: request.approvedByName ?? 'Admin',
       assignedMaintenanceId: request.assignedToId,
+      assignedMaintenanceName: request.assignedToName,
+      requestorId: request.requestorId ?? request.reportedById,
     );
 
     if (!mounted) return;

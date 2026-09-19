@@ -73,7 +73,6 @@ class _AdminChatPageState extends State<AdminChatPage> {
       appBar: widget.openDrawer != null
           ? AdminAppBar(
               openDrawer: widget.openDrawer!,
-              subtitle: 'MESSAGES',
             )
           : AppBar(
               backgroundColor: themeProvider.appBarColor,

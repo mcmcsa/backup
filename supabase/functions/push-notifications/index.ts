@@ -143,10 +143,14 @@ serve(async (req) => {
         .eq('user_id', record.target_user_id);
       tokens = (data || []).map((d: any) => d.fcm_token).filter(Boolean);
     } else if (record.target_role && record.target_role !== 'all') {
+      const targetRoles =
+        record.target_role === 'admin' || record.target_role === 'campadmin'
+          ? ['admin', 'campadmin']
+          : [record.target_role];
       const { data } = await supabase
         .from('user_devices')
         .select('fcm_token, users!inner(role, is_active)')
-        .eq('users.role', record.target_role)
+        .in('users.role', targetRoles)
         .eq('users.is_active', true);
       tokens = (data || []).map((d: any) => d.fcm_token).filter(Boolean);
     } else {
@@ -181,6 +185,9 @@ serve(async (req) => {
             target_page: record.target_page || '',
             work_request_id: record.work_request_id || '',
             chat_room_id: record.chat_room_id || '',
+            target_user_id: record.target_user_id || '',
+            target_role: record.target_role || '',
+            created_at: new Date().toISOString(),
           },
           android: {
             priority: 'high',

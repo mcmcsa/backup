@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_notification_model.dart';
 import 'app_settings_service.dart';
@@ -63,6 +64,14 @@ class AppNotificationService {
     required String normalizedRole,
     required String userId,
   }) {
+    if (normalizedRole == 'campadmin' || normalizedRole == 'admin') {
+      return 'target_user_id.eq.$userId,and(target_user_id.is.null,target_role.in.(all,admin,campadmin))';
+    }
+    if (normalizedRole == 'maintenance') {
+      // Maintenance users only see personal notifications and global announcements.
+      // Unassigned or pending work request notifications are never shown.
+      return 'target_user_id.eq.$userId,and(target_user_id.is.null,target_role.eq.all)';
+    }
     return 'target_user_id.eq.$userId,and(target_user_id.is.null,target_role.eq.all),and(target_user_id.is.null,target_role.eq.$normalizedRole)';
   }
 
@@ -114,8 +123,6 @@ class AppNotificationService {
     final result = <AppNotification>[];
     for (final notif in list) {
       final isDuplicate = result.any((existing) {
-        if (existing.targetUserId != notif.targetUserId) return false;
-
         final isExistingChat = existing.type == 'chat' ||
             existing.type == 'chat_message' ||
             existing.type == 'new_chat_message';
@@ -124,6 +131,7 @@ class AppNotificationService {
             notif.type == 'new_chat_message';
 
         if (isExistingChat && isNotifChat) {
+          if (existing.targetUserId != notif.targetUserId) return false;
           final sameRoom = (existing.chatRoomId != null &&
                   existing.chatRoomId == notif.chatRoomId) ||
               (existing.targetPage != null &&
@@ -139,9 +147,10 @@ class AppNotificationService {
           }
         }
 
+        // Deduplicate matching notifications for the same ticket/event within 60 seconds,
+        // even if one was targeted directly (target_user_id) and one via role broadcast.
         if (existing.type == notif.type &&
             existing.title == notif.title &&
-            existing.message == notif.message &&
             existing.workRequestId == notif.workRequestId &&
             existing.createdAt.difference(notif.createdAt).abs().inSeconds <= 60) {
           return true;
@@ -175,10 +184,15 @@ class AppNotificationService {
       'is_read': false,
     };
 
-    await _db.from(_table).insert(payload);
+    final inserted = await _db.from(_table).insert(payload).select('id').maybeSingle();
+    final notifId = inserted != null ? inserted['id']?.toString() : null;
+    final fcmRecord = {
+      ...payload,
+      if (notifId != null) 'id': notifId,
+    };
 
     try {
-      await _db.functions.invoke('push-notifications', body: {'record': payload});
+      await _db.functions.invoke('push-notifications', body: {'record': fcmRecord});
     } catch (_) {}
 
     try {
@@ -218,13 +232,18 @@ class AppNotificationService {
       'is_read': false,
     };
 
-    await _db.from(_table).insert(payload);
+    final inserted = await _db.from(_table).insert(payload).select('id').maybeSingle();
+    final notifId = inserted != null ? inserted['id']?.toString() : null;
+    final fcmRecord = {
+      ...payload,
+      if (notifId != null) 'id': notifId,
+    };
 
     // Push notification check: if (enableNotifications === true && pushNotifications === true) -> push
     try {
       final canPush = await AppSettingsService.canReceivePush(userId: targetUserId);
       if (canPush) {
-        await _db.functions.invoke('push-notifications', body: {'record': payload});
+        await _db.functions.invoke('push-notifications', body: {'record': fcmRecord});
       }
     } catch (_) {}
 
@@ -260,16 +279,30 @@ class AppNotificationService {
             'type': type,
             'target_role': normalizeRole(r),
             'work_request_id': workRequestId,
+            'target_page': targetPage,
             'is_read': false,
           },
         )
         .toList();
 
-    await _db.from(_table).insert(payload);
+    final insertedList = await _db.from(_table).insert(payload).select('id, target_role');
+    final idMap = <String, String>{};
+    if (insertedList is List) {
+      for (final item in insertedList) {
+        final r = item['target_role']?.toString();
+        final id = item['id']?.toString();
+        if (r != null && id != null) idMap[r] = id;
+      }
+    }
 
     try {
       for (final p in payload) {
-        await _db.functions.invoke('push-notifications', body: {'record': p});
+        final r = p['target_role']?.toString();
+        final fcmRecord = {
+          ...p,
+          if (r != null && idMap.containsKey(r)) 'id': idMap[r],
+        };
+        await _db.functions.invoke('push-notifications', body: {'record': fcmRecord});
       }
     } catch (_) {}
 
@@ -284,15 +317,106 @@ class AppNotificationService {
     } catch (_) {}
   }
 
+  /// Queries all active campus and system admin user IDs
+  static Future<List<String>> _getCampusAdminIds() async {
+    try {
+      final adminUsers = await _db
+          .from('users')
+          .select('id')
+          .inFilter('role', const ['campadmin', 'admin'])
+          .eq('is_active', true);
+
+      if (adminUsers is List) {
+        return adminUsers
+            .map((u) => u['id']?.toString().trim())
+            .whereType<String>()
+            .where((id) => id.isNotEmpty)
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[AppNotificationService] Error querying admins: $e');
+    }
+    return const [];
+  }
+
+  /// Notify Campus Admins and the Requestor when a new work request is submitted.
+  /// Per security and visibility rules, maintenance is NEVER notified of unassigned requests.
+  static Future<void> notifyWorkRequestSubmitted({
+    required String workRequestId,
+    required String roomName,
+    required String buildingName,
+    required String requestorName,
+    String? requestorId,
+  }) async {
+    final title = 'New Work Request Submitted';
+    final adminMessage = 'New request for $roomName in $buildingName from $requestorName.';
+
+    // 1. Fetch all active Campus Admins and System Admins for direct notification & push
+    final adminIds = await _getCampusAdminIds();
+    for (final adminId in adminIds) {
+      await createForUser(
+        targetUserId: adminId,
+        title: title,
+        message: adminMessage,
+        type: 'work_request_submitted',
+        workRequestId: workRequestId,
+        targetPage: '/tickets',
+      );
+    }
+
+    // 2. Also record role-targeted notifications for campus admin roles
+    try {
+      await createForRoles(
+        targetRoles: const ['campadmin', 'admin'],
+        title: title,
+        message: adminMessage,
+        type: 'work_request_submitted',
+        workRequestId: workRequestId,
+        targetPage: '/tickets',
+      );
+    } catch (e) {
+      debugPrint('[AppNotificationService] Error creating role notification: $e');
+    }
+
+    // 3. Notify the reporting user / Requestor for confirmation
+    var targetReqId = requestorId?.trim();
+    if (targetReqId == null || targetReqId.isEmpty) {
+      targetReqId = await _getRequestorId(workRequestId);
+    }
+    if (targetReqId != null && targetReqId.isNotEmpty) {
+      await createForUser(
+        targetUserId: targetReqId,
+        title: 'Work Request Submitted',
+        message: 'Your request for $roomName in $buildingName has been submitted and is pending admin review.',
+        type: 'work_request_submitted',
+        workRequestId: workRequestId,
+        targetPage: '/reports',
+      );
+    }
+  }
+
   /// Notify maintenance and requestor when admin approves a work request.
   static Future<void> notifyApprovedToMaintenance({
     required String workRequestId,
     required String adminName,
     String? assignedMaintenanceId,
+    String? assignedMaintenanceName,
     String? requestorId,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
     final targetMaintenanceId = assignedMaintenanceId?.trim();
+
+    String? maintName = assignedMaintenanceName?.trim();
+    if ((maintName == null || maintName.isEmpty) && targetMaintenanceId != null && targetMaintenanceId.isNotEmpty) {
+      try {
+        final res = await _db.from('users').select('name').eq('id', targetMaintenanceId).maybeSingle();
+        if (res != null && res['name'] != null) {
+          maintName = res['name'].toString().trim();
+        }
+      } catch (_) {}
+    }
+
+    // Direct notification to the assigned technician
     if (targetMaintenanceId != null && targetMaintenanceId.isNotEmpty) {
       await createForUser(
         targetUserId: targetMaintenanceId,
@@ -303,29 +427,22 @@ class AppNotificationService {
         workRequestId: workRequestId,
         targetPage: '/tasks',
       );
-    } else {
-      await createForRole(
-        targetRole: 'maintenance',
-        title: 'Work Request Approved',
-        message:
-            'Work request for $roomStr was approved by $adminName. Please check pending assignments.',
-        type: 'work_request_approved',
-        workRequestId: workRequestId,
-        targetPage: '/tasks',
-      );
     }
 
-    // Notify Requestor for transparency
+    // Notify Requestor for transparency (explicitly stating who was assigned)
     var targetReqId = requestorId?.trim();
     if (targetReqId == null || targetReqId.isEmpty) {
       targetReqId = await _getRequestorId(workRequestId);
     }
     if (targetReqId != null && targetReqId.isNotEmpty) {
+      final assignedText = (maintName != null && maintName.isNotEmpty)
+          ? maintName
+          : 'maintenance staff';
       await createForUser(
         targetUserId: targetReqId,
         title: 'Work Request Approved',
         message:
-            'Your work request for $roomStr was approved by $adminName and assigned to maintenance.',
+            'Your work request for $roomStr was approved by $adminName and assigned to $assignedText.',
         type: 'work_request_approved',
         workRequestId: workRequestId,
         targetPage: '/reports',
@@ -350,8 +467,8 @@ class AppNotificationService {
 
     // Always broadcast to admin role so all campus admins see the update
     futures.add(
-      createForRole(
-        targetRole: 'admin',
+      createForRoles(
+        targetRoles: const ['campadmin', 'admin'],
         title: 'Work Request Accepted by Maintenance',
         message:
             '$maintenanceName accepted work request in $roomStr. Status is now Under Maintenance.',
@@ -373,6 +490,21 @@ class AppNotificationService {
           targetPage: '/tickets',
         ),
       );
+    } else {
+      final adminIds = await _getCampusAdminIds();
+      for (final aId in adminIds) {
+        futures.add(
+          createForUser(
+            targetUserId: aId,
+            title: 'Work Request Accepted by Maintenance',
+            message:
+                '$maintenanceName accepted work request in $roomStr. Status is now Under Maintenance.',
+            type: 'work_request_accepted',
+            workRequestId: workRequestId,
+            targetPage: '/tickets',
+          ),
+        );
+      }
     }
 
     if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
@@ -412,8 +544,8 @@ class AppNotificationService {
 
     // Always broadcast to role admin for full transparency across all admins
     futures.add(
-      createForRole(
-        targetRole: 'admin',
+      createForRoles(
+        targetRoles: const ['campadmin', 'admin'],
         title: 'Work Request Completion Submitted',
         message:
             '$maintenanceName submitted completion confirmation for $roomStr.',
@@ -435,6 +567,21 @@ class AppNotificationService {
           targetPage: '/tickets',
         ),
       );
+    } else {
+      final adminIds = await _getCampusAdminIds();
+      for (final aId in adminIds) {
+        futures.add(
+          createForUser(
+            targetUserId: aId,
+            title: 'Work Request Completion Submitted',
+            message:
+                '$maintenanceName submitted completion confirmation for $roomStr.',
+            type: 'work_request_completion_submitted',
+            workRequestId: workRequestId,
+            targetPage: '/tickets',
+          ),
+        );
+      }
     }
 
     if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
@@ -790,10 +937,10 @@ class AppNotificationService {
 
     final futures = <Future<void>>[];
 
-    // 1. Broadcast to role 'admin' so ALL campus admins see it
+    // 1. Broadcast to role 'campadmin' and 'admin' so ALL campus admins see it
     futures.add(
-      createForRole(
-        targetRole: 'admin',
+      createForRoles(
+        targetRoles: const ['campadmin', 'admin'],
         title: 'Pre-Inspection Submitted',
         message: '$maintenanceName has submitted a pre-inspection report for $roomStr.',
         type: 'pre_inspection_submitted',
@@ -802,7 +949,7 @@ class AppNotificationService {
       ),
     );
 
-    // 2. Direct user targeting if specific admin ID provided
+    // 2. Direct user targeting if specific admin ID provided, or all campus admins if null
     if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
       futures.add(
         createForUser(
@@ -814,6 +961,20 @@ class AppNotificationService {
           targetPage: '/tickets',
         ),
       );
+    } else {
+      final adminIds = await _getCampusAdminIds();
+      for (final aId in adminIds) {
+        futures.add(
+          createForUser(
+            targetUserId: aId,
+            title: 'Pre-Inspection Submitted',
+            message: '$maintenanceName has submitted a pre-inspection report for $roomStr.',
+            type: 'pre_inspection_submitted',
+            workRequestId: workRequestId,
+            targetPage: '/tickets',
+          ),
+        );
+      }
     }
 
     // 3. Notify Requestor for complete visibility and transparency
@@ -850,10 +1011,10 @@ class AppNotificationService {
 
     final futures = <Future<void>>[];
 
-    // 1. Broadcast to role 'admin' so ALL campus admins see it
+    // 1. Broadcast to role 'campadmin' and 'admin' so ALL campus admins see it
     futures.add(
-      createForRole(
-        targetRole: 'admin',
+      createForRoles(
+        targetRoles: const ['campadmin', 'admin'],
         title: 'Post-Repair Evaluation Submitted',
         message: '$maintenanceName has submitted a post-repair evaluation for $roomStr.',
         type: 'post_repair_submitted',
@@ -862,7 +1023,7 @@ class AppNotificationService {
       ),
     );
 
-    // 2. Direct user targeting if specific admin ID provided
+    // 2. Direct user targeting if specific admin ID provided, or all campus admins if null
     if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
       futures.add(
         createForUser(
@@ -874,6 +1035,20 @@ class AppNotificationService {
           targetPage: '/tickets',
         ),
       );
+    } else {
+      final adminIds = await _getCampusAdminIds();
+      for (final aId in adminIds) {
+        futures.add(
+          createForUser(
+            targetUserId: aId,
+            title: 'Post-Repair Evaluation Submitted',
+            message: '$maintenanceName has submitted a post-repair evaluation for $roomStr.',
+            type: 'post_repair_submitted',
+            workRequestId: workRequestId,
+            targetPage: '/tickets',
+          ),
+        );
+      }
     }
 
     // 3. Notify Requestor for complete visibility and transparency
@@ -920,7 +1095,7 @@ class AppNotificationService {
 
     await createForUser(
       targetUserId: targetUserId,
-      title: '💬 $senderName',
+      title: senderName,
       message: preview,
       type: 'chat_message',
       workRequestId: workRequestId,

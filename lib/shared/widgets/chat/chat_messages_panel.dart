@@ -478,21 +478,27 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
             backgroundColor: themeProvider.isDarkMode
                 ? themeProvider.primaryColor.withValues(alpha: 0.25)
                 : const Color(0xFF0F766E).withValues(alpha: 0.12),
-            child: Text(
-              roomName.isNotEmpty ? roomName[0].toUpperCase() : '?',
-              style: TextStyle(
-                color: themeProvider.isDarkMode
-                    ? Colors.tealAccent.shade200
-                    : const Color(0xFF0F766E),
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-              ),
-            ),
+            backgroundImage: (other?.profileImage != null && other!.profileImage!.trim().isNotEmpty)
+                ? NetworkImage(other.profileImage!.trim())
+                : null,
+            child: (other?.profileImage == null || other!.profileImage!.trim().isEmpty)
+                ? Text(
+                    roomName.isNotEmpty ? roomName[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      color: themeProvider.isDarkMode
+                          ? Colors.tealAccent.shade200
+                          : const Color(0xFF0F766E),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   roomName,
@@ -504,7 +510,7 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (other != null)
+                if (other != null && other.role.toLowerCase() != 'teacher')
                   Text(
                     _roleLabel(other.role),
                     style: TextStyle(fontSize: 11, color: themeProvider.subtitleColor),

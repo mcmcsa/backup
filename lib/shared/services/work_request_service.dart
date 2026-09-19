@@ -301,12 +301,54 @@ class WorkRequestService {
   }
 
   static Future<List<WorkRequest>> fetchAssignedTo(String userId) async {
+    final cleanUserId = userId.trim();
+    if (cleanUserId.isEmpty) return [];
+
+    // 1. Direct assignments or accepted tickets
     final data = await _db
         .from(_table)
         .select(_selectWithRelations)
-        .eq('assigned_to_id', userId)
+        .or('assigned_to_id.eq.$cleanUserId,accepted_by_id.eq.$cleanUserId')
         .order('date_submitted', ascending: false);
     final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+    final seenIds = requests.map((r) => r.id).toSet();
+
+    // 2. Active collaborators (status != 'declined')
+    try {
+      final collabData = await _db
+          .from('work_request_collaborators')
+          .select('work_request_id')
+          .eq('user_id', cleanUserId)
+          .neq('status', 'declined');
+
+      if (collabData is List && collabData.isNotEmpty) {
+        final collabIds = collabData
+            .map((row) => row['work_request_id']?.toString().trim())
+            .whereType<String>()
+            .where((id) => id.isNotEmpty && !seenIds.contains(id))
+            .toSet()
+            .toList();
+
+        if (collabIds.isNotEmpty) {
+          final collabRequestsData = await _db
+              .from(_table)
+              .select(_selectWithRelations)
+              .inFilter('id', collabIds);
+          if (collabRequestsData is List) {
+            for (final row in collabRequestsData) {
+              final wr = WorkRequest.fromMap(row);
+              if (seenIds.add(wr.id)) {
+                requests.add(wr);
+              }
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    requests.sort((a, b) => (b.dateSubmitted ?? DateTime(1970))
+        .compareTo(a.dateSubmitted ?? DateTime(1970)));
+
     return await enrichMissingRequestorNames(requests);
   }
 

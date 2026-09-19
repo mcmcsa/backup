@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../authentication/models/user_model.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../shared/providers/theme_provider.dart';
 import '../shared/admin_app_bar.dart';
 import '../../../web/admin/shared/admin_styles.dart';
 
@@ -18,9 +19,6 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   static const Color _primary = AdminStyles.primary;
-  static const Color _subtleText = AdminStyles.textSecondary;
-  static const Color _borderColor = AdminStyles.border;
-  static const Color _textPrimary = AdminStyles.textPrimary;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -203,12 +201,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final authService = context.watch<AuthService>();
     final user = authService.currentUser;
     _syncControllers(user);
 
     return Scaffold(
-      backgroundColor: AdminStyles.bg,
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AdminAppBar(
         openDrawer: widget.openDrawer,
         subtitle: 'Campus Administrator',
@@ -219,9 +219,9 @@ class _ProfilePageState extends State<ProfilePage> {
           key: _formKey,
           child: Column(
             children: [
-              _buildProfileHero(user, authService.isLoading),
+              _buildProfileHero(user, authService.isLoading, themeProvider, isDark),
               const SizedBox(height: 20),
-              _buildAccountDetails(),
+              _buildAccountDetails(themeProvider, isDark),
               const SizedBox(height: 24),
             ],
           ),
@@ -232,16 +232,16 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // -- Profile Hero ------------------------------------------------------------
 
-  Widget _buildProfileHero(AppUser? user, bool isLoading) {
+  Widget _buildProfileHero(AppUser? user, bool isLoading, ThemeProvider themeProvider, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AdminStyles.surface,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: themeProvider.shadowColor,
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -249,22 +249,28 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       child: Column(
         children: [
-          Center(child: _buildAvatar(user)),
+          Center(child: _buildAvatar(user, themeProvider, isDark)),
           const SizedBox(height: 20),
           // Role label
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
             decoration: BoxDecoration(
-              color: _primary.withValues(alpha: 0.08),
+              color: isDark
+                  ? const Color(0xFF0F766E).withValues(alpha: 0.25)
+                  : _primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _primary.withValues(alpha: 0.25)),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF2DD4BF).withValues(alpha: 0.3)
+                    : _primary.withValues(alpha: 0.25),
+              ),
             ),
             child: Text(
               'CAMPUS ADMINISTRATOR',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
-                color: _primary,
+                color: isDark ? const Color(0xFF2DD4BF) : _primary,
                 letterSpacing: 1.2,
               ),
             ),
@@ -272,10 +278,10 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 12),
           Text(
             user?.name ?? 'Administrator',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: _textPrimary,
+              color: themeProvider.textColor,
               letterSpacing: -0.5,
             ),
             textAlign: TextAlign.center,
@@ -283,25 +289,33 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 6),
           Text(
             user?.email ?? '',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: _subtleText),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: themeProvider.subtitleColor,
+            ),
             textAlign: TextAlign.center,
           ),
           if ((user?.position ?? '').isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(
               user!.position!,
-              style: TextStyle(fontSize: 13, color: _primary, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? const Color(0xFF2DD4BF) : _primary,
+                fontWeight: FontWeight.w600,
+              ),
               textAlign: TextAlign.center,
             ),
           ],
           const SizedBox(height: 20),
-          _buildActionButton(isLoading, user),
+          _buildActionButton(isLoading, user, themeProvider, isDark),
         ],
       ),
     );
   }
 
-  Widget _buildAvatar(AppUser? user) {
+  Widget _buildAvatar(AppUser? user, ThemeProvider themeProvider, bool isDark) {
     if (user == null) return const SizedBox.shrink();
     final initials = user.name.isNotEmpty ? user.name[0].toUpperCase() : 'A';
 
@@ -312,7 +326,10 @@ class _ProfilePageState extends State<ProfilePage> {
           height: 110,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
+            border: Border.all(
+              color: isDark ? themeProvider.borderColor : Colors.white,
+              width: 3,
+            ),
             boxShadow: [
               BoxShadow(
                 color: _primary.withValues(alpha: 0.18),
@@ -350,16 +367,26 @@ class _ProfilePageState extends State<ProfilePage> {
                             );
                           },
                           errorBuilder: (context, error, stackTrace) => Center(
-                            child: Text(initials,
-                                style: const TextStyle(
-                                    fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white)),
+                            child: Text(
+                              initials,
+                              style: const TextStyle(
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
                       )
                     : Center(
-                        child: Text(initials,
-                            style: const TextStyle(
-                                fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white)),
+                        child: Text(
+                          initials,
+                          style: const TextStyle(
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
           ),
         ),
@@ -374,7 +401,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 decoration: BoxDecoration(
                   color: _primary,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(
+                    color: isDark ? themeProvider.cardColor : Colors.white,
+                    width: 2,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.12),
@@ -391,7 +421,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildActionButton(bool isLoading, AppUser? user) {
+  Widget _buildActionButton(bool isLoading, AppUser? user, ThemeProvider themeProvider, bool isDark) {
     if (_isEditing) {
       return Row(
         mainAxisSize: MainAxisSize.min,
@@ -401,8 +431,13 @@ class _ProfilePageState extends State<ProfilePage> {
               _syncControllers(user);
               setState(() => _isEditing = false);
             },
-            child: const Text('Cancel',
-                style: TextStyle(color: _subtleText, fontWeight: FontWeight.w600)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: themeProvider.subtitleColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           const SizedBox(width: 12),
           ElevatedButton.icon(
@@ -411,7 +446,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
                 : const Icon(Icons.check_circle_rounded, size: 18),
             label: const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.w700)),
             style: ElevatedButton.styleFrom(
@@ -442,16 +478,16 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // -- Account Details Card ----------------------------------------------------
 
-  Widget _buildAccountDetails() {
+  Widget _buildAccountDetails(ThemeProvider themeProvider, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AdminStyles.surface,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _borderColor),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: themeProvider.shadowColor,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -460,25 +496,70 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Account Details',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: _textPrimary)),
+          Text(
+            'Account Details',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: themeProvider.textColor,
+            ),
+          ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'These details were set by the System Admin. You may update your name, phone, and designation.',
-            style: TextStyle(fontSize: 12, color: _subtleText, fontWeight: FontWeight.w500),
+            style: TextStyle(
+              fontSize: 12,
+              color: themeProvider.subtitleColor,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 24),
-          _buildField(Icons.person_outline_rounded, 'Full Name', _nameController, _isEditing,
-              validator: (v) => (v?.trim().isEmpty ?? true) ? 'Required' : null),
+          _buildField(
+            Icons.person_outline_rounded,
+            'Full Name',
+            _nameController,
+            _isEditing,
+            themeProvider,
+            isDark,
+            validator: (v) => (v?.trim().isEmpty ?? true) ? 'Required' : null,
+          ),
           const SizedBox(height: 20),
-          _buildField(Icons.alternate_email_rounded, 'Email Address', _emailController, false,
-              helperText: 'Email is locked to the current login account.'),
+          _buildField(
+            Icons.alternate_email_rounded,
+            'Email Address',
+            _emailController,
+            false,
+            themeProvider,
+            isDark,
+            helperText: 'Email is locked to the current login account.',
+          ),
           const SizedBox(height: 20),
-          _buildField(Icons.badge_outlined, 'Employee ID', _employeeIdController, _isEditing),
+          _buildField(
+            Icons.badge_outlined,
+            'Employee ID',
+            _employeeIdController,
+            _isEditing,
+            themeProvider,
+            isDark,
+          ),
           const SizedBox(height: 20),
-          _buildField(Icons.work_outline_rounded, 'Designation / Position', _positionController, _isEditing),
+          _buildField(
+            Icons.work_outline_rounded,
+            'Designation / Position',
+            _positionController,
+            _isEditing,
+            themeProvider,
+            isDark,
+          ),
           const SizedBox(height: 20),
-          _buildField(Icons.phone_outlined, 'Contact Number', _phoneController, _isEditing),
+          _buildField(
+            Icons.phone_outlined,
+            'Contact Number',
+            _phoneController,
+            _isEditing,
+            themeProvider,
+            isDark,
+          ),
         ],
       ),
     );
@@ -488,20 +569,34 @@ class _ProfilePageState extends State<ProfilePage> {
     IconData icon,
     String label,
     TextEditingController controller,
-    bool enabled, {
+    bool enabled,
+    ThemeProvider themeProvider,
+    bool isDark, {
     String? helperText,
     String? Function(String?)? validator,
   }) {
+    final disabledBg = isDark
+        ? const Color(0xFF222222)
+        : AdminStyles.bg;
+    final enabledBg = isDark
+        ? themeProvider.inputFillColor
+        : Colors.white;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, size: 15, color: _subtleText),
+            Icon(icon, size: 15, color: themeProvider.subtitleColor),
             const SizedBox(width: 8),
-            Text(label,
-                style: const TextStyle(
-                    fontSize: 13, color: _subtleText, fontWeight: FontWeight.bold)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: themeProvider.subtitleColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 10),
@@ -510,25 +605,30 @@ class _ProfilePageState extends State<ProfilePage> {
           enabled: enabled,
           validator: validator,
           style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: enabled ? _textPrimary : _subtleText),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: enabled ? themeProvider.textColor : themeProvider.subtitleColor,
+          ),
           decoration: InputDecoration(
             helperText: helperText,
-            helperStyle: const TextStyle(fontSize: 11, color: _subtleText),
+            helperStyle: TextStyle(fontSize: 11, color: themeProvider.subtitleColor),
             filled: true,
-            fillColor: enabled ? Colors.white : AdminStyles.bg,
+            fillColor: enabled ? enabledBg : disabledBg,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _borderColor),
+              borderSide: BorderSide(color: themeProvider.borderColor),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _borderColor),
+              borderSide: BorderSide(color: themeProvider.borderColor),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _borderColor.withValues(alpha: 0.5)),
+              borderSide: BorderSide(
+                color: isDark
+                    ? themeProvider.borderColor.withValues(alpha: 0.4)
+                    : themeProvider.borderColor.withValues(alpha: 0.5),
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -540,7 +640,6 @@ class _ProfilePageState extends State<ProfilePage> {
       ],
     );
   }
-
 }
 
 

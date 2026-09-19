@@ -116,7 +116,7 @@ class AboutSystemPage extends StatelessWidget {
                   builder: (context, constraints) {
                     final availableWidth = constraints.maxWidth;
                     final cardWidth = availableWidth >= 1024
-                        ? (availableWidth - 36) / 4
+                        ? (availableWidth - 24) / 3
                         : availableWidth >= 720
                             ? (availableWidth - 12) / 2
                             : availableWidth;
@@ -128,33 +128,22 @@ class AboutSystemPage extends StatelessWidget {
                         SizedBox(
                           width: cardWidth,
                           child: _buildTeamMember(
-                            role: 'Lead Developer',
-                            name: 'Hannah Louise Bergonia',
+                            name: 'Mc Lester Soriano',
                             color: const Color(0xFF2563EB),
                           ),
                         ),
                         SizedBox(
                           width: cardWidth,
                           child: _buildTeamMember(
-                            role: 'UI/UX Designer',
-                            name: 'Hannah Louise Bergonia',
-                            color: const Color(0xFFF59E0B),
+                            name: 'Hannah Louise Jane Bangayan',
+                            color: const Color(0xFFD97706),
                           ),
                         ),
                         SizedBox(
                           width: cardWidth,
                           child: _buildTeamMember(
-                            role: 'Mobile Developer',
-                            name: 'MC Lester Soriano',
+                            name: 'Rizza Jane Abarquez',
                             color: const Color(0xFF059669),
-                          ),
-                        ),
-                        SizedBox(
-                          width: cardWidth,
-                          child: _buildTeamMember(
-                            role: 'Backend',
-                            name: 'Ignacio Loudet Developer',
-                            color: const Color(0xFF7C3AED),
                           ),
                         ),
                       ],
@@ -192,42 +181,75 @@ class AboutSystemPage extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(999),
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            child: const Text(
-              'San Carlos Campus',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
+            padding: const EdgeInsets.all(10),
+            child: Image.asset(
+              'assets/images/app_logo_v2.png',
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.school,
+                color: Color(0xFF4169E1),
+                size: 40,
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          const Text(
-            'PSU MMS',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              height: 1.1,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Version 1.0.0.0 Production Build',
-            style: AdminStyles.bodyStyle(
-              fontSize: 13,
-              color: Colors.white.withValues(alpha: 0.88),
-              fontWeight: FontWeight.w600,
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'San Carlos Campus',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'PSU MMS',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Version 1.0.0.0 Production Build',
+                  style: AdminStyles.bodyStyle(
+                    fontSize: 13,
+                    color: Colors.white.withValues(alpha: 0.88),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -331,9 +353,9 @@ class AboutSystemPage extends StatelessWidget {
             ),
             padding: const EdgeInsets.all(12),
             child: Image.asset(
-              'assets/images/PsuLogo.png',
+              'assets/images/app_logo_v2.png',
               fit: BoxFit.contain,
-              errorBuilder: (_, __, _) => const Icon(
+              errorBuilder: (context, error, stackTrace) => const Icon(
                 Icons.school,
                 color: Color(0xFF4169E1),
                 size: 40,
@@ -436,39 +458,46 @@ class AboutSystemPage extends StatelessWidget {
   }
 
   Widget _buildTeamMember({
-    required String role,
     required String name,
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: AdminStyles.cardDecoration(
         color: Colors.white,
         borderRadius: 12,
         hasShadow: false,
       ).copyWith(
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            role,
-            style: AdminStyles.bodyStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: color,
-              letterSpacing: 0.2,
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withValues(alpha: 0.3), width: 1.5),
+            ),
+            child: Center(
+              child: Icon(
+                Icons.person_rounded,
+                color: color,
+                size: 24,
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            name,
-            style: AdminStyles.bodyStyle(
-              fontSize: 13,
-              color: const Color(0xFF0F172A),
-              fontWeight: FontWeight.w600,
-              height: 1.3,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              name,
+              style: AdminStyles.bodyStyle(
+                fontSize: 14,
+                color: const Color(0xFF0F172A),
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
             ),
           ),
         ],

@@ -177,7 +177,16 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
             (r) =>
                 r.title.toLowerCase().contains(query) ||
                 r.id.toLowerCase().contains(query) ||
-                r.requestorName.toLowerCase().contains(query),
+                r.formattedId.toLowerCase().contains(query) ||
+                (r.departmentName ?? '').toLowerCase().contains(query) ||
+                (r.department ?? '').toLowerCase().contains(query) ||
+                (r.buildingName ?? '').toLowerCase().contains(query) ||
+                (r.roomName ?? '').toLowerCase().contains(query) ||
+                (r.officeRoom ?? '').toLowerCase().contains(query) ||
+                (r.roomCode ?? '').toLowerCase().contains(query) ||
+                r.requestorName.toLowerCase().contains(query) ||
+                r.typeDisplay.toLowerCase().contains(query) ||
+                r.typeOfRequest.toLowerCase().contains(query),
           )
           .toList();
     }
@@ -414,6 +423,8 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
           _buildStatusFilterButton('Confirmed', 4),
           const SizedBox(width: 8),
           _buildStatusFilterButton('Rework', 5),
+          const SizedBox(width: 8),
+          _buildStatusFilterButton('Duplicates', 7),
         ],
       ),
     );

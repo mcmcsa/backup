@@ -385,22 +385,9 @@ class _AdminApprovalSignaturePageState
         workRequestId: widget.request.id,
         adminName: user.name,
         assignedMaintenanceId: primaryId,
+        assignedMaintenanceName: _assignedStaffName(),
+        requestorId: widget.request.requestorId ?? widget.request.reportedById,
       );
-
-      for (final staffId in _selectedMaintenanceIds) {
-        try {
-          final isPrimary = staffId == primaryId;
-          await AppNotificationService.createForUser(
-            targetUserId: staffId,
-            title: isPrimary ? 'New Work Request Assignment' : 'Collaboration Assignment',
-            message: isPrimary
-                ? 'You were assigned to work request ${widget.request.id} by admin ${user.name}.'
-                : 'You were invited to collaborate on work request ${widget.request.id} by admin ${user.name}.',
-            type: 'work_request_assigned',
-            workRequestId: widget.request.id,
-          );
-        } catch (_) {}
-      }
 
       await LoginActivityService.recordAdminAction(
         user: user,

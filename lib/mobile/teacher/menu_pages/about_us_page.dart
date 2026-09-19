@@ -197,6 +197,54 @@ class AboutUsPage extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
+          // Development Team
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: themeProvider.cardColor,
+              borderRadius: BorderRadius.circular(12),
+              border: cardBorder,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Development Team',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: themeProvider.textColor,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildTeamMemberItem(
+                  name: 'Mc Lester Soriano',
+                  color: const Color(0xFF2563EB),
+                  textColor: themeProvider.textColor,
+                  isDark: isDark,
+                  cardColor: themeProvider.cardColor,
+                ),
+                const SizedBox(height: 10),
+                _buildTeamMemberItem(
+                  name: 'Hannah Louise Jane Bangayan',
+                  color: const Color(0xFFD97706),
+                  textColor: themeProvider.textColor,
+                  isDark: isDark,
+                  cardColor: themeProvider.cardColor,
+                ),
+                const SizedBox(height: 10),
+                _buildTeamMemberItem(
+                  name: 'Rizza Jane Abarquez',
+                  color: const Color(0xFF059669),
+                  textColor: themeProvider.textColor,
+                  isDark: isDark,
+                  cardColor: themeProvider.cardColor,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
           // University Info
           Container(
             padding: const EdgeInsets.all(20),
@@ -333,6 +381,51 @@ class AboutUsPage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildTeamMemberItem({
+    required String name,
+    required Color color,
+    required Color textColor,
+    required bool isDark,
+    required Color cardColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: isDark ? 0.35 : 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: isDark ? 0.25 : 0.12),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withValues(alpha: 0.35), width: 1.5),
+            ),
+            child: Center(
+              child: Icon(Icons.person_rounded, color: color, size: 20),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              name,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

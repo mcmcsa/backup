@@ -180,7 +180,6 @@ class _ChatListPanelState extends State<ChatListPanel> {
         ),
         child: TextField(
           controller: _searchCtrl,
-          textAlign: TextAlign.center,
           decoration: InputDecoration(
             hintText: 'Search conversations…',
             prefixIcon: Icon(Icons.search_rounded, size: 18, color: themeProvider.subtitleColor),
@@ -192,7 +191,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
                       setState(() => _query = '');
                     },
                   )
-                : const SizedBox(width: 48),
+                : null,
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,

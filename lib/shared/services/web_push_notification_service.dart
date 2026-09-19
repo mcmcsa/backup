@@ -88,14 +88,31 @@ class WebPushNotificationService {
           table: 'app_notifications',
           callback: (payload) async {
             final newRecord = payload.newRecord;
-            final targetUserId = newRecord['target_user_id']?.toString();
-            final targetRole = newRecord['target_role']?.toString();
+            final targetUserId = newRecord['target_user_id']?.toString().trim();
+            final targetRole = newRecord['target_role']?.toString().trim();
 
-            // Check if notification matches current user or role
-            final matchesUser = targetUserId == userId;
-            final matchesRole = targetRole == 'all' || targetRole == userRole.toLowerCase();
+            // Strict recipient matching
+            final hasTargetUser = targetUserId != null && targetUserId.isNotEmpty;
+            if (hasTargetUser) {
+              if (targetUserId != userId) return;
+            } else {
+              final normalizedUserRole = userRole.toLowerCase().trim();
+              final normalizedTargetRole = (targetRole ?? 'all').toLowerCase().trim();
 
-            if (!matchesUser && !matchesRole) return;
+              // Maintenance users NEVER receive role-broadcast notifications for tickets.
+              // They only receive global announcements ('all') or direct notifications (target_user_id == userId).
+              if (normalizedUserRole == 'maintenance') {
+                if (normalizedTargetRole != 'all') return;
+              }
+
+              final isAdminUser = normalizedUserRole == 'campadmin' || normalizedUserRole == 'admin';
+              final isAdminTarget = normalizedTargetRole == 'admin' || normalizedTargetRole == 'campadmin';
+
+              final matchesRole = normalizedTargetRole == 'all' ||
+                  normalizedTargetRole == normalizedUserRole ||
+                  (isAdminUser && isAdminTarget);
+              if (!matchesRole) return;
+            }
 
             // Strictly evaluate user notification settings:
             // if (enableNotifications === true && pushNotifications === true) -> push alert

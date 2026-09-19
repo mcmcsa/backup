@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_settings_service.dart';
@@ -17,13 +18,18 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (message.notification == null) {
     final title = message.data['title'] as String?;
     final body = message.data['body'] as String? ?? message.data['message'] as String?;
+    final createdAtStr = message.data['created_at'] as String?;
+    final whenTime = createdAtStr != null
+        ? DateTime.tryParse(createdAtStr)?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch
+        : DateTime.now().millisecondsSinceEpoch;
+
     if (title != null && title.isNotEmpty) {
       final localNotifications = FlutterLocalNotificationsPlugin();
       await localNotifications.show(
         message.hashCode,
         title,
         body ?? '',
-        const NotificationDetails(
+        NotificationDetails(
           android: AndroidNotificationDetails(
             'psu_mms_notifications',
             'PSU MMS Notifications',
@@ -33,6 +39,11 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
             playSound: true,
             enableVibration: true,
             visibility: NotificationVisibility.public,
+            icon: '@mipmap/ic_launcher',
+            largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+            showWhen: true,
+            when: whenTime,
+            color: const Color(0xFF4169E1),
           ),
         ),
         payload: message.data['target_page'] as String?,
@@ -59,6 +70,27 @@ class FcmService {
 
   static SupabaseClient get _db => Supabase.instance.client;
   static const String _devicesTable = 'user_devices';
+
+  /// Standard branded notification styling with logo, app title, and real-time timestamp
+  static AndroidNotificationDetails _buildAndroidNotificationDetails({
+    int? whenTime,
+  }) {
+    return AndroidNotificationDetails(
+      _channel.id,
+      _channel.name,
+      channelDescription: _channel.description,
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      visibility: NotificationVisibility.public,
+      icon: '@mipmap/ic_launcher',
+      largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+      showWhen: true,
+      when: whenTime ?? DateTime.now().millisecondsSinceEpoch,
+      color: const Color(0xFF4169E1),
+    );
+  }
 
   static Future<void> initialize() async {
     if (kIsWeb) return;
@@ -141,25 +173,52 @@ class FcmService {
           table: 'app_notifications',
           callback: (payload) async {
             final newRecord = payload.newRecord;
-            final targetUserId = newRecord['target_user_id']?.toString();
-            final targetRole = newRecord['target_role']?.toString();
+            final targetUserId = newRecord['target_user_id']?.toString().trim();
+            final targetRole = newRecord['target_role']?.toString().trim();
 
-            // Match current user or role
-            final matchesUser = targetUserId == userId;
-            final matchesRole = targetRole == 'all' || targetRole == userRole.toLowerCase();
+            // STRICT FILTERING:
+            // 1. If notification is targeted to a specific user (personal notification like chat/ticket),
+            //    it MUST match the currently logged-in user id! If targetUserId is set and doesn't match userId, IGNORE.
+            final hasTargetUser = targetUserId != null && targetUserId.isNotEmpty;
+            if (hasTargetUser) {
+              if (targetUserId != userId) {
+                debugPrint('[FcmService] Suppressed notification intended for user $targetUserId (logged-in: $userId)');
+                return;
+              }
+            } else {
+              // 2. Only broadcast/role-based notifications (where target_user_id is not set) can match target_role.
+              final normalizedUserRole = userRole.toLowerCase().trim();
+              final normalizedTargetRole = (targetRole ?? 'all').toLowerCase().trim();
 
-            if (!matchesUser && !matchesRole) return;
+              // Maintenance users NEVER receive role-broadcast notifications for tickets.
+              // They only receive global announcements ('all') or direct notifications (target_user_id == userId).
+              if (normalizedUserRole == 'maintenance') {
+                if (normalizedTargetRole != 'all') return;
+              }
+
+              final isAdminUser = normalizedUserRole == 'campadmin' || normalizedUserRole == 'admin';
+              final isAdminTarget = normalizedTargetRole == 'admin' || normalizedTargetRole == 'campadmin';
+
+              final matchesRole = normalizedTargetRole == 'all' ||
+                  normalizedTargetRole == normalizedUserRole ||
+                  (isAdminUser && isAdminTarget);
+              if (!matchesRole) return;
+            }
 
             // Check master switch and push switch in user settings
             final canPush = await AppSettingsService.canReceivePush(userId: userId);
             if (!canPush) {
-              debugPrint('[FcmService] Notification suppressed by user settings (notificationsEnabled or pushNotifications is OFF).');
+              debugPrint('[FcmService] Notification suppressed by user settings.');
               return;
             }
 
             final title = newRecord['title']?.toString() ?? 'PSU MMS Notification';
             final body = newRecord['message']?.toString() ?? '';
             final targetPage = newRecord['target_page']?.toString();
+            final createdAtStr = newRecord['created_at']?.toString();
+            final whenTime = createdAtStr != null
+                ? DateTime.tryParse(createdAtStr)?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch
+                : DateTime.now().millisecondsSinceEpoch;
             final notifId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
             debugPrint('[FcmService] Displaying Heads-Up Notification on device: $title');
@@ -168,17 +227,7 @@ class FcmService {
               title,
               body,
               NotificationDetails(
-                android: AndroidNotificationDetails(
-                  _channel.id,
-                  _channel.name,
-                  channelDescription: _channel.description,
-                  importance: Importance.max,
-                  priority: Priority.high,
-                  playSound: true,
-                  enableVibration: true,
-                  visibility: NotificationVisibility.public,
-                  icon: '@mipmap/ic_launcher',
-                ),
+                android: _buildAndroidNotificationDetails(whenTime: whenTime),
               ),
               payload: targetPage,
             );
@@ -203,9 +252,23 @@ class FcmService {
       return;
     }
 
+    // Recipient validation
+    final targetUserId = message.data['target_user_id'] as String?;
+    final currentUserId = _db.auth.currentUser?.id;
+    if (targetUserId != null && targetUserId.isNotEmpty) {
+      if (currentUserId == null || targetUserId != currentUserId) {
+        debugPrint('[FcmService] Foreground message suppressed: target $targetUserId != current $currentUserId');
+        return;
+      }
+    }
+
     final notification = message.notification;
     final title = notification?.title ?? message.data['title'] as String?;
     final body = notification?.body ?? message.data['body'] as String? ?? message.data['message'] as String?;
+    final createdAtStr = message.data['created_at'] as String?;
+    final whenTime = createdAtStr != null
+        ? DateTime.tryParse(createdAtStr)?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch
+        : DateTime.now().millisecondsSinceEpoch;
 
     if (title != null && title.isNotEmpty) {
       debugPrint('[FcmService] Foreground message displayed: title=$title');
@@ -214,17 +277,7 @@ class FcmService {
         title,
         body ?? '',
         NotificationDetails(
-          android: AndroidNotificationDetails(
-            _channel.id,
-            _channel.name,
-            channelDescription: _channel.description,
-            icon: '@mipmap/ic_launcher',
-            importance: Importance.max,
-            priority: Priority.high,
-            playSound: true,
-            enableVibration: true,
-            visibility: NotificationVisibility.public,
-          ),
+          android: _buildAndroidNotificationDetails(whenTime: whenTime),
         ),
         payload: message.data['target_page'] as String?,
       );
@@ -251,18 +304,28 @@ class FcmService {
       }
 
       final canPush = await AppSettingsService.canReceivePush(userId: userId);
+      final platform = defaultTargetPlatform.name.toLowerCase();
 
+      // 1. Purge this physical device token from any OTHER user accounts
+      // to ensure no cross-account notification leak on shared or switched devices.
+      await _db
+          .from(_devicesTable)
+          .delete()
+          .eq('fcm_token', token)
+          .neq('user_id', userId);
+
+      // 2. Associate token exclusively with the currently logged-in user
       await _db.from(_devicesTable).upsert(
         {
           'user_id': userId,
           'fcm_token': token,
-          'platform': defaultTargetPlatform.name.toLowerCase(),
+          'platform': platform,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         },
         onConflict: 'user_id, platform',
       );
 
-      debugPrint('[FcmService] FCM token saved for user $userId (canPush: $canPush).');
+      debugPrint('[FcmService] FCM token saved exclusively for user $userId (canPush: $canPush).');
 
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
         _refreshToken(userId, newToken);
@@ -275,11 +338,20 @@ class FcmService {
   static Future<void> _refreshToken(String userId, String newToken) async {
     if (kIsWeb) return;
     try {
+      final platform = defaultTargetPlatform.name.toLowerCase();
+
+      // Purge token from other users before refreshing
+      await _db
+          .from(_devicesTable)
+          .delete()
+          .eq('fcm_token', newToken)
+          .neq('user_id', userId);
+
       await _db.from(_devicesTable).upsert(
         {
           'user_id': userId,
           'fcm_token': newToken,
-          'platform': defaultTargetPlatform.name.toLowerCase(),
+          'platform': platform,
           'updated_at': DateTime.now().toUtc().toIso8601String(),
         },
         onConflict: 'user_id, platform',

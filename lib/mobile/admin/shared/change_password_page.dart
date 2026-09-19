@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../shared/providers/theme_provider.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
@@ -50,7 +51,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     super.dispose();
   }
 
-  Future<void> _handleChangePassword() async {
+  Future<void> _handleChangePassword(ThemeProvider themeProvider) async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
@@ -71,30 +72,45 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       return;
     }
 
+    final isDark = themeProvider.isDarkMode;
+
     final shouldLogout = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
+          backgroundColor: themeProvider.cardColor,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.check_circle_rounded, color: Color(0xFF22C55E), size: 28),
-              SizedBox(width: 10),
-              Text('Password Updated', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const Icon(Icons.check_circle_rounded, color: Color(0xFF22C55E), size: 28),
+              const SizedBox(width: 10),
+              Text(
+                'Password Updated',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: themeProvider.textColor,
+                ),
+              ),
             ],
           ),
-          content: const Text(
+          content: Text(
             'Your password has been changed successfully.\n\nWould you like to keep logged in on this device or log out now?',
-            style: TextStyle(fontSize: 14),
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? Colors.grey.shade300 : const Color(0xFF475569),
+            ),
           ),
           actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           actions: [
             OutlinedButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF475569),
-                side: const BorderSide(color: Color(0xFFCBD5E1)),
+                foregroundColor: themeProvider.textColor,
+                side: BorderSide(
+                  color: isDark ? Colors.grey.shade700 : const Color(0xFFCBD5E1),
+                ),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               child: const Text('Keep Logged In', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -123,18 +139,24 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: themeProvider.backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: themeProvider.appBarColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Change Password',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: themeProvider.textColor,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -148,6 +170,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 label: 'Old Password',
                 obscure: _obscureOld,
                 onToggle: () => setState(() => _obscureOld = !_obscureOld),
+                themeProvider: themeProvider,
+                isDark: isDark,
               ),
               const SizedBox(height: 12),
               _buildPasswordField(
@@ -156,19 +180,26 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 obscure: _obscureNew,
                 onToggle: () => setState(() => _obscureNew = !_obscureNew),
                 validator: _validateStrongPassword,
+                themeProvider: themeProvider,
+                isDark: isDark,
               ),
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: themeProvider.cardColor,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  border: Border.all(
+                    color: isDark ? Colors.grey.shade800 : const Color(0xFFE5E7EB),
+                  ),
                 ),
-                child: const Text(
+                child: Text(
                   'Password must contain at least 8 characters, with uppercase, lowercase, number, and special character.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? Colors.grey.shade400 : const Color(0xFF475569),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -186,12 +217,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   }
                   return null;
                 },
+                themeProvider: themeProvider,
+                isDark: isDark,
               ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isSaving ? null : _handleChangePassword,
+                  onPressed: _isSaving ? null : () => _handleChangePassword(themeProvider),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4169E1),
                     foregroundColor: Colors.white,
@@ -227,11 +260,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     required String label,
     required bool obscure,
     required VoidCallback onToggle,
+    required ThemeProvider themeProvider,
+    required bool isDark,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
+      style: TextStyle(color: themeProvider.textColor),
       validator: validator ??
           (value) {
             if (value == null || value.isEmpty) {
@@ -241,14 +277,42 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           },
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: TextStyle(
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+        ),
         filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
+        fillColor: themeProvider.cardColor,
+        enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(
+            color: isDark ? Colors.grey.shade800 : const Color(0xFFE2E8F0),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(
+            color: Color(0xFF4169E1),
+            width: 1.5,
+          ),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(
+            color: Colors.redAccent,
+          ),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(
+            color: Colors.redAccent,
+            width: 1.5,
+          ),
         ),
         suffixIcon: IconButton(
-          icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+          icon: Icon(
+            obscure ? Icons.visibility_off : Icons.visibility,
+            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+          ),
           onPressed: onToggle,
         ),
       ),
