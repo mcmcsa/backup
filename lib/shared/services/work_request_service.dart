@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -11,6 +12,17 @@ import 'room_service.dart';
 class WorkRequestService {
   static SupabaseClient get _db => Supabase.instance.client;
   static const String _table = 'work_requests';
+
+  static final StreamController<void> _changeController =
+      StreamController<void>.broadcast();
+  static Stream<void> get onWorkRequestsChanged => _changeController.stream;
+
+  /// Broadcast a change to all active in-memory listeners
+  static void notifyChange() {
+    if (!_changeController.isClosed) {
+      _changeController.add(null);
+    }
+  }
   static final RegExp _missingColumnRegex = RegExp(
     "Could not find the '([^']+)' column of 'work_requests'",
   );
@@ -403,6 +415,8 @@ class WorkRequestService {
       await _db.from(_table).update({'status': status}).eq('id', id);
     }
 
+    notifyChange();
+
     try {
       final request = await fetchById(id);
       if (request?.roomId != null) {
@@ -420,6 +434,7 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update({'priority': priority}).eq('id', id);
     }
+    notifyChange();
   }
 
   static Future<void> updateWorkEvidence(String id, String evidenceUrl) async {
@@ -429,6 +444,7 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update({'work_evidence': evidenceUrl}).eq('id', id);
     }
+    notifyChange();
   }
 
   static Future<String> uploadVoiceNote(String filePath, String requestId) async {
@@ -470,6 +486,7 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update(updateData).eq('id', id);
     }
+    notifyChange();
   }
 
   static Future<void> assignTo(String id, String userId) async {
@@ -481,6 +498,8 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update({'assigned_to_id': userId}).eq('id', id);
     }
+
+    notifyChange();
 
     try {
       await MaintenanceStatusService.setBusyOnAssignment(userId, id);
@@ -530,6 +549,8 @@ class WorkRequestService {
       await _db.from(_table).update(updateData).eq('id', id);
     }
 
+    notifyChange();
+
     try {
       final request = await fetchById(id);
       if (request?.roomId != null) {
@@ -549,6 +570,8 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update(updateData).eq('id', id);
     }
+
+    notifyChange();
     
     // Fetch to find who was assigned, so we can free them
     final request = await fetchById(id);
@@ -601,6 +624,8 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update(updateData).eq('id', id);
     }
+
+    notifyChange();
     
     await MaintenanceStatusService.setBusyOnAssignment(maintenanceId, id);
 
@@ -623,6 +648,8 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update(updateData).eq('id', id);
     }
+
+    notifyChange();
 
     try {
       final request = await fetchById(id);
@@ -647,6 +674,8 @@ class WorkRequestService {
     } else {
       await _db.from(_table).update(updateData).eq('id', id);
     }
+
+    notifyChange();
 
     if (request?.roomId != null) {
       await updateRoomStatusFromRequests(request!.roomId!);
@@ -778,6 +807,8 @@ class WorkRequestService {
       await updateRoomStatusFromRequests(request.roomId!);
     }
 
+    notifyChange();
+
     return WorkRequest.fromMap(data);
   }
 
@@ -786,6 +817,7 @@ class WorkRequestService {
     if (request.roomId != null && request.roomId!.isNotEmpty) {
       await updateRoomStatusFromRequests(request.roomId!);
     }
+    notifyChange();
   }
 
   static Future<void> delete(String id) async {
@@ -804,6 +836,7 @@ class WorkRequestService {
     if (roomId != null && roomId.isNotEmpty) {
       await updateRoomStatusFromRequests(roomId);
     }
+    notifyChange();
   }
 
   // Analytics methods
@@ -835,7 +868,9 @@ class WorkRequestService {
   static RealtimeChannel listenToAllWorkRequests(
     Function(List<WorkRequest>) onUpdate,
   ) {
-    final channel = _db.realtime.channel('realtime:work_requests');
+    final channelName =
+        'realtime:work_requests_${DateTime.now().millisecondsSinceEpoch}_${_uuid.v4().substring(0, 6)}';
+    final channel = _db.realtime.channel(channelName);
 
     channel
         .onPostgresChanges(
@@ -843,6 +878,7 @@ class WorkRequestService {
           schema: 'public',
           table: _table,
           callback: (payload) async {
+            notifyChange();
             try {
               // Fetch all updated data to ensure consistency
               final data = await fetchAll();
@@ -862,9 +898,9 @@ class WorkRequestService {
     String requestorId,
     Function(List<WorkRequest>) onUpdate,
   ) {
-    final channel = _db.realtime.channel(
-      'realtime:work_requests_requestor_$requestorId',
-    );
+    final channelName =
+        'realtime:work_requests_req_${requestorId}_${DateTime.now().millisecondsSinceEpoch}';
+    final channel = _db.realtime.channel(channelName);
 
     channel
         .onPostgresChanges(
@@ -872,8 +908,38 @@ class WorkRequestService {
           schema: 'public',
           table: _table,
           callback: (payload) async {
+            notifyChange();
             try {
               final data = await fetchByRequestor(requestorId);
+              onUpdate(data);
+            } catch (_) {
+              // Silently ignore errors
+            }
+          },
+        )
+        .subscribe();
+
+    return channel;
+  }
+
+  /// Set up real-time listener for requests assigned to a maintenance user
+  static RealtimeChannel listenToMaintenanceRequests(
+    String userId,
+    Function(List<WorkRequest>) onUpdate,
+  ) {
+    final channelName =
+        'realtime:work_requests_maint_${userId}_${DateTime.now().millisecondsSinceEpoch}';
+    final channel = _db.realtime.channel(channelName);
+
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: _table,
+          callback: (payload) async {
+            notifyChange();
+            try {
+              final data = await fetchAssignedTo(userId);
               onUpdate(data);
             } catch (_) {
               // Silently ignore errors

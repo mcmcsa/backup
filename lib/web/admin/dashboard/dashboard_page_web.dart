@@ -101,7 +101,7 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
       );
     }
     
-    if (_isLoading) {
+    if (_isLoading && _allRequests.isEmpty) {
       return const Center(child: CircularProgressIndicator(color: AdminStyles.primary));
     }
     

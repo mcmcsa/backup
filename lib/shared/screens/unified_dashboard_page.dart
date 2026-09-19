@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/work_request_model.dart';
 import '../providers/work_request_provider.dart';
+import '../providers/room_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/work_request_service.dart';
 import '../../web/admin/shared/admin_styles.dart';
 import '../../mobile/admin/shared/admin_app_bar.dart';
 
@@ -25,10 +28,54 @@ class UnifiedDashboardPage extends StatefulWidget {
   State<UnifiedDashboardPage> createState() => _UnifiedDashboardPageState();
 }
 
-class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
+class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
+    with WidgetsBindingObserver {
+  Timer? _autoRefreshTimer;
+  StreamSubscription? _changeSubscription;
+  bool _isManualRefreshing = false;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<WorkRequestProvider>().refreshRequests(
+              silent: context.read<WorkRequestProvider>().requests.isNotEmpty,
+            );
+        context.read<RoomProvider>().refreshRooms();
+      }
+    });
+
+    _changeSubscription = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      if (mounted) {
+        context.read<WorkRequestProvider>().refreshRequests(silent: true);
+        context.read<RoomProvider>().refreshRooms();
+      }
+    });
+
+    // 5-second periodic auto-refresh timer (AJAX-style background sync)
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) {
+        context.read<WorkRequestProvider>().refreshRequests(silent: true);
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      context.read<WorkRequestProvider>().refreshRequests(silent: true);
+      context.read<RoomProvider>().refreshRooms();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    _changeSubscription?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   List<WorkRequest> get _allRequests {
@@ -44,36 +91,28 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
   }
 
   int _getCountByStatus(String status) {
-    if (status.toLowerCase() == 'pending') {
-      return _allRequests
-          .where((r) => r.status == 'Pending')
-          .length;
-    }
-    if (status.toLowerCase() == 'completed') {
-      return _allRequests
-          .where((r) => r.status == 'Completed')
-          .length;
-    }
+    final target = status.trim().toLowerCase();
     return _allRequests
-        .where((r) => r.status.toLowerCase() == status.toLowerCase())
+        .where((r) => r.status.trim().toLowerCase() == target)
         .length;
   }
 
   int _getCountByPriority(String priority) {
+    final target = priority.trim().toLowerCase();
     return _allRequests
-        .where((r) => r.priority.toLowerCase() == priority.toLowerCase())
+        .where((r) => r.priority.trim().toLowerCase() == target)
         .length;
   }
 
   int _getCountByActiveStatuses() {
-    return _allRequests
-        .where((r) {
-          final s = r.status;
-          return s != 'Pending' &&
-              s != 'Completed' &&
-              s != 'Declined';
-        })
-        .length;
+    return _allRequests.where((r) {
+      final s = r.status.trim().toLowerCase();
+      return s != 'pending' &&
+          s != 'completed' &&
+          s != 'declined' &&
+          s != 'cancelled' &&
+          s != 'declined/cancelled';
+    }).length;
   }
 
   List<WorkRequest> _getLatestRequests({int limit = 6}) {
@@ -130,7 +169,7 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
       );
     }
     
-    if (_isLoading) {
+    if (_isLoading && _allRequests.isEmpty) {
       return const Center(child: CircularProgressIndicator(color: AdminStyles.primary));
     }
     
@@ -282,7 +321,7 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'System Online • Analytics Sync Active',
+                      'Live Auto-Sync Active',
                       style: AdminStyles.bodyStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -294,6 +333,32 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage> {
               ],
             ),
           ),
+          IconButton(
+            tooltip: 'Sync Now',
+            icon: _isManualRefreshing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AdminStyles.primary,
+                    ),
+                  )
+                : const Icon(Icons.sync_rounded, color: AdminStyles.primary),
+            onPressed: _isManualRefreshing
+                ? null
+                : () async {
+                    setState(() => _isManualRefreshing = true);
+                    await Future.wait([
+                      context.read<WorkRequestProvider>().refreshRequests(silent: true),
+                      context.read<RoomProvider>().refreshRooms(),
+                    ]);
+                    if (mounted) {
+                      setState(() => _isManualRefreshing = false);
+                    }
+                  },
+          ),
+          const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [

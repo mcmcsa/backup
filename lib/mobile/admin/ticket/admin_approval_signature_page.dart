@@ -10,6 +10,9 @@ import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/services/maintenance_account_service.dart';
+import '../../../shared/services/maintenance_status_service.dart';
+import '../../../shared/services/maintenance_schedule_service.dart';
+import '../../../shared/widgets/maintenance_schedule_dialog.dart';
 import '../../../shared/widgets/availability_status_badge.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../../shared/providers/theme_provider.dart';
@@ -31,6 +34,7 @@ class _AdminApprovalSignaturePageState
   bool _isApproved = false;
   List<ESignature> _signatures = [];
   List<MaintenanceAccount> _maintenanceStaff = [];
+  String? _masterScheduleUrl;
   String? _selectedMaintenanceId;
   String? _selectedPriority;
   String _selectedDuration = '2 Hours';
@@ -63,13 +67,15 @@ class _AdminApprovalSignaturePageState
     try {
       final results = await Future.wait([
         ESignatureService.fetchByWorkRequest(widget.request.id),
-        MaintenanceAccountService.fetchAllActiveMaintenance(),
+        MaintenanceStatusService.fetchActiveMaintenanceWithDynamicStatus(),
+        MaintenanceScheduleService.getMasterScheduleUrl(),
       ]);
 
       if (mounted) {
         setState(() {
           _signatures = results[0] as List<ESignature>;
           _maintenanceStaff = results[1] as List<MaintenanceAccount>;
+          _masterScheduleUrl = results[2] as String?;
 
           if (_isApproved) {
             if (_selectedMaintenanceId == null && widget.request.assignedToId != null && widget.request.assignedToId!.isNotEmpty) {
@@ -91,6 +97,21 @@ class _AdminApprovalSignaturePageState
         });
       }
     } catch (_) {}
+  }
+
+  Future<void> _viewMasterSchedule() async {
+    final currentUrl = _masterScheduleUrl ?? await MaintenanceScheduleService.getMasterScheduleUrl();
+    if (!mounted) return;
+    await showMaintenanceScheduleDialog(
+      context,
+      title: 'Maintenance Schedule',
+      subtitle: 'Campus Master Schedule • All Maintenance Staff',
+      scheduleUrl: currentUrl,
+      onScheduleChanged: () async {
+        final url = await MaintenanceScheduleService.getMasterScheduleUrl();
+        if (mounted) setState(() => _masterScheduleUrl = url);
+      },
+    );
   }
 
   String _assignedStaffName() {
@@ -606,13 +627,37 @@ class _AdminApprovalSignaturePageState
                         const SizedBox(height: 20),
 
                         // Step 3: Maintenance Assignment
-                        Text(
-                          'Step 3 — Maintenance Assignment',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: themeProvider.textColor,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Step 3 — Maintenance Assignment',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: themeProvider.textColor,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: _viewMasterSchedule,
+                              icon: const Icon(Icons.calendar_month_rounded, size: 14, color: Color(0xFF0F766E)),
+                              label: const Text(
+                                'View Schedule',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F766E),
+                                ),
+                              ),
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         if (_maintenanceStaff.isEmpty)
@@ -666,7 +711,7 @@ class _AdminApprovalSignaturePageState
                                     AvailabilityStatusBadge(
                                       status: staff.availabilityStatus,
                                       size: BadgeSize.small,
-                                      showLabel: false,
+                                      showLabel: true,
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
@@ -730,7 +775,6 @@ class _AdminApprovalSignaturePageState
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.check_circle_rounded, color: Color(0xFF4169E1), size: 18),
                               ],
                             ),
                           ),

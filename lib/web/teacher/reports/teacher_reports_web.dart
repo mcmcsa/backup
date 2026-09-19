@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
@@ -22,9 +23,12 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
   bool _isLoading = true;
   String _searchQuery = '';
   String _selectedStatus = 'All';
+  RealtimeChannel? _realtimeChannel;
+  Timer? _autoRefreshTimer;
+  StreamSubscription? _changeSubscription;
+  bool _isFetching = false;
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
-  RealtimeChannel? _realtimeChannel;
 
   final List<String> _statuses = [
     'All',
@@ -56,11 +60,23 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
     );
     _loadRequests();
     _setupRealtime();
+
+    _changeSubscription = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      _loadRequests(silent: true);
+    });
+
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      _loadRequests(silent: true);
+    });
   }
 
   @override
   void dispose() {
-    _realtimeChannel?.unsubscribe();
+    _autoRefreshTimer?.cancel();
+    _changeSubscription?.cancel();
+    try {
+      _realtimeChannel?.unsubscribe();
+    } catch (_) {}
     _animController.dispose();
     super.dispose();
   }
@@ -68,17 +84,26 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
   void _setupRealtime() {
     final user = context.read<AuthService>().currentUser;
     if (user == null) return;
-    _realtimeChannel = WorkRequestService.listenToRequestorRequests(user.id, (data) {
-      if (mounted) {
-        setState(() {
-          _requests = data;
-          _applyFilters();
-        });
-      }
-    });
+    try {
+      _realtimeChannel = WorkRequestService.listenToRequestorRequests(user.id, (data) {
+        if (mounted) {
+          setState(() {
+            _requests = data;
+            _applyFilters();
+          });
+        }
+      });
+    } catch (_) {}
   }
 
-  Future<void> _loadRequests() async {
+  Future<void> _loadRequests({bool silent = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!silent && _requests.isEmpty && mounted) {
+      setState(() => _isLoading = true);
+    }
+
     try {
       final user = context.read<AuthService>().currentUser;
       if (user == null) return;
@@ -92,7 +117,9 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
         _animController.forward();
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && _requests.isEmpty) setState(() => _isLoading = false);
+    } finally {
+      _isFetching = false;
     }
   }
 

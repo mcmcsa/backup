@@ -6,6 +6,8 @@ import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/models/request_type_model.dart';
 import '../../../shared/models/e_signature_model.dart';
+import '../../../shared/providers/work_request_provider.dart';
+import '../../../shared/providers/room_provider.dart';
 import '../../../shared/services/connectivity_service.dart';
 import '../../../shared/services/offline_sync_service.dart';
 import '../../../shared/services/work_request_service.dart';
@@ -432,6 +434,11 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
       );
 
       final inserted = await WorkRequestService.insert(requestToInsert);
+
+      try {
+        context.read<WorkRequestProvider>().refreshRequests(silent: true);
+        context.read<RoomProvider>().refreshRooms();
+      } catch (_) {}
 
       if (user != null) {
         await ESignatureService.insert(ESignature(

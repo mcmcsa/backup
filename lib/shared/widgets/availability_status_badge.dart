@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../services/maintenance_status_service.dart';
 
 enum BadgeSize { small, medium, large }
 
@@ -21,16 +20,20 @@ class AvailabilityStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = MaintenanceStatusService.getStatusColor(status);
-    final fgColor = Color(colors['color']);
-    final bgColor = Color(colors['bg']);
+    final s = status.toLowerCase().trim();
+    final bool isBusy = s == 'busy' || s == 'working';
+    final String displayLabel = isBusy ? 'Busy' : 'Available';
+
+    final colors = isBusy
+        ? {'color': 0xFFF59E0B, 'bg': 0xFFFEF3C7} // Amber (Busy)
+        : {'color': 0xFF10B981, 'bg': 0xFFD1FAE5}; // Emerald (Available)
+
+    final fgColor = Color(colors['color']!);
+    final bgColor = Color(colors['bg']!);
 
     final padding = _getPadding();
     final fontSize = _getFontSize();
     final dotSize = _getDotSize();
-
-    String displayLabel = status.replaceAll('_', ' ');
-    displayLabel = displayLabel.split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}' : '').join(' ');
 
     Widget badge = Container(
       padding: padding,

@@ -12,6 +12,9 @@ import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../../../shared/services/maintenance_account_service.dart';
+import '../../../../shared/services/maintenance_status_service.dart';
+import '../../../../shared/services/maintenance_schedule_service.dart';
+import '../../../../shared/widgets/maintenance_schedule_dialog.dart';
 import '../../../../shared/widgets/availability_status_badge.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../shared/admin_styles.dart';
@@ -37,6 +40,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   bool _isApproved = false;
   List<ESignature> _signatures = [];
   List<MaintenanceAccount> _maintenanceStaff = [];
+  String? _masterScheduleUrl;
   final List<String> _selectedMaintenanceIds = [];
   String _selectedPriority = ''; // Admin must set this before signing
   String _selectedDuration = '2 Hours';
@@ -109,13 +113,15 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
     try {
       final results = await Future.wait([
         ESignatureService.fetchByWorkRequest(widget.request.id),
-        MaintenanceAccountService.fetchAllActiveMaintenance(),
+        MaintenanceStatusService.fetchActiveMaintenanceWithDynamicStatus(),
+        MaintenanceScheduleService.getMasterScheduleUrl(),
       ]);
 
       if (mounted) {
         setState(() {
           _signatures = results[0] as List<ESignature>;
           _maintenanceStaff = results[1] as List<MaintenanceAccount>;
+          _masterScheduleUrl = results[2] as String?;
           // Only load approval signature if this work request has already been approved.
           // For pending / new requests, each request requires a fresh signature from the administrator.
           if (_isApproved) {
@@ -138,6 +144,21 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _viewMasterSchedule() async {
+    final currentUrl = _masterScheduleUrl ?? await MaintenanceScheduleService.getMasterScheduleUrl();
+    if (!mounted) return;
+    await showMaintenanceScheduleDialog(
+      context,
+      title: 'Maintenance Schedule',
+      subtitle: 'Campus Master Schedule • All Maintenance Staff',
+      scheduleUrl: currentUrl,
+      onScheduleChanged: () async {
+        final url = await MaintenanceScheduleService.getMasterScheduleUrl();
+        if (mounted) setState(() => _masterScheduleUrl = url);
+      },
+    );
   }
 
   // --- LOGIC PORTED FROM MOBILE ---
@@ -889,7 +910,31 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                 ],
                 const SizedBox(height: 40),
                 // ── Step 3: Maintenance Assignment ──────────────────────────
-                Text('Step 3 — Maintenance Assignment', style: AdminStyles.headingStyle(fontSize: 18)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text('Step 3 — Maintenance Assignment', style: AdminStyles.headingStyle(fontSize: 18)),
+                    OutlinedButton.icon(
+                      onPressed: _viewMasterSchedule,
+                      icon: const Icon(Icons.calendar_month_rounded, size: 16, color: Color(0xFF0F766E)),
+                      label: const Text(
+                        'View Schedule',
+                        style: TextStyle(
+                          color: Color(0xFF0F766E),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF0F766E), width: 1.2),
+                        backgroundColor: const Color(0xFF0F766E).withValues(alpha: 0.06),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 Text('Assign this ticket to an active maintenance staff member.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
                 const SizedBox(height: 20),
@@ -909,16 +954,41 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                         children: _selectedMaintenanceIds.map((id) {
                           final staff = _maintenanceStaff.firstWhere((m) => m.userId == id);
                           final isPrimary = _selectedMaintenanceIds.indexOf(id) == 0;
-                          return Chip(
-                            backgroundColor: isPrimary ? AdminStyles.primary.withValues(alpha: 0.1) : Colors.grey.shade100,
-                            side: BorderSide(color: isPrimary ? AdminStyles.primary.withValues(alpha: 0.3) : Colors.grey.shade300),
-                            label: Text(
-                              '${staff.fullName} ${isPrimary ? "(Primary)" : "(Secondary)"}',
-                              style: AdminStyles.bodyStyle(fontSize: 13, color: isPrimary ? AdminStyles.primary : Colors.black87),
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isPrimary ? AdminStyles.primary.withValues(alpha: 0.08) : Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isPrimary ? AdminStyles.primary.withValues(alpha: 0.3) : Colors.grey.shade300,
+                              ),
                             ),
-                            onDeleted: () {
-                              setState(() => _selectedMaintenanceIds.remove(id));
-                            },
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AvailabilityStatusBadge(
+                                  status: staff.availabilityStatus,
+                                  size: BadgeSize.small,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${staff.fullName} ${isPrimary ? "(Primary)" : "(Secondary)"}',
+                                  style: AdminStyles.bodyStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isPrimary ? AdminStyles.primary : Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: () {
+                                    setState(() => _selectedMaintenanceIds.remove(id));
+                                  },
+                                  child: const Icon(Icons.close_rounded, size: 16, color: Colors.grey),
+                                ),
+                              ],
+                            ),
                           );
                         }).toList(),
                       ),
@@ -936,12 +1006,15 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                                   AvailabilityStatusBadge(
                                     status: staff.availabilityStatus,
                                     size: BadgeSize.small,
-                                    showLabel: false,
+                                    showLabel: true,
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '${staff.fullName} (${staff.specialization ?? "General"})',
-                                    style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      '${staff.fullName} (${staff.specialization ?? "General"})',
+                                      style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ),
                                 ],
                               ),

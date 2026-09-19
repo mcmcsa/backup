@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
 import '../widgets/forgot_password_dialog.dart';
+import '../../shared/providers/work_request_provider.dart';
+import '../../shared/providers/room_provider.dart';
 
 class LoginScreenWeb extends StatefulWidget {
   const LoginScreenWeb({super.key});
@@ -113,6 +115,12 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
         _showLoginError(_friendlyLoginError(errorMsg));
         return;
       }
+
+      // Pre-warm data providers so dashboard renders immediately without manual refresh
+      try {
+        context.read<WorkRequestProvider>().refreshRequests(silent: true);
+        context.read<RoomProvider>().refreshRooms();
+      } catch (_) {}
 
       final String statusText;
 

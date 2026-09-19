@@ -12,6 +12,7 @@ import '../../shared/services/fcm_service.dart';
 import '../../shared/services/login_activity_service.dart';
 import '../../shared/services/maintenance_status_service.dart';
 import '../../shared/services/web_push_notification_service.dart';
+import '../../shared/services/work_request_service.dart';
 
 class AuthService extends ChangeNotifier {
   AppUser? _currentUser;
@@ -191,6 +192,7 @@ class AuthService extends ChangeNotifier {
       } catch (e) {
         debugPrint('Notification watcher / settings sync on session failed: $e');
       }
+      WorkRequestService.notifyChange();
     }
   }
 
@@ -336,6 +338,7 @@ class AuthService extends ChangeNotifier {
         // Login should still succeed even if activity logging or FCM token save fails.
         debugPrint('Login activity recording failed: $e');
       }
+      WorkRequestService.notifyChange();
       notifyListeners();
       return profile;
     } on AuthException catch (e) {

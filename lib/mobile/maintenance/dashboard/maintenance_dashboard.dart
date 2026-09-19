@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/models/work_request_model.dart';
@@ -22,16 +24,71 @@ class MaintenanceDashboardMobile extends StatefulWidget {
 }
 
 class _MaintenanceDashboardMobileState
-    extends State<MaintenanceDashboardMobile> {
+    extends State<MaintenanceDashboardMobile>
+    with WidgetsBindingObserver {
   List<WorkRequest> _requests = [];
   String _currentStatus = 'offline';
   bool _isLoading = true;
+  bool _isFetching = false;
+  Timer? _autoRefreshTimer;
+  StreamSubscription? _changeSubscription;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRequests();
     _loadStatus();
+    _setupRealtime();
+
+    _changeSubscription = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      _loadRequests(silent: true);
+      _loadStatus();
+    });
+
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      _loadRequests(silent: true);
+      _loadStatus();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _loadRequests(silent: true);
+      _loadStatus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    _changeSubscription?.cancel();
+    try {
+      _realtimeChannel?.unsubscribe();
+    } catch (_) {}
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    final user = context.read<AuthService>().currentUser;
+    if (user == null) return;
+    try {
+      _realtimeChannel =
+          WorkRequestService.listenToMaintenanceRequests(user.id, (data) {
+        if (mounted) {
+          final maintenanceQueue = data
+              .where((r) => r.status != 'Declined/Cancelled')
+              .toList();
+          setState(() {
+            _requests = maintenanceQueue;
+            _isLoading = false;
+          });
+        }
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadStatus() async {
@@ -45,7 +102,14 @@ class _MaintenanceDashboardMobileState
     }
   }
 
-  Future<void> _loadRequests() async {
+  Future<void> _loadRequests({bool silent = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!silent && _requests.isEmpty && mounted) {
+      setState(() => _isLoading = true);
+    }
+
     try {
       final user = context.read<AuthService>().currentUser;
       if (user == null) {
@@ -69,11 +133,13 @@ class _MaintenanceDashboardMobileState
         });
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && _requests.isEmpty) {
         setState(() {
           _isLoading = false;
         });
       }
+    } finally {
+      _isFetching = false;
     }
   }
 

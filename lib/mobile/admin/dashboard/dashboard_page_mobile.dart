@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../shared/admin_app_bar.dart';
@@ -13,9 +15,14 @@ class DashboardPageMobile extends StatefulWidget {
   State<DashboardPageMobile> createState() => _DashboardPageMobileState();
 }
 
-class _DashboardPageMobileState extends State<DashboardPageMobile> {
+class _DashboardPageMobileState extends State<DashboardPageMobile>
+    with WidgetsBindingObserver {
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
+  bool _isFetching = false;
+  Timer? _autoRefreshTimer;
+  StreamSubscription? _changeSubscription;
+  RealtimeChannel? _realtimeChannel;
 
   String _ticketCode(String id) {
     final trimmed = id.trim();
@@ -27,15 +34,70 @@ class _DashboardPageMobileState extends State<DashboardPageMobile> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRequests();
+    _setupRealtime();
+
+    _changeSubscription = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      _loadRequests(silent: true);
+    });
+
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      _loadRequests(silent: true);
+    });
   }
 
-  Future<void> _loadRequests() async {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _loadRequests(silent: true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    _changeSubscription?.cancel();
+    try {
+      _realtimeChannel?.unsubscribe();
+    } catch (_) {}
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    try {
+      _realtimeChannel = WorkRequestService.listenToAllWorkRequests((updated) {
+        if (mounted) {
+          setState(() {
+            _requests = updated;
+            _isLoading = false;
+          });
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _loadRequests({bool silent = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!silent && _requests.isEmpty && mounted) {
+      setState(() => _isLoading = true);
+    }
+
     try {
       final data = await WorkRequestService.fetchAll();
-      if (mounted) setState(() { _requests = data; _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _requests = data;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted && _requests.isEmpty) setState(() => _isLoading = false);
+    } finally {
+      _isFetching = false;
     }
   }
 

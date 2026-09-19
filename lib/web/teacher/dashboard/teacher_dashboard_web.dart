@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,21 +16,46 @@ class TeacherDashboardWeb extends StatefulWidget {
   State<TeacherDashboardWeb> createState() => _TeacherDashboardWebState();
 }
 
-class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
+class _TeacherDashboardWebState extends State<TeacherDashboardWeb>
+    with WidgetsBindingObserver {
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
   RealtimeChannel? _realtimeChannel;
+  Timer? _autoRefreshTimer;
+  StreamSubscription? _changeSubscription;
+  bool _isFetching = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRequests();
     _setupRealtime();
+
+    _changeSubscription = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      _loadRequests(silent: true);
+    });
+
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      _loadRequests(silent: true);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _loadRequests(silent: true);
+    }
   }
 
   @override
   void dispose() {
-    _realtimeChannel?.unsubscribe();
+    _autoRefreshTimer?.cancel();
+    _changeSubscription?.cancel();
+    try {
+      _realtimeChannel?.unsubscribe();
+    } catch (_) {}
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -38,16 +64,26 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
     final user = authService.currentUser;
     if (user == null) return;
 
-    _realtimeChannel = WorkRequestService.listenToRequestorRequests(user.id, (data) {
-      if (mounted) {
-        setState(() {
-          _requests = data;
-        });
-      }
-    });
+    try {
+      _realtimeChannel =
+          WorkRequestService.listenToRequestorRequests(user.id, (data) {
+        if (mounted) {
+          setState(() {
+            _requests = data;
+          });
+        }
+      });
+    } catch (_) {}
   }
 
-  Future<void> _loadRequests() async {
+  Future<void> _loadRequests({bool silent = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!silent && _requests.isEmpty && mounted) {
+      setState(() => _isLoading = true);
+    }
+
     try {
       final authService = context.read<AuthService>();
       final user = authService.currentUser;
@@ -64,7 +100,9 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb> {
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && _requests.isEmpty) setState(() => _isLoading = false);
+    } finally {
+      _isFetching = false;
     }
   }
 

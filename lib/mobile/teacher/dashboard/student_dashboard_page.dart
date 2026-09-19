@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -20,20 +21,40 @@ class StudentTeacherDashboard extends StatefulWidget {
   State<StudentTeacherDashboard> createState() => _StudentTeacherDashboardState();
 }
 
-class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
+class _StudentTeacherDashboardState extends State<StudentTeacherDashboard>
+    with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
+  bool _isFetching = false;
   RealtimeChannel? _realtimeChannel;
+  Timer? _autoRefreshTimer;
+  StreamSubscription? _changeSubscription;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _searchController.addListener(() {
       if (mounted) setState(() {});
     });
     _loadRequests();
     _setupRealtime();
+
+    _changeSubscription = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      _loadRequests(silent: true);
+    });
+
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      _loadRequests(silent: true);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _loadRequests(silent: true);
+    }
   }
 
   void _setupRealtime() {
@@ -41,13 +62,15 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
     final user = authService.currentUser;
     if (user == null || user.id.isEmpty) return;
 
-    _realtimeChannel = WorkRequestService.listenToRequestorRequests(user.id, (data) {
-      if (mounted) {
-        setState(() {
-          _requests = data;
-        });
-      }
-    });
+    try {
+      _realtimeChannel = WorkRequestService.listenToRequestorRequests(user.id, (data) {
+        if (mounted) {
+          setState(() {
+            _requests = data;
+          });
+        }
+      });
+    } catch (_) {}
   }
 
   List<WorkRequest> get _filteredRequests {
@@ -61,7 +84,14 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
     }).toList();
   }
 
-  Future<void> _loadRequests() async {
+  Future<void> _loadRequests({bool silent = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!silent && _requests.isEmpty && mounted) {
+      setState(() => _isLoading = true);
+    }
+
     try {
       final authService = context.read<AuthService>();
       final user = authService.currentUser;
@@ -71,15 +101,27 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard> {
       } else {
         data = [];
       }
-      if (mounted) setState(() { _requests = data; _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _requests = data;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() { _isLoading = false; });
+      if (mounted && _requests.isEmpty) setState(() => _isLoading = false);
+    } finally {
+      _isFetching = false;
     }
   }
 
   @override
   void dispose() {
-    _realtimeChannel?.unsubscribe();
+    _autoRefreshTimer?.cancel();
+    _changeSubscription?.cancel();
+    try {
+      _realtimeChannel?.unsubscribe();
+    } catch (_) {}
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
   }

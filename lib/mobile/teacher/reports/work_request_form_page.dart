@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../../shared/providers/theme_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../shared/providers/work_request_provider.dart';
+import '../../../shared/providers/room_provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/room_model.dart';
 import '../../../shared/models/work_request_model.dart';
@@ -504,6 +506,11 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         );
 
         var insertedRequest = await WorkRequestService.insert(requestToInsert);
+
+        try {
+          context.read<WorkRequestProvider>().refreshRequests(silent: true);
+          context.read<RoomProvider>().refreshRooms();
+        } catch (_) {}
 
 
 

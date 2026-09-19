@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/app_settings_service.dart';
+import '../../../shared/providers/work_request_provider.dart';
+import '../../../shared/providers/room_provider.dart';
 import '../../shared/widgets/announcements/global_announcement_listener.dart';
 import '../../authentication/services/auth_service.dart';
 import '../../../shared/utils/workflow_guide_dialog.dart';
@@ -184,6 +186,13 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
     _subscribeNotifications();
     _settingsSubscription = AppSettingsService.changes.listen((_) {
       _loadUnreadNotificationCount();
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<WorkRequestProvider>().refreshRequests(silent: true);
+        context.read<RoomProvider>().refreshRooms();
+      }
     });
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -15,7 +16,7 @@ import '../../../shared/services/work_request_service.dart';
 import '../../admin/shared/admin_styles.dart';
 
 // ---------------------------------------------------------------------------
-// Data bundle loaded once on init
+// Data bundle loaded on init and synced live
 // ---------------------------------------------------------------------------
 class _DashboardData {
   final List<AppUser> users;
@@ -63,6 +64,9 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
   _DashboardData? _data;
   String? _error;
   bool _loading = true;
+  bool _isFetching = false;
+  Timer? _autoRefreshTimer;
+  StreamSubscription? _changeSubscription;
 
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
@@ -76,21 +80,37 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
     );
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
     _load();
+
+    _changeSubscription = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      _load(silent: true);
+    });
+
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _load(silent: true);
+    });
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
+    _changeSubscription?.cancel();
     _fadeCtrl.dispose();
     super.dispose();
   }
 
   // ── Data loading ──────────────────────────────────────────────────────────
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  Future<void> _load({bool silent = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!silent && _data == null && mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+
     try {
       final results = await Future.wait([
         SystemAdminService.fetchAllUsers(),
@@ -128,13 +148,19 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
         );
         _loading = false;
       });
-      _fadeCtrl.forward();
+      if (!_fadeCtrl.isCompleted) {
+        _fadeCtrl.forward();
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
+      if (_data == null) {
+        setState(() {
+          _error = e.toString();
+          _loading = false;
+        });
+      }
+    } finally {
+      _isFetching = false;
     }
   }
 

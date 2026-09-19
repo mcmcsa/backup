@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
 import '../widgets/forgot_password_dialog.dart';
+import '../../shared/providers/work_request_provider.dart';
+import '../../shared/providers/room_provider.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -65,6 +67,11 @@ class _LoginPageState extends State<LoginPage> {
     if (!mounted) return;
 
     if (user != null) {
+      try {
+        context.read<WorkRequestProvider>().refreshRequests(silent: true);
+        context.read<RoomProvider>().refreshRooms();
+      } catch (_) {}
+
       authService.showInitializingScreen(
         context,
         user.dashboardRoute,

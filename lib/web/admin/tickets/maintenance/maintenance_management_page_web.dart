@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../shared/models/work_request_model.dart';
 import '../../../../shared/services/maintenance_account_service.dart';
 import '../../../../shared/services/maintenance_status_service.dart';
 import '../../../../shared/services/work_request_service.dart';
+import '../../../../shared/services/maintenance_schedule_service.dart';
+import '../../../../shared/widgets/maintenance_schedule_dialog.dart';
 import '../../shared/admin_styles.dart';
 import '../../../../shared/widgets/availability_status_badge.dart';
 import '../../admin_nav_controller.dart';
@@ -32,17 +35,23 @@ class _MaintenanceManagementPageWebState
 
   List<MaintenanceAccount> _activeAccounts = [];
   List<MaintenanceAccount> _archivedAccounts = [];
+  String? _masterScheduleUrl;
+  bool _isUploadingMasterSchedule = false;
   String? _startingChatUserId;
   RealtimeChannel? _maintUsersChannel;
   RealtimeChannel? _workRequestsChannel;
   RealtimeChannel? _usersChannel;
   Timer? _autoRefreshTimer;
+  StreamSubscription<String>? _scheduleSub;
 
   @override
   void initState() {
     super.initState();
     _loadData();
     _setupRealtime();
+    _scheduleSub = MaintenanceScheduleService.onScheduleUpdated.listen((_) {
+      if (mounted) _loadSchedules();
+    });
   }
 
   void _setupRealtime() {
@@ -130,6 +139,7 @@ class _MaintenanceManagementPageWebState
   void dispose() {
     _searchController.dispose();
     _autoRefreshTimer?.cancel();
+    _scheduleSub?.cancel();
     if (_maintUsersChannel != null) {
       Supabase.instance.client.removeChannel(_maintUsersChannel!);
     }
@@ -142,6 +152,15 @@ class _MaintenanceManagementPageWebState
     super.dispose();
   }
 
+  Future<void> _loadSchedules() async {
+    try {
+      final url = await MaintenanceScheduleService.getMasterScheduleUrl();
+      if (mounted) {
+        setState(() => _masterScheduleUrl = url);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _loadData({bool showLoading = true}) async {
     if (showLoading) setState(() => _isLoading = true);
     try {
@@ -150,11 +169,13 @@ class _MaintenanceManagementPageWebState
         MaintenanceAccountService.fetchAllActiveMaintenance(),
         MaintenanceAccountService.fetchAllArchivedMaintenance(),
         WorkRequestService.fetchAll(),
+        MaintenanceScheduleService.getMasterScheduleUrl(),
       ]);
 
       final rawActive = results[0] as List<MaintenanceAccount>;
       final archivedAccounts = results[1] as List<MaintenanceAccount>;
       final allRequests = results[2] as List<WorkRequest>;
+      final masterSched = results[3] as String?;
 
       // Track active assignments to accurately detect busy technicians
       final activeBusyUserIds = <String>{};
@@ -166,16 +187,10 @@ class _MaintenanceManagementPageWebState
         }
       }
 
-      final nowUtc = DateTime.now().toUtc();
-
       // Re-map active accounts with accurate dynamic status
       final activeAccounts = rawActive.map((account) {
         final bool isBusy = activeBusyUserIds.contains(account.userId);
-        final String computedStatus = MaintenanceStatusService.computeDynamicStatus(
-          hasActiveAssignment: isBusy,
-          lastActiveAt: account.lastActiveAt,
-          now: nowUtc,
-        );
+        final String computedStatus = isBusy ? 'busy' : 'available';
 
         if (computedStatus != account.availabilityStatus.toLowerCase()) {
           // Sync database in background if status changed
@@ -208,6 +223,7 @@ class _MaintenanceManagementPageWebState
       setState(() {
         _activeAccounts = activeAccounts;
         _archivedAccounts = archivedAccounts;
+        _masterScheduleUrl = masterSched;
       });
     } catch (_) {
       if (!mounted) return;
@@ -225,20 +241,15 @@ class _MaintenanceManagementPageWebState
   List<MaintenanceAccount> get _filteredAccounts {
     var source = _statusFilter == 'Archived' ? _archivedAccounts : _activeAccounts;
 
-    if (_statusFilter == 'Online') {
+    if (_statusFilter == 'Available') {
       source = source.where((a) {
         final s = a.availabilityStatus.toLowerCase();
-        return s == 'online' || s == 'available';
+        return s != 'busy' && s != 'working';
       }).toList();
     } else if (_statusFilter == 'Busy') {
       source = source.where((a) {
         final s = a.availabilityStatus.toLowerCase();
         return s == 'busy' || s == 'working';
-      }).toList();
-    } else if (_statusFilter == 'Offline') {
-      source = source.where((a) {
-        final s = a.availabilityStatus.toLowerCase();
-        return s == 'offline' || s == 'break' || s == 'on_leave';
       }).toList();
     }
 
@@ -293,6 +304,21 @@ class _MaintenanceManagementPageWebState
                 ),
                 const SizedBox(width: 12),
                 _HeaderActionButton(
+                  icon: Icons.calendar_month_rounded,
+                  label: 'View Schedule',
+                  onTap: _viewMasterSchedule,
+                  hideLabel: isCompact,
+                ),
+                const SizedBox(width: 8),
+                _HeaderActionButton(
+                  icon: Icons.upload_file_rounded,
+                  label: _masterScheduleUrl != null ? 'Update Schedule' : 'Attach Schedule',
+                  onTap: _attachMasterSchedule,
+                  hideLabel: isCompact,
+                  isLoading: _isUploadingMasterSchedule,
+                ),
+                const SizedBox(width: 8),
+                _HeaderActionButton(
                   icon: Icons.refresh_rounded,
                   label: 'Refresh',
                   onTap: _loadData,
@@ -322,19 +348,14 @@ class _MaintenanceManagementPageWebState
   }
 
   Widget _buildLiveStatusPills() {
-    final onlineCount = _activeAccounts.where((a) {
-      final s = a.availabilityStatus.toLowerCase();
-      return s == 'online' || s == 'available';
-    }).length;
-
     final busyCount = _activeAccounts.where((a) {
       final s = a.availabilityStatus.toLowerCase();
       return s == 'busy' || s == 'working';
     }).length;
 
-    final offlineCount = _activeAccounts.where((a) {
+    final availableCount = _activeAccounts.where((a) {
       final s = a.availabilityStatus.toLowerCase();
-      return s == 'offline' || s == 'break' || s == 'on_leave';
+      return s != 'busy' && s != 'working';
     }).length;
 
     Widget pill(String label, int count, Color color) {
@@ -344,7 +365,7 @@ class _MaintenanceManagementPageWebState
         borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: isSelected ? color.withValues(alpha: 0.12) : Colors.white,
             borderRadius: BorderRadius.circular(20),
@@ -383,11 +404,9 @@ class _MaintenanceManagementPageWebState
         children: [
           pill('All', _activeAccounts.length, AdminStyles.primary),
           const SizedBox(width: 8),
-          pill('Online', onlineCount, const Color(0xFF10B981)),
+          pill('Available', availableCount, const Color(0xFF10B981)),
           const SizedBox(width: 8),
           pill('Busy', busyCount, const Color(0xFFF59E0B)),
-          const SizedBox(width: 8),
-          pill('Offline', offlineCount, const Color(0xFF64748B)),
         ],
       ),
     );
@@ -653,6 +672,60 @@ class _MaintenanceManagementPageWebState
     ];
   }
 
+  Future<void> _viewMasterSchedule() async {
+    await showMaintenanceScheduleDialog(
+      context,
+      title: 'Maintenance Schedule',
+      subtitle: 'Campus Master Schedule • All Maintenance Staff',
+      scheduleUrl: _masterScheduleUrl,
+      onScheduleChanged: _loadSchedules,
+    );
+  }
+
+  Future<void> _attachMasterSchedule() async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 92,
+      );
+      if (picked == null) return;
+
+      setState(() => _isUploadingMasterSchedule = true);
+
+      final bytes = await picked.readAsBytes();
+      final ext = picked.name.split('.').last;
+
+      final url = await MaintenanceScheduleService.uploadMasterSchedule(
+        bytes: bytes,
+        extension: ext,
+      );
+
+      if (mounted) {
+        setState(() {
+          _masterScheduleUrl = url;
+          _isUploadingMasterSchedule = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Maintenance schedule image attached successfully'),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingMasterSchedule = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to attach schedule image: $e'),
+            backgroundColor: AdminStyles.error,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _showMaintenanceDetails(MaintenanceAccount account) async {
     final createdAt = account.createdAt.toLocal();
     final archivedAt = account.archivedAt?.toLocal();
@@ -727,31 +800,37 @@ class _HeaderActionButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool hideLabel;
+  final bool isLoading;
 
   const _HeaderActionButton({
     required this.icon,
     required this.label,
     required this.onTap,
     this.hideLabel = false,
+    this.isLoading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     if (hideLabel) {
       return OutlinedButton(
-        onPressed: onTap,
+        onPressed: isLoading ? null : onTap,
         style: OutlinedButton.styleFrom(
           foregroundColor: AdminStyles.textPrimary,
           side: const BorderSide(color: AdminStyles.border),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        child: Icon(icon, size: 18),
+        child: isLoading
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            : Icon(icon, size: 18),
       );
     }
     return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
+      onPressed: isLoading ? null : onTap,
+      icon: isLoading
+          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+          : Icon(icon, size: 18),
       label: Text(label),
       style: OutlinedButton.styleFrom(
         foregroundColor: AdminStyles.textPrimary,

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'maintenance_account_service.dart';
+import 'work_request_service.dart';
+import '../models/work_request_model.dart';
 
 class MaintenanceStatusService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -16,7 +18,7 @@ class MaintenanceStatusService {
     // Immediate heartbeat
     sendHeartbeat(userId);
     
-    // Periodic heartbeat every 10 seconds while the app is active
+    // Periodic heartbeat every 5 seconds while the app is active
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       sendHeartbeat(userId);
     });
@@ -42,36 +44,22 @@ class MaintenanceStatusService {
         s == 'rework needed';
   }
 
-  /// Unified real-time dynamic status detection:
-  /// 1. If user has no active heartbeat within threshold (default 90s) -> 'offline'
-  /// 2. If user is online AND assigned to an ongoing work request -> 'busy'
-  /// 3. If user is online AND has no ongoing work request -> 'online'
+  /// Unified binary status detection:
+  /// - If user has an active/ongoing assignment -> 'busy'
+  /// - Otherwise -> 'available'
   static String computeDynamicStatus({
     required bool hasActiveAssignment,
     required DateTime? lastActiveAt,
     required DateTime now,
     int activeThresholdSeconds = 90,
   }) {
-    if (lastActiveAt == null) {
-      return 'offline';
-    }
-
-    final diff = now.difference(lastActiveAt.toUtc()).inSeconds;
-    // Allow up to activeThresholdSeconds (90s) and handle minor clock skew down to -120s
-    final bool isOnline = diff >= -120 && diff <= activeThresholdSeconds;
-
-    if (!isOnline) {
-      return 'offline';
-    }
-
     if (hasActiveAssignment) {
       return 'busy';
     }
-
-    return 'online';
+    return 'available';
   }
 
-  /// Heartbeat ping to mark user as active and detect online vs busy
+  /// Heartbeat ping to mark user as active and detect available vs busy
   static Future<void> sendHeartbeat(String userId) async {
     try {
       final activeRequests = await _db
@@ -84,7 +72,7 @@ class MaintenanceStatusService {
         return isOngoingWorkRequestStatus(st);
       });
 
-      final String nextStatus = hasActive ? 'busy' : 'online';
+      final String nextStatus = hasActive ? 'busy' : 'available';
       final String? assignmentId = hasActive
           ? activeRequests.firstWhere(
               (r) => isOngoingWorkRequestStatus(r['status']?.toString() ?? ''),
@@ -211,22 +199,68 @@ class MaintenanceStatusService {
     }
   }
 
+  /// Fetch all active maintenance staff computed with their real-time Available vs Busy status
+  static Future<List<MaintenanceAccount>> fetchActiveMaintenanceWithDynamicStatus() async {
+    final results = await Future.wait([
+      MaintenanceAccountService.fetchAllActiveMaintenance(),
+      WorkRequestService.fetchAll(),
+    ]);
+
+    final rawActive = results[0] as List<MaintenanceAccount>;
+    final allRequests = results[1] as List<WorkRequest>;
+
+    final activeBusyUserIds = <String>{};
+    for (final req in allRequests) {
+      if (isOngoingWorkRequestStatus(req.status)) {
+        if (req.assignedToId != null && req.assignedToId!.isNotEmpty) {
+          activeBusyUserIds.add(req.assignedToId!);
+        }
+      }
+    }
+
+    return rawActive.map((account) {
+      final bool isBusy = activeBusyUserIds.contains(account.userId);
+      final String computedStatus = isBusy ? 'busy' : 'available';
+
+      if (computedStatus != account.availabilityStatus.toLowerCase()) {
+        updateStatus(account.userId, computedStatus).catchError((_) {});
+        return MaintenanceAccount(
+          userId: account.userId,
+          email: account.email,
+          fullName: account.fullName,
+          employeeId: account.employeeId,
+          specialization: account.specialization,
+          contactNo: account.contactNo,
+          isActive: account.isActive,
+          archivedAt: account.archivedAt,
+          createdAt: account.createdAt,
+          availabilityStatus: computedStatus,
+          currentLocation: account.currentLocation,
+          currentAssignmentId: account.currentAssignmentId,
+          estimatedCompletionTime: account.estimatedCompletionTime,
+          lastActiveAt: account.lastActiveAt,
+          workingHoursStart: account.workingHoursStart,
+          workingHoursEnd: account.workingHoursEnd,
+          statusUpdatedAt: account.statusUpdatedAt,
+        );
+      }
+      return account;
+    }).toList();
+  }
+
   /// Get status colors for badges (shared design logic)
   static Map<String, dynamic> getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'online':
-      case 'available':
-        return {'color': 0xFF10B981, 'bg': 0xFFD1FAE5}; // Emerald (Green)
+    switch (status.toLowerCase().trim()) {
       case 'busy':
       case 'working':
         return {'color': 0xFFF59E0B, 'bg': 0xFFFEF3C7}; // Amber (Orange/Yellow)
+      case 'available':
+      case 'online':
       case 'offline':
       case 'break':
       case 'on_leave':
-      case 'on leave':
-      case 'onleave':
       default:
-        return {'color': 0xFF64748B, 'bg': 0xFFF1F5F9}; // Slate (Grey)
+        return {'color': 0xFF10B981, 'bg': 0xFFD1FAE5}; // Emerald (Green)
     }
   }
 }

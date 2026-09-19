@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,16 +29,67 @@ class MaintenanceDashboardWeb extends StatefulWidget {
   State<MaintenanceDashboardWeb> createState() => _MaintenanceDashboardWebState();
 }
 
-class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
+class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb>
+    with WidgetsBindingObserver {
   List<WorkRequest> _requests = [];
   String _currentStatus = 'offline';
   bool _isLoading = true;
+  RealtimeChannel? _realtimeChannel;
+  Timer? _autoRefreshTimer;
+  StreamSubscription? _changeSubscription;
+  bool _isFetching = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadRequests();
     _loadStatus();
+    _setupRealtime();
+
+    _changeSubscription = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      _loadRequests(silent: true);
+      _loadStatus();
+    });
+
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      _loadRequests(silent: true);
+      _loadStatus();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _loadRequests(silent: true);
+      _loadStatus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    _changeSubscription?.cancel();
+    try {
+      _realtimeChannel?.unsubscribe();
+    } catch (_) {}
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    final user = context.read<AuthService>().currentUser;
+    if (user == null) return;
+    try {
+      _realtimeChannel =
+          WorkRequestService.listenToMaintenanceRequests(user.id, (data) {
+        if (mounted) {
+          setState(() {
+            _requests = data;
+          });
+        }
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadStatus() async {
@@ -57,7 +109,14 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
     }
   }
 
-  Future<void> _loadRequests() async {
+  Future<void> _loadRequests({bool silent = false}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+
+    if (!silent && _requests.isEmpty && mounted) {
+      setState(() => _isLoading = true);
+    }
+
     try {
       final user = context.read<AuthService>().currentUser;
       if (user == null) {
@@ -65,9 +124,16 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb> {
         return;
       }
       final data = await WorkRequestService.fetchAssignedTo(user.id);
-      if (mounted) setState(() { _requests = data; _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _requests = data;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && _requests.isEmpty) setState(() => _isLoading = false);
+    } finally {
+      _isFetching = false;
     }
   }
 
