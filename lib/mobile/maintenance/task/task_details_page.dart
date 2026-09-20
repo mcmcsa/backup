@@ -217,13 +217,21 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
   bool get _canSubmitPostRepair {
     final request = _request;
     if (request == null) return false;
+    if (_isCompleted) return false;
     final s = request.status.toLowerCase();
     final isConfirmed = s == 'confirmed';
     final isPreInspApproved = _preInspectionReport != null &&
         (_preInspectionReport!.status.toLowerCase() == 'approved' ||
             _preInspectionReport!.adminApproved == true);
     final isRework = s == 'rework' || s == 'for rework' || s == 'rework needed';
-    return (isConfirmed && isPreInspApproved) || isRework;
+
+    if (_postRepairReports.isNotEmpty) {
+      final last = _postRepairReports.last;
+      if (last.adminEvaluation == 'rework' || isRework) return true;
+      return false;
+    }
+
+    return (isConfirmed && isPreInspApproved) || isRework || (s == 'in progress' && isPreInspApproved);
   }
 
   bool get _isCompleted {
@@ -403,7 +411,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
               if (_selectedTab == 0) ...[
                 _buildHeaderCard(request),
                 const SizedBox(height: 16),
-                if (!assignedToCurrentUser)
+                if (!assignedToCurrentUser) ...[
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -421,6 +429,81 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  if (_preInspectionReport != null) ...[
+                    _buildPreInspectionStatusBanner(themeProvider),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final req = _request;
+                          if (req == null) return;
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PreInspectionPage(request: req),
+                            ),
+                          );
+                          _loadRequest();
+                        },
+                        icon: const Icon(Icons.assignment_outlined, size: 18),
+                        label: const Text(
+                          'View Pre-Inspection Report',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF4169E1),
+                          side: const BorderSide(color: Color(0xFF4169E1)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                  if (_postRepairReports.isNotEmpty) ...[
+                    _buildPostRepairStatusBanner(themeProvider),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final req = _request;
+                          if (req == null) return;
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PostRepairPage(
+                                request: req,
+                                forceHistoryView: true,
+                              ),
+                            ),
+                          );
+                          _loadRequest();
+                        },
+                        icon: const Icon(Icons.history_outlined, size: 18),
+                        label: Text(
+                          _postRepairReports.length > 1
+                              ? 'View Post-Inspection Reports (${_postRepairReports.length} Attempts)'
+                              : 'View Post-Inspection Report',
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF10B981),
+                          side: const BorderSide(color: Color(0xFF10B981)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ],
                 if (assignedToCurrentUser) ...[
                   if (_canStartWork) ...[
                     Container(
@@ -459,37 +542,41 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                       ),
                     const SizedBox(height: 16),
                   ] else ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: themeProvider.isDarkMode ? const Color(0xFF1E3A5F).withValues(alpha: 0.3) : const Color(0xFFEEF2FF),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFBFDBFE)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.check_circle_outline,
-                            color: Color(0xFF2563EB),
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Pre-inspection decision: ${_safeValue(_preInspectionReport?.status)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF1D4ED8),
-                                fontWeight: FontWeight.w600,
+                    // Pre-Inspection Section
+                    if (_preInspectionReport != null) ...[
+                      _buildPreInspectionStatusBanner(themeProvider),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final req = _request;
+                            if (req == null) return;
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PreInspectionPage(request: req),
                               ),
+                            );
+                            _loadRequest();
+                          },
+                          icon: const Icon(Icons.assignment_outlined, size: 18),
+                          label: const Text(
+                            'View Pre-Inspection Report',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF4169E1),
+                            side: const BorderSide(color: Color(0xFF4169E1)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_isAssignedToCurrentUser && _canSubmitPreInspection) ...[
+                      const SizedBox(height: 16),
+                    ] else if (_isAssignedToCurrentUser && _canSubmitPreInspection) ...[
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
@@ -526,6 +613,51 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                       ),
                       const SizedBox(height: 16),
                     ],
+
+                    // Post-Inspection / Post-Repair Section
+                    if (_postRepairReports.isNotEmpty) ...[
+                      _buildPostRepairStatusBanner(themeProvider),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final req = _request;
+                            if (req == null) return;
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PostRepairPage(
+                                  request: req,
+                                  forceHistoryView: true,
+                                ),
+                              ),
+                            );
+                            _loadRequest();
+                          },
+                          icon: const Icon(Icons.history_outlined, size: 18),
+                          label: Text(
+                            _postRepairReports.length > 1
+                                ? 'View Post-Inspection Reports (${_postRepairReports.length} Attempts)'
+                                : 'View Post-Inspection Report',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF10B981),
+                            side: const BorderSide(color: Color(0xFF10B981)),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     if (_isAssignedToCurrentUser && _canSubmitPostRepair) ...[
                       SizedBox(
                         width: double.infinity,
@@ -538,6 +670,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                               MaterialPageRoute(
                                 builder: (context) => PostRepairPage(
                                   request: req,
+                                  forceHistoryView: false,
                                 ),
                               ),
                             );
@@ -565,6 +698,7 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
                       ),
                       const SizedBox(height: 16),
                     ],
+
                     if (_isCompleted) ...[
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -1151,6 +1285,142 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
     }
     if (date == null) return '-';
     return _formatDateTime(date);
+  }
+
+  Widget _buildPreInspectionStatusBanner(ThemeProvider themeProvider) {
+    final rep = _preInspectionReport;
+    if (rep == null) return const SizedBox.shrink();
+
+    final isApproved = rep.status == 'Approved';
+    final isDeclined = rep.status == 'Declined';
+    final color = isApproved
+        ? const Color(0xFF059669)
+        : (isDeclined ? const Color(0xFFDC2626) : const Color(0xFF2563EB));
+    final bg = isApproved
+        ? (themeProvider.isDarkMode ? const Color(0xFF064E3B).withValues(alpha: 0.3) : const Color(0xFFECFDF5))
+        : (isDeclined
+            ? (themeProvider.isDarkMode ? const Color(0xFF7F1D1D).withValues(alpha: 0.3) : const Color(0xFFFEF2F2))
+            : (themeProvider.isDarkMode ? const Color(0xFF1E3A5F).withValues(alpha: 0.3) : const Color(0xFFEEF2FF)));
+    final border = isApproved
+        ? const Color(0xFFA7F3D0)
+        : (isDeclined ? const Color(0xFFFECACA) : const Color(0xFFBFDBFE));
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isApproved
+                ? Icons.verified_outlined
+                : (isDeclined ? Icons.cancel_outlined : Icons.pending_actions_rounded),
+            color: color,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pre-Inspection: ${rep.status.toUpperCase()}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                if (rep.reviewNotes != null && rep.reviewNotes!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Notes: ${rep.reviewNotes}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: themeProvider.textColor,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostRepairStatusBanner(ThemeProvider themeProvider) {
+    if (_postRepairReports.isEmpty) return const SizedBox.shrink();
+    final last = _postRepairReports.last;
+    final isSatisfied = last.adminEvaluation == 'satisfied' || _isCompleted;
+    final isRework = last.adminEvaluation == 'rework';
+
+    final color = isSatisfied
+        ? const Color(0xFF059669)
+        : (isRework ? const Color(0xFFDC2626) : const Color(0xFFD97706));
+    final bg = isSatisfied
+        ? (themeProvider.isDarkMode ? const Color(0xFF064E3B).withValues(alpha: 0.3) : const Color(0xFFECFDF5))
+        : (isRework
+            ? (themeProvider.isDarkMode ? const Color(0xFF7F1D1D).withValues(alpha: 0.3) : const Color(0xFFFEF2F2))
+            : (themeProvider.isDarkMode ? const Color(0xFF78350F).withValues(alpha: 0.3) : const Color(0xFFFFFBEB)));
+    final border = isSatisfied
+        ? const Color(0xFFA7F3D0)
+        : (isRework ? const Color(0xFFFECACA) : const Color(0xFFFDE68A));
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isSatisfied
+                ? Icons.check_circle_outline
+                : (isRework ? Icons.warning_amber_rounded : Icons.hourglass_top_rounded),
+            color: color,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isSatisfied
+                      ? 'Post-Inspection: APPROVED / COMPLETED'
+                      : (isRework
+                          ? 'Post-Inspection: REWORK REQUIRED'
+                          : 'Post-Inspection: SUBMITTED (Awaiting Evaluation)'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                if (last.adminEvaluationNotes != null && last.adminEvaluationNotes!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Notes: ${last.adminEvaluationNotes}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: themeProvider.textColor,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildTimelineItem({

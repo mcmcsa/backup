@@ -19,8 +19,13 @@ import '../../../shared/widgets/signature_pad_widget.dart';
 
 class PostRepairPage extends StatefulWidget {
   final WorkRequest request;
+  final bool forceHistoryView;
 
-  const PostRepairPage({super.key, required this.request});
+  const PostRepairPage({
+    super.key,
+    required this.request,
+    this.forceHistoryView = false,
+  });
 
   @override
   State<PostRepairPage> createState() => _PostRepairPageState();
@@ -173,6 +178,8 @@ class _PostRepairPageState extends State<PostRepairPage> {
   }
 
   bool get _isEntryMode {
+    if (widget.forceHistoryView) return false;
+
     final status = widget.request.status.toLowerCase().trim();
     final authService = context.read<AuthService>();
     final user = authService.currentUser;
@@ -185,6 +192,9 @@ class _PostRepairPageState extends State<PostRepairPage> {
 
     if (_history.isEmpty) return true;
     if (_history.isNotEmpty && _history.last.adminEvaluation == 'rework') return true;
+
+    // If report is already submitted and pending admin evaluation, show history!
+    if (_history.isNotEmpty && _history.last.adminEvaluation == null) return false;
 
     return status == 'confirmed' ||
         status == 'under_maintenance' ||
@@ -359,8 +369,8 @@ class _PostRepairPageState extends State<PostRepairPage> {
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
-        titleText: _isEntryMode ? 'Post-Inspection Form' : 'Repair Attempts History',
-        roleText: '',
+        titleText: _isEntryMode ? 'Post-Inspection Form' : 'Post-Inspection Report',
+        roleText: _isEntryMode ? '' : 'VIEW ONLY',
         primaryColor: themeProvider.primaryColor,
         showBack: true,
         onBackPressed: () => Navigator.pop(context),
@@ -804,6 +814,41 @@ class _PostRepairPageState extends State<PostRepairPage> {
                               const SizedBox(height: 4),
                               _buildSignatureImage(adminSig.signatureData),
                             ],
+                          ],
+                        ),
+                      ),
+                    ] else ...[
+                      const Divider(height: 24),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: themeProvider.isDarkMode
+                              ? const Color(0xFF78350F).withValues(alpha: 0.3)
+                              : const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: themeProvider.isDarkMode
+                                ? const Color(0xFFD97706).withValues(alpha: 0.5)
+                                : const Color(0xFFFDE68A),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.pending_actions_rounded, color: Color(0xFFD97706), size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Awaiting Campus Admin Evaluation',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: themeProvider.isDarkMode
+                                      ? const Color(0xFFFCD34D)
+                                      : const Color(0xFFB45309),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),

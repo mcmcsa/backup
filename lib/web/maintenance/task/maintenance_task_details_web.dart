@@ -828,7 +828,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
         ],
         
         // Dynamic maintenance actions
-        if (_isAssignedToMe) ...[
+        if (_isAssignedToMe || _preInspectionReport != null || _postRepairReports.isNotEmpty) ...[
           _buildMaintenanceActionsCard(),
           const SizedBox(height: 24),
         ],
@@ -955,19 +955,21 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                 : 'Acknowledge assignment to unlock inspection.',
             isCompleted: isAccepted,
             action: !isAccepted
-                ? ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() => _activeSubView = 'acceptance');
-                    },
-                    icon: const Icon(Icons.check_rounded, size: 14),
-                    label: const Text('Accept Task'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AdminStyles.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  )
+                ? (_isAssignedToMe
+                    ? ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() => _activeSubView = 'acceptance');
+                        },
+                        icon: const Icon(Icons.check_rounded, size: 14),
+                        label: const Text('Accept Task'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminStyles.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      )
+                    : const SizedBox.shrink())
                 : const Icon(Icons.check_circle_rounded, color: AdminStyles.success, size: 24),
           ),
           
@@ -988,23 +990,25 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                         : 'Submit site inspection findings.')),
             isCompleted: hasPreInsp && !isPreInspDeclined,
             action: !hasPreInsp
-                ? ElevatedButton.icon(
-                    onPressed: isAccepted
-                        ? () {
-                            setState(() => _activeSubView = 'preInspection');
-                          }
-                        : null,
-                    icon: const Icon(Icons.search_rounded, size: 14),
-                    label: const Text('Start Pre-Inspection'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AdminStyles.primary,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade100,
-                      disabledForegroundColor: Colors.grey.shade400,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  )
+                ? (_isAssignedToMe
+                    ? ElevatedButton.icon(
+                        onPressed: isAccepted
+                            ? () {
+                                setState(() => _activeSubView = 'preInspection');
+                              }
+                            : null,
+                        icon: const Icon(Icons.search_rounded, size: 14),
+                        label: const Text('Start Pre-Inspection'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AdminStyles.primary,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.grey.shade100,
+                          disabledForegroundColor: Colors.grey.shade400,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      )
+                    : const SizedBox.shrink())
                 : TextButton.icon(
                     onPressed: () {
                       setState(() => _activeSubView = 'preInspection');
@@ -1061,19 +1065,33 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                           : 'Perform repair and submit completion report.')),
               isCompleted: isLastCompleted,
               action: (!hasPostRepair || isLastRework)
-                  ? ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() => _activeSubView = 'postRepair');
-                      },
-                      icon: const Icon(Icons.build_circle_rounded, size: 14),
-                      label: Text(isLastRework ? 'Submit Rework' : 'Start Post-Repair'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isLastRework ? AdminStyles.warning : AdminStyles.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    )
+                  ? (_isAssignedToMe
+                      ? ElevatedButton.icon(
+                          onPressed: () {
+                            setState(() => _activeSubView = 'postRepair');
+                          },
+                          icon: const Icon(Icons.build_circle_rounded, size: 14),
+                          label: Text(isLastRework ? 'Submit Rework' : 'Start Post-Repair'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isLastRework ? AdminStyles.warning : AdminStyles.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        )
+                      : (hasPostRepair
+                          ? TextButton.icon(
+                              onPressed: () {
+                                setState(() => _activeSubView = 'postRepair');
+                              },
+                              icon: const Icon(Icons.visibility_rounded, size: 14),
+                              label: const Text('View Reports'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: AdminStyles.primary,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                            )
+                          : const SizedBox.shrink()))
                   : TextButton.icon(
                       onPressed: () {
                         setState(() => _activeSubView = 'postRepair');
