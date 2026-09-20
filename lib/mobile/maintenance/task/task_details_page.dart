@@ -226,8 +226,17 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
     final isRework = s == 'rework' || s == 'for rework' || s == 'rework needed';
 
     if (_postRepairReports.isNotEmpty) {
-      final last = _postRepairReports.last;
-      if (last.adminEvaluation == 'rework' || isRework) return true;
+      final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
+        ..sort((a, b) => a.attemptNumber.compareTo(b.attemptNumber));
+      final latest = sortedAttempts.last;
+      // If latest report is still pending admin evaluation, technician CANNOT submit another report!
+      if (latest.adminEvaluation == null ||
+          latest.status.toLowerCase() == 'pending' ||
+          latest.status.toLowerCase() == 'submitted') {
+        return false;
+      }
+      // If latest report was evaluated as rework, technician CAN submit a new report!
+      if (latest.adminEvaluation == 'rework') return true;
       return false;
     }
 
@@ -1355,7 +1364,9 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
 
   Widget _buildPostRepairStatusBanner(ThemeProvider themeProvider) {
     if (_postRepairReports.isEmpty) return const SizedBox.shrink();
-    final last = _postRepairReports.last;
+    final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
+      ..sort((a, b) => a.attemptNumber.compareTo(b.attemptNumber));
+    final last = sortedAttempts.last;
     final isSatisfied = last.adminEvaluation == 'satisfied' || _isCompleted;
     final isRework = last.adminEvaluation == 'rework';
 

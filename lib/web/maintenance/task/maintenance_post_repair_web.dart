@@ -66,16 +66,24 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
   Future<void> _loadData() async {
     try {
       final history = await PostRepairService.fetchByWorkRequest(widget.request.id);
+      final sorted = List<PostRepairReport>.from(history)
+        ..sort((a, b) => a.attemptNumber.compareTo(b.attemptNumber));
       
       if (!mounted) return;
+      final latest = sorted.isNotEmpty ? sorted.last : null;
+      final hasRework = latest != null && latest.adminEvaluation == 'rework';
+      final isPending = latest != null &&
+          (latest.adminEvaluation == null ||
+              latest.status.toLowerCase() == 'pending' ||
+              latest.status.toLowerCase() == 'submitted');
+
       setState(() {
-        _history = history;
-        _nextAttemptNumber = history.length + 1;
-        _selectedAttemptIndex = history.isNotEmpty ? history.length - 1 : 0;
+        _history = sorted;
+        _nextAttemptNumber = sorted.length + 1;
+        _selectedAttemptIndex = sorted.isNotEmpty ? sorted.length - 1 : 0;
         
-        final hasRework = history.isNotEmpty && history.last.adminEvaluation == 'rework';
         final isEntry = _isEntryMode;
-        _showNewSubmissionForm = isEntry && (history.isEmpty || hasRework);
+        _showNewSubmissionForm = isEntry && (sorted.isEmpty || (hasRework && !isPending));
         _isLoading = false;
       });
     } catch (_) {
@@ -97,20 +105,34 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
       return false;
     }
 
-    // If no reports have been submitted yet, maintenance technician MUST be able to submit!
-    if (_history.isEmpty) return true;
+    if (_history.isEmpty) {
+      return status == 'confirmed' ||
+          status == 'under_maintenance' ||
+          status == 'in_progress' ||
+          status == 'in progress' ||
+          status == 'in progress (post-repair)' ||
+          status == 'pre-inspection approved' ||
+          status == 'rework' ||
+          status == 'for rework';
+    }
 
-    // If latest attempt is rework, submission of new attempt is allowed
-    if (_history.isNotEmpty && _history.last.adminEvaluation == 'rework') return true;
+    final sorted = List<PostRepairReport>.from(_history)
+      ..sort((a, b) => a.attemptNumber.compareTo(b.attemptNumber));
+    final latest = sorted.last;
 
-    return status == 'confirmed' ||
-        status == 'under_maintenance' ||
-        status == 'in_progress' ||
-        status == 'in progress' ||
-        status == 'in progress (post-repair)' ||
-        status == 'pre-inspection approved' ||
-        status == 'rework' ||
-        status == 'for rework';
+    // If latest attempt is awaiting evaluation, technician cannot submit
+    if (latest.adminEvaluation == null ||
+        latest.status.toLowerCase() == 'pending' ||
+        latest.status.toLowerCase() == 'submitted') {
+      return false;
+    }
+
+    // If latest attempt was marked rework, technician can submit
+    if (latest.adminEvaluation == 'rework') {
+      return true;
+    }
+
+    return false;
   }
 
   Future<void> _pickImages() async {

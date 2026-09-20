@@ -5,14 +5,16 @@ class PostRepairService {
   static SupabaseClient get _db => Supabase.instance.client;
   static const String _table = 'post_repair_reports';
 
-  /// Fetch all post-repair reports for a work request
+  /// Fetch all post-repair reports for a work request (ordered chronologically by attempt_number ascending)
   static Future<List<PostRepairReport>> fetchByWorkRequest(String workRequestId) async {
     final data = await _db
         .from(_table)
         .select()
         .eq('work_request_id', workRequestId)
-        .order('created_at', ascending: false);
-    return (data as List).map((e) => PostRepairReport.fromMap(e)).toList();
+        .order('attempt_number', ascending: true);
+    final list = (data as List).map((e) => PostRepairReport.fromMap(e)).toList();
+    list.sort((a, b) => a.attemptNumber.compareTo(b.attemptNumber));
+    return list;
   }
 
   /// Fetch latest post-repair report for a work request

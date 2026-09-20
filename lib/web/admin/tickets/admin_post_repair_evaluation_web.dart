@@ -45,10 +45,14 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     try {
       final history = await PostRepairService.fetchByWorkRequest(widget.request.id);
       if (mounted) {
+        final sorted = List<PostRepairReport>.from(history)
+          ..sort((a, b) => a.attemptNumber.compareTo(b.attemptNumber));
+        final pendingIdx = sorted.indexWhere((r) => r.adminEvaluation == null);
+        final selectedIdx = pendingIdx != -1 ? pendingIdx : (sorted.isNotEmpty ? sorted.length - 1 : 0);
         setState(() {
-          _history = history;
-          _selectedAttemptIndex = history.isNotEmpty ? history.length - 1 : 0;
-          _report = history.isNotEmpty ? history.last : null;
+          _history = sorted;
+          _selectedAttemptIndex = selectedIdx;
+          _report = sorted.isNotEmpty ? sorted[selectedIdx] : null;
           _isLoading = false;
         });
       }
@@ -66,14 +70,15 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
   // --- LOGIC PORTED FROM MOBILE ---
 
   Future<void> _markCompleted() async {
-    if (_report == null) return;
+    if (_history.isEmpty) return;
+    final targetReport = _history[_selectedAttemptIndex];
     final authService = Provider.of<AuthService>(context, listen: false);
     final user = authService.currentUser;
     if (user == null) return;
 
     setState(() => _isProcessing = true);
     try {
-      await PostRepairService.markSatisfied(_report!.id, user.id);
+      await PostRepairService.markSatisfied(targetReport.id, user.id);
       await WorkRequestService.completeRequest(widget.request.id);
 
       await AppNotificationService.notifyAdminCompletionSubmittedToRequestor(
@@ -84,7 +89,7 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
 
       await AppNotificationService.notifyPostRepairCompleted(
         workRequestId: widget.request.id,
-        maintenanceId: widget.request.assignedToId ?? _report?.technicianId,
+        maintenanceId: widget.request.assignedToId ?? targetReport.technicianId,
         adminName: user.name,
       );
 
@@ -122,7 +127,8 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
   }
 
   Future<void> _markRework() async {
-    if (_report == null) return;
+    if (_history.isEmpty) return;
+    final targetReport = _history[_selectedAttemptIndex];
     final notes = _reworkNotesController.text.trim();
     if (notes.isEmpty) {
       _showWarning('Please provide rework notes');
@@ -135,12 +141,12 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
 
     setState(() => _isProcessing = true);
     try {
-      await PostRepairService.markRework(_report!.id, user.id, notes);
+      await PostRepairService.markRework(targetReport.id, user.id, notes);
       await WorkRequestService.setRework(widget.request.id, notes);
 
       await AppNotificationService.notifyPostRepairRework(
         workRequestId: widget.request.id,
-        maintenanceId: widget.request.assignedToId ?? _report?.technicianId,
+        maintenanceId: widget.request.assignedToId ?? targetReport.technicianId,
         adminName: user.name,
       );
 
@@ -414,7 +420,8 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     if (_history.isEmpty) return _buildEmptyState();
     final report = _history[_selectedAttemptIndex];
     final isLatest = _selectedAttemptIndex == _history.length - 1;
-    final isActioned = !isLatest || (report.status.toLowerCase() != 'pending' && report.status.toLowerCase() != 'submitted');
+    final isEvaluated = report.adminEvaluation != null;
+    final canEvaluate = isLatest && !isEvaluated;
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Column(
@@ -444,7 +451,7 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
               const SizedBox(height: 32),
               Text('Evaluation Action', style: AdminStyles.headingStyle(fontSize: 18)),
               const SizedBox(height: 24),
-              if (!isActioned) ...[
+              if (canEvaluate) ...[
                 Text('If the work is satisfactory, click "Work Completed". If issues remain, provide notes below and send for rework.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
                 const SizedBox(height: 24),
                 _buildWebTextField(_reworkNotesController, 'Rework Instructions (Required only for rework)', 'Describe what is still missing or incorrect...', maxLines: 3),
@@ -510,6 +517,10 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                             Text(report.adminEvaluation == 'satisfied' ? 'Evaluation: Work Completed' : 'Evaluation: Rework Required', style: AdminStyles.headingStyle(fontSize: 16, color: report.adminEvaluation == 'satisfied' ? AdminStyles.success : AdminStyles.error)),
                             const SizedBox(height: 4),
                             Text(report.adminEvaluation == 'satisfied' ? 'Maintenance work was approved and marked as completed.' : 'Work was rejected and sent back for further repair.', style: AdminStyles.bodyStyle()),
+                            if (report.adminEvaluationNotes != null && report.adminEvaluationNotes!.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text('Notes: ${report.adminEvaluationNotes}', style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
+                            ],
                           ],
                         ),
                       ),
@@ -559,6 +570,7 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                     setState(() {
                       _selectedAttemptIndex = idx;
                       _report = report;
+                      _reworkNotesController.clear();
                     });
                   },
                   borderRadius: BorderRadius.circular(8),
@@ -601,6 +613,20 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
       }
     } catch (e) {
       if (photoData.trim().isNotEmpty) urls = [photoData.trim()];
+    }
+
+    if (urls.isEmpty && widget.request.workEvidence != null && widget.request.workEvidence!.trim().isNotEmpty) {
+      final cleanReq = widget.request.workEvidence!.trim();
+      if (cleanReq.startsWith('[') && cleanReq.endsWith(']')) {
+        try {
+          final List<dynamic> decoded = jsonDecode(cleanReq);
+          urls = decoded.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+        } catch (_) {
+          urls = [cleanReq];
+        }
+      } else {
+        urls = [cleanReq];
+      }
     }
 
     if (urls.isEmpty) return const SizedBox.shrink();

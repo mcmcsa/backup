@@ -14,6 +14,7 @@ import '../../../shared/services/inspection_pdf_service.dart';
 import '../../../shared/services/user_service.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/widgets/attachment_image_widget.dart';
 
 /// Admin screen to evaluate post-repair report - mark completed or rework
 class AdminPostRepairEvaluationPage extends StatefulWidget {
@@ -61,7 +62,15 @@ class _AdminPostRepairEvaluationPageState
       if (missing.isNotEmpty) { final names = await UserService.fetchNamesByIds(missing); _userNames.addAll(names); }
       if (mounted) {
         final sorted = List<PostRepairReport>.from(history)..sort((a, b) => b.attemptNumber.compareTo(a.attemptNumber));
-        setState(() { _history = sorted; _report = sorted.isNotEmpty ? sorted.first : null; _signatures = signatures; _isLoading = false; _selectedAttemptIndex = 0; });
+        final pendingIdx = sorted.indexWhere((r) => r.adminEvaluation == null);
+        final selectedIdx = pendingIdx != -1 ? pendingIdx : 0;
+        setState(() {
+          _history = sorted;
+          _report = sorted.isNotEmpty ? sorted[selectedIdx] : null;
+          _signatures = signatures;
+          _isLoading = false;
+          _selectedAttemptIndex = selectedIdx;
+        });
       }
     } catch (_) { if (mounted) setState(() => _isLoading = false); }
   }
@@ -82,12 +91,12 @@ class _AdminPostRepairEvaluationPageState
     try {
       await ESignatureService.insert(ESignature(id: '', workRequestId: widget.request.id, signerId: user.id, signerName: user.name, signerRole: 'campadmin', signatureType: 'completion', signatureData: signatureData, signedAt: DateTime.now()));
       await PostRepairService.markSatisfied(report.id, user.id);
-      await WorkRequestService.updateStatus(widget.request.id, 'Completed');
+      await WorkRequestService.completeRequest(widget.request.id);
       await AppNotificationService.notifyAdminCompletionSubmittedToRequestor(workRequestId: widget.request.id, adminName: user.name, requestorId: widget.request.requestorId);
       await AppNotificationService.notifyPostRepairCompleted(workRequestId: widget.request.id, maintenanceId: widget.request.assignedToId ?? report.technicianId, adminName: user.name);
-      await LoginActivityService.recordAdminAction(user: user, title: 'Post-Repair Completed', details: 'Marked request as completed with signature for ', workRequestId: widget.request.id);
+      await LoginActivityService.recordAdminAction(user: user, title: 'Post-Repair Completed', details: 'Marked request as completed with signature for ${widget.request.officeRoom}', workRequestId: widget.request.id);
       if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Post-repair approved. Work request completed successfully.'), backgroundColor: Color(0xFF059669))); Navigator.pop(context, 'completed'); }
-    } catch (e) { if (mounted) { setState(() => _isProcessing = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: '), backgroundColor: Colors.red)); } }
+    } catch (e) { if (mounted) { setState(() => _isProcessing = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)); } }
   }
 
   Future<void> _markRework(PostRepairReport report) async {
@@ -315,7 +324,11 @@ class _AdminPostRepairEvaluationPageState
   Widget _buildAttemptCard(PostRepairReport report, ThemeProvider themeProvider) {
     final user = Provider.of<AuthService>(context, listen: false).currentUser;
     final isAdmin = user?.role.name == 'campadmin' || user?.role.name == 'admin';
-    final showActions = _selectedAttemptIndex == 0 && isAdmin && report.status.toLowerCase() == 'pending';
+    final isLatestAttempt = _selectedAttemptIndex == 0;
+    final isPendingEval = report.adminEvaluation == null ||
+        report.status.toLowerCase() == 'pending' ||
+        report.status.toLowerCase() == 'submitted';
+    final showActions = isLatestAttempt && isAdmin && isPendingEval;
     final adminSig = _signatures.firstWhere(
       (sig) => sig.signatureType == 'completion' && sig.signerId == report.adminEvaluatedBy,
       orElse: () => ESignature(
@@ -338,6 +351,8 @@ class _AdminPostRepairEvaluationPageState
             ? rawEval
             : (_userNames[report.adminEvaluatedBy] ?? 'Campus Administrator'));
     final isCompletedReport = report.status.toLowerCase() == 'completed' || report.adminEvaluation == 'satisfied';
+
+    final evidenceUrls = _extractEvidenceUrls(report.photoAfter);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -450,6 +465,10 @@ class _AdminPostRepairEvaluationPageState
               ],
               themeProvider,
             ),
+            const SizedBox(height: 12),
+          ],
+          if (evidenceUrls.isNotEmpty) ...[
+            _buildWorkEvidenceSection(evidenceUrls, themeProvider),
             const SizedBox(height: 12),
           ],
           if (showActions) ...[
@@ -733,5 +752,130 @@ class _AdminPostRepairEvaluationPageState
   String _formatDate(DateTime? date) {
     if (date == null) return 'N/A';
     return '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}/${date.year}';
+  }
+
+  List<String> _extractEvidenceUrls(String? photoData) {
+    List<String> urls = [];
+    if (photoData != null && photoData.trim().isNotEmpty) {
+      try {
+        final clean = photoData.trim();
+        if (clean.startsWith('[') && clean.endsWith(']')) {
+          final List<dynamic> decoded = jsonDecode(clean);
+          urls = decoded.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+        } else if (clean.contains(',')) {
+          urls = clean.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+        } else {
+          urls = [clean];
+        }
+      } catch (_) {
+        if (photoData.trim().isNotEmpty) urls = [photoData.trim()];
+      }
+    }
+    // Fallback to widget.request.workEvidence if attempt photos are empty
+    if (urls.isEmpty && widget.request.workEvidence != null && widget.request.workEvidence!.trim().isNotEmpty) {
+      final cleanReq = widget.request.workEvidence!.trim();
+      if (cleanReq.startsWith('[') && cleanReq.endsWith(']')) {
+        try {
+          final List<dynamic> decoded = jsonDecode(cleanReq);
+          urls = decoded.map((e) => e.toString().trim()).where((e) => e.isNotEmpty).toList();
+        } catch (_) {
+          urls = [cleanReq];
+        }
+      } else {
+        urls = [cleanReq];
+      }
+    }
+    return urls;
+  }
+
+  Widget _buildWorkEvidenceSection(List<String> urls, ThemeProvider themeProvider) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: themeProvider.isDarkMode ? Colors.white.withValues(alpha: 0.04) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: themeProvider.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'WORK EVIDENCE (${urls.length})',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: themeProvider.subtitleColor,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4169E1).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Tap to enlarge',
+                  style: TextStyle(fontSize: 10, color: Color(0xFF4169E1), fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 100,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: urls.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, idx) {
+                final url = urls[idx];
+                return InkWell(
+                  onTap: () => showAttachmentZoomDialog(context, url),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: themeProvider.cardColor,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: themeProvider.borderColor),
+                    ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: AppAttachmentImage(
+                            url: url,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 4,
+                          right: 4,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

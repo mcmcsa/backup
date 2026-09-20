@@ -922,10 +922,16 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     final isPreInspDeclined = hasPreInsp && _preInspectionReport!.status == 'Declined';
     
     // Step 3: Post-Repair Status
-    final hasPostRepair = _postRepairReports.isNotEmpty;
-    final isLastRework = hasPostRepair && _postRepairReports.last.adminEvaluation == 'rework';
-    final isLastCompleted = hasPostRepair && _postRepairReports.last.adminEvaluation == 'completed';
-    final isPendingEvaluation = hasPostRepair && _postRepairReports.last.adminEvaluation == null;
+    final sortedAttempts = List<PostRepairReport>.from(_postRepairReports)
+      ..sort((a, b) => a.attemptNumber.compareTo(b.attemptNumber));
+    final hasPostRepair = sortedAttempts.isNotEmpty;
+    final latestReport = hasPostRepair ? sortedAttempts.last : null;
+    final isLastRework = latestReport != null && latestReport.adminEvaluation == 'rework';
+    final isLastCompleted = latestReport != null &&
+        (latestReport.adminEvaluation == 'satisfied' ||
+            latestReport.status.toLowerCase() == 'completed' ||
+            task.status.toLowerCase() == 'completed');
+    final isPendingEvaluation = latestReport != null && latestReport.adminEvaluation == null && !isLastCompleted;
 
     return Container(
       padding: const EdgeInsets.all(28),

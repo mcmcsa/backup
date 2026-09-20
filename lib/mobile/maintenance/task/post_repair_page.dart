@@ -163,13 +163,15 @@ class _PostRepairPageState extends State<PostRepairPage> {
   Future<void> _loadData() async {
     try {
       final history = await PostRepairService.fetchByWorkRequest(widget.request.id);
+      final sorted = List<PostRepairReport>.from(history)
+        ..sort((a, b) => a.attemptNumber.compareTo(b.attemptNumber));
       final signatures = await ESignatureService.fetchByWorkRequest(widget.request.id);
       
       if (!mounted) return;
       setState(() {
-        _history = history;
+        _history = sorted;
         _signatures = signatures;
-        _nextAttemptNumber = history.length + 1;
+        _nextAttemptNumber = sorted.length + 1;
         _isLoading = false;
       });
     } catch (_) {
@@ -190,20 +192,34 @@ class _PostRepairPageState extends State<PostRepairPage> {
       return false;
     }
 
-    if (_history.isEmpty) return true;
-    if (_history.isNotEmpty && _history.last.adminEvaluation == 'rework') return true;
+    if (_history.isEmpty) {
+      return status == 'confirmed' ||
+          status == 'under_maintenance' ||
+          status == 'in_progress' ||
+          status == 'in progress' ||
+          status == 'in progress (post-repair)' ||
+          status == 'pre-inspection approved' ||
+          status == 'rework' ||
+          status == 'for rework';
+    }
+
+    final sorted = List<PostRepairReport>.from(_history)
+      ..sort((a, b) => a.attemptNumber.compareTo(b.attemptNumber));
+    final latest = sorted.last;
 
     // If report is already submitted and pending admin evaluation, show history!
-    if (_history.isNotEmpty && _history.last.adminEvaluation == null) return false;
+    if (latest.adminEvaluation == null ||
+        latest.status.toLowerCase() == 'pending' ||
+        latest.status.toLowerCase() == 'submitted') {
+      return false;
+    }
 
-    return status == 'confirmed' ||
-        status == 'under_maintenance' ||
-        status == 'in_progress' ||
-        status == 'in progress' ||
-        status == 'in progress (post-repair)' ||
-        status == 'pre-inspection approved' ||
-        status == 'rework' ||
-        status == 'for rework';
+    // If latest attempt was marked rework, allow entry mode
+    if (latest.adminEvaluation == 'rework') {
+      return true;
+    }
+
+    return false;
   }
 
   void _openSignatureDialog() {
@@ -650,11 +666,14 @@ class _PostRepairPageState extends State<PostRepairPage> {
       );
     }
 
+    final displayList = List<PostRepairReport>.from(_history)
+      ..sort((a, b) => b.attemptNumber.compareTo(a.attemptNumber));
+
     return ListView.builder(
       padding: const EdgeInsets.all(20),
-      itemCount: _history.length,
+      itemCount: displayList.length,
       itemBuilder: (context, index) {
-        final report = _history[index];
+        final report = displayList[index];
         final techSig = _signatures.firstWhere(
           (sig) => sig.signatureType == 'post_repair' && sig.signerId == report.technicianId,
           orElse: () => ESignature(
@@ -951,6 +970,20 @@ class _PostRepairPageState extends State<PostRepairPage> {
       }
     } catch (_) {
       urls = [photoAfterStr];
+    }
+
+    if (urls.isEmpty && widget.request.workEvidence != null && widget.request.workEvidence!.trim().isNotEmpty) {
+      final cleanReq = widget.request.workEvidence!.trim();
+      if (cleanReq.startsWith('[')) {
+        try {
+          final List<dynamic> decoded = jsonDecode(cleanReq);
+          urls = decoded.map((e) => e.toString()).toList();
+        } catch (_) {
+          urls = [cleanReq];
+        }
+      } else {
+        urls = [cleanReq];
+      }
     }
 
     if (urls.isEmpty) return const SizedBox.shrink();
