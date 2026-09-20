@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
+import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/models/work_request_model.dart';
@@ -405,8 +408,18 @@ class _RequestReworkPageState extends State<RequestReworkPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
-                      setState(() => _isSubmitted = true);
+                    onPressed: () async {
+                      final user = context.read<AuthService>().currentUser;
+                      if (user != null) {
+                        await WorkRequestService.updateStatus(widget.request.id, 'Rework');
+                        await LoginActivityService.recordMaintenanceAction(
+                          user: user,
+                          title: 'Requested Rework',
+                          details: 'Requested rework for #${widget.request.id} (${widget.request.title})',
+                          workRequestId: widget.request.id,
+                        );
+                      }
+                      if (mounted) setState(() => _isSubmitted = true);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4169E1),

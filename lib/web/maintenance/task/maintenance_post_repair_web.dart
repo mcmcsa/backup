@@ -6,6 +6,7 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/post_repair_service.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../admin/shared/admin_styles.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
@@ -43,10 +44,8 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
   int _nextAttemptNumber = 1;
   int _selectedAttemptIndex = 0;
   bool _showNewSubmissionForm = true;
-  String? _technicianSignatureBase64;
   
-  List<XFile> _evidenceImages = [];
-  bool _isUploadingEvidence = false;
+  final List<XFile> _evidenceImages = [];
 
   @override
   void initState() {
@@ -204,7 +203,6 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
       // Upload Evidence Images if new ones exist
       String? reportPhotoAfter;
       if (_evidenceImages.isNotEmpty) {
-        setState(() => _isUploadingEvidence = true);
         final uploadResult = await _uploadWorkEvidenceImages(
           requestId: widget.request.id,
           imageFiles: _evidenceImages,
@@ -250,6 +248,13 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
       } catch (e) {
         debugPrint('Post-repair notification error: $e');
       }
+
+      await LoginActivityService.recordMaintenanceAction(
+        user: user,
+        title: 'Submitted Post-Repair Report',
+        details: 'Submitted post-repair report for #${widget.request.id} (${widget.request.title}) - Status: $_repairStatus',
+        workRequestId: widget.request.id,
+      );
 
       if (mounted) {
         _showSuccess('Post-Repair report submitted successfully!');
@@ -484,7 +489,7 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: isApproved ? AdminStyles.success.withOpacity(0.1) : (isDeclined ? AdminStyles.warning.withOpacity(0.1) : AdminStyles.textMuted.withOpacity(0.1)),
+                  color: isApproved ? AdminStyles.success.withValues(alpha: 0.1) : (isDeclined ? AdminStyles.warning.withValues(alpha: 0.1) : AdminStyles.textMuted.withValues(alpha: 0.1)),
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Text(
@@ -777,7 +782,7 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
         Text('Repair Status', style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _repairStatus,
+          initialValue: _repairStatus,
           decoration: _inputDecoration('Select repair status'),
           items: [
             DropdownMenuItem(value: 'completed', child: Text('Completed', style: AdminStyles.bodyStyle(fontSize: 14))),

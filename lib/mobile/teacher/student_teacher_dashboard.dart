@@ -16,32 +16,14 @@ class StudentTeacherDashboardMobile extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Row(
-          children: [
-            SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'PSU',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                    height: 1,
-                  ),
-                ),
-                Text(
-                  'Teacher',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.black54,
-                    height: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ],
+        title: const Text(
+          'PSU MMS',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            letterSpacing: 0.3,
+          ),
         ),
         actions: [
           IconButton(

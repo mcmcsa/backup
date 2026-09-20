@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -91,7 +90,7 @@ class WorkRequestService {
 
   static Future<List<WorkRequest>> fetchAwaitingPreInspection() async {
     final data = await _db
-        .from('pre_inspections')
+        .from('pre_inspection_reports')
         .select('work_request_id')
         .eq('status', 'Pending');
     final ids = (data as List).map((e) => e['work_request_id'] as String).toList();
@@ -107,7 +106,7 @@ class WorkRequestService {
 
   static Future<List<WorkRequest>> fetchAwaitingPostRepair() async {
     final data = await _db
-        .from('post_repairs')
+        .from('post_repair_reports')
         .select('work_request_id')
         .eq('status', 'Pending');
     final ids = (data as List).map((e) => e['work_request_id'] as String).toList();
@@ -523,14 +522,6 @@ class WorkRequestService {
     notifyChange();
   }
 
-  static Future<String> uploadVoiceNote(String filePath, String requestId) async {
-    final file = File(filePath);
-    final ext = filePath.split('.').last;
-    final fileName = '${requestId}_voice_${DateTime.now().millisecondsSinceEpoch}.$ext';
-    
-    await _db.storage.from('voice_recordings').upload(fileName, file);
-    return _db.storage.from('voice_recordings').getPublicUrl(fileName);
-  }
 
   /// Upload voice note from raw bytes — works on both Web and mobile.
   static Future<String> uploadVoiceNoteBytes(
@@ -758,20 +749,7 @@ class WorkRequestService {
     }
   }
 
-  /// Link pre-inspection report to work request
-  static Future<void> linkPreInspection(
-    String id,
-    String preInspectionId,
-  ) async {
-    // No-op after normalization: existence is derived from pre_inspection_reports.work_request_id.
-    return;
-  }
 
-  /// Link post-repair report to work request
-  static Future<void> linkPostRepair(String id, String postRepairId) async {
-    // No-op after normalization: existence is derived from post_repair_reports.work_request_id.
-    return;
-  }
 
   /// Fetch requests by date range (for analytics)
   static Future<List<WorkRequest>> fetchByDateRange(

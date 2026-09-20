@@ -134,15 +134,22 @@ class DropdownDataHelper {
       _requestTypesCache = requestTypes;
       _requestTypesCacheTime = DateTime.now();
       
-      return requestTypes.map((r) => r.name).toList();
+      final names = <String>[];
+      for (final rt in requestTypes) {
+        final trimmed = rt.name.trim();
+        if (trimmed.isNotEmpty && !trimmed.contains(':') && !names.contains(trimmed)) {
+          names.add(trimmed);
+        }
+      }
+      return names;
     } catch (e) {
       print('Error fetching request types: $e');
       return [
-        'Ocular Inspection',
-        'Installation',
-        'Repair',
-        'Replacement',
-        'Remediation',
+        'Installation of',
+        'Ocular Inspection of',
+        'Repair of',
+        'Replacement of',
+        'Others',
       ];
     }
   }

@@ -14,6 +14,7 @@ import '../../../shared/services/pre_inspection_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
@@ -343,6 +344,13 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
       } catch (e) {
         debugPrint('Pre-inspection notification error: $e');
       }
+
+      await LoginActivityService.recordMaintenanceAction(
+        user: user,
+        title: 'Submitted Pre-Inspection',
+        details: 'Submitted pre-inspection for #${widget.request.id} (${widget.request.title}) - Severity: $_severityLevel',
+        workRequestId: widget.request.id,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

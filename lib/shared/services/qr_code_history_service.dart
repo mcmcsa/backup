@@ -176,7 +176,7 @@ class QRCodeHistoryService {
           .eq('room_id', roomId)
           .order('created_at', ascending: false);
 
-      if (matches != null && (matches as List).isNotEmpty) {
+      if ((matches as List).isNotEmpty) {
         final target = (matches as List).first;
         final id = target['id'].toString();
         final currentCount = (target['scanned_count'] as int?) ?? 0;

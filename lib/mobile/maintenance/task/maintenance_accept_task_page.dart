@@ -8,6 +8,7 @@ import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/e_signature_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../../shared/widgets/workflow_status_badge.dart';
 
@@ -73,6 +74,13 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
         maintenanceUserId: user.id,
         adminId: widget.request.approvedById,
         requestorId: widget.request.requestorId,
+      );
+
+      await LoginActivityService.recordMaintenanceAction(
+        user: user,
+        title: 'Accepted Work Request',
+        details: 'Accepted work request #${widget.request.id} (${widget.request.title})',
+        workRequestId: widget.request.id,
       );
 
       if (mounted) {

@@ -133,7 +133,7 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard>
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
-        roleText: 'Teacher',
+        roleText: '',
         primaryColor: themeProvider.primaryColor,
         onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
         onNotificationPressed: () {

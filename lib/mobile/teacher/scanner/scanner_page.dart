@@ -244,7 +244,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
         return Scaffold(
           backgroundColor: themeProvider.backgroundColor,
           appBar: CommonAppBar(
-            roleText: 'Teacher',
+            roleText: '',
             primaryColor: themeProvider.primaryColor,
             onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
             onNotificationPressed: () {

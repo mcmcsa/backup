@@ -1581,7 +1581,7 @@ class _QrDetailDialogState extends State<_QrDetailDialog> {
           ),
           callback: (payload) {
             final newRecord = payload.newRecord;
-            if (newRecord != null && newRecord.isNotEmpty && mounted) {
+            if (newRecord.isNotEmpty && mounted) {
               setState(() {
                 _qr = QRCodeHistory.fromMap(newRecord);
               });

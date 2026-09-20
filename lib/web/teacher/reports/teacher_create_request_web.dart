@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import '../teacher_nav_controller.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
-import '../../../shared/models/request_type_model.dart';
 import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/providers/work_request_provider.dart';
 import '../../../shared/providers/room_provider.dart';
@@ -71,6 +69,23 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   List<String> _floors = [];
   List<String> _requestTypes = [];
   final Map<String, List<String>> _buildingsByDepartment = {};
+
+  List<String> get _displayRequestTypes {
+    final list = <String>[];
+    for (final t in _requestTypes) {
+      final trimmed = t.trim();
+      if (trimmed.isEmpty || trimmed.contains(':')) continue;
+      if (trimmed.toLowerCase() == 'others' || trimmed.toLowerCase() == 'other') continue;
+      if (!list.contains(trimmed)) {
+        list.add(trimmed);
+      }
+    }
+    if (list.isEmpty) {
+      list.addAll(['Installation of', 'Ocular Inspection of', 'Repair of', 'Replacement of']);
+    }
+    list.add('Others');
+    return list;
+  }
 
   WorkRequest? _submittedRequest;
   String _lastCheckedRoomCode = '';
@@ -199,8 +214,8 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
           _floors.add(_selectedFloor);
         }
 
-        if (_requestTypes.isNotEmpty && _selectedRequestType.isEmpty) {
-          _selectedRequestType = _requestTypes.first;
+        if (_displayRequestTypes.isNotEmpty && _selectedRequestType.isEmpty) {
+          _selectedRequestType = _displayRequestTypes.first;
         }
       });
 
@@ -329,18 +344,9 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
           ? (specify.isNotEmpty ? 'Others: $specify' : 'Others')
           : _selectedRequestType.trim();
 
-      var typeRecord = await helper.getRequestTypeByName(_selectedRequestType == 'Others' ? 'Others' : baseType);
+      var typeRecord = await helper.getRequestTypeByName(_selectedRequestType);
       if (typeRecord == null && _selectedRequestType == 'Others') {
         typeRecord = await helper.getRequestTypeByName('Other');
-      }
-      if (typeRecord == null) {
-        try {
-          final res = await Supabase.instance.client.from('request_types').insert({'name': _selectedRequestType == 'Others' ? 'Others' : baseType}).select().maybeSingle();
-          if (res != null) typeRecord = RequestType.fromMap(res);
-        } catch (_) {
-          // If RLS blocks inserting request type for non-admin roles, leave typeRecord null.
-          // The work request itself will still be successfully created.
-        }
       }
 
       final request = WorkRequest(
@@ -1001,10 +1007,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
             Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: [
-                ..._requestTypes.map((t) => _buildChoiceChip(t)),
-                _buildChoiceChip('Others'),
-              ],
+              children: _displayRequestTypes.map((t) => _buildChoiceChip(t)).toList(),
             ),
             if (_selectedRequestType.isNotEmpty) ...[
               const SizedBox(height: 16),

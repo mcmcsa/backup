@@ -8,8 +8,15 @@ class RequestTypeService {
 
   // Return all, active or inactive. The UI will filter.
   static Future<List<RequestType>> fetchAll() async {
+    // Asynchronously delete corrupted rogue rows that were mistakenly inserted
+    try {
+      _db.from(_table).delete().like('name', '%:%').then((_) {}).catchError((_) {});
+    } catch (_) {}
+
     final data = await _db.from(_table).select().order('name', ascending: true);
-    return (data as List).map((e) => RequestType.fromMap(e)).toList();
+    final list = (data as List).map((e) => RequestType.fromMap(e)).toList();
+    // Exclude any contaminated records with colons
+    return list.where((rt) => !rt.name.contains(':')).toList();
   }
 
   static Future<List<RequestType>> fetchAllIncludingInactive() async {

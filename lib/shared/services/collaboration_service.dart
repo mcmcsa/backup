@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/collaboration_models.dart';
 import 'app_notification_service.dart';
-import 'package:path/path.dart' as p;
 
 class CollaborationService {
   static final _supabase = Supabase.instance.client;
@@ -106,48 +104,22 @@ class CollaborationService {
     return List<WorkRequestNote>.from(response.map((x) => WorkRequestNote.fromJson(x)));
   }
 
-  static Future<void> addNote(String workRequestId, String authorId, String content, [List<File>? attachments]) async {
-    List<String> urls = [];
-    
-    if (attachments != null && attachments.isNotEmpty) {
-      for (var file in attachments) {
-        final ext = p.extension(file.path);
-        final fileName = '${workRequestId}_note_${DateTime.now().millisecondsSinceEpoch}_${urls.length}$ext';
-        await _supabase.storage.from('work_evidence').upload(fileName, file);
-        final publicUrl = _supabase.storage.from('work_evidence').getPublicUrl(fileName);
-        urls.add(publicUrl);
-      }
-    }
-
+  /// Add a collaboration note with optional pre-uploaded attachment URLs.
+  static Future<void> addNote(String workRequestId, String authorId, String content, [List<String>? attachmentUrls]) async {
     await _supabase.from('work_request_notes').insert({
       'work_request_id': workRequestId,
       'author_id': authorId,
       'content': content,
-      'attachment_urls': urls,
+      'attachment_urls': attachmentUrls ?? [],
     });
     
     await logActivity(workRequestId, authorId, 'added_note', 'Added a new collaboration note.');
   }
 
-  static Future<void> addVoiceNote(String workRequestId, String authorId, String filePath) async {
-    final file = File(filePath);
-    final ext = p.extension(file.path);
-    final fileName = '${workRequestId}_voice_${DateTime.now().millisecondsSinceEpoch}$ext';
-    
-    await _supabase.storage.from('voice_recordings').upload(fileName, file);
-    final publicUrl = _supabase.storage.from('voice_recordings').getPublicUrl(fileName);
+  /// Alias for backward compatibility
+  static Future<void> addNoteWithAttachmentUrls(String workRequestId, String authorId, String content, [List<String>? attachmentUrls]) =>
+      addNote(workRequestId, authorId, content, attachmentUrls);
 
-    await _supabase.from('work_request_notes').insert({
-      'work_request_id': workRequestId,
-      'author_id': authorId,
-      'content': 'Recorded a voice note.',
-      'voice_notes': [publicUrl],
-    });
-
-    await logActivity(workRequestId, authorId, 'added_voice_note', 'Added a new voice note.');
-  }
-
-  /// Upload voice note from raw bytes — works on both Web and mobile.
   static Future<void> addVoiceNoteBytes(
     String workRequestId,
     String authorId,

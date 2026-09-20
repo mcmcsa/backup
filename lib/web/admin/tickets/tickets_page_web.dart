@@ -166,7 +166,7 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
           .toList();
     } else if (_selectedFilter == 7) {
       requests = requests
-          .where((r) => r.duplicateOfId != null)
+          .where((r) => r.duplicateOfId != null || _duplicateRequestIds.contains(r.id))
           .toList();
     }
 
@@ -223,7 +223,7 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
             .length;
       case 7:
         return active
-            .where((r) => r.duplicateOfId != null)
+            .where((r) => r.duplicateOfId != null || _duplicateRequestIds.contains(r.id))
             .length;
       default:
         return 0;

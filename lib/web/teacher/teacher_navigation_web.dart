@@ -465,9 +465,9 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
             curve: Curves.easeInOut,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: isSelected ? _sidebarSelected.withOpacity(0.15) : (isHovered ? _sidebarHover : Colors.transparent),
+              color: isSelected ? _sidebarSelected.withValues(alpha: 0.15) : (isHovered ? _sidebarHover : Colors.transparent),
               borderRadius: BorderRadius.circular(10),
-              border: isSelected ? Border.all(color: _sidebarSelected.withOpacity(0.3)) : null,
+              border: isSelected ? Border.all(color: _sidebarSelected.withValues(alpha: 0.3)) : null,
             ),
             child: Row(
               children: [
@@ -557,10 +557,10 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 24),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
-        border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.2))),
+        border: Border(bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.2))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

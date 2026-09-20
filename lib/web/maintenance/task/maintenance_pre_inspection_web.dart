@@ -12,6 +12,7 @@ import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/pre_inspection_service.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
 
@@ -40,7 +41,6 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
   bool _isLoading = true;
   
   final List<XFile> _inspectionImages = [];
-  bool _isUploadingImages = false;
 
   PreInspectionReport? _existingReport;
 
@@ -122,7 +122,6 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
       // 0. Upload Images
       String? photoUrl;
       if (_inspectionImages.isNotEmpty) {
-        setState(() => _isUploadingImages = true);
         photoUrl = await _uploadImages(
           requestId: widget.request.id,
           imageFiles: _inspectionImages,
@@ -179,6 +178,13 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
       } catch (notifErr) {
         debugPrint('Pre-inspection notification dispatch error: $notifErr');
       }
+
+      await LoginActivityService.recordMaintenanceAction(
+        user: user,
+        title: 'Submitted Pre-Inspection',
+        details: 'Submitted pre-inspection for #${widget.request.id} (${widget.request.title}) - Severity: $_severityLevel',
+        workRequestId: widget.request.id,
+      );
 
       if (mounted) {
         _showSuccess('Pre-inspection report submitted successfully.');
@@ -432,7 +438,7 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
             child: Image.network(
               urls[index],
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image)),
+              errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.broken_image)),
             ),
           );
         },
@@ -504,7 +510,7 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
         Text('Severity Level', style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: _severityLevel,
+          initialValue: _severityLevel,
           decoration: _inputDecoration('Select severity'),
           items: ['Minor', 'Moderate', 'Critical']
               .map((e) => DropdownMenuItem(value: e, child: Text(e, style: AdminStyles.bodyStyle(fontSize: 14))))

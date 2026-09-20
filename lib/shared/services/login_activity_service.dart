@@ -287,6 +287,21 @@ class LoginActivityService {
     );
   }
 
+  static Future<void> recordMaintenanceAction({
+    required AppUser user,
+    required String title,
+    String? details,
+    String? workRequestId,
+  }) async {
+    if (user.role != UserRole.maintenance) return;
+    await recordAction(
+      user: user,
+      title: title,
+      details: details,
+      workRequestId: workRequestId,
+    );
+  }
+
   static Future<void> recordAction({
     required AppUser user,
     required String title,
@@ -384,14 +399,10 @@ class LoginActivityService {
     List<LoginActivity> dbLogs,
     List<LoginActivity> localLogs,
   ) {
-    if (dbLogs.isNotEmpty) {
-      // Purge stale local cache so outdated duplicate records aren't retained
-      SharedPreferences.getInstance().then((prefs) => prefs.remove(_storageKey));
-    }
+    // Combine both remote DB logs and local logs to ensure locally cached actions are never dropped
+    final List<LoginActivity> combined = <LoginActivity>[...dbLogs, ...localLogs];
 
-    final List<LoginActivity> source = dbLogs.isNotEmpty ? dbLogs : localLogs;
-
-    final sanitizedLogs = source.map(LoginActivity.sanitize).toList();
+    final sanitizedLogs = combined.map(LoginActivity.sanitize).toList();
     sanitizedLogs.sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
 
     final merged = <LoginActivity>[];
@@ -412,9 +423,10 @@ class LoginActivityService {
           return existing.loggedInAt.difference(log.loggedInAt).abs().inSeconds <= 60;
         }
 
-        // Action button deduplication: same action title for same user within 60 seconds
-        if (existing.title.trim().toLowerCase() == log.title.trim().toLowerCase()) {
-          return existing.loggedInAt.difference(log.loggedInAt).abs().inSeconds <= 60;
+        // Action button deduplication: same action title and details for same user within 15 seconds
+        if (existing.title.trim().toLowerCase() == log.title.trim().toLowerCase() &&
+            (existing.details ?? '') == (log.details ?? '')) {
+          return existing.loggedInAt.difference(log.loggedInAt).abs().inSeconds <= 15;
         }
 
         return false;

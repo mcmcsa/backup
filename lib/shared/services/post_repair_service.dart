@@ -41,15 +41,6 @@ class PostRepairService {
     return PostRepairReport.fromMap(data);
   }
 
-  /// Fetch all pending evaluation reports
-  static Future<List<PostRepairReport>> fetchPendingEvaluation() async {
-    final data = await _db
-        .from(_table)
-        .select()
-        .eq('status', 'Pending')
-        .order('created_at', ascending: false);
-    return (data as List).map((e) => PostRepairReport.fromMap(e)).toList();
-  }
 
   /// Insert a new post-repair report
   static Future<PostRepairReport> insert(PostRepairReport report) async {
@@ -85,13 +76,5 @@ class PostRepairService {
     }).eq('id', id);
   }
 
-  /// Fetch reports by technician
-  static Future<List<PostRepairReport>> fetchByTechnician(String technicianId) async {
-    final data = await _db
-        .from(_table)
-        .select()
-        .eq('technician_id', technicianId)
-        .order('created_at', ascending: false);
-    return (data as List).map((e) => PostRepairReport.fromMap(e)).toList();
-  }
+
 }

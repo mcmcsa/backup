@@ -10,6 +10,7 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import 'pre_inspection_page.dart';
 import '../../../shared/models/pre_inspection_model.dart';
@@ -303,6 +304,13 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
         maintenanceUserId: user.id,
         adminId: request.approvedById,
         requestorId: request.requestorId,
+      );
+
+      await LoginActivityService.recordMaintenanceAction(
+        user: user,
+        title: 'Started Work',
+        details: 'Started work on #${request.id} (${request.title})',
+        workRequestId: request.id,
       );
 
       await _loadRequest();

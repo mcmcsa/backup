@@ -48,7 +48,7 @@ class _TeacherChatPageState extends State<TeacherChatPage> {
       return Scaffold(
         backgroundColor: themeProvider.backgroundColor,
         appBar: CommonAppBar(
-          roleText: 'Teacher',
+          roleText: '',
           primaryColor: themeProvider.primaryColor,
           onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
           onNotificationPressed: () {
@@ -93,7 +93,7 @@ class _TeacherChatPageState extends State<TeacherChatPage> {
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
-        roleText: 'Teacher',
+        roleText: '',
         primaryColor: themeProvider.primaryColor,
         onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
         onNotificationPressed: () {

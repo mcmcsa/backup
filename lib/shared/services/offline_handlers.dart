@@ -55,7 +55,7 @@ void registerOfflineHandlers() {
           id: '',
           workRequestId: inserted.id,
           signerId: request.requestorId!,
-          signerName: request.requestorName ?? 'Unknown',
+          signerName: request.requestorName,
           signerRole: 'teacher',
           signatureType: 'approval',
           signatureData: signatureData,

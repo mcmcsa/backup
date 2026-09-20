@@ -166,7 +166,7 @@ class _StudentReportsPageState extends State<StudentReportsPage>
         return Scaffold(
           backgroundColor: themeProvider.backgroundColor,
           appBar: CommonAppBar(
-            roleText: 'Teacher',
+            roleText: '',
             primaryColor: themeProvider.primaryColor,
             onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
             onNotificationPressed: () {

@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
+import '../../../shared/services/login_activity_service.dart';
+import '../../../shared/services/work_request_service.dart';
 
 class MaintenanceRequestReworkWeb extends StatefulWidget {
   final String taskId;
@@ -434,7 +438,17 @@ class _MaintenanceRequestReworkWebState extends State<MaintenanceRequestReworkWe
     }
 
     setState(() => _isSubmitting = true);
-    await Future.delayed(const Duration(milliseconds: 800));
+
+    final user = context.read<AuthService>().currentUser;
+    if (user != null) {
+      await WorkRequestService.updateStatus(widget.taskId, 'Rework');
+      await LoginActivityService.recordMaintenanceAction(
+        user: user,
+        title: 'Requested Rework',
+        details: 'Requested rework for Task #${widget.taskId} (Priority: $_selectedPriority)',
+        workRequestId: widget.taskId,
+      );
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

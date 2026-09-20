@@ -194,7 +194,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     return Scaffold(
       backgroundColor: _themeProvider.backgroundColor,
       appBar: CommonAppBar(
-        roleText: 'Teacher',
+        roleText: '',
         primaryColor: AdminStyles.primary,
         onMenuPressed: () => widget.scaffoldKey?.currentState?.openDrawer(),
         onNotificationPressed: () {

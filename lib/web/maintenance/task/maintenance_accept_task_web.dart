@@ -8,6 +8,7 @@ import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/connectivity_service.dart';
 import '../../../shared/services/offline_sync_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
 class MaintenanceAcceptTaskWeb extends StatefulWidget {
@@ -85,6 +86,13 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
         maintenanceUserId: user.id,
         adminId: widget.task.approvedById,
         requestorId: widget.task.requestorId,
+      );
+
+      await LoginActivityService.recordMaintenanceAction(
+        user: user,
+        title: 'Accepted Work Request',
+        details: 'Accepted work request #${widget.task.id} (${widget.task.title})',
+        workRequestId: widget.task.id,
       );
 
       _showSuccess(messenger, 'Task accepted successfully. You can now begin the maintenance work.');

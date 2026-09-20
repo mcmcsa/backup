@@ -39,15 +39,6 @@ class PreInspectionService {
     return PreInspectionReport.fromMap(data);
   }
 
-  /// Fetch all pending (submitted but not approved) reports
-  static Future<List<PreInspectionReport>> fetchPending() async {
-    final data = await _db
-        .from(_table)
-        .select()
-        .eq('status', 'Pending')
-        .order('created_at', ascending: false);
-    return (data as List).map((e) => PreInspectionReport.fromMap(e)).toList();
-  }
 
   /// Insert a new pre-inspection report
   static Future<PreInspectionReport> insert(PreInspectionReport report) async {
@@ -82,13 +73,5 @@ class PreInspectionService {
     }).eq('id', id);
   }
 
-  /// Fetch reports by inspector
-  static Future<List<PreInspectionReport>> fetchByInspector(String inspectorId) async {
-    final data = await _db
-        .from(_table)
-        .select()
-        .eq('inspector_id', inspectorId)
-        .order('created_at', ascending: false);
-    return (data as List).map((e) => PreInspectionReport.fromMap(e)).toList();
-  }
+
 }

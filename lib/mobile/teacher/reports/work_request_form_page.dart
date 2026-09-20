@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +11,6 @@ import '../../../shared/providers/room_provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/room_model.dart';
 import '../../../shared/models/work_request_model.dart';
-import '../../../shared/models/request_type_model.dart';
 import '../../../shared/models/e_signature_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/e_signature_service.dart';
@@ -72,6 +72,26 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   List<String> _floors = [];
   List<String> _requestTypes = [];
   final Map<String, List<String>> _buildingsByDepartment = {};
+
+  /// Sanitized list of request types: exclude contaminated ones with colons,
+  /// ensure 'Others' is not duplicated and placed at the end.
+  List<String> get _displayRequestTypes {
+    final list = <String>[];
+    for (final t in _requestTypes) {
+      final trimmed = t.trim();
+      if (trimmed.isEmpty || trimmed.contains(':')) continue;
+      if (trimmed.toLowerCase() == 'others' || trimmed.toLowerCase() == 'other') continue;
+      if (!list.contains(trimmed)) {
+        list.add(trimmed);
+      }
+    }
+    if (list.isEmpty) {
+      list.addAll(['Installation of', 'Ocular Inspection of', 'Repair of', 'Replacement of']);
+    }
+    // Add exactly one single 'Others' at the end
+    list.add('Others');
+    return list;
+  }
 
   bool get _isLocationLocked =>
       widget.lockLocationDetails || widget.verifiedRoom != null;
@@ -228,8 +248,8 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         if (!_isLocationLocked) {
           _selectedFloor = _floors.isNotEmpty ? _floors.first : '';
         }
-        if (_requestTypes.isNotEmpty && _selectedRequestType.isEmpty) {
-          _selectedRequestType = _requestTypes.first;
+        if (_displayRequestTypes.isNotEmpty && _selectedRequestType.isEmpty) {
+          _selectedRequestType = _displayRequestTypes.first;
         }
       });
     }
@@ -437,24 +457,10 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           return;
         }
 
-        final lookupName = _selectedRequestType == 'Others' ? 'Others' : typeLabel;
+        final lookupName = _selectedRequestType == 'Others' ? 'Others' : _selectedRequestType;
         var selectedRequestTypeRecord = await helper.getRequestTypeByName(lookupName);
         if (selectedRequestTypeRecord == null && _selectedRequestType == 'Others') {
           selectedRequestTypeRecord = await helper.getRequestTypeByName('Other');
-        }
-        if (selectedRequestTypeRecord == null) {
-          try {
-            final createdType = await Supabase.instance.client
-                .from('request_types')
-                .insert({'name': lookupName})
-                .select()
-                .maybeSingle();
-            if (createdType != null) {
-              selectedRequestTypeRecord = RequestType.fromMap(createdType);
-            }
-          } catch (_) {
-            // If RLS blocks inserting request type for non-admin roles, leave record null.
-          }
         }
 
         final request = WorkRequest(
@@ -547,7 +553,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         await AppNotificationService.notifyWorkRequestSubmitted(
           workRequestId: insertedRequest.id,
           roomName: _officeRoomNameController.text.trim(),
-          buildingName: _selectedBuilding ?? '',
+          buildingName: _selectedBuilding,
           requestorName: _fullNameController.text.trim(),
           requestorId: authUser?.id,
         );
@@ -760,10 +766,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   Wrap(
                     spacing: 10,
                     runSpacing: 10,
-                    children: [
-                      ..._requestTypes.map((t) => _buildChoiceChip(t)),
-                      _buildChoiceChip('Others'),
-                    ],
+                    children: _displayRequestTypes.map((t) => _buildChoiceChip(t)).toList(),
                   ),
                   if (_selectedRequestType.isNotEmpty) ...[
                     const SizedBox(height: 16),
@@ -940,46 +943,139 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   ),
                   const SizedBox(height: 16),
                   _buildLabel('Electronic Signature *REQUIRED'),
-                  const SizedBox(height: 8),
-                  SignaturePadWidget(
-                    title: 'E-Signature',
-                    subtitle: 'Sign below or upload image to verify this request',
-                    height: 170,
-                    onSignatureComplete: (base64) {
-                      setState(() => _requesterSignatureBase64 = base64);
-                    },
-                    onSignatureCleared: () {
-                      setState(() => _requesterSignatureBase64 = null);
-                    },
-                  ),
-                  if (_requesterSignatureBase64 != null &&
-                      _requesterSignatureBase64!.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF00BFA5).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: const Color(0xFF00BFA5).withValues(alpha: 0.3),
+                  const SizedBox(height: 10),
+                  if (_requesterSignatureBase64 == null || _requesterSignatureBase64!.isEmpty)
+                    InkWell(
+                      onTap: _openSignaturePadDialog,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: _isDark
+                              ? const Color(0xFF222222)
+                              : const Color(0xFF00BFA5).withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF00BFA5).withValues(alpha: 0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00BFA5).withValues(alpha: 0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.draw_rounded,
+                                color: Color(0xFF00BFA5),
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Tap to Provide Signature',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF00BFA5),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Opens a full-size, spacious signature pad popup',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      child: const Row(
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: _isDark ? const Color(0xFF242424) : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF00BFA5),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.check_circle, size: 16, color: Color(0xFF00BFA5)),
-                          SizedBox(width: 8),
-                          Text(
-                            'Signature captured and verified',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF0F766E),
+                          Row(
+                            children: [
+                              const Icon(Icons.check_circle_rounded, size: 18, color: Color(0xFF00BFA5)),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Signature Confirmed',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF0F766E),
+                                ),
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: _openSignaturePadDialog,
+                                icon: const Icon(Icons.edit_rounded, size: 15, color: Color(0xFF00BFA5)),
+                                label: const Text(
+                                  'Change',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF00BFA5)),
+                                ),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                onPressed: () => setState(() => _requesterSignatureBase64 = null),
+                                icon: const Icon(Icons.delete_outline_rounded, size: 15, color: Colors.redAccent),
+                                label: const Text(
+                                  'Remove',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent),
+                                ),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            height: 100,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: _isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                base64Decode(_requesterSignatureBase64!),
+                                fit: BoxFit.contain,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ],
                 ],
               ),
               const SizedBox(height: 32),
@@ -1054,6 +1150,84 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           ),
         ),
       ),
+    );
+  }
+
+  void _openSignaturePadDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: _isDark ? const Color(0xFF242424) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 550),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.draw_rounded, color: Color(0xFF00BFA5), size: 22),
+                          SizedBox(width: 8),
+                          Text(
+                            'Electronic Signature',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Sign clearly in the spacious area below or upload your signature.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _isDark ? Colors.grey.shade400 : const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SignaturePadWidget(
+                    title: 'E-Signature',
+                    subtitle: 'Draw signature below or upload clear image',
+                    height: 280,
+                    onSignatureComplete: (base64) {
+                      if (base64.isNotEmpty) {
+                        setState(() => _requesterSignatureBase64 = base64);
+                        Navigator.of(dialogContext).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Signature captured and confirmed.'),
+                            backgroundColor: Color(0xFF00BFA5),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                    onSignatureCleared: () {
+                      setState(() => _requesterSignatureBase64 = null);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

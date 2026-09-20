@@ -70,8 +70,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   final GlobalKey _timelineKey = GlobalKey();
   final GlobalKey _detailsKey = GlobalKey();
   final GlobalKey _actionsKey = GlobalKey();
-  final GlobalKey _financialsKey = GlobalKey();
-  final GlobalKey _collaborationKey = GlobalKey();
 
   Timer? _countdownTimer;
 
