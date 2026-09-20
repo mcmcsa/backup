@@ -176,6 +176,21 @@ class FcmService {
             final targetUserId = newRecord['target_user_id']?.toString().trim();
             final targetRole = newRecord['target_role']?.toString().trim();
 
+            final notifType = (newRecord['type']?.toString() ?? '').toLowerCase().trim();
+            final normalizedUserRole = userRole.toLowerCase().trim();
+
+            // 0. Maintenance users trigger task acceptance, pre-inspection, post-repair, and completion.
+            // Under NO circumstance should maintenance receive notifications for their own actions.
+            if (normalizedUserRole == 'maintenance') {
+              if (notifType == 'work_request_accepted' ||
+                  notifType == 'pre_inspection_submitted' ||
+                  notifType == 'post_repair_submitted' ||
+                  notifType == 'work_request_completion_submitted') {
+                debugPrint('[FcmService] Suppressed maintenance-action notification: $notifType');
+                return;
+              }
+            }
+
             // STRICT FILTERING:
             // 1. If notification is targeted to a specific user (personal notification like chat/ticket),
             //    it MUST match the currently logged-in user id! If targetUserId is set and doesn't match userId, IGNORE.
@@ -187,7 +202,6 @@ class FcmService {
               }
             } else {
               // 2. Only broadcast/role-based notifications (where target_user_id is not set) can match target_role.
-              final normalizedUserRole = userRole.toLowerCase().trim();
               final normalizedTargetRole = (targetRole ?? 'all').toLowerCase().trim();
 
               // Maintenance users NEVER receive role-broadcast notifications for tickets.
@@ -265,6 +279,24 @@ class FcmService {
     final notification = message.notification;
     final title = notification?.title ?? message.data['title'] as String?;
     final body = notification?.body ?? message.data['body'] as String? ?? message.data['message'] as String?;
+    final notifType = (message.data['type'] as String? ?? '').toLowerCase().trim();
+
+    if (notifType == 'work_request_accepted' ||
+        notifType == 'pre_inspection_submitted' ||
+        notifType == 'post_repair_submitted' ||
+        notifType == 'work_request_completion_submitted') {
+      try {
+        final currentId = _db.auth.currentUser?.id;
+        if (currentId != null) {
+          final u = await _db.from('users').select('role').eq('id', currentId).maybeSingle();
+          if (u != null && u['role']?.toString().toLowerCase().trim() == 'maintenance') {
+            debugPrint('[FcmService] Foreground message suppressed for maintenance actor: $notifType');
+            return;
+          }
+        }
+      } catch (_) {}
+    }
+
     final createdAtStr = message.data['created_at'] as String?;
     final whenTime = createdAtStr != null
         ? DateTime.tryParse(createdAtStr)?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch

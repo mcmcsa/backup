@@ -81,10 +81,10 @@ class _LoadingScreenState extends State<LoadingScreen>
             children: [
               // PSU MMS Logo - displayed immediately without fade
               SizedBox(
-                height: 260,
-                width: 260,
+                height: 220,
+                width: 220,
                 child: Image.asset(
-                  'assets/images/psummsIcon.png',
+                  'assets/images/app_logo_v2.png',
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,
                   isAntiAlias: true,

@@ -198,7 +198,7 @@ class _SplashPageWebState extends State<SplashPageWeb>
                                               child: BackdropFilter(
                                                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                                                 child: Image.asset(
-                                                  'assets/images/psu_logo_v3.png',
+                                                  'assets/images/app_logo_v2.png',
                                                   width: 140,
                                                   height: 140,
                                                   fit: BoxFit.contain,

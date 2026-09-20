@@ -48,7 +48,7 @@ class CollaborationService {
       await AppNotificationService.createForUser(
         targetUserId: userId,
         title: 'Collaboration Invite',
-        message: 'You have been invited to collaborate on work request $workRequestId.',
+        message: 'You have been invited to collaborate on a work request.',
         type: 'collaboration_invite',
         workRequestId: workRequestId,
       );

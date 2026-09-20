@@ -5,9 +5,12 @@ import '../../../shared/models/chat_model.dart';
 import '../../../shared/widgets/chat/chat_list_panel.dart';
 import '../../../shared/widgets/chat/chat_messages_panel.dart';
 import '../../../shared/widgets/common_app_bar.dart';
+import '../../../shared/providers/theme_provider.dart';
 
 class MaintenanceChatPage extends StatefulWidget {
-  const MaintenanceChatPage({super.key});
+  final VoidCallback? openDrawer;
+
+  const MaintenanceChatPage({super.key, this.openDrawer});
 
   @override
   State<MaintenanceChatPage> createState() => _MaintenanceChatPageState();
@@ -18,16 +21,18 @@ class _MaintenanceChatPageState extends State<MaintenanceChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final user = context.watch<AuthService>().currentUser;
     if (user == null) return const SizedBox.shrink();
 
     if (_selectedRoom == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        appBar: const CommonAppBar(
-          roleText: 'Welcome Maintenance Staff',
-          primaryColor: Color(0xFF4169E1),
+        backgroundColor: themeProvider.backgroundColor,
+        appBar: CommonAppBar(
+          roleText: '',
+          primaryColor: const Color(0xFF4169E1),
           showMenu: true,
+          onMenuPressed: widget.openDrawer,
         ),
         body: ChatListPanel(
           currentUserId: user.id,
@@ -41,7 +46,7 @@ class _MaintenanceChatPageState extends State<MaintenanceChatPage> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: themeProvider.backgroundColor,
       body: ChatMessagesPanel(
         key: ValueKey(_selectedRoom!.id),
         room: _selectedRoom!,

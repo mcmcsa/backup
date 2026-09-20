@@ -26,6 +26,8 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
   List<WorkRequest> _history = [];
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void initState() {
@@ -60,13 +62,57 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
     super.dispose();
   }
 
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final initial = (_startDate != null && _endDate != null)
+        ? DateTimeRange(start: _startDate!, end: _endDate!)
+        : DateTimeRange(start: now.subtract(const Duration(days: 14)), end: now);
+
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: now.add(const Duration(days: 365)),
+      initialDateRange: initial,
+      builder: (context, child) {
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520, maxHeight: 620),
+            child: child,
+          ),
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _startDate = picked.start;
+        _endDate = picked.end;
+      });
+    }
+  }
+
   List<WorkRequest> get _filtered {
-    final q = _searchController.text.toLowerCase();
-    if (q.isEmpty) return _history;
-    return _history.where((r) =>
-        r.id.toLowerCase().contains(q) ||
-        (r.roomName?.toLowerCase().contains(q) ?? false) ||
-        r.title.toLowerCase().contains(q)).toList();
+    final q = _searchController.text.toLowerCase().trim();
+    return _history.where((r) {
+      if (q.isNotEmpty) {
+        final matches = r.id.toLowerCase().contains(q) ||
+            (r.roomName?.toLowerCase().contains(q) ?? false) ||
+            r.title.toLowerCase().contains(q);
+        if (!matches) return false;
+      }
+
+      if (_startDate != null || _endDate != null) {
+        final dt = r.dateCompleted ?? r.dateSubmitted;
+        if (_startDate != null && dt.isBefore(DateTime(_startDate!.year, _startDate!.month, _startDate!.day))) {
+          return false;
+        }
+        if (_endDate != null && dt.isAfter(DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59))) {
+          return false;
+        }
+      }
+
+      return true;
+    }).toList();
   }
 
   /// Groups requests by formatted date string
@@ -193,29 +239,116 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _border),
-      ),
-      child: TextField(
-        controller: _searchController,
-        onChanged: (_) => setState(() {}),
-        decoration: const InputDecoration(
-          hintText: 'Search by title, room, or tracking number...',
-          hintStyle: TextStyle(color: Color(0xFFCBD5E1), fontSize: 14),
-          prefixIcon: Icon(Icons.search_rounded, color: _muted, size: 20),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          disabledBorder: InputBorder.none,
-          errorBorder: InputBorder.none,
-          focusedErrorBorder: InputBorder.none,
-          filled: false,
-          contentPadding: EdgeInsets.symmetric(vertical: 16),
-        ),
-      ),
+    final hasDateFilter = _startDate != null || _endDate != null;
+    final dateRangeText = hasDateFilter
+        ? '${DateFormat('MMM d').format(_startDate!)} - ${DateFormat('MMM d, yyyy').format(_endDate!)}'
+        : 'Set Date Range';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 650;
+
+        final searchInput = Container(
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _border),
+          ),
+          child: TextField(
+            controller: _searchController,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              hintText: 'Search by title, room, or tracking number...',
+              hintStyle: TextStyle(color: Color(0xFFCBD5E1), fontSize: 14),
+              prefixIcon: Icon(Icons.search_rounded, color: _muted, size: 20),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              filled: false,
+              contentPadding: EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        );
+
+        final dateButton = InkWell(
+          onTap: _pickDateRange,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            height: 52,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: hasDateFilter ? _blue.withValues(alpha: 0.1) : _card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: hasDateFilter ? _blue : _border,
+                width: hasDateFilter ? 1.5 : 1.0,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: isNarrow ? MainAxisSize.max : MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.calendar_today_outlined,
+                  size: 18,
+                  color: hasDateFilter ? _blue : _muted,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  dateRangeText,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: hasDateFilter ? FontWeight.w700 : FontWeight.w600,
+                    color: hasDateFilter ? _blue : _ink,
+                  ),
+                ),
+                if (hasDateFilter) ...[
+                  const SizedBox(width: 8),
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        _startDate = null;
+                        _endDate = null;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: _blue.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close_rounded, size: 14, color: _blue),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              searchInput,
+              const SizedBox(height: 10),
+              dateButton,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: searchInput),
+            const SizedBox(width: 12),
+            dateButton,
+          ],
+        );
+      },
     );
   }
 

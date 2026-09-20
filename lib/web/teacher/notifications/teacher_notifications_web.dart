@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
@@ -24,6 +25,9 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
   bool _showAll = false;
   bool _notificationsEnabled = true;
   StreamSubscription<void>? _settingsSub;
+  RealtimeChannel? _realtimeChannel;
+  StreamSubscription<void>? _notifSub;
+  Timer? _refreshTimer;
   NotificationTypeFilter _selectedType = NotificationTypeFilter.all;
   NotificationDateFilter _selectedDate = NotificationDateFilter.all;
 
@@ -38,18 +42,41 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
   void initState() {
     super.initState();
     _settingsSub = AppSettingsService.changes.listen((_) {
-      _loadNotifications();
+      _loadNotifications(silent: true);
     });
+    _notifSub = AppNotificationService.changes.listen((_) {
+      if (mounted) _loadNotifications(silent: true);
+    });
+
+    try {
+      _realtimeChannel = AppNotificationService.subscribeToNotifications(
+        onUpdate: () {
+          if (mounted) _loadNotifications(silent: true);
+        },
+      );
+    } catch (_) {}
+
+    // Auto-refresh (AJAX polling fallback) every 8 seconds
+    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) _loadNotifications(silent: true);
+    });
+
     _loadNotifications();
   }
 
   @override
   void dispose() {
     _settingsSub?.cancel();
+    _notifSub?.cancel();
+    _realtimeChannel?.unsubscribe();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadNotifications() async {
+  Future<void> _loadNotifications({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() => _isLoading = true);
+    }
     try {
       final authService = context.read<AuthService>();
       final user = authService.currentUser;

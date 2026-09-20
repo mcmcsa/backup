@@ -221,6 +221,7 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
         await AppNotificationService.notifyPostRepairSubmittedToAdmin(
           workRequestId: widget.request.id,
           maintenanceName: user.name,
+          maintenanceUserId: user.id,
           adminId: widget.request.approvedById,
           requestorId: widget.request.requestorId,
         );

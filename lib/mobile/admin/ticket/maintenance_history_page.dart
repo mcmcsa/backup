@@ -388,17 +388,6 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
                             child: SizedBox.shrink(),
                           ),
                           IconButton(
-                            tooltip: 'Change date range',
-                            onPressed: _showDateRangePicker,
-                            icon: const Icon(Icons.edit_rounded),
-                            style: IconButton.styleFrom(
-                              backgroundColor: const Color(0xFFF1F5F9),
-                              foregroundColor: const Color(0xFF4169E1),
-                              minimumSize: const Size(36, 36),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
                             tooltip: 'Clear date range',
                             onPressed: () {
                               setState(() {

@@ -6,9 +6,12 @@ import '../../../authentication/services/auth_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/providers/theme_provider.dart';
+import '../../../shared/widgets/room_comparison_dialog.dart';
 
 class MaintenanceStaffHistoryPage extends StatefulWidget {
-  const MaintenanceStaffHistoryPage({super.key});
+  final VoidCallback? openDrawer;
+
+  const MaintenanceStaffHistoryPage({super.key, this.openDrawer});
 
   @override
   State<MaintenanceStaffHistoryPage> createState() => _MaintenanceStaffHistoryPageState();
@@ -35,9 +38,16 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
       final user = context.read<AuthService>().currentUser;
       if (user != null) {
         final data = await WorkRequestService.fetchAssignedTo(user.id);
+        final completed = data.where((r) {
+          final st = r.status.toLowerCase();
+          return st == 'completed' ||
+              st == 'declined' ||
+              st == 'cancelled' ||
+              st == 'declined/cancelled';
+        }).toList();
         if (mounted) {
           setState(() {
-            _requests = data;
+            _requests = completed;
             _isLoading = false;
           });
         }
@@ -53,94 +63,43 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
     super.dispose();
   }
 
-  Map<String, dynamic> _requestToMap(WorkRequest r) {
-    Color statusColor;
-    String statusLabel;
-    switch (r.status.toLowerCase()) {
+  Color _getStatusColor(String status) {
+    switch (status.toLowerCase()) {
       case 'completed':
-        statusColor = Colors.green;
-        statusLabel = 'COMPLETED';
-        break;
-      case 'in progress':
-      case 'in_progress':
-      case 'assigned':
-      case 'accepted by maintenance':
-        statusColor = Colors.blue;
-        statusLabel = 'IN PROGRESS';
-        break;
+        return const Color(0xFF10B981);
       case 'declined':
       case 'cancelled':
       case 'declined/cancelled':
-        statusColor = Colors.red;
-        statusLabel = 'DECLINED';
-        break;
-      case 'confirmed':
-      case 'pre-inspection approved':
-      case 'under_maintenance':
-        statusColor = const Color(0xFF00BFA5);
-        statusLabel = 'CONFIRMED';
-        break;
-      case 'rework':
-      case 'for rework':
-        statusColor = Colors.orange;
-        statusLabel = 'REWORK';
-        break;
-      case 'pending':
-      case 'pending assignment':
-        statusColor = Colors.grey;
-        statusLabel = 'PENDING';
-        break;
+        return const Color(0xFFEF4444);
       default:
-        statusColor = Colors.grey;
-        statusLabel = r.status.toUpperCase();
+        return Colors.blue;
     }
-
-    IconData catIcon;
-    Color catColor;
-    switch (r.typeOfRequest.toLowerCase()) {
-      case 'electrical':
-        catIcon = Icons.electrical_services;
-        catColor = Colors.blue;
-        break;
-      case 'plumbing':
-        catIcon = Icons.plumbing;
-        catColor = Colors.orange;
-        break;
-      case 'hvac':
-        catIcon = Icons.ac_unit;
-        catColor = Colors.cyan;
-        break;
-      default:
-        catIcon = Icons.handyman;
-        catColor = const Color(0xFF00BFA5);
-    }
-
-    return {
-      'id': r.id,
-      'title': r.title,
-      'location': '${r.buildingName}, ${r.officeRoom}',
-      'category': r.typeOfRequest,
-      'categoryIcon': catIcon,
-      'categoryColor': catColor,
-      'status': statusLabel,
-      'statusColor': statusColor,
-      'date': r.dateSubmitted,
-       'completedDate': r.status.toLowerCase() == 'completed' ? r.dateSubmitted : null,
-      'priority': r.priority.isNotEmpty
-          ? '${r.priority[0].toUpperCase()}${r.priority.substring(1)}'
-          : 'Medium',
-    };
   }
 
-  List<Map<String, dynamic>> get _filteredItems {
-    List<Map<String, dynamic>> filtered = _requests.map(_requestToMap).toList();
+  String _getStatusLabel(String status) {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return 'COMPLETED';
+      case 'declined':
+      case 'cancelled':
+      case 'declined/cancelled':
+        return 'DECLINED';
+      default:
+        return status.toUpperCase();
+    }
+  }
+
+  List<WorkRequest> get _filteredItems {
+    List<WorkRequest> filtered = List.from(_requests);
 
     // Filter by status
     if (_selectedFilter != 'All') {
+      String filter = _selectedFilter.toUpperCase();
       filtered = filtered.where((item) {
-        String status = item['status'].toString().toUpperCase();
-        String filter = _selectedFilter.toUpperCase();
-        if (filter == 'IN PROGRESS') return status == 'IN PROGRESS';
+        String status = item.status.toUpperCase();
+        if (filter == 'CANCELLED') {
+          return status == 'CANCELLED' || status == 'DECLINED' || status == 'DECLINED/CANCELLED';
+        }
         return status == filter;
       }).toList();
     }
@@ -149,34 +108,34 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
     String query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
       filtered = filtered.where((item) {
-        return item['id'].toString().toLowerCase().contains(query) ||
-            item['title'].toString().toLowerCase().contains(query) ||
-            item['location'].toString().toLowerCase().contains(query);
+        return item.id.toLowerCase().contains(query) ||
+            item.title.toLowerCase().contains(query) ||
+            item.requestorName.toLowerCase().contains(query) ||
+            (item.buildingName ?? '').toLowerCase().contains(query) ||
+            (item.officeRoom ?? '').toLowerCase().contains(query);
       }).toList();
     }
 
     // Filter by date range
     if (_startDate != null && _endDate != null) {
       filtered = filtered.where((item) {
-        DateTime date = item['date'] as DateTime;
-        return date.isAfter(_startDate!.subtract(const Duration(days: 1))) &&
-            date.isBefore(_endDate!.add(const Duration(days: 1)));
+        return item.dateSubmitted.isAfter(_startDate!.subtract(const Duration(days: 1))) &&
+            item.dateSubmitted.isBefore(_endDate!.add(const Duration(days: 1)));
       }).toList();
     }
 
     // Sort by date
     filtered.sort((a, b) {
-      DateTime dateA = a['date'] as DateTime;
-      DateTime dateB = b['date'] as DateTime;
       if (_sortAscending) {
-        return dateA.compareTo(dateB);
+        return a.dateSubmitted.compareTo(b.dateSubmitted);
       } else {
-        return dateB.compareTo(dateA);
+        return b.dateSubmitted.compareTo(a.dateSubmitted);
       }
     });
 
     return filtered;
   }
+
 
   Future<void> _showDateRangePicker(bool isDark) async {
     final DateTimeRange? picked = await showDateRangePicker(
@@ -246,10 +205,11 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
 
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
-      appBar: const CommonAppBar(
-        roleText: 'Welcome Maintenance Staff',
-        primaryColor: Color(0xFF4169E1),
+      appBar: CommonAppBar(
+        roleText: '',
+        primaryColor: const Color(0xFF4169E1),
         showMenu: true,
+        onMenuPressed: widget.openDrawer,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -311,8 +271,6 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
                   const SizedBox(width: 8),
                   _buildFilterChip('Completed', themeProvider),
                   const SizedBox(width: 8),
-                  _buildFilterChip('In Progress', themeProvider),
-                  const SizedBox(width: 8),
                   _buildFilterChip('Cancelled', themeProvider),
                 ],
               ),
@@ -323,177 +281,80 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
           Container(
             color: themeProvider.cardColor,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: _startDate == null || _endDate == null
-                ? Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _startDate == null || _endDate == null
+                      ? OutlinedButton.icon(
                           onPressed: () => _showDateRangePicker(isDark),
-                          icon: Icon(Icons.calendar_today, size: 16, color: themeProvider.textColor),
+                          icon: Icon(Icons.calendar_today, size: 15, color: themeProvider.textColor),
                           label: Text(
-                            _formatRangeLabel(),
-                            style: TextStyle(fontSize: 11, color: themeProvider.textColor),
+                            'Set Date Range',
+                            style: TextStyle(fontSize: 12, color: themeProvider.textColor, fontWeight: FontWeight.w600),
                             overflow: TextOverflow.ellipsis,
                           ),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: themeProvider.textColor,
                             side: BorderSide(color: themeProvider.borderColor),
                             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _toggleSortOrder,
-                          icon: Icon(
-                            _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                            size: 16,
-                            color: themeProvider.textColor,
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4169E1).withValues(alpha: isDark ? 0.2 : 0.08),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF4169E1), width: 1.5),
                           ),
-                          label: Text(
-                            _sortAscending ? 'Oldest' : 'Newest',
-                            style: TextStyle(fontSize: 11, color: themeProvider.textColor),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: themeProvider.textColor,
-                            side: BorderSide(color: themeProvider.borderColor),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Selected Date Range:',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: themeProvider.subtitleColor,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4169E1).withValues(alpha: isDark ? 0.2 : 0.08),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: const Color(0xFF4169E1),
-                                  width: 1.5,
+                          child: InkWell(
+                            onTap: () => _showDateRangePicker(isDark),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.calendar_today, size: 14, color: Color(0xFF4169E1)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _formatRangeLabel(),
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF4169E1)),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'From',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                      color: themeProvider.subtitleColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _formatDate(_startDate!),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: themeProvider.textColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: Icon(
-                              Icons.arrow_forward_rounded,
-                              color: themeProvider.subtitleColor,
-                              size: 16,
-                            ),
-                          ),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4169E1).withValues(alpha: isDark ? 0.2 : 0.08),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: const Color(0xFF4169E1),
-                                  width: 1.5,
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _startDate = null;
+                                      _endDate = null;
+                                    });
+                                  },
+                                  child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF4169E1)),
                                 ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'To',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                      color: themeProvider.subtitleColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _formatDate(_endDate!),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: themeProvider.textColor,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _toggleSortOrder,
-                              icon: Icon(
-                                _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                                size: 14,
-                                color: themeProvider.textColor,
-                              ),
-                              label: Text(
-                                _sortAscending ? 'Oldest' : 'Newest',
-                                style: TextStyle(fontSize: 11, color: themeProvider.textColor),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: themeProvider.textColor,
-                                side: BorderSide(color: themeProvider.borderColor),
-                                padding: const EdgeInsets.symmetric(vertical: 8),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _startDate = null;
-                                _endDate = null;
-                              });
-                            },
-                            child: const Text('Clear', style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
-                      ),
-                    ],
+                        ),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: _toggleSortOrder,
+                  icon: Icon(
+                    _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                    size: 15,
+                    color: themeProvider.textColor,
                   ),
+                  label: Text(
+                    _sortAscending ? 'Oldest' : 'Newest',
+                    style: TextStyle(fontSize: 12, color: themeProvider.textColor, fontWeight: FontWeight.w600),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: themeProvider.textColor,
+                    side: BorderSide(color: themeProvider.borderColor),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
           ),
 
           // History List
@@ -566,10 +427,15 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
     );
   }
 
-  Widget _buildHistoryCard(Map<String, dynamic> item, ThemeProvider themeProvider) {
+  Widget _buildHistoryCard(WorkRequest item, ThemeProvider themeProvider) {
     final isDark = themeProvider.isDarkMode;
+    final statusColor = _getStatusColor(item.status);
+    final statusLabel = _getStatusLabel(item.status);
+    final shortId = item.id.length > 8 ? item.id.substring(0, 8).toUpperCase() : item.id.toUpperCase();
+    final locationText = [item.buildingName, item.officeRoom].where((s) => s != null && s.isNotEmpty).join(', ');
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
@@ -582,168 +448,348 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
           ),
         ],
       ),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TaskDetailsPage(
-                taskId: item['id'],
-                title: item['title'],
-                location: item['location'],
-              ),
-            ),
-          );
-        },
+      child: Material(
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TaskDetailsPage(
+                  taskId: item.id,
+                  title: item.title,
+                  location: locationText,
+                ),
+              ),
+            );
+          },
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Row
-              Row(
-                children: [
-                  // Category Badge
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: (item['categoryColor'] as Color).withValues(alpha: isDark ? 0.2 : 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      item['categoryIcon'] as IconData,
-                      size: 20,
-                      color: item['categoryColor'] as Color,
-                    ),
+              // Header with ID, Status, and Actions (Campus Admin style)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: themeProvider.borderColor.withValues(alpha: 0.6)),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item['id'],
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: themeProvider.subtitleColor,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          item['title'],
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: themeProvider.textColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Status Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: (item['statusColor'] as Color).withValues(alpha: isDark ? 0.2 : 0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      item['status'],
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: item['statusColor'] as Color,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Location
-              Row(
-                children: [
-                  Icon(Icons.location_on_outlined, size: 16, color: themeProvider.subtitleColor),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      item['location'],
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: themeProvider.subtitleColor,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Date Info
-              Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 16, color: themeProvider.subtitleColor),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Started: ${_formatDate(item['date'] as DateTime)}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: themeProvider.subtitleColor,
-                    ),
-                  ),
-                  if (item['completedDate'] != null) ...[
-                    const SizedBox(width: 12),
-                    const Icon(Icons.check_circle, size: 16, color: Colors.green),
-                    const SizedBox(width: 4),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                     Text(
-                      'Completed: ${_formatDate(item['completedDate'] as DateTime)}',
+                      '#$shortId',
                       style: TextStyle(
-                        fontSize: 11,
                         color: themeProvider.subtitleColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Priority Badge
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getPriorityColor(item['priority']).withValues(alpha: isDark ? 0.2 : 0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
+                    Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.flag,
-                          size: 12,
-                          color: _getPriorityColor(item['priority']),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${item['priority']} Priority',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: _getPriorityColor(item['priority']),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: isDark ? 0.2 : 0.1),
+                            borderRadius: BorderRadius.circular(12),
                           ),
+                          child: Text(
+                            statusLabel,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        PopupMenuButton<String>(
+                          icon: Icon(Icons.more_vert, size: 20, color: themeProvider.subtitleColor),
+                          tooltip: 'Actions',
+                          color: themeProvider.cardColor,
+                          onSelected: (action) {
+                            if (action == 'details') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TaskDetailsPage(
+                                    taskId: item.id,
+                                    title: item.title,
+                                    location: locationText,
+                                  ),
+                                ),
+                              );
+                            } else if (action == 'compare') {
+                              if (item.roomId != null && item.roomId!.isNotEmpty) {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => RoomComparisonDialog(roomId: item.roomId!),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('No room associated with this work request')),
+                                );
+                              }
+                            }
+                          },
+                          itemBuilder: (ctx) => [
+                            PopupMenuItem(
+                              value: 'details',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.visibility_outlined, size: 18, color: themeProvider.textColor),
+                                  const SizedBox(width: 8),
+                                  Text('View Details', style: TextStyle(color: themeProvider.textColor)),
+                                ],
+                              ),
+                            ),
+                            if (item.roomId != null && item.roomId!.isNotEmpty)
+                              PopupMenuItem(
+                                value: 'compare',
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.difference_outlined, size: 18, color: Color(0xFF0F766E)),
+                                    const SizedBox(width: 8),
+                                    Text('Compare Room', style: TextStyle(color: themeProvider.textColor)),
+                                  ],
+                                ),
+                              ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                  const Spacer(),
-                  Icon(
-                    Icons.chevron_right,
-                    color: themeProvider.subtitleColor,
-                    size: 20,
-                  ),
-                ],
+                  ],
+                ),
+              ),
+
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      item.title,
+                      style: TextStyle(
+                        color: themeProvider.textColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Requestor / Instructor
+                    if (item.requestorName.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          Icon(Icons.person_outline, size: 16, color: themeProvider.subtitleColor),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              item.requestorPosition.isNotEmpty
+                                  ? '${item.requestorName} (${item.requestorPosition})'
+                                  : item.requestorName,
+                              style: TextStyle(
+                                color: themeProvider.textColor,
+                                fontSize: 13,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+
+                    // Location
+                    if (locationText.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          Icon(Icons.location_on_outlined, size: 16, color: themeProvider.subtitleColor),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              locationText,
+                              style: TextStyle(
+                                color: themeProvider.subtitleColor,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+
+                    // Description
+                    if (item.description.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        item.description,
+                        style: TextStyle(
+                          color: themeProvider.subtitleColor,
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+
+                    // Dates (using Wrap to prevent any pixel overflow on narrow screens)
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.calendar_today_outlined, size: 13, color: themeProvider.subtitleColor),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Requested: ${_formatDate(item.dateSubmitted)}',
+                              style: TextStyle(
+                                color: themeProvider.subtitleColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (item.dateCompleted != null)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.check_circle_outline, size: 13, color: Color(0xFF10B981)),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Completed: ${_formatDate(item.dateCompleted!)}',
+                                style: TextStyle(
+                                  color: themeProvider.subtitleColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: themeProvider.borderColor.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Priority Badge & Action Buttons (Wrap prevents overflow on all screen sizes)
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 10,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _getPriorityColor(item.priority).withValues(alpha: isDark ? 0.18 : 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: _getPriorityColor(item.priority).withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.flag_rounded, size: 12, color: _getPriorityColor(item.priority)),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${item.priority.isNotEmpty ? item.priority[0].toUpperCase() + item.priority.substring(1).toLowerCase() : 'Medium'} Priority',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: _getPriorityColor(item.priority),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (item.roomId != null && item.roomId!.isNotEmpty)
+                              OutlinedButton.icon(
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => RoomComparisonDialog(roomId: item.roomId!),
+                                  );
+                                },
+                                icon: Icon(
+                                  Icons.difference_outlined,
+                                  size: 14,
+                                  color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
+                                ),
+                                label: Text(
+                                  'Compare',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? const Color(0xFF34D399) : const Color(0xFF059669),
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  side: BorderSide(
+                                    color: (isDark ? const Color(0xFF34D399) : const Color(0xFF059669)).withValues(alpha: 0.4),
+                                  ),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => TaskDetailsPage(
+                                      taskId: item.id,
+                                      title: item.title,
+                                      location: locationText,
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.visibility_outlined, size: 14, color: Colors.white),
+                              label: const Text(
+                                'View Details',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2563EB),
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -765,4 +811,5 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
     }
   }
 }
+
 

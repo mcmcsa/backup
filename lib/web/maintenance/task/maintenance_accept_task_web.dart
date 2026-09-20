@@ -82,6 +82,7 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
       await AppNotificationService.notifyAcceptedToAdminAndRequestor(
         workRequestId: widget.task.id,
         maintenanceName: user.name,
+        maintenanceUserId: user.id,
         adminId: widget.task.approvedById,
         requestorId: widget.task.requestorId,
       );

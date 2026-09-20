@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_notification_model.dart';
@@ -8,6 +9,39 @@ import 'room_service.dart';
 class AppNotificationService {
   static SupabaseClient get _db => Supabase.instance.client;
   static const String _table = 'app_notifications';
+
+  static final StreamController<void> _changesController =
+      StreamController<void>.broadcast();
+  static Stream<void> get changes => _changesController.stream;
+
+  static void notifyChange() {
+    if (!_changesController.isClosed) {
+      _changesController.add(null);
+    }
+  }
+
+  /// Centralized Supabase Realtime subscription for the notifications table
+  static RealtimeChannel subscribeToNotifications({
+    required VoidCallback onUpdate,
+  }) {
+    final channelName =
+        'realtime:app_notifs_${DateTime.now().millisecondsSinceEpoch}';
+    final channel = _db.channel(channelName);
+
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: _table,
+          callback: (payload) {
+            notifyChange();
+            onUpdate();
+          },
+        )
+        .subscribe();
+
+    return channel;
+  }
 
   static String? _nestedText(dynamic map, String key) {
     if (map == null) return null;
@@ -23,18 +57,29 @@ class AppNotificationService {
     try {
       final response = await _db
           .from('work_requests')
-          .select('room_id, room:rooms(code, name), building:buildings(name)')
+          .select('room_id, room_name, room_code, building_name, title, room:rooms(code, name), building:buildings(name)')
           .eq('id', workRequestId)
           .maybeSingle();
 
       if (response != null) {
         final roomId = response['room_id'] as String?;
+        final directRoomName = response['room_name'] as String?;
+        final directRoomCode = response['room_code'] as String?;
+        final directBuildingName = response['building_name'] as String?;
+        final directTitle = response['title'] as String?;
+
         final roomMap = response['room'];
         final buildingMap = response['building'];
 
-        final roomName = _nestedText(roomMap, 'name');
-        final roomCode = _nestedText(roomMap, 'code');
-        final buildingName = _nestedText(buildingMap, 'name');
+        final roomName = directRoomName?.isNotEmpty == true
+            ? directRoomName
+            : _nestedText(roomMap, 'name');
+        final roomCode = directRoomCode?.isNotEmpty == true
+            ? directRoomCode
+            : _nestedText(roomMap, 'code');
+        final buildingName = directBuildingName?.isNotEmpty == true
+            ? directBuildingName
+            : _nestedText(buildingMap, 'name');
 
         if (roomName != null && roomName.isNotEmpty) {
           final label = (roomCode != null && roomCode.isNotEmpty) ? '$roomCode - $roomName' : roomName;
@@ -54,6 +99,10 @@ class AppNotificationService {
             }
             return label;
           }
+        }
+
+        if (directTitle != null && directTitle.trim().isNotEmpty) {
+          return directTitle.trim();
         }
       }
     } catch (_) {}
@@ -113,12 +162,64 @@ class AppNotificationService {
         .or(_visibilityFilter(normalizedRole: normalizedRole, userId: userId))
         .order('created_at', ascending: false);
 
-    final raw = (data as List).map((e) => AppNotification.fromMap(e)).toList();
+    var raw = (data as List).map((e) => AppNotification.fromMap(e)).toList();
+    if (normalizedRole == 'maintenance') {
+      raw = raw.where((notif) {
+        final t = notif.type.toLowerCase();
+        final title = notif.title.toLowerCase();
+        final msg = notif.message.toLowerCase();
+        // Never notify maintenance about submitted or pending work requests
+        if (t == 'work_request_submitted') return false;
+        if (title.contains('work request submitted') || title.contains('new work request')) return false;
+        if (msg.contains('pending admin review') || msg.contains('pending review') || msg.contains('pending approval')) return false;
+        return true;
+      }).toList();
+    }
     return deduplicateNotifications(raw);
   }
 
-  /// Deduplicate notifications to prevent duplicate alerts from dual dispatch
-  /// or repeated attachment notifications.
+  static String _actionGroup(String type, String title) {
+    final t = type.toLowerCase();
+    final ttl = title.toLowerCase();
+    if (t == 'work_request_accepted' ||
+        ttl.contains('accepted') ||
+        ttl.contains('under maintenance')) {
+      return 'accepted';
+    }
+    if (t == 'pre_inspection_submitted' ||
+        t == 'work_request_inspected' ||
+        ttl.contains('pre-inspection') ||
+        ttl.contains('pre inspection')) {
+      return 'pre_inspection';
+    }
+    if (t == 'post_repair_submitted' ||
+        t == 'work_request_repaired' ||
+        ttl.contains('post-repair') ||
+        ttl.contains('post repair')) {
+      return 'post_repair';
+    }
+    if (t == 'work_request_completed' ||
+        t == 'work_request_finished' ||
+        ttl.contains('completed') ||
+        ttl.contains('verified')) {
+      return 'completed';
+    }
+    if (t == 'work_request_declined' ||
+        ttl.contains('declined') ||
+        ttl.contains('rejected')) {
+      return 'declined';
+    }
+    if (t == 'work_request_approved' || ttl.contains('approved')) {
+      return 'approved';
+    }
+    if (t == 'work_request_submitted' || ttl.contains('submitted')) {
+      return 'submitted';
+    }
+    return t;
+  }
+
+  /// Deduplicate notifications to prevent duplicate alerts from dual dispatch,
+  /// role broadcasts, or concurrent events.
   static List<AppNotification> deduplicateNotifications(List<AppNotification> list) {
     final result = <AppNotification>[];
     for (final notif in list) {
@@ -147,12 +248,34 @@ class AppNotificationService {
           }
         }
 
-        // Deduplicate matching notifications for the same ticket/event within 60 seconds,
-        // even if one was targeted directly (target_user_id) and one via role broadcast.
-        if (existing.type == notif.type &&
-            existing.title == notif.title &&
+        // 1. Same work ticket and same workflow transition within 15 minutes
+        if (existing.workRequestId != null &&
+            notif.workRequestId != null &&
+            existing.workRequestId == notif.workRequestId) {
+          final group1 = _actionGroup(existing.type, existing.title);
+          final group2 = _actionGroup(notif.type, notif.title);
+          if (group1 == group2) {
+            final timeDiff = existing.createdAt.difference(notif.createdAt).abs();
+            if (timeDiff.inMinutes <= 15) {
+              return true;
+            }
+          }
+        }
+
+        // 2. Exact same message within 15 minutes
+        if (existing.message.trim().isNotEmpty &&
+            existing.message.trim() == notif.message.trim()) {
+          final timeDiff = existing.createdAt.difference(notif.createdAt).abs();
+          if (timeDiff.inMinutes <= 15) {
+            return true;
+          }
+        }
+
+        // 3. Same title and same ticket within 15 minutes
+        if (existing.title.trim().isNotEmpty &&
+            existing.title.trim().toLowerCase() == notif.title.trim().toLowerCase() &&
             existing.workRequestId == notif.workRequestId &&
-            existing.createdAt.difference(notif.createdAt).abs().inSeconds <= 60) {
+            existing.createdAt.difference(notif.createdAt).abs().inMinutes <= 15) {
           return true;
         }
 
@@ -185,10 +308,11 @@ class AppNotificationService {
     };
 
     final inserted = await _db.from(_table).insert(payload).select('id').maybeSingle();
+    notifyChange();
     final notifId = inserted != null ? inserted['id']?.toString() : null;
     final fcmRecord = {
       ...payload,
-      if (notifId != null) 'id': notifId,
+      'id': notifId,
     };
 
     try {
@@ -219,7 +343,14 @@ class AppNotificationService {
     required String type,
     String? workRequestId,
     String? targetPage,
+    String? actorUserId,
   }) async {
+    final currentUserId = actorUserId ?? _db.auth.currentUser?.id;
+    if (currentUserId != null && targetUserId.trim() == currentUserId.trim()) {
+      debugPrint('[AppNotificationService] Suppressing self-notification for user $targetUserId (actor: $currentUserId)');
+      return;
+    }
+
     final payload = {
       'title': _truncate(title),
       'message': _truncate(message),
@@ -233,10 +364,11 @@ class AppNotificationService {
     };
 
     final inserted = await _db.from(_table).insert(payload).select('id').maybeSingle();
+    notifyChange();
     final notifId = inserted != null ? inserted['id']?.toString() : null;
     final fcmRecord = {
       ...payload,
-      if (notifId != null) 'id': notifId,
+      'id': notifId,
     };
 
     // Push notification check: if (enableNotifications === true && pushNotifications === true) -> push
@@ -271,13 +403,21 @@ class AppNotificationService {
     String? targetPage,
   }) async {
     if (targetRoles.isEmpty) return;
-    final payload = targetRoles
+
+    // Normalize and remove duplicate synonymous roles (e.g. campadmin and admin)
+    final normalizedRoles = targetRoles.map(normalizeRole).toSet().toList();
+    if (normalizedRoles.contains('campadmin') && normalizedRoles.contains('admin')) {
+      normalizedRoles.remove('admin'); // Only insert campadmin once
+    }
+    if (normalizedRoles.isEmpty) return;
+
+    final payload = normalizedRoles
         .map(
           (r) => {
             'title': _truncate(title),
             'message': _truncate(message),
             'type': type,
-            'target_role': normalizeRole(r),
+            'target_role': r,
             'work_request_id': workRequestId,
             'target_page': targetPage,
             'is_read': false,
@@ -286,13 +426,12 @@ class AppNotificationService {
         .toList();
 
     final insertedList = await _db.from(_table).insert(payload).select('id, target_role');
+    notifyChange();
     final idMap = <String, String>{};
-    if (insertedList is List) {
-      for (final item in insertedList) {
-        final r = item['target_role']?.toString();
-        final id = item['id']?.toString();
-        if (r != null && id != null) idMap[r] = id;
-      }
+    for (final item in insertedList) {
+      final r = item['target_role']?.toString();
+      final id = item['id']?.toString();
+      if (r != null && id != null) idMap[r] = id;
     }
 
     try {
@@ -317,28 +456,6 @@ class AppNotificationService {
     } catch (_) {}
   }
 
-  /// Queries all active campus and system admin user IDs
-  static Future<List<String>> _getCampusAdminIds() async {
-    try {
-      final adminUsers = await _db
-          .from('users')
-          .select('id')
-          .inFilter('role', const ['campadmin', 'admin'])
-          .eq('is_active', true);
-
-      if (adminUsers is List) {
-        return adminUsers
-            .map((u) => u['id']?.toString().trim())
-            .whereType<String>()
-            .where((id) => id.isNotEmpty)
-            .toList();
-      }
-    } catch (e) {
-      debugPrint('[AppNotificationService] Error querying admins: $e');
-    }
-    return const [];
-  }
-
   /// Notify Campus Admins and the Requestor when a new work request is submitted.
   /// Per security and visibility rules, maintenance is NEVER notified of unassigned requests.
   static Future<void> notifyWorkRequestSubmitted({
@@ -351,32 +468,15 @@ class AppNotificationService {
     final title = 'New Work Request Submitted';
     final adminMessage = 'New request for $roomName in $buildingName from $requestorName.';
 
-    // 1. Fetch all active Campus Admins and System Admins for direct notification & push
-    final adminIds = await _getCampusAdminIds();
-    for (final adminId in adminIds) {
-      await createForUser(
-        targetUserId: adminId,
-        title: title,
-        message: adminMessage,
-        type: 'work_request_submitted',
-        workRequestId: workRequestId,
-        targetPage: '/tickets',
-      );
-    }
-
-    // 2. Also record role-targeted notifications for campus admin roles
-    try {
-      await createForRoles(
-        targetRoles: const ['campadmin', 'admin'],
-        title: title,
-        message: adminMessage,
-        type: 'work_request_submitted',
-        workRequestId: workRequestId,
-        targetPage: '/tickets',
-      );
-    } catch (e) {
-      debugPrint('[AppNotificationService] Error creating role notification: $e');
-    }
+    // 1. Notify Campus Admin role ONCE
+    await createForRole(
+      targetRole: 'campadmin',
+      title: title,
+      message: adminMessage,
+      type: 'work_request_submitted',
+      workRequestId: workRequestId,
+      targetPage: '/tickets',
+    );
 
     // 3. Notify the reporting user / Requestor for confirmation
     var targetReqId = requestorId?.trim();
@@ -454,34 +554,42 @@ class AppNotificationService {
   static Future<void> notifyAcceptedToAdminAndRequestor({
     required String workRequestId,
     required String maintenanceName,
+    String? maintenanceUserId,
     String? adminId,
     String? requestorId,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
+    final actorId = maintenanceUserId?.trim() ?? _db.auth.currentUser?.id;
     final normalizedAdminId = adminId?.trim();
     var normalizedRequestorId = requestorId?.trim();
     if (normalizedRequestorId == null || normalizedRequestorId.isEmpty) {
       normalizedRequestorId = await _getRequestorId(workRequestId);
     }
+    final bool isAdminSameAsRequestor = (normalizedAdminId != null &&
+        normalizedRequestorId != null &&
+        normalizedAdminId == normalizedRequestorId);
     final futures = <Future<void>>[];
 
-    // Always broadcast to admin role so all campus admins see the update
-    futures.add(
-      createForRoles(
-        targetRoles: const ['campadmin', 'admin'],
-        title: 'Work Request Accepted by Maintenance',
-        message:
-            '$maintenanceName accepted work request in $roomStr. Status is now Under Maintenance.',
-        type: 'work_request_accepted',
-        workRequestId: workRequestId,
-        targetPage: '/tickets',
-      ),
-    );
-
+    // 1. Notify Campus Admin ONCE
     if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
+      if (actorId == null || normalizedAdminId != actorId) {
+        futures.add(
+          createForUser(
+            targetUserId: normalizedAdminId,
+            title: 'Work Request Accepted by Maintenance',
+            message:
+                '$maintenanceName accepted work request in $roomStr. Status is now Under Maintenance.',
+            type: 'work_request_accepted',
+            workRequestId: workRequestId,
+            targetPage: '/tickets',
+            actorUserId: actorId,
+          ),
+        );
+      }
+    } else {
       futures.add(
-        createForUser(
-          targetUserId: normalizedAdminId,
+        createForRole(
+          targetRole: 'campadmin',
           title: 'Work Request Accepted by Maintenance',
           message:
               '$maintenanceName accepted work request in $roomStr. Status is now Under Maintenance.',
@@ -490,35 +598,26 @@ class AppNotificationService {
           targetPage: '/tickets',
         ),
       );
-    } else {
-      final adminIds = await _getCampusAdminIds();
-      for (final aId in adminIds) {
+    }
+
+    // 2. Notify Requestor ONCE (only if requestor is not the same user as admin)
+    if (!isAdminSameAsRequestor &&
+        normalizedRequestorId != null &&
+        normalizedRequestorId.isNotEmpty) {
+      if (actorId == null || normalizedRequestorId != actorId) {
         futures.add(
           createForUser(
-            targetUserId: aId,
-            title: 'Work Request Accepted by Maintenance',
+            targetUserId: normalizedRequestorId,
+            title: 'Request Under Maintenance',
             message:
-                '$maintenanceName accepted work request in $roomStr. Status is now Under Maintenance.',
+                'Your request for $roomStr has been accepted by $maintenanceName and is now under maintenance.',
             type: 'work_request_accepted',
             workRequestId: workRequestId,
-            targetPage: '/tickets',
+            targetPage: '/reports',
+            actorUserId: actorId,
           ),
         );
       }
-    }
-
-    if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
-      futures.add(
-        createForUser(
-          targetUserId: normalizedRequestorId,
-          title: 'Request Under Maintenance',
-          message:
-              'Your request for $roomStr has been accepted by $maintenanceName and is now under maintenance.',
-          type: 'work_request_accepted',
-          workRequestId: workRequestId,
-          targetPage: '/reports',
-        ),
-      );
     }
 
     if (futures.isNotEmpty) {
@@ -530,35 +629,43 @@ class AppNotificationService {
   static Future<void> notifyCompletionSubmittedToAdmin({
     required String workRequestId,
     required String maintenanceName,
+    String? maintenanceUserId,
     String? adminId,
     String? requestorId,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
+    final actorId = maintenanceUserId?.trim() ?? _db.auth.currentUser?.id;
     final normalizedAdminId = adminId?.trim();
     var normalizedRequestorId = requestorId?.trim();
     if (normalizedRequestorId == null || normalizedRequestorId.isEmpty) {
       normalizedRequestorId = await _getRequestorId(workRequestId);
     }
 
+    final bool isAdminSameAsRequestor = (normalizedAdminId != null &&
+        normalizedRequestorId != null &&
+        normalizedAdminId == normalizedRequestorId);
     final futures = <Future<void>>[];
 
-    // Always broadcast to role admin for full transparency across all admins
-    futures.add(
-      createForRoles(
-        targetRoles: const ['campadmin', 'admin'],
-        title: 'Work Request Completion Submitted',
-        message:
-            '$maintenanceName submitted completion confirmation for $roomStr.',
-        type: 'work_request_completion_submitted',
-        workRequestId: workRequestId,
-        targetPage: '/tickets',
-      ),
-    );
-
+    // 1. Notify Campus Admin ONCE
     if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
+      if (actorId == null || normalizedAdminId != actorId) {
+        futures.add(
+          createForUser(
+            targetUserId: normalizedAdminId,
+            title: 'Work Request Completion Submitted',
+            message:
+                '$maintenanceName submitted completion confirmation for $roomStr.',
+            type: 'work_request_completion_submitted',
+            workRequestId: workRequestId,
+            targetPage: '/tickets',
+            actorUserId: actorId,
+          ),
+        );
+      }
+    } else {
       futures.add(
-        createForUser(
-          targetUserId: normalizedAdminId,
+        createForRole(
+          targetRole: 'campadmin',
           title: 'Work Request Completion Submitted',
           message:
               '$maintenanceName submitted completion confirmation for $roomStr.',
@@ -567,35 +674,26 @@ class AppNotificationService {
           targetPage: '/tickets',
         ),
       );
-    } else {
-      final adminIds = await _getCampusAdminIds();
-      for (final aId in adminIds) {
+    }
+
+    // 2. Notify Requestor ONCE (only if requestor is not the same user as admin)
+    if (!isAdminSameAsRequestor &&
+        normalizedRequestorId != null &&
+        normalizedRequestorId.isNotEmpty) {
+      if (actorId == null || normalizedRequestorId != actorId) {
         futures.add(
           createForUser(
-            targetUserId: aId,
-            title: 'Work Request Completion Submitted',
+            targetUserId: normalizedRequestorId,
+            title: 'Repair Completed by Maintenance',
             message:
-                '$maintenanceName submitted completion confirmation for $roomStr.',
+                '$maintenanceName has finished the repair work for $roomStr and submitted completion confirmation.',
             type: 'work_request_completion_submitted',
             workRequestId: workRequestId,
-            targetPage: '/tickets',
+            targetPage: '/reports',
+            actorUserId: actorId,
           ),
         );
       }
-    }
-
-    if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
-      futures.add(
-        createForUser(
-          targetUserId: normalizedRequestorId,
-          title: 'Repair Completed by Maintenance',
-          message:
-              '$maintenanceName has finished the repair work for $roomStr and submitted completion confirmation.',
-          type: 'work_request_completion_submitted',
-          workRequestId: workRequestId,
-          targetPage: '/reports',
-        ),
-      );
     }
 
     if (futures.isNotEmpty) {
@@ -728,14 +826,12 @@ class AppNotificationService {
     try {
       final response = await _db
           .from('work_requests')
-          .select('assigned_to_id, accepted_by_id')
+          .select('assigned_to_id')
           .eq('id', workRequestId)
           .maybeSingle();
       if (response != null) {
         final aId = response['assigned_to_id']?.toString().trim();
         if (aId != null && aId.isNotEmpty && aId != 'null') return aId;
-        final accId = response['accepted_by_id']?.toString().trim();
-        if (accId != null && accId.isNotEmpty && accId != 'null') return accId;
       }
     } catch (_) {}
     return null;
@@ -925,35 +1021,42 @@ class AppNotificationService {
   static Future<void> notifyPreInspectionSubmittedToAdmin({
     required String workRequestId,
     required String maintenanceName,
+    String? maintenanceUserId,
     String? adminId,
     String? requestorId,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
+    final actorId = maintenanceUserId?.trim() ?? _db.auth.currentUser?.id;
     final normalizedAdminId = adminId?.trim();
     var normalizedRequestorId = requestorId?.trim();
     if (normalizedRequestorId == null || normalizedRequestorId.isEmpty) {
       normalizedRequestorId = await _getRequestorId(workRequestId);
     }
 
+    final bool isAdminSameAsRequestor = (normalizedAdminId != null &&
+        normalizedRequestorId != null &&
+        normalizedAdminId == normalizedRequestorId);
     final futures = <Future<void>>[];
 
-    // 1. Broadcast to role 'campadmin' and 'admin' so ALL campus admins see it
-    futures.add(
-      createForRoles(
-        targetRoles: const ['campadmin', 'admin'],
-        title: 'Pre-Inspection Submitted',
-        message: '$maintenanceName has submitted a pre-inspection report for $roomStr.',
-        type: 'pre_inspection_submitted',
-        workRequestId: workRequestId,
-        targetPage: '/tickets',
-      ),
-    );
-
-    // 2. Direct user targeting if specific admin ID provided, or all campus admins if null
+    // 1. Notify Campus Admin ONCE
     if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
+      if (actorId == null || normalizedAdminId != actorId) {
+        futures.add(
+          createForUser(
+            targetUserId: normalizedAdminId,
+            title: 'Pre-Inspection Submitted',
+            message: '$maintenanceName has submitted a pre-inspection report for $roomStr.',
+            type: 'pre_inspection_submitted',
+            workRequestId: workRequestId,
+            targetPage: '/tickets',
+            actorUserId: actorId,
+          ),
+        );
+      }
+    } else {
       futures.add(
-        createForUser(
-          targetUserId: normalizedAdminId,
+        createForRole(
+          targetRole: 'campadmin',
           title: 'Pre-Inspection Submitted',
           message: '$maintenanceName has submitted a pre-inspection report for $roomStr.',
           type: 'pre_inspection_submitted',
@@ -961,34 +1064,25 @@ class AppNotificationService {
           targetPage: '/tickets',
         ),
       );
-    } else {
-      final adminIds = await _getCampusAdminIds();
-      for (final aId in adminIds) {
+    }
+
+    // 2. Notify Requestor ONCE (only if requestor is not the same user as admin)
+    if (!isAdminSameAsRequestor &&
+        normalizedRequestorId != null &&
+        normalizedRequestorId.isNotEmpty) {
+      if (actorId == null || normalizedRequestorId != actorId) {
         futures.add(
           createForUser(
-            targetUserId: aId,
-            title: 'Pre-Inspection Submitted',
-            message: '$maintenanceName has submitted a pre-inspection report for $roomStr.',
-            type: 'pre_inspection_submitted',
+            targetUserId: normalizedRequestorId,
+            title: 'Pre-Inspection Filed',
+            message: 'A pre-inspection report for $roomStr has been filed by $maintenanceName and is awaiting admin review.',
+            type: 'work_request_inspected',
             workRequestId: workRequestId,
-            targetPage: '/tickets',
+            targetPage: '/reports',
+            actorUserId: actorId,
           ),
         );
       }
-    }
-
-    // 3. Notify Requestor for complete visibility and transparency
-    if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
-      futures.add(
-        createForUser(
-          targetUserId: normalizedRequestorId,
-          title: 'Pre-Inspection Filed',
-          message: 'A pre-inspection report for $roomStr has been filed by $maintenanceName and is awaiting admin review.',
-          type: 'work_request_inspected',
-          workRequestId: workRequestId,
-          targetPage: '/reports',
-        ),
-      );
     }
 
     if (futures.isNotEmpty) {
@@ -999,35 +1093,42 @@ class AppNotificationService {
   static Future<void> notifyPostRepairSubmittedToAdmin({
     required String workRequestId,
     required String maintenanceName,
+    String? maintenanceUserId,
     String? adminId,
     String? requestorId,
   }) async {
     final roomStr = await _getRoomStr(workRequestId);
+    final actorId = maintenanceUserId?.trim() ?? _db.auth.currentUser?.id;
     final normalizedAdminId = adminId?.trim();
     var normalizedRequestorId = requestorId?.trim();
     if (normalizedRequestorId == null || normalizedRequestorId.isEmpty) {
       normalizedRequestorId = await _getRequestorId(workRequestId);
     }
 
+    final bool isAdminSameAsRequestor = (normalizedAdminId != null &&
+        normalizedRequestorId != null &&
+        normalizedAdminId == normalizedRequestorId);
     final futures = <Future<void>>[];
 
-    // 1. Broadcast to role 'campadmin' and 'admin' so ALL campus admins see it
-    futures.add(
-      createForRoles(
-        targetRoles: const ['campadmin', 'admin'],
-        title: 'Post-Repair Evaluation Submitted',
-        message: '$maintenanceName has submitted a post-repair evaluation for $roomStr.',
-        type: 'post_repair_submitted',
-        workRequestId: workRequestId,
-        targetPage: '/tickets',
-      ),
-    );
-
-    // 2. Direct user targeting if specific admin ID provided, or all campus admins if null
+    // 1. Notify Campus Admin ONCE
     if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
+      if (actorId == null || normalizedAdminId != actorId) {
+        futures.add(
+          createForUser(
+            targetUserId: normalizedAdminId,
+            title: 'Post-Repair Evaluation Submitted',
+            message: '$maintenanceName has submitted a post-repair evaluation for $roomStr.',
+            type: 'post_repair_submitted',
+            workRequestId: workRequestId,
+            targetPage: '/tickets',
+            actorUserId: actorId,
+          ),
+        );
+      }
+    } else {
       futures.add(
-        createForUser(
-          targetUserId: normalizedAdminId,
+        createForRole(
+          targetRole: 'campadmin',
           title: 'Post-Repair Evaluation Submitted',
           message: '$maintenanceName has submitted a post-repair evaluation for $roomStr.',
           type: 'post_repair_submitted',
@@ -1035,34 +1136,25 @@ class AppNotificationService {
           targetPage: '/tickets',
         ),
       );
-    } else {
-      final adminIds = await _getCampusAdminIds();
-      for (final aId in adminIds) {
+    }
+
+    // 2. Notify Requestor ONCE (only if requestor is not the same user as admin)
+    if (!isAdminSameAsRequestor &&
+        normalizedRequestorId != null &&
+        normalizedRequestorId.isNotEmpty) {
+      if (actorId == null || normalizedRequestorId != actorId) {
         futures.add(
           createForUser(
-            targetUserId: aId,
-            title: 'Post-Repair Evaluation Submitted',
-            message: '$maintenanceName has submitted a post-repair evaluation for $roomStr.',
+            targetUserId: normalizedRequestorId,
+            title: 'Post-Repair Submitted',
+            message: 'A post-repair evaluation for $roomStr has been submitted by $maintenanceName and is awaiting admin evaluation.',
             type: 'post_repair_submitted',
             workRequestId: workRequestId,
-            targetPage: '/tickets',
+            targetPage: '/reports',
+            actorUserId: actorId,
           ),
         );
       }
-    }
-
-    // 3. Notify Requestor for complete visibility and transparency
-    if (normalizedRequestorId != null && normalizedRequestorId.isNotEmpty) {
-      futures.add(
-        createForUser(
-          targetUserId: normalizedRequestorId,
-          title: 'Post-Repair Submitted',
-          message: 'A post-repair evaluation for $roomStr has been submitted by $maintenanceName and is awaiting admin evaluation.',
-          type: 'post_repair_submitted',
-          workRequestId: workRequestId,
-          targetPage: '/reports',
-        ),
-      );
     }
 
     if (futures.isNotEmpty) {
@@ -1112,6 +1204,7 @@ class AppNotificationService {
         .from(_table)
         .update({'is_read': true})
         .or(_visibilityFilter(normalizedRole: normalizedRole, userId: userId));
+    notifyChange();
   }
 
   static Future<void> markWorkRequestAsRead({
@@ -1126,6 +1219,7 @@ class AppNotificationService {
         .eq('work_request_id', workRequestId)
         .eq('is_read', false)
         .or(_visibilityFilter(normalizedRole: normalizedRole, userId: userId));
+    notifyChange();
   }
 
   static Future<int> getUnreadCount({

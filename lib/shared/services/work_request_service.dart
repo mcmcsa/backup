@@ -304,14 +304,38 @@ class WorkRequestService {
     final cleanUserId = userId.trim();
     if (cleanUserId.isEmpty) return [];
 
-    // 1. Direct assignments or accepted tickets
-    final data = await _db
-        .from(_table)
-        .select(_selectWithRelations)
-        .or('assigned_to_id.eq.$cleanUserId,accepted_by_id.eq.$cleanUserId')
-        .order('date_submitted', ascending: false);
-    final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
-    final seenIds = requests.map((r) => r.id).toSet();
+    List<WorkRequest> requests = [];
+    final seenIds = <String>{};
+
+    // 1. Direct assignments
+    try {
+      final data = await _db
+          .from(_table)
+          .select(_selectWithRelations)
+          .eq('assigned_to_id', cleanUserId)
+          .order('date_submitted', ascending: false);
+      for (final e in (data as List)) {
+        final wr = WorkRequest.fromMap(e);
+        if (seenIds.add(wr.id)) {
+          requests.add(wr);
+        }
+      }
+    } catch (_) {
+      // Fallback to simple select if joins fail
+      try {
+        final data = await _db
+            .from(_table)
+            .select('*')
+            .eq('assigned_to_id', cleanUserId)
+            .order('date_submitted', ascending: false);
+        for (final e in (data as List)) {
+          final wr = WorkRequest.fromMap(e);
+          if (seenIds.add(wr.id)) {
+            requests.add(wr);
+          }
+        }
+      } catch (_) {}
+    }
 
     // 2. Active collaborators (status != 'declined')
     try {
@@ -321,7 +345,7 @@ class WorkRequestService {
           .eq('user_id', cleanUserId)
           .neq('status', 'declined');
 
-      if (collabData is List && collabData.isNotEmpty) {
+      if (collabData.isNotEmpty) {
         final collabIds = collabData
             .map((row) => row['work_request_id']?.toString().trim())
             .whereType<String>()
@@ -330,11 +354,22 @@ class WorkRequestService {
             .toList();
 
         if (collabIds.isNotEmpty) {
-          final collabRequestsData = await _db
-              .from(_table)
-              .select(_selectWithRelations)
-              .inFilter('id', collabIds);
-          if (collabRequestsData is List) {
+          try {
+            final collabRequestsData = await _db
+                .from(_table)
+                .select(_selectWithRelations)
+                .inFilter('id', collabIds);
+            for (final row in collabRequestsData) {
+              final wr = WorkRequest.fromMap(row);
+              if (seenIds.add(wr.id)) {
+                requests.add(wr);
+              }
+            }
+          } catch (_) {
+            final collabRequestsData = await _db
+                .from(_table)
+                .select('*')
+                .inFilter('id', collabIds);
             for (final row in collabRequestsData) {
               final wr = WorkRequest.fromMap(row);
               if (seenIds.add(wr.id)) {
@@ -346,8 +381,7 @@ class WorkRequestService {
       }
     } catch (_) {}
 
-    requests.sort((a, b) => (b.dateSubmitted ?? DateTime(1970))
-        .compareTo(a.dateSubmitted ?? DateTime(1970)));
+    requests.sort((a, b) => b.dateSubmitted.compareTo(a.dateSubmitted));
 
     return await enrichMissingRequestorNames(requests);
   }

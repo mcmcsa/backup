@@ -70,6 +70,7 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
       await AppNotificationService.notifyAcceptedToAdminAndRequestor(
         workRequestId: widget.request.id,
         maintenanceName: user.name,
+        maintenanceUserId: user.id,
         adminId: widget.request.approvedById,
         requestorId: widget.request.requestorId,
       );

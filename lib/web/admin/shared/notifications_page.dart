@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
@@ -21,14 +23,40 @@ class _NotificationsPageState extends State<NotificationsPage> {
   List<NotificationItem> _notifications = [];
   bool _isLoading = true;
   bool _showAll = false;
+  RealtimeChannel? _realtimeChannel;
+  StreamSubscription<void>? _notifSub;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadNotifications();
+    _subscribeNotifications();
   }
 
-  Future<void> _loadNotifications() async {
+  void _subscribeNotifications() {
+    _notifSub = AppNotificationService.changes.listen((_) {
+      if (mounted) _loadNotifications(silent: true);
+    });
+
+    try {
+      _realtimeChannel = AppNotificationService.subscribeToNotifications(
+        onUpdate: () {
+          if (mounted) _loadNotifications(silent: true);
+        },
+      );
+    } catch (_) {}
+
+    // Auto-refresh (AJAX polling fallback) every 8 seconds
+    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) _loadNotifications(silent: true);
+    });
+  }
+
+  Future<void> _loadNotifications({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() => _isLoading = true);
+    }
     try {
       final authService = context.read<AuthService>();
       final user = authService.currentUser;
@@ -66,6 +94,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _notifSub?.cancel();
+    _realtimeChannel?.unsubscribe();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 

@@ -172,6 +172,7 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
         await AppNotificationService.notifyPreInspectionSubmittedToAdmin(
           workRequestId: widget.request.id,
           maintenanceName: user.name,
+          maintenanceUserId: user.id,
           adminId: widget.request.approvedById,
           requestorId: widget.request.requestorId,
         );

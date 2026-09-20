@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'task_details_page.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/services/work_request_service.dart';
@@ -11,7 +12,9 @@ import '../../../shared/providers/theme_provider.dart';
 import '../../admin/shared/notifications_page.dart';
 
 class MaintenanceReportsPage extends StatefulWidget {
-  const MaintenanceReportsPage({super.key});
+  final VoidCallback? openDrawer;
+
+  const MaintenanceReportsPage({super.key, this.openDrawer});
 
   @override
   State<MaintenanceReportsPage> createState() => _MaintenanceReportsPageState();
@@ -19,14 +22,22 @@ class MaintenanceReportsPage extends StatefulWidget {
 
 class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
     with WidgetsBindingObserver {
-  String _selectedCategory = 'All';
-  final List<String> _categories = [
+  final TextEditingController _searchController = TextEditingController();
+  final List<String> _statusFilters = [
     'All',
-    'Pending',
     'In Progress',
-    'Under Maintenance',
-    'High Priority',
+    'Confirmed',
+    'Rework',
   ];
+  final List<String> _priorityFilters = [
+    'All',
+    'Low',
+    'Medium',
+    'High',
+  ];
+
+  String _selectedStatusFilter = 'All';
+  String _selectedPriorityFilter = 'All';
 
   bool _isHistorical(String status) {
     final s = status.toLowerCase();
@@ -40,13 +51,54 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
   Timer? _autoRefreshTimer;
+  RealtimeChannel? _realtimeChannel;
+  StreamSubscription<void>? _changeSub;
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    _changeSub?.cancel();
+    try {
+      _realtimeChannel?.unsubscribe();
+    } catch (_) {}
+    _searchController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadRequests();
+    _setupRealtime();
     _startAutoRefresh();
+  }
+
+  void _setupRealtime() {
+    final user = context.read<AuthService>().currentUser;
+    if (user == null) return;
+    try {
+      _realtimeChannel =
+          WorkRequestService.listenToMaintenanceRequests(user.id, (data) {
+        if (mounted) {
+          final maintenanceQueue = data
+              .where((r) =>
+                  r.status != 'Declined/Cancelled' &&
+                  r.status.toLowerCase() != 'pending' &&
+                  r.status.toLowerCase() != 'pending assignment')
+              .toList();
+          setState(() {
+            _requests = maintenanceQueue;
+            _isLoading = false;
+          });
+        }
+      });
+    } catch (_) {}
+
+    _changeSub = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      _loadRequests();
+    });
   }
 
   @override
@@ -58,7 +110,7 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
 
   void _startAutoRefresh() {
     _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       _loadRequests();
     });
   }
@@ -72,7 +124,10 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
       }
       final data = await WorkRequestService.fetchAssignedTo(user.id);
       final maintenanceQueue = data
-          .where((r) => r.status != 'Declined/Cancelled')
+          .where((r) =>
+              r.status != 'Declined/Cancelled' &&
+              r.status.toLowerCase() != 'pending' &&
+              r.status.toLowerCase() != 'pending assignment')
           .toList();
 
       if (mounted) {
@@ -87,31 +142,61 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
   }
 
   List<WorkRequest> get _filteredRequests {
-    final active = _requests.where((r) => !_isHistorical(r.status)).toList();
-    if (_selectedCategory == 'All') return active;
-    if (_selectedCategory == 'Pending') {
-      return active.where((r) => r.status == 'Assigned').toList();
+    List<WorkRequest> list = _requests
+        .where((r) =>
+            !_isHistorical(r.status) &&
+            r.status.toLowerCase() != 'pending' &&
+            r.status.toLowerCase() != 'pending assignment')
+        .toList();
+
+    // Status filter (parity with web)
+    if (_selectedStatusFilter == 'In Progress') {
+      list = list.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'in progress' ||
+            s == 'in_progress' ||
+            s == 'assigned' ||
+            s == 'accepted by maintenance' ||
+            s == 'pre-inspection submitted' ||
+            s == 'in progress (post-repair)' ||
+            s == 'post-repair submitted' ||
+            s == 'under evaluation';
+      }).toList();
+    } else if (_selectedStatusFilter == 'Confirmed') {
+      list = list.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'confirmed' ||
+            s == 'pre-inspection approved' ||
+            s == 'under_maintenance';
+      }).toList();
+    } else if (_selectedStatusFilter == 'Rework') {
+      list = list.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'rework' ||
+            s == 'rework needed' ||
+            s == 'for rework';
+      }).toList();
     }
-    if (_selectedCategory == 'In Progress') {
-      return active
-          .where((r) =>
-            r.status == 'Accepted by Maintenance' ||
-            r.status == 'Pre-Inspection Submitted' ||
-            r.status == 'Pre-Inspection Approved' ||
-            r.status == 'In Progress (Post-Repair)' ||
-            r.status == 'Post-Repair Submitted' ||
-            r.status == 'Under Evaluation' ||
-            r.status == 'For Rework'
-          )
-          .toList();
+
+    // Priority filter (parity with web)
+    if (_selectedPriorityFilter != 'All') {
+      list = list.where((r) => r.priority.toLowerCase() == _selectedPriorityFilter.toLowerCase()).toList();
     }
-    if (_selectedCategory == 'Under Maintenance') {
-      return active.where((r) => r.status == 'In Progress (Post-Repair)').toList();
+
+    // Search query filter (tracking number, title, room/location, or description)
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      list = list.where((r) =>
+        r.id.toLowerCase().contains(q) ||
+        (r.roomName?.toLowerCase().contains(q) ?? false) ||
+        (r.buildingName?.toLowerCase().contains(q) ?? false) ||
+        (r.officeRoom?.toLowerCase().contains(q) ?? false) ||
+        r.title.toLowerCase().contains(q) ||
+        r.description.toLowerCase().contains(q)
+      ).toList();
     }
-    if (_selectedCategory == 'High Priority') {
-      return active.where((r) => r.priority.toLowerCase() == 'high').toList();
-    }
-    return active;
+
+    return list;
   }
 
   @override
@@ -121,9 +206,10 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
-        roleText: 'Welcome Maintenance Staff',
+        roleText: '',
         primaryColor: const Color(0xFF4169E1),
         showMenu: true,
+        onMenuPressed: widget.openDrawer,
         onNotificationPressed: () async {
           await Navigator.push(
             context,
@@ -141,64 +227,112 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // Title
-                Text(
-                  'Maintenance Reports',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: themeProvider.textColor,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Search Bar
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: themeProvider.cardColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: themeProvider.borderColor),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.search, color: themeProvider.subtitleColor, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Search tracking ID or location',
+                // Header (Web Parity)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Work Reports',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: themeProvider.textColor,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'All assigned work requests across campus.',
+                          style: TextStyle(
+                            fontSize: 12,
                             color: themeProvider.subtitleColor,
                           ),
                         ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFF0EA5E9).withValues(alpha: 0.25),
+                        ),
                       ),
-                    ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.assignment_rounded, size: 14, color: Color(0xFF0EA5E9)),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${_filteredRequests.length} records',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0EA5E9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Search Bar (Interactive with clear button)
+                Container(
+                  decoration: BoxDecoration(
+                    color: themeProvider.cardColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: themeProvider.borderColor),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    style: TextStyle(fontSize: 14, color: themeProvider.textColor),
+                    decoration: InputDecoration(
+                      hintText: 'Search by tracking ID, title, room...',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: themeProvider.subtitleColor,
+                      ),
+                      prefixIcon: Icon(Icons.search, color: themeProvider.subtitleColor, size: 20),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              color: themeProvider.subtitleColor,
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // Filter Chips
-                SizedBox(
-                  height: 36,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _categories.length,
-                    itemBuilder: (context, index) {
-                      final category = _categories[index];
-                      final isSelected = _selectedCategory == category;
+                // Status Filter Chips (Full width, horizontal scroll)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _statusFilters.map((status) {
+                      final isSelected = _selectedStatusFilter == status;
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
-                          label: Text(category),
+                          label: Text(status),
                           selected: isSelected,
                           onSelected: (selected) {
-                            setState(() {
-                              _selectedCategory = category;
-                            });
+                            if (selected) {
+                              setState(() => _selectedStatusFilter = status);
+                            }
                           },
                           backgroundColor: themeProvider.cardColor,
                           selectedColor: const Color(0xFF4169E1),
@@ -212,11 +346,65 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
                                 ? const Color(0xFF4169E1)
                                 : themeProvider.borderColor,
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
                         ),
                       );
-                    },
+                    }).toList(),
                   ),
+                ),
+                const SizedBox(height: 12),
+
+                // Priority Filter Bar (On its own dedicated row)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.filter_list_rounded, size: 16, color: themeProvider.subtitleColor),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Priority Level:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: themeProvider.subtitleColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      height: 36,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: themeProvider.cardColor,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: themeProvider.borderColor),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedPriorityFilter,
+                          icon: Icon(Icons.arrow_drop_down, color: themeProvider.subtitleColor, size: 18),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: themeProvider.textColor,
+                          ),
+                          dropdownColor: themeProvider.cardColor,
+                          items: _priorityFilters.map((p) {
+                            return DropdownMenuItem<String>(
+                              value: p,
+                              child: Text(p == 'All' ? 'All Priorities' : '$p Priority'),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _selectedPriorityFilter = val);
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
 
@@ -399,7 +587,7 @@ class _MaintenanceReportsPageState extends State<MaintenanceReportsPage>
 
             // Request ID
             Text(
-              id,
+              id.length > 8 ? '#${id.substring(0, 8).toUpperCase()}' : '#${id.toUpperCase()}',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../shared/models/work_request_model.dart';
 import 'package:psu_maintsystem/authentication/services/auth_service.dart';
 import '../../../shared/services/work_request_service.dart';
@@ -28,6 +30,8 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
   List<WorkRequest> _requests = [];
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
+  RealtimeChannel? _realtimeChannel;
+  StreamSubscription<void>? _changeSub;
 
   final _statusFilters = ['All', 'In Progress', 'Confirmed', 'Rework'];
   final _priorityFilters = ['All', 'Low', 'Medium', 'High'];
@@ -48,6 +52,31 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
   void initState() {
     super.initState();
     _loadRequests();
+    _setupRealtime();
+  }
+
+  void _setupRealtime() {
+    final user = context.read<AuthService>().currentUser;
+    if (user == null) return;
+    try {
+      _realtimeChannel = WorkRequestService.listenToMaintenanceRequests(user.id, (data) {
+        if (mounted) {
+          setState(() {
+            _requests = data
+                .where((r) =>
+                    r.status != 'Declined/Cancelled' &&
+                    r.status.toLowerCase() != 'pending' &&
+                    r.status.toLowerCase() != 'pending assignment')
+                .toList();
+            _isLoading = false;
+          });
+        }
+      });
+    } catch (_) {}
+
+    _changeSub = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      _loadRequests();
+    });
   }
 
   Future<void> _loadRequests() async {
@@ -58,7 +87,17 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
         return;
       }
       final data = await WorkRequestService.fetchAssignedTo(user.id);
-      if (mounted) setState(() { _requests = data; _isLoading = false; });
+      if (mounted) {
+        setState(() {
+          _requests = data
+              .where((r) =>
+                  r.status != 'Declined/Cancelled' &&
+                  r.status.toLowerCase() != 'pending' &&
+                  r.status.toLowerCase() != 'pending assignment')
+              .toList();
+          _isLoading = false;
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -67,19 +106,44 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
   @override
   void dispose() {
     _searchController.dispose();
+    _changeSub?.cancel();
+    try {
+      _realtimeChannel?.unsubscribe();
+    } catch (_) {}
     super.dispose();
   }
 
   List<WorkRequest> get _filtered {
-    List<WorkRequest> list = _requests.where((r) => !_isHistorical(r.status)).toList();
-    if (_selectedStatusFilter == 'Pending') {
-      list = list.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').toList();
-    } else if (_selectedStatusFilter == 'In Progress') {
-      list = list.where((r) => r.status.toLowerCase() == 'in progress' || r.status.toLowerCase() == 'in_progress' || r.status.toLowerCase() == 'assigned' || r.status.toLowerCase() == 'accepted by maintenance').toList();
+    List<WorkRequest> list = _requests
+        .where((r) =>
+            !_isHistorical(r.status) &&
+            r.status.toLowerCase() != 'pending' &&
+            r.status.toLowerCase() != 'pending assignment')
+        .toList();
+    if (_selectedStatusFilter == 'In Progress') {
+      list = list.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'in progress' ||
+            s == 'in_progress' ||
+            s == 'assigned' ||
+            s == 'accepted by maintenance' ||
+            s == 'pre-inspection submitted' ||
+            s == 'in progress (post-repair)' ||
+            s == 'post-repair submitted' ||
+            s == 'under evaluation';
+      }).toList();
     } else if (_selectedStatusFilter == 'Confirmed') {
-      list = list.where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'under_maintenance').toList();
+      list = list.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'confirmed' ||
+            s == 'pre-inspection approved' ||
+            s == 'under_maintenance';
+      }).toList();
     } else if (_selectedStatusFilter == 'Rework') {
-      list = list.where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'rework needed' || r.status.toLowerCase() == 'for rework').toList();
+      list = list.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'rework' || s == 'rework needed' || s == 'for rework';
+      }).toList();
     }
 
     if (_selectedPriorityFilter != 'All') {
@@ -157,7 +221,7 @@ class _MaintenanceReportsWebState extends State<MaintenanceReportsWeb> {
       children: [
         const Text('Work Reports', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
         const SizedBox(height: 6),
-        const Text('All maintenance work requests across the campus.', style: TextStyle(fontSize: 14, color: _muted)),
+        const Text('All maintenance work requests assigned to you.', style: TextStyle(fontSize: 14, color: _muted)),
       ],
     );
 

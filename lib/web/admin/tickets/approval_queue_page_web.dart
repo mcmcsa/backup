@@ -93,7 +93,7 @@ class _ApprovalQueuePageWebState extends State<ApprovalQueuePageWeb> {
       workRequestId: request.id,
       adminName: request.approvedByName ?? 'Admin',
       assignedMaintenanceId: request.assignedToId,
-      assignedMaintenanceName: request.assignedToName,
+      assignedMaintenanceName: request.acceptedByName,
       requestorId: request.requestorId ?? request.reportedById,
     );
 
@@ -115,7 +115,7 @@ class _ApprovalQueuePageWebState extends State<ApprovalQueuePageWeb> {
       await AppNotificationService.createForUser(
         targetUserId: reporterId,
         title: 'Request Declined',
-        message: 'Your request ${request.id} for ${request.officeRoom} was declined by admin.',
+        message: 'Your request for ${((request.officeRoom?.isNotEmpty ?? false) ? request.officeRoom : request.title)} was declined by admin.',
         type: 'work_request_declined',
         workRequestId: request.id,
       );

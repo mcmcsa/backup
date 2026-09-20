@@ -9,6 +9,11 @@ import 'history/maintenance_staff_history_page.dart';
 import 'profile/maintenance_staff_profile_page.dart';
 import 'chat/maintenance_chat_page.dart';
 import '../../shared/widgets/announcements/global_announcement_listener.dart';
+import '../teacher/menu_pages/settings_page.dart';
+import '../teacher/menu_pages/about_us_page.dart';
+import '../teacher/menu_pages/contact_us_page.dart';
+import '../teacher/menu_pages/system_workflow_page.dart';
+import 'logs/maintenance_logs_page.dart';
 
 class MaintenanceNavigation extends StatefulWidget {
   final int initialIndex;
@@ -21,6 +26,7 @@ class MaintenanceNavigation extends StatefulWidget {
 
 class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
   late int _selectedIndex;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -29,6 +35,16 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
     final currentUser = context.read<AuthService>().currentUser;
     if (currentUser != null && currentUser.role.name == 'maintenance') {
       MaintenanceStatusService.startHeartbeat(currentUser.id);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant MaintenanceNavigation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialIndex != widget.initialIndex) {
+      setState(() {
+        _selectedIndex = widget.initialIndex;
+      });
     }
   }
 
@@ -42,6 +58,10 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
     super.dispose();
   }
 
+  void _openDrawer() {
+    _scaffoldKey.currentState?.openDrawer();
+  }
+
   void _onNavItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -52,114 +72,237 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
-    final auth = context.watch<AuthService>();
-    final user = auth.currentUser;
-    final userName = user?.name ?? 'Maintenance';
-    final userEmail = user?.email ?? '';
 
     final List<Widget> pages = [
-      const MaintenanceDashboardMobile(),
-      const MaintenanceReportsPage(),
-      const MaintenanceChatPage(),
-      const MaintenanceStaffHistoryPage(),
-      const MaintenanceStaffProfilePage(),
+      MaintenanceDashboardMobile(
+        openDrawer: _openDrawer,
+        onTabSelected: _onNavItemTapped,
+      ),
+      MaintenanceReportsPage(
+        openDrawer: _openDrawer,
+      ),
+      MaintenanceChatPage(
+        openDrawer: _openDrawer,
+      ),
+      MaintenanceStaffHistoryPage(
+        openDrawer: _openDrawer,
+      ),
+      MaintenanceStaffProfilePage(
+        openDrawer: _openDrawer,
+      ),
     ];
 
     return GlobalAnnouncementListener(
       child: Scaffold(
+      key: _scaffoldKey,
       backgroundColor: themeProvider.backgroundColor,
       drawer: Drawer(
         width: 280,
-        child: Container(
-          color: themeProvider.cardColor,
+        backgroundColor: isDark ? const Color(0xFF141724) : const Color(0xFF4169E1),
+        child: SafeArea(
           child: Column(
             children: [
-              UserAccountsDrawerHeader(
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF141724) : const Color(0xFF4169E1),
-                ),
-                currentAccountPicture: CircleAvatar(
-                  backgroundColor: Colors.white,
-                  child: Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'M',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4169E1),
+              // Header with close button
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 12, 0),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ),
                 ),
-                accountName: Text(
-                  userName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+
+              // PSU Logo and Title
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      width: 86,
+                      height: 86,
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/app_logo_v2.png',
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.high,
+                          isAntiAlias: true,
+                          errorBuilder: (_, error, stackTrace) => const Icon(
+                            Icons.school,
+                            color: Colors.white,
+                            size: 40,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'PANGASINAN STATE UNIVERSITY',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'MAINTENANCE STAFF',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
                 ),
-                accountEmail: Text(
-                  userEmail,
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+              ),
+
+              const Divider(color: Colors.white24, height: 1),
+
+              // Menu Items
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  children: [
+                    _buildDrawerMenuItem(
+                      icon: Icons.history_edu_outlined,
+                      title: 'Activity Logs',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MaintenanceLogsPage()),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    _buildDrawerMenuItem(
+                      icon: Icons.settings_outlined,
+                      title: 'Settings',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SettingsPage()),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    _buildDrawerMenuItem(
+                      icon: Icons.account_tree_outlined,
+                      title: 'System Workflow',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SystemWorkflowPage()),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    _buildDrawerMenuItem(
+                      icon: Icons.info_outlined,
+                      title: 'About Us',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AboutUsPage()),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 6),
+                    _buildDrawerMenuItem(
+                      icon: Icons.phone_outlined,
+                      title: 'Contact Us',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ContactUsPage()),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ),
-              ListTile(
-                leading: const Icon(Icons.home_rounded, color: Color(0xFF4169E1)),
-                title: Text('Home', style: TextStyle(fontWeight: FontWeight.w600, color: themeProvider.textColor)),
-                selected: _selectedIndex == 0,
-                selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
-                onTap: () {
-                  Navigator.pop(context);
-                  _onNavItemTapped(0);
-                },
+
+              // Logout Button at Footer
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final authService = context.read<AuthService>();
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        useRootNavigator: true,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Logout'),
+                          content: const Text('Do you want to logout?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                              ),
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(true),
+                              child: const Text('Logout'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm == true) {
+                        if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
+                          _scaffoldKey.currentState?.closeDrawer();
+                        }
+                        if (context.mounted) {
+                          await authService.handleLogoutButton(context);
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.logout, color: Colors.white, size: 18),
+                    label: const Text(
+                      'Logout',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      side: const BorderSide(color: Colors.white60, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              ListTile(
-                leading: const Icon(Icons.work_rounded, color: Color(0xFF4169E1)),
-                title: Text('Tasks', style: TextStyle(fontWeight: FontWeight.w600, color: themeProvider.textColor)),
-                selected: _selectedIndex == 1,
-                selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
-                onTap: () {
-                  Navigator.pop(context);
-                  _onNavItemTapped(1);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF4169E1)),
-                title: Text('Chat', style: TextStyle(fontWeight: FontWeight.w600, color: themeProvider.textColor)),
-                selected: _selectedIndex == 2,
-                selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
-                onTap: () {
-                  Navigator.pop(context);
-                  _onNavItemTapped(2);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.history_rounded, color: Color(0xFF4169E1)),
-                title: Text('History', style: TextStyle(fontWeight: FontWeight.w600, color: themeProvider.textColor)),
-                selected: _selectedIndex == 3,
-                selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
-                onTap: () {
-                  Navigator.pop(context);
-                  _onNavItemTapped(3);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.person_rounded, color: Color(0xFF4169E1)),
-                title: Text('Profile', style: TextStyle(fontWeight: FontWeight.w600, color: themeProvider.textColor)),
-                selected: _selectedIndex == 4,
-                selectedTileColor: const Color(0xFF4169E1).withValues(alpha: 0.08),
-                onTap: () {
-                  Navigator.pop(context);
-                  _onNavItemTapped(4);
-                },
-              ),
-              Divider(color: themeProvider.dividerColor),
-              const Spacer(),
-              ListTile(
-                leading: const Icon(Icons.logout_rounded, color: Colors.red),
-                title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final authService = context.read<AuthService>();
-                  await authService.handleLogoutButton(context);
-                },
-              ),
-              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -287,6 +430,48 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerMenuItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 11,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: Colors.white.withValues(alpha: 0.9),
+                size: 22,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

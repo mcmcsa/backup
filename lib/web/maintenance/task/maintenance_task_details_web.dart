@@ -12,7 +12,6 @@ import '../../admin/shared/admin_styles.dart';
 import 'maintenance_accept_task_web.dart';
 import 'maintenance_pre_inspection_web.dart';
 import 'maintenance_post_repair_web.dart';
-import '../../teacher/reports/teacher_official_form_web.dart';
 import '../../../shared/models/pre_inspection_model.dart';
 import '../../../shared/models/post_repair_model.dart';
 import '../../../shared/services/pre_inspection_service.dart';
@@ -36,7 +35,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
   List<PostRepairReport> _postRepairReports = [];
   final Map<String, String> _userNames = {};
   bool _isLoading = true;
-  bool _isProcessing = false;
+  final bool _isProcessing = false;
   String? _activeSubView; // null, 'acceptance', 'preInspection', 'postRepair'
   int _selectedSection = 1;
   final GlobalKey _timelineKey = GlobalKey();
@@ -495,23 +494,6 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                 ],
               ),
             ),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => TeacherOfficialFormWeb(request: _currentTask!),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminStyles.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            icon: const Icon(Icons.assignment_rounded, size: 16),
-            label: const Text('View Official Form', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
           ),
           const SizedBox(width: 16),
           _buildStatusBadge(),

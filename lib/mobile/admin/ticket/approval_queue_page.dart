@@ -179,7 +179,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
                   targetUserId: reporterId,
                   title: 'Request Declined',
                   message:
-                      'Your request ${request.id} for ${request.officeRoom} was declined by admin.',
+                      'Your request for ${((request.officeRoom?.isNotEmpty ?? false) ? request.officeRoom : request.title)} was declined by admin.',
                   type: 'work_request_declined',
                   workRequestId: request.id,
                 );

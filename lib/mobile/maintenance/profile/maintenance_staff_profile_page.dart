@@ -4,15 +4,13 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/models/user_model.dart';
 import '../../../authentication/services/auth_service.dart';
-import '../../../shared/services/work_request_service.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/providers/theme_provider.dart';
-import '../../teacher/menu_pages/about_us_page.dart';
-import '../../teacher/menu_pages/contact_us_page.dart';
-import '../../teacher/menu_pages/settings_page.dart';
 
 class MaintenanceStaffProfilePage extends StatefulWidget {
-  const MaintenanceStaffProfilePage({super.key});
+  final VoidCallback? openDrawer;
+
+  const MaintenanceStaffProfilePage({super.key, this.openDrawer});
 
   @override
   State<MaintenanceStaffProfilePage> createState() => _MaintenanceStaffProfilePageState();
@@ -34,8 +32,6 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
   bool _isEditing = false;
   String? _lastUserId;
   bool _isUploadingImage = false;
-  int _completedCount = 0;
-  int _inProgressCount = 0;
 
   @override
   void initState() {
@@ -43,7 +39,6 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     final user = context.read<AuthService>().currentUser;
     _initControllers(user);
     _lastUserId = user?.id;
-    _loadStats();
   }
 
   void _initControllers(AppUser? user) {
@@ -54,20 +49,6 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     _phoneController = TextEditingController(text: user?.phone ?? '');
   }
 
-  Future<void> _loadStats() async {
-    try {
-      final user = context.read<AuthService>().currentUser;
-      if (user != null) {
-        final requests = await WorkRequestService.fetchAssignedTo(user.id);
-        if (mounted) {
-          setState(() {
-            _completedCount = requests.where((r) => r.status.toLowerCase() == 'completed').length;
-            _inProgressCount = requests.where((r) => ['in progress', 'in_progress', 'assigned', 'accepted by maintenance'].contains(r.status.toLowerCase())).length;
-          });
-        }
-      }
-    } catch (_) {}
-  }
 
   @override
   void dispose() {
@@ -187,9 +168,9 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
-        roleText: 'Maintenance Staff',
+        roleText: '',
         primaryColor: _primaryBlue,
-        onMenuPressed: () => Scaffold.of(context).openDrawer(),
+        onMenuPressed: widget.openDrawer ?? () => Scaffold.of(context).openDrawer(),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -200,12 +181,6 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
               _buildProfileHero(user, authService.isLoading, themeProvider),
               const SizedBox(height: 20),
               _buildRegistrationDetails(themeProvider),
-              const SizedBox(height: 20),
-              _buildSettingsMenu(themeProvider),
-              const SizedBox(height: 20),
-              _buildSupportMenu(themeProvider),
-              const SizedBox(height: 20),
-              _buildLogoutButton(themeProvider),
               const SizedBox(height: 24),
             ],
           ),
@@ -216,37 +191,100 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
 
   Widget _buildProfileHero(AppUser? user, bool isLoading, ThemeProvider themeProvider) {
     final avatar = _buildAvatar(user);
+    final isDark = themeProvider.isDarkMode;
+
     final details = Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'MAINTENANCE PROFILE',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            color: _primaryBlue,
-            letterSpacing: 1.5,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
+          decoration: BoxDecoration(
+            color: isDark
+                ? _primaryBlue.withValues(alpha: 0.25)
+                : _primaryBlue.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark
+                  ? _primaryBlue.withValues(alpha: 0.3)
+                  : _primaryBlue.withValues(alpha: 0.25),
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          user?.name ?? 'Maintenance Account',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: themeProvider.textColor, letterSpacing: -0.5),
-          textAlign: TextAlign.center,
+          child: Text(
+            'MAINTENANCE STAFF',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: isDark ? const Color(0xFF38BDF8) : _primaryBlue,
+              letterSpacing: 1.0,
+            ),
+          ),
         ),
         const SizedBox(height: 8),
         Text(
-          user?.email ?? '',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: themeProvider.subtitleColor),
-          textAlign: TextAlign.center,
+          user?.name ?? 'Maintenance Account',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: themeProvider.textColor,
+            letterSpacing: -0.4,
+            height: 1.2,
+          ),
         ),
+        const SizedBox(height: 5),
+        Row(
+          children: [
+            Icon(Icons.email_outlined, size: 13, color: themeProvider.subtitleColor),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                user?.email ?? '',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: themeProvider.subtitleColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        if ((user?.position ?? '').isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: (isDark ? const Color(0xFF0284C7) : const Color(0xFF0EA5E9)).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.build_outlined,
+                  size: 11,
+                  color: isDark ? const Color(0xFF38BDF8) : _primaryBlue,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  user!.position!,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: isDark ? const Color(0xFF38BDF8) : _primaryBlue,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
 
     final actionBtn = _buildActionButton(isLoading);
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(16),
@@ -260,25 +298,27 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(child: avatar),
-          const SizedBox(height: 24),
-          details,
-          const SizedBox(height: 24),
-          actionBtn,
-          const SizedBox(height: 20),
-          Divider(color: themeProvider.borderColor),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              avatar,
+              const SizedBox(width: 16),
+              Expanded(child: details),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: themeProvider.borderColor.withValues(alpha: 0.5),
+          ),
           const SizedBox(height: 12),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              _buildStatItem('$_completedCount', 'Completed', Icons.check_circle_outline, themeProvider),
-              Container(
-                width: 1,
-                height: 50,
-                color: themeProvider.borderColor,
-              ),
-              _buildStatItem('$_inProgressCount', 'In Progress', Icons.pending_outlined, themeProvider),
+              actionBtn,
             ],
           ),
         ],
@@ -293,16 +333,16 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     return Stack(
       children: [
         Container(
-          width: 110,
-          height: 110,
+          width: 86,
+          height: 86,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 2.5),
             boxShadow: [
               BoxShadow(
                 color: _primaryBlue.withValues(alpha: 0.15),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
               ),
             ],
           ),
@@ -318,7 +358,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
             child: _isUploadingImage
                 ? const Center(
                     child: CircularProgressIndicator(
-                      strokeWidth: 3,
+                      strokeWidth: 2.5,
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
@@ -326,8 +366,8 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                     ? ClipOval(
                         child: Image.network(
                           user.profileImage!,
-                          width: 104,
-                          height: 104,
+                          width: 80,
+                          height: 80,
                           fit: BoxFit.cover,
                           loadingBuilder: (context, child, loadingProgress) {
                             if (loadingProgress == null) return child;
@@ -341,7 +381,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                           errorBuilder: (context, error, stackTrace) => Center(
                             child: Text(
                               initials,
-                              style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
                             ),
                           ),
                         ),
@@ -349,7 +389,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
                     : Center(
                         child: Text(
                           initials,
-                          style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                       ),
           ),
@@ -361,23 +401,23 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
             child: GestureDetector(
               onTap: () => _pickAndUploadProfileImage(user),
               child: Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: _primaryBlue,
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
                 child: const Icon(
                   Icons.camera_alt_rounded,
                   color: Colors.white,
-                  size: 16,
+                  size: 13,
                 ),
               ),
             ),
@@ -417,13 +457,15 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
     }
     return ElevatedButton.icon(
       onPressed: () => setState(() => _isEditing = true),
-      icon: const Icon(Icons.edit_rounded, size: 18),
-      label: const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.w700)),
+      icon: const Icon(Icons.edit_rounded, size: 16),
+      label: const Text('Edit Profile', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
       style: ElevatedButton.styleFrom(
         backgroundColor: _primaryBlue,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }
@@ -455,12 +497,7 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Account Details', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: themeProvider.textColor)),
-          const SizedBox(height: 8),
-          Text(
-            'These details were set by the System Admin when your account was created. You may update them here.',
-            style: TextStyle(fontSize: 12, color: themeProvider.subtitleColor, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
           Column(
             children: fields.map((f) => Padding(
               padding: const EdgeInsets.only(bottom: 24),
@@ -534,311 +571,5 @@ class _MaintenanceStaffProfilePageState extends State<MaintenanceStaffProfilePag
       ],
     );
   }
-
-  Widget _buildStatItem(String value, String label, IconData icon, ThemeProvider themeProvider) {
-    return Column(
-      children: [
-        Icon(
-          icon,
-          size: 24,
-          color: _primaryBlue,
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: themeProvider.textColor,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: themeProvider.subtitleColor,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSettingsMenu(ThemeProvider themeProvider) {
-    return Container(
-      decoration: BoxDecoration(
-        color: themeProvider.cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: themeProvider.borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: themeProvider.shadowColor,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          _buildMenuItem(
-            icon: Icons.notifications_outlined,
-            iconColor: Colors.orange,
-            title: 'Notifications',
-            subtitle: 'Manage notification preferences',
-            themeProvider: themeProvider,
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notification preferences coming soon')),
-              );
-            },
-          ),
-          _buildDivider(themeProvider),
-          _buildMenuItem(
-            icon: Icons.lock_outline,
-            iconColor: Colors.green,
-            title: 'Security',
-            subtitle: 'Change password & security settings',
-            themeProvider: themeProvider,
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Security settings coming soon')),
-              );
-            },
-          ),
-          _buildDivider(themeProvider),
-          _buildMenuItem(
-            icon: Icons.settings_outlined,
-            iconColor: Colors.grey,
-            title: 'Settings',
-            subtitle: 'App preferences and configurations',
-            themeProvider: themeProvider,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const SettingsPage(),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSupportMenu(ThemeProvider themeProvider) {
-    return Container(
-      decoration: BoxDecoration(
-        color: themeProvider.cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: themeProvider.borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: themeProvider.shadowColor,
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          _buildMenuItem(
-            icon: Icons.help_outline,
-            iconColor: Colors.purple,
-            title: 'Help & Support',
-            subtitle: 'Get help and contact support',
-            themeProvider: themeProvider,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ContactUsPage(),
-                ),
-              );
-            },
-          ),
-          _buildDivider(themeProvider),
-          _buildMenuItem(
-            icon: Icons.info_outline,
-            iconColor: Colors.cyan,
-            title: 'About',
-            subtitle: 'App version and information',
-            themeProvider: themeProvider,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AboutUsPage(),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLogoutButton(ThemeProvider themeProvider) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () {
-          _showLogoutDialog(context, themeProvider);
-        },
-        icon: const Icon(Icons.logout, size: 20),
-        label: const Text(
-          'Logout',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.red,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          side: const BorderSide(color: Colors.red, width: 1.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuItem({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-    required ThemeProvider themeProvider,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: themeProvider.isDarkMode ? 0.2 : 0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                icon,
-                color: iconColor,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: themeProvider.textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: themeProvider.subtitleColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: themeProvider.subtitleColor,
-              size: 24,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDivider(ThemeProvider themeProvider) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Divider(
-        height: 1,
-        color: themeProvider.borderColor,
-      ),
-    );
-  }
-
-  void _showLogoutDialog(BuildContext context, ThemeProvider themeProvider) {
-    showDialog(
-      context: context,
-      useRootNavigator: true,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          backgroundColor: themeProvider.cardColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            'Logout',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: themeProvider.textColor,
-            ),
-          ),
-          content: Text(
-            'Are you sure you want to logout?',
-            style: TextStyle(
-              fontSize: 15,
-              color: themeProvider.textColor,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: themeProvider.subtitleColor,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final authService = context.read<AuthService>();
-                Navigator.of(dialogContext, rootNavigator: true).pop();
-                if (context.mounted) {
-                  await authService.handleLogoutButton(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: const Text(
-                'Logout',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
 }
+

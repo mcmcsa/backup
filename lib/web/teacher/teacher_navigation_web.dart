@@ -53,6 +53,8 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   int _unreadNotificationCount = 0;
   RealtimeChannel? _notificationsChannel;
   StreamSubscription<void>? _settingsSubscription;
+  StreamSubscription<void>? _notifSubscription;
+  Timer? _notifTimer;
 
   Future<void> _loadUnreadNotificationCount() async {
     try {
@@ -108,11 +110,19 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
     _settingsSubscription = AppSettingsService.changes.listen((_) {
       _loadUnreadNotificationCount();
     });
+    _notifSubscription = AppNotificationService.changes.listen((_) {
+      _loadUnreadNotificationCount();
+    });
+    _notifTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _loadUnreadNotificationCount();
+    });
   }
 
   @override
   void dispose() {
     _settingsSubscription?.cancel();
+    _notifSubscription?.cancel();
+    _notifTimer?.cancel();
     if (_notificationsChannel != null) {
       Supabase.instance.client.removeChannel(_notificationsChannel!);
     }

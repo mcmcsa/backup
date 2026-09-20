@@ -1,5 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/models/pre_inspection_model.dart';
@@ -31,6 +36,9 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
   final TextEditingController _estimatedTimeController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
 
+  final List<XFile> _inspectionImages = [];
+  bool _isUploadingImages = false;
+
   String _severityLevel = 'Minor';
   bool _isLoading = false;
   bool _showConfirmButton = false;
@@ -61,6 +69,88 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
         _showConfirmButton = hasCondition;
       });
     }
+  }
+
+  void _pickImages() async {
+    final picker = ImagePicker();
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: Color(0xFF4169E1)),
+              title: const Text('Choose from Gallery'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final picked = await picker.pickMultiImage();
+                if (picked.isNotEmpty) {
+                  setState(() => _inspectionImages.addAll(picked));
+                }
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFF4169E1)),
+              title: const Text('Take a Photo'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final photo = await picker.pickImage(source: ImageSource.camera);
+                if (photo != null) {
+                  setState(() => _inspectionImages.add(photo));
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _removeImage(int index) {
+    setState(() => _inspectionImages.removeAt(index));
+  }
+
+  Future<String> _uploadImages({
+    required String requestId,
+    required List<XFile> imageFiles,
+  }) async {
+    final client = Supabase.instance.client;
+    List<String> urls = [];
+
+    for (int i = 0; i < imageFiles.length; i++) {
+      final file = imageFiles[i];
+      final bytes = await file.readAsBytes();
+      final rawExt = file.name.contains('.')
+          ? file.name.split('.').last.toLowerCase()
+          : 'jpg';
+      final extension = rawExt == 'jpg' ? 'jpeg' : rawExt;
+      final mimeType = 'image/$extension';
+      final fileName = 'pre_${DateTime.now().millisecondsSinceEpoch}_$i.$rawExt';
+      final path = 'work-evidence/$requestId/$fileName';
+
+      String? url;
+      for (final bucket in ['work-evidence', 'work-request-attachments']) {
+        try {
+          await client.storage.from(bucket).uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: mimeType,
+              upsert: true,
+            ),
+          );
+          url = client.storage.from(bucket).getPublicUrl(path);
+          if (url.isNotEmpty) break;
+        } catch (_) {}
+      }
+
+      url ??= 'data:$mimeType;base64,${base64Encode(bytes)}';
+      urls.add(url);
+    }
+    return jsonEncode(urls);
   }
 
   void _openSignatureDialog() {
@@ -109,6 +199,16 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
     setState(() => _isLoading = true);
 
     try {
+      // 0. Upload inspection photos if any
+      String? photoUrl;
+      if (_inspectionImages.isNotEmpty) {
+        setState(() => _isUploadingImages = true);
+        photoUrl = await _uploadImages(
+          requestId: widget.request.id,
+          imageFiles: _inspectionImages,
+        );
+      }
+
       // 1. Insert E-Signature
       await ESignatureService.insert(
         ESignature(
@@ -148,6 +248,7 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
           estimatedTime: _estimatedTimeController.text.trim().isEmpty
               ? null
               : _estimatedTimeController.text.trim(),
+          photoEvidence: photoUrl,
           notes: _notesController.text.trim().isEmpty
               ? null
               : _notesController.text.trim(),
@@ -166,6 +267,7 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
         await AppNotificationService.notifyPreInspectionSubmittedToAdmin(
           workRequestId: widget.request.id,
           maintenanceName: user.name,
+          maintenanceUserId: user.id,
           adminId: widget.request.approvedById,
           requestorId: widget.request.requestorId,
         );
@@ -192,7 +294,12 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isUploadingImages = false;
+        });
+      }
     }
   }
 
@@ -203,14 +310,25 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
       appBar: CommonAppBar(
-        roleText: 'Pre-Inspection Entry',
+        titleText: 'Pre-Inspection Form',
+        roleText: '',
         primaryColor: themeProvider.primaryColor,
         showBack: true,
         onBackPressed: () => Navigator.pop(context),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF4169E1)),
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: Color(0xFF4169E1)),
+                  const SizedBox(height: 16),
+                  Text(
+                    _isUploadingImages ? 'Uploading photos...' : 'Submitting report...',
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF4169E1)),
+                  ),
+                ],
+              ),
             )
           : Form(
               key: _formKey,
@@ -221,10 +339,10 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: themeProvider.cardColor,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: const Color(0xFFE5E7EB),
+                        color: themeProvider.borderColor,
                       ),
                     ),
                     child: Column(
@@ -241,9 +359,10 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
                         const SizedBox(height: 8),
                         Text(
                           widget.request.title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
+                            color: themeProvider.textColor,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -251,7 +370,7 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
                           'Location: ${widget.request.buildingName} • ${widget.request.officeRoom}',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade600,
+                            color: themeProvider.subtitleColor,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -259,7 +378,7 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
                           'Requestor: ${widget.request.displayRequestorName}',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade600,
+                            color: themeProvider.subtitleColor,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -272,10 +391,10 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: themeProvider.cardColor,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: const Color(0xFFE5E7EB),
+                        color: themeProvider.borderColor,
                       ),
                     ),
                     child: Column(
@@ -293,12 +412,12 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
                         const SizedBox(height: 16),
 
                         // Condition Found (Required)
-                        _buildLabel('Condition Found * REQUIRED'),
+                        _buildLabel('Condition Found * REQUIRED', themeProvider),
                         const SizedBox(height: 8),
                         TextFormField(
                           controller: _conditionController,
                           maxLines: 3,
-                          style: const TextStyle(fontSize: 14),
+                          style: TextStyle(fontSize: 14, color: themeProvider.textColor),
                           decoration: InputDecoration(
                             hintText: 'Describe physical condition found...',
                             border: OutlineInputBorder(
@@ -319,7 +438,7 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
                         _buildLabel('Severity Level'),
                         const SizedBox(height: 8),
                         DropdownButtonFormField<String>(
-                          value: _severityLevel,
+                          initialValue: _severityLevel,
                           decoration: InputDecoration(
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
@@ -444,6 +563,12 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
                             contentPadding: const EdgeInsets.all(12),
                           ),
                         ),
+                        const SizedBox(height: 16),
+
+                        // Inspection Photos (Optional)
+                        _buildLabel('Inspection Photos (Optional)'),
+                        const SizedBox(height: 8),
+                        _buildImageSection(),
                       ],
                     ),
                   ),
@@ -497,13 +622,91 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
     );
   }
 
-  Widget _buildLabel(String text) {
+  Widget _buildImageSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_inspectionImages.isNotEmpty) ...[
+          SizedBox(
+            height: 110,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _inspectionImages.length,
+              itemBuilder: (context, index) {
+                final file = _inspectionImages[index];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 110,
+                        height: 110,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: kIsWeb
+                              ? Image.network(file.path, fit: BoxFit.cover)
+                              : Image.file(File(file.path), fit: BoxFit.cover),
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () => _removeImage(index),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        OutlinedButton.icon(
+          onPressed: _pickImages,
+          icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+          label: Text(
+            _inspectionImages.isEmpty
+                ? 'Add Inspection Photos'
+                : 'Add More Photos (${_inspectionImages.length} selected)',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF4169E1),
+            side: const BorderSide(color: Color(0xFF4169E1)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLabel(String text, [ThemeProvider? tp]) {
+    final themeProvider = tp ?? Provider.of<ThemeProvider>(context, listen: false);
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 13,
         fontWeight: FontWeight.bold,
-        color: Colors.black87,
+        color: themeProvider.textColor,
       ),
     );
   }

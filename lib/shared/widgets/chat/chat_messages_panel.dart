@@ -445,7 +445,6 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
         .firstOrNull;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: themeProvider.cardColor,
         border: Border(bottom: BorderSide(color: themeProvider.borderColor)),
@@ -456,7 +455,11 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
           ),
         ],
       ),
-      child: Row(
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_rounded, size: 24),
@@ -581,8 +584,10 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   Widget _buildPinBar(ThemeProvider themeProvider) {
     final pin = _pinnedMessages.first;

@@ -22,6 +22,7 @@ import 'workflow/maintenance_workflow_web.dart';
 import 'notifications/maintenance_notifications_web.dart';
 import 'maintenance_nav_controller.dart';
 import 'task/maintenance_task_details_web.dart';
+import 'logs/maintenance_logs_web.dart';
 
 class MaintenanceNavigationWeb extends StatefulWidget {
   final int initialIndex;
@@ -38,13 +39,14 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
   WorkRequest? _selectedRequestForDetails;
   ChatRoom? _selectedChatRoom;
   int _hoveredIndex = -1;
-  bool _isUserMenuHovered = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   static const int _notificationsIndex = 7;
   int _unreadNotificationCount = 0;
   RealtimeChannel? _notificationsChannel;
   StreamSubscription<void>? _settingsSubscription;
+  StreamSubscription<void>? _notifSubscription;
+  Timer? _notifTimer;
 
   // ─── Design Tokens ────────────────────────────────────────────────────────
   static const _sidebarBg = Color(0xFF0F172A);       // Slate-900 (deeper)
@@ -64,6 +66,12 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
     _loadUnreadNotificationCount();
     _subscribeNotifications();
     _settingsSubscription = AppSettingsService.changes.listen((_) {
+      _loadUnreadNotificationCount();
+    });
+    _notifSubscription = AppNotificationService.changes.listen((_) {
+      _loadUnreadNotificationCount();
+    });
+    _notifTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _loadUnreadNotificationCount();
     });
 
@@ -95,6 +103,8 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
       MaintenanceStatusService.setOfflineOnLogout(currentUser.id);
     }
     _settingsSubscription?.cancel();
+    _notifSubscription?.cancel();
+    _notifTimer?.cancel();
     if (_notificationsChannel != null) {
       Supabase.instance.client.removeChannel(_notificationsChannel!);
     }
@@ -246,6 +256,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
         const MaintenanceSettingsWeb(),
         const MaintenanceWorkflowWeb(),
         const MaintenanceNotificationsWeb(),
+        const MaintenanceLogsWeb(),
       ],
     );
   }
@@ -425,6 +436,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                     child: Column(
                       children: [
                         _buildNavItem(index: 4, icon: Icons.person_outline_rounded, title: 'Profile', closeDrawerOnTap: closeDrawerOnTap),
+                        _buildNavItem(index: 8, icon: Icons.history_edu_outlined, title: 'Activity Logs', closeDrawerOnTap: closeDrawerOnTap),
                         _buildNavItem(index: 5, icon: Icons.settings_outlined, title: 'Settings', closeDrawerOnTap: closeDrawerOnTap),
                         _buildNavItem(index: 6, icon: Icons.account_tree_outlined, title: 'Work Flow', closeDrawerOnTap: closeDrawerOnTap),
                       ],
@@ -610,10 +622,10 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
       padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 24),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
-        border: Border(bottom: BorderSide(color: Colors.grey.withOpacity(0.2))),
+        border: Border(bottom: BorderSide(color: Colors.grey.withValues(alpha: 0.2))),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -667,8 +679,6 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
           // User Avatar
           MouseRegion(
             cursor: SystemMouseCursors.click,
-            onEnter: (_) => setState(() => _isUserMenuHovered = true),
-            onExit: (_) => setState(() => _isUserMenuHovered = false),
             child: GestureDetector(
               onTap: () => setState(() => _selectedIndex = 4), // 4 is MaintenanceProfileWeb
               child: Container(

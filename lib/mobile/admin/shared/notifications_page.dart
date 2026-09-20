@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/app_notification_model.dart';
 import '../../../shared/services/app_notification_service.dart';
@@ -10,6 +11,7 @@ import '../../../shared/services/chat_service.dart';
 import '../../../shared/widgets/chat/chat_messages_panel.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../admin/ticket/request_details_page.dart' as admin_ticket;
+import '../../maintenance/task/task_details_page.dart';
 import '../../../router/app_router.dart';
 import '../../../shared/providers/theme_provider.dart';
 
@@ -28,17 +30,40 @@ class _NotificationsPageState extends State<NotificationsPage> {
   bool _isLoading = true;
   bool _notificationsEnabled = true;
   StreamSubscription<void>? _settingsSub;
+  RealtimeChannel? _realtimeChannel;
+  StreamSubscription<void>? _notifSub;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _settingsSub = AppSettingsService.changes.listen((_) {
-      _loadNotifications();
+      _loadNotifications(silent: true);
     });
+    _notifSub = AppNotificationService.changes.listen((_) {
+      if (mounted) _loadNotifications(silent: true);
+    });
+
+    try {
+      _realtimeChannel = AppNotificationService.subscribeToNotifications(
+        onUpdate: () {
+          if (mounted) _loadNotifications(silent: true);
+        },
+      );
+    } catch (_) {}
+
+    // Auto-refresh (AJAX polling fallback) every 8 seconds
+    _refreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) _loadNotifications(silent: true);
+    });
+
     _loadNotifications();
   }
 
-  Future<void> _loadNotifications() async {
+  Future<void> _loadNotifications({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() => _isLoading = true);
+    }
     try {
       final authService = context.read<AuthService>();
       final user = authService.currentUser;
@@ -89,6 +114,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   void dispose() {
     _settingsSub?.cancel();
+    _notifSub?.cancel();
+    _realtimeChannel?.unsubscribe();
+    _refreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -676,13 +704,36 @@ class _NotificationsPageState extends State<NotificationsPage> {
         }
         return;
       } else if (userRoleStr == 'maintenance') {
-        context.push(
-          '/request-details',
-          extra: {
-            'trackingNumber': reqId,
-            'status': 'PENDING',
-          },
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(child: CircularProgressIndicator()),
         );
+        try {
+          final req = await WorkRequestService.fetchById(reqId);
+          if (mounted) Navigator.of(context).pop();
+          if (req != null && mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TaskDetailsPage(
+                  taskId: req.id,
+                  title: req.title,
+                  location: '${req.buildingName} - ${req.officeRoom}',
+                ),
+              ),
+            );
+          } else if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Task not found or has been removed.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        } catch (_) {
+          if (mounted) Navigator.of(context).pop();
+        }
         return;
       }
     }
