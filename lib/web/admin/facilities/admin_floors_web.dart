@@ -278,32 +278,40 @@ class _AdminFloorsWebState extends State<AdminFloorsWeb> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: _pageBg,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Floors', style: AdminStyles.pageTitleStyle()),
-            const SizedBox(height: 24),
-            _buildSearchAndActions(),
-            const SizedBox(height: 14),
-            FacilityQuickActionsRow(
-              activeIndex: widget.activeIndex,
-              onSelect: widget.onNavigate,
-              config: widget.quickActionsConfig,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 700;
+        return Container(
+          color: _pageBg,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 16 : 32,
+              vertical: isMobile ? 20 : 32,
             ),
-            const SizedBox(height: 24),
-            if (_isLoading)
-              const Center(
-                child: CircularProgressIndicator(color: _primaryBlue),
-              )
-            else
-              _buildFloorsTable(),
-          ],
-        ),
-      ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Floors', style: AdminStyles.pageTitleStyle()),
+                const SizedBox(height: 24),
+                _buildSearchAndActions(),
+                const SizedBox(height: 14),
+                FacilityQuickActionsRow(
+                  activeIndex: widget.activeIndex,
+                  onSelect: widget.onNavigate,
+                  config: widget.quickActionsConfig,
+                ),
+                const SizedBox(height: 24),
+                if (_isLoading)
+                  const Center(
+                    child: CircularProgressIndicator(color: _primaryBlue),
+                  )
+                else
+                  _buildFloorsTable(),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../shared/models/room_model.dart';
+import '../../../shared/models/department_model.dart';
 import '../../../shared/services/room_service.dart';
-import '../../../shared/services/building_service.dart';
 import '../../../shared/services/floor_service.dart';
 import '../../../shared/services/room_type_service.dart';
 import '../../../shared/services/qr_code_history_service.dart';
@@ -19,7 +19,7 @@ class EditRoomPage extends StatefulWidget {
 }
 
 class _EditRoomPageState extends State<EditRoomPage> {
-  static const String _noDepartmentOption = 'Not specified';
+  static const String _noDepartmentOption = 'None';
 
   final _dropdownHelper = DropdownDataHelper();
   late TextEditingController _roomCodeController;
@@ -37,9 +37,7 @@ class _EditRoomPageState extends State<EditRoomPage> {
   bool _isSaving = false;
   String _qrData = '';
 
-  bool get _isDepartmentSelected =>
-      _selectedDepartment != _noDepartmentOption &&
-      _selectedDepartment.isNotEmpty;
+  bool get _isBuildingSelected => _selectedBuilding.isNotEmpty;
 
   @override
   void initState() {
@@ -63,20 +61,18 @@ class _EditRoomPageState extends State<EditRoomPage> {
   }
 
   Future<void> _loadDropdownOptions() async {
-    final departments = await _dropdownHelper.getDepartmentNames();
+    final buildings = await _dropdownHelper.getBuildingNames();
     final floors = await _dropdownHelper.getFloorNames();
     final roomTypes = await _dropdownHelper.getRoomTypes();
     if (!mounted) return;
 
     setState(() {
-      _departmentOptions = _uniqueNonEmpty(departments);
+      _buildingOptions = _uniqueNonEmpty(buildings);
+      if (_selectedBuilding.isNotEmpty && !_buildingOptions.contains(_selectedBuilding)) {
+        _buildingOptions = [..._buildingOptions, _selectedBuilding];
+      }
       _floors = _uniqueNonEmpty(floors);
       _roomTypes = _uniqueNonEmpty(roomTypes);
-
-      if (_selectedDepartment != _noDepartmentOption &&
-          !_departmentOptions.contains(_selectedDepartment)) {
-        _selectedDepartment = _noDepartmentOption;
-      }
 
       if (_roomTypes.isNotEmpty && !_roomTypes.contains(_selectedRoomType)) {
         _roomTypes = [..._roomTypes, _selectedRoomType];
@@ -87,42 +83,44 @@ class _EditRoomPageState extends State<EditRoomPage> {
       }
     });
 
-    await _loadBuildingsByDepartment(_selectedDepartment);
+    await _loadDepartmentsByBuilding(_selectedBuilding, isInitial: true);
   }
 
-  Future<void> _loadBuildingsByDepartment(String departmentName) async {
-    final normalizedDepartment = departmentName.trim();
-    if (normalizedDepartment == _noDepartmentOption ||
-        normalizedDepartment.isEmpty) {
+  Future<void> _loadDepartmentsByBuilding(String buildingName, {bool isInitial = false}) async {
+    final normalizedBuilding = buildingName.trim();
+    if (normalizedBuilding.isEmpty) {
       if (!mounted) return;
       setState(() {
-        _buildingOptions = [];
-        _selectedBuilding = '';
+        _departmentOptions = [];
+        _selectedDepartment = _noDepartmentOption;
       });
       return;
     }
 
-    final department = await _dropdownHelper.getDepartmentByName(normalizedDepartment);
-    if (department == null) {
+    final building = await _dropdownHelper.getBuildingByName(normalizedBuilding);
+    if (building == null) {
       if (!mounted) return;
       setState(() {
-        _buildingOptions = [];
-        _selectedBuilding = '';
+        _departmentOptions = [];
+        _selectedDepartment = _noDepartmentOption;
       });
       return;
     }
 
-    final buildings = _uniqueNonEmpty(
-      await _dropdownHelper.getBuildingNamesByDepartment(department.id),
+    final departments = _uniqueNonEmpty(
+      await _dropdownHelper.getDepartmentNamesByBuilding(building.id),
     );
 
     if (!mounted) return;
     setState(() {
-      _buildingOptions = buildings;
-      if (!_buildingOptions.contains(_selectedBuilding)) {
-        _selectedBuilding = _buildingOptions.isNotEmpty
-            ? _buildingOptions.first
-            : '';
+      _departmentOptions = departments;
+      if (_selectedDepartment != _noDepartmentOption &&
+          !_departmentOptions.contains(_selectedDepartment)) {
+        if (isInitial && _selectedDepartment == widget.room.department && widget.room.building == buildingName) {
+          _departmentOptions = [..._departmentOptions, _selectedDepartment];
+        } else {
+          _selectedDepartment = _noDepartmentOption;
+        }
       }
     });
   }
@@ -231,28 +229,34 @@ class _EditRoomPageState extends State<EditRoomPage> {
     setState(() => _isSaving = true);
 
     try {
-        final buildingName = _selectedBuilding.trim();
-        final departmentName =
-          _selectedDepartment == _noDepartmentOption ? '' : _selectedDepartment.trim();
+      final buildingName = _selectedBuilding.trim();
+      final isNoneDepartment =
+          _selectedDepartment == _noDepartmentOption || _selectedDepartment.trim().isEmpty;
+      final departmentName = isNoneDepartment ? '' : _selectedDepartment.trim();
 
-      if (departmentName.isEmpty) {
-        throw Exception('Please select a department');
-      }
-
-      final department = await _dropdownHelper.getDepartmentByName(departmentName);
-      if (department == null) {
-        throw Exception('Selected department was not found');
-      }
-
-      final building = await BuildingService.fetchByNameAndDepartment(
-        buildingName,
-        department.id,
-      );
+      final building = await _dropdownHelper.getBuildingByName(buildingName);
       if (building == null) {
-        throw Exception('Selected building was not found under the selected department');
+        throw Exception('Selected building was not found');
       }
 
-      final departmentId = department.id;
+      Department? department;
+      if (!isNoneDepartment) {
+        department = await _dropdownHelper.getDepartmentByName(departmentName);
+        if (department == null) {
+          throw Exception('Selected department was not found');
+        }
+
+        final validDeptNames = await _dropdownHelper.getDepartmentNamesByBuilding(
+          building.id,
+        );
+        if (!validDeptNames.contains(departmentName)) {
+          throw Exception(
+            'Selected department "$departmentName" is not associated with "$buildingName"',
+          );
+        }
+      }
+
+      final departmentId = department?.id ?? '';
       final floor = await FloorService.findOrCreateByName(_selectedFloor);
       final roomType = await RoomTypeService.fetchByName(_selectedRoomType);
       if (roomType == null) {
@@ -273,7 +277,7 @@ class _EditRoomPageState extends State<EditRoomPage> {
         floor: _selectedFloor,
         seats: int.tryParse(_capacityController.text) ?? widget.room.seats,
         departmentId: departmentId,
-        department: departmentName,
+        department: department?.name ?? '',
         roomTypeId: roomType.id,
         roomType: _selectedRoomType,
         status: _selectedStatus,
@@ -395,31 +399,33 @@ class _EditRoomPageState extends State<EditRoomPage> {
                   const SizedBox(height: 18),
 
                   // Building
-                  // Department
-                  _buildLabel('Department'),
-                  const SizedBox(height: 8),
-                  _buildDropdown(
-                    value: _selectedDepartment,
-                    items: [_noDepartmentOption, ..._departmentOptions],
-                    onChanged: (v) async {
-                      if (v == null) return;
-                      setState(() => _selectedDepartment = v);
-                      await _loadBuildingsByDepartment(v);
-                    },
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Building
                   _buildLabel('Building'),
                   const SizedBox(height: 8),
                   _buildDropdown(
                     value: _selectedBuilding,
                     items: _buildingOptions,
-                    onChanged: _isDepartmentSelected
-                        ? (v) {
+                    onChanged: (v) async {
                       if (v == null) return;
-                      setState(() => _selectedBuilding = v);
-                    }
+                      setState(() {
+                        _selectedBuilding = v;
+                        _selectedDepartment = _noDepartmentOption;
+                      });
+                      await _loadDepartmentsByBuilding(v);
+                    },
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Department
+                  _buildLabel('Department'),
+                  const SizedBox(height: 8),
+                  _buildDropdown(
+                    value: _selectedDepartment.isEmpty ? _noDepartmentOption : _selectedDepartment,
+                    items: [_noDepartmentOption, ..._departmentOptions],
+                    onChanged: _isBuildingSelected
+                        ? (v) {
+                            if (v == null) return;
+                            setState(() => _selectedDepartment = v);
+                          }
                         : null,
                   ),
                   const SizedBox(height: 18),

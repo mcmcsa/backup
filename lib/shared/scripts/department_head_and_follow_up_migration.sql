@@ -64,25 +64,43 @@ BEGIN
   -- Determine requestor role
   SELECT role INTO u_role FROM public.users WHERE id = NEW.requestor_id;
   
+  -- Query room department
+  SELECT department_id INTO r_dept FROM public.rooms WHERE id = NEW.room_id;
+
   -- Validation only applies to teacher / faculty / student requestors, not admin direct override
   IF u_role = 'teacher' THEN
     SELECT department_id INTO u_dept FROM public.teacher_users WHERE user_id = NEW.requestor_id;
-    SELECT department_id INTO r_dept FROM public.rooms WHERE id = NEW.room_id;
     
     IF u_dept IS NULL THEN
       RAISE EXCEPTION 'Requestor has no assigned department in the system.';
     END IF;
     
+    -- Case 1: Room belongs to a department
+    IF r_dept IS NOT NULL THEN
+      IF u_dept != r_dept THEN
+        RAISE EXCEPTION 'Access Denied: Room does not belong to requestor department.';
+      END IF;
+      
+      -- Ensure work request department_id matches room's department
+      NEW.department_id := r_dept;
+    ELSE
+      -- Case 2: Room has NO Department (Comfort Room, Lobby, Hallway, Common Area)
+      -- Allow the request without requiring room.department_id
+      -- Do NOT assign requestor's department to the Room or the Work Request
+      -- Do NOT assign a Department Head; allow direct Campus Admin routing
+      NEW.department_id := NULL;
+      NEW.dept_head_id := NULL;
+      NEW.dept_head_status := 'not_applicable';
+    END IF;
+  ELSE
+    -- Non-teacher requestors (admin, campadmin, maintenance, etc.)
     IF r_dept IS NULL THEN
-      RAISE EXCEPTION 'Selected room has no assigned department.';
+      NEW.department_id := NULL;
+      NEW.dept_head_id := NULL;
+      NEW.dept_head_status := 'not_applicable';
+    ELSE
+      NEW.department_id := r_dept;
     END IF;
-    
-    IF u_dept != r_dept THEN
-      RAISE EXCEPTION 'Access Denied: Room does not belong to requestor department.';
-    END IF;
-    
-    -- Ensure work request department_id matches user's department snapshot
-    NEW.department_id := u_dept;
   END IF;
   
   RETURN NEW;

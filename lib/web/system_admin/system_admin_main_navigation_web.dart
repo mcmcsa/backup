@@ -337,24 +337,9 @@ class _SystemAdminMainNavigationWebState
                 children: [
                   _buildHeader(isMobile: isMobile),
                   Expanded(
-                    child: Container(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 1400),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 250),
-                          transitionBuilder: (Widget child, Animation<double> animation) {
-                            return FadeTransition(
-                              opacity: animation,
-                              child: child,
-                            );
-                          },
-                          child: KeyedSubtree(
-                            key: ValueKey<String>(_isFacilityTab ? 'facility_management' : 'page_$_selectedIndex'),
-                            child: _buildBodyContent(),
-                          ),
-                        ),
-                      ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: _buildBodyContent(),
                     ),
                   ),
                 ],
@@ -783,16 +768,24 @@ class _SystemAdminMainNavigationWebState
                         backgroundColor: Color(0xFF0F766E),
                         child: Icon(Icons.person_rounded, size: 16, color: Colors.white),
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _userName,
-                        style: const TextStyle(
-                          color: Color(0xFF475569),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                      if (constraints.maxWidth > 480) ...[
+                        const SizedBox(width: 8),
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: constraints.maxWidth > 700 ? 180 : 110,
+                          ),
+                          child: Text(
+                            _userName,
+                            style: const TextStyle(
+                              color: Color(0xFF475569),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      ],
                     ],
                   ),
                 ],

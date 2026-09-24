@@ -4,7 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../shared/models/room_model.dart';
-import '../../../../shared/services/building_service.dart';
+import '../../../../shared/models/department_model.dart';
 import '../../../../shared/services/floor_service.dart';
 import '../../../../shared/services/qr_code_history_service.dart';
 import '../../../../shared/services/room_service.dart';
@@ -25,7 +25,7 @@ class AdminEditRoomPageWeb extends StatefulWidget {
 }
 
 class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
-  static const String _noDepartmentOption = 'Not specified';
+  static const String _noDepartmentOption = 'None';
 
   final _dropdownHelper = DropdownDataHelper();
   late TextEditingController _roomCodeController;
@@ -132,10 +132,10 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
       }
     });
 
-    await _loadDepartmentsByBuilding(_selectedBuilding);
+    await _loadDepartmentsByBuilding(_selectedBuilding, isInitial: true);
   }
 
-  Future<void> _loadDepartmentsByBuilding(String buildingName) async {
+  Future<void> _loadDepartmentsByBuilding(String buildingName, {bool isInitial = false}) async {
     final normalizedBuilding = buildingName.trim();
     if (normalizedBuilding.isEmpty) {
       if (!mounted) return;
@@ -167,12 +167,11 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
       _departmentOptions = departments;
       if (_selectedDepartment != _noDepartmentOption &&
           !_departmentOptions.contains(_selectedDepartment)) {
-        if (_selectedDepartment == widget.room.department) {
+        if (isInitial && _selectedDepartment == widget.room.department && widget.room.building == buildingName) {
           _departmentOptions = [..._departmentOptions, _selectedDepartment];
         } else {
-          _selectedDepartment = _departmentOptions.isNotEmpty
-              ? _departmentOptions.first
-              : _noDepartmentOption;
+          // Do not auto-select department when building changes; default to None
+          _selectedDepartment = _noDepartmentOption;
         }
       }
     });
@@ -628,29 +627,31 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
 
     try {
       final buildingName = _selectedBuilding.trim();
-      final departmentName = _selectedDepartment == _noDepartmentOption
-          ? ''
-          : _selectedDepartment.trim();
+      final isNoneDepartment = _selectedDepartment == _noDepartmentOption || _selectedDepartment.trim().isEmpty;
+      final departmentName = isNoneDepartment ? '' : _selectedDepartment.trim();
 
-      if (departmentName.isEmpty) {
-        throw Exception('Please select a department');
-      }
-
-      final department = await _dropdownHelper.getDepartmentByName(
-        departmentName,
-      );
-      if (department == null) {
-        throw Exception('Selected department was not found');
-      }
-
-      final building = await BuildingService.fetchByNameAndDepartment(
-        buildingName,
-        department.id,
-      );
+      final building = await _dropdownHelper.getBuildingByName(buildingName);
       if (building == null) {
-        throw Exception(
-          'Selected building was not found under the selected department',
+        throw Exception('Selected building was not found');
+      }
+
+      Department? department;
+      if (!isNoneDepartment) {
+        department = await _dropdownHelper.getDepartmentByName(
+          departmentName,
         );
+        if (department == null) {
+          throw Exception('Selected department was not found');
+        }
+
+        final validDeptNames = await _dropdownHelper.getDepartmentNamesByBuilding(
+          building.id,
+        );
+        if (!validDeptNames.contains(departmentName)) {
+          throw Exception(
+            'Selected department "$departmentName" is not associated with "$buildingName"',
+          );
+        }
       }
 
       final floor = await FloorService.findOrCreateByName(_selectedFloor);
@@ -683,8 +684,8 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
         floorId: floor.id,
         floor: _selectedFloor,
         seats: int.tryParse(_capacityController.text) ?? widget.room.seats,
-        departmentId: department.id,
-        department: departmentName,
+        departmentId: department?.id ?? '',
+        department: department?.name ?? '',
         roomTypeId: roomType.id,
         roomType: _selectedRoomType,
         status: _selectedStatus,
@@ -871,7 +872,7 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
                 child: _buildFieldBlock(
                   label: 'Department',
                   child: _buildDropdown(
-                    value: _selectedDepartment,
+                    value: _selectedDepartment.isEmpty ? _noDepartmentOption : _selectedDepartment,
                     items: [_noDepartmentOption, ..._departmentOptions],
                     onChanged: _isBuildingSelected
                         ? (v) {

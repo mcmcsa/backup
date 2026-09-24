@@ -139,13 +139,22 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
     try {
       final room = await RoomService.findRoomByScannedCode(code);
       if (room != null && mounted) {
-        if (_selectedCollege.isNotEmpty &&
+        final user = context.read<AuthService>().currentUser;
+        bool isDenied = false;
+
+        if (user?.departmentId != null && user!.departmentId!.isNotEmpty && room.departmentId.isNotEmpty) {
+          isDenied = (user.departmentId != room.departmentId);
+        } else if (_selectedCollege.isNotEmpty &&
             room.department.isNotEmpty &&
             room.department.toLowerCase() != _selectedCollege.toLowerCase()) {
+          isDenied = true;
+        }
+
+        if (isDenied) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                'Access Denied: Room ${room.code} belongs to ${room.department}. You can only file requests for rooms in your department ($_selectedCollege).',
+                'Access Denied: Room ${room.code} belongs to ${room.department}. You can only file requests for rooms in your department${_selectedCollege.isNotEmpty ? ' ($_selectedCollege)' : ''}.',
               ),
               backgroundColor: AdminStyles.error,
               duration: const Duration(seconds: 4),
@@ -364,20 +373,32 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       
       final building = await helper.getBuildingByName(_selectedBuilding);
       final dept = await helper.getDepartmentByName(_selectedCollege);
+      final roomHasDept = room.departmentId.trim().isNotEmpty;
 
-      // Layer 1: Validate room belongs to requestor department
-      if (_selectedCollege.isNotEmpty &&
-          room.department.isNotEmpty &&
-          room.department.toLowerCase() != _selectedCollege.toLowerCase()) {
-        throw 'Access Denied: Room ${room.code} belongs to ${room.department}, not your department ($_selectedCollege). You may only request maintenance for rooms in your department.';
-      }
+      // Layer 1: Validate room belongs to requestor department only if room is department-owned
+      if (roomHasDept) {
+        bool isDeptMismatch = false;
+        if (user?.departmentId != null && user!.departmentId!.isNotEmpty) {
+          isDeptMismatch = (user.departmentId != room.departmentId);
+        } else if (dept != null) {
+          isDeptMismatch = (dept.id != room.departmentId);
+        } else if (_selectedCollege.isNotEmpty &&
+            room.department.isNotEmpty &&
+            room.department.toLowerCase() != _selectedCollege.toLowerCase()) {
+          isDeptMismatch = true;
+        }
 
-      // Check active Department Head designation if requestor is not Head
-      if (dept != null) {
-        final headUserId = dept.headUserId ?? await DepartmentService.fetchDepartmentHeadUserId(dept.id);
-        final isHead = (dept.headUserId != null && dept.headUserId == user?.id);
-        if (!isHead && (headUserId == null || headUserId.isEmpty)) {
-          throw 'Cannot submit: No active Department Head is currently designated for $_selectedCollege. Please contact the administrator before filing a request.';
+        if (isDeptMismatch) {
+          throw 'Access Denied: Room ${room.code} belongs to ${room.department}, not your department ($_selectedCollege). You may only request maintenance for rooms in your department.';
+        }
+
+        // Check active Department Head designation for department-owned room
+        if (dept != null) {
+          final headUserId = dept.headUserId ?? await DepartmentService.fetchDepartmentHeadUserId(dept.id);
+          final isHead = (dept.headUserId != null && dept.headUserId == user?.id);
+          if (!isHead && (headUserId == null || headUserId.isEmpty)) {
+            throw 'Cannot submit: No active Department Head is currently designated for $_selectedCollege. Please contact the administrator before filing a request.';
+          }
         }
       }
       
@@ -398,8 +419,8 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         priority: _selectedPriority,
         buildingName: _selectedBuilding,
         buildingId: building?.id,
-        departmentName: _selectedCollege,
-        departmentId: dept?.id,
+        departmentName: roomHasDept ? (room.department.isNotEmpty ? room.department : _selectedCollege) : null,
+        departmentId: roomHasDept ? (room.departmentId.isNotEmpty ? room.departmentId : dept?.id) : null,
         roomId: room.id,
         roomName: _officeRoomNameController.text.trim().isNotEmpty ? _officeRoomNameController.text.trim() : room.name,
         requestTypeId: typeRecord?.id,

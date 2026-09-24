@@ -201,34 +201,71 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
 
     return LayoutBuilder(builder: (ctx, constraints) {
       final isMobile = constraints.maxWidth < 800;
+      if (isMobile) {
+        return Container(
+          color: AdminStyles.bg,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(true),
+                const SizedBox(height: 16),
+                _buildStatCards(true),
+                const SizedBox(height: 16),
+                _buildToolbar(true),
+                const SizedBox(height: 16),
+                if (_filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 40),
+                    child: _buildEmpty(),
+                  )
+                else ...[
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _paginated.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 12),
+                    itemBuilder: (ctx, i) => _buildCard(_paginated[i]),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildPagination(true),
+                  const SizedBox(height: 24),
+                ],
+              ],
+            ),
+          ),
+        );
+      }
+
       return Container(
         color: AdminStyles.bg,
         child: Column(
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(isMobile ? 16 : 32, isMobile ? 16 : 28, isMobile ? 16 : 32, 0),
+              padding: const EdgeInsets.fromLTRB(32, 28, 32, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(isMobile),
+                  _buildHeader(false),
                   const SizedBox(height: 20),
-                  _buildStatCards(isMobile),
+                  _buildStatCards(false),
                   const SizedBox(height: 20),
-                  _buildToolbar(isMobile),
+                  _buildToolbar(false),
                   const SizedBox(height: 16),
                 ],
               ),
             ),
             Expanded(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32),
-                child: _filtered.isEmpty ? _buildEmpty() : _buildCardsGrid(isMobile),
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: _filtered.isEmpty ? _buildEmpty() : _buildCardsGrid(false),
               ),
             ),
             if (_filtered.isNotEmpty)
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: 12),
-                child: _buildPagination(isMobile),
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                child: _buildPagination(false),
               ),
           ],
         ),
@@ -283,23 +320,11 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
     ];
 
     if (isMobile) {
-      return LayoutBuilder(
-        builder: (context, cardConstraints) {
-          if (cardConstraints.maxWidth < 450) {
-            return Column(
-              children: cards.map((c) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: SizedBox(width: double.infinity, child: _buildStatTile(c)),
-              )).toList(),
-            );
-          }
-          return Row(
-            children: cards.asMap().entries.expand((e) => [
-              Expanded(child: _buildStatTile(e.value)),
-              if (e.key < cards.length - 1) const SizedBox(width: 10),
-            ]).toList(),
-          );
-        },
+      return Row(
+        children: cards.asMap().entries.expand((e) => [
+          Expanded(child: _buildStatTile(e.value, isMobile: true)),
+          if (e.key < cards.length - 1) const SizedBox(width: 8),
+        ]).toList(),
       );
     }
     return Row(
@@ -310,35 +335,55 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
     );
   }
 
-  Widget _buildStatTile(_Stat s) {
+  Widget _buildStatTile(_Stat s, {bool isMobile = false}) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 16, vertical: isMobile ? 12 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AdminStyles.border),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3))],
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(color: s.color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-            child: Icon(s.icon, color: s.color, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+      child: isMobile
+          ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text('${s.value}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: s.color, letterSpacing: -0.5)),
-                Text(s.label, style: AdminStyles.bodyStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: 28, height: 28,
+                      decoration: BoxDecoration(color: s.color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                      child: Icon(s.icon, color: s.color, size: 16),
+                    ),
+                    Text('${s.value}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: s.color)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(s.label, style: AdminStyles.bodyStyle(fontSize: 11, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            )
+          : Row(
+              children: [
+                Container(
+                  width: 42, height: 42,
+                  decoration: BoxDecoration(color: s.color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                  child: Icon(s.icon, color: s.color, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('${s.value}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: s.color, letterSpacing: -0.5)),
+                      Text(s.label, style: AdminStyles.bodyStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -440,15 +485,29 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
       );
 
   Widget _buildCardsGrid(bool isMobile) {
-    return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: isMobile ? 1 : 3,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: isMobile ? 1.4 : 1.3,
-      ),
-      itemCount: _paginated.length,
-      itemBuilder: (ctx, i) => _buildCard(_paginated[i]),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        int crossAxisCount = 3;
+        double aspect = 1.35;
+        if (width < 680) {
+          crossAxisCount = 1;
+          aspect = 1.45;
+        } else if (width < 1080) {
+          crossAxisCount = 2;
+          aspect = 1.3;
+        }
+        return GridView.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: aspect,
+          ),
+          itemCount: _paginated.length,
+          itemBuilder: (ctx, i) => _buildCard(_paginated[i]),
+        );
+      },
     );
   }
 
@@ -475,25 +534,31 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  _PriorityBadge(priority: a.priority),
-                  if (a.isPinned) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(color: AdminStyles.warning.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.push_pin_rounded, size: 10, color: AdminStyles.warning),
-                          const SizedBox(width: 4),
-                          const Text('PINNED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AdminStyles.warning)),
-                        ],
+              Flexible(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _PriorityBadge(priority: a.priority),
+                    if (a.isPinned) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(color: AdminStyles.warning.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.push_pin_rounded, size: 10, color: AdminStyles.warning),
+                            SizedBox(width: 4),
+                            Text('PINNED', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AdminStyles.warning)),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
@@ -696,12 +761,16 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
+    final height = MediaQuery.of(context).size.height;
     final isMobile = width < 600;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: isMobile ? width * 0.95 : 600),
+        constraints: BoxConstraints(
+          maxWidth: isMobile ? width * 0.95 : 600,
+          maxHeight: height * 0.88,
+        ),
         child: SingleChildScrollView(
           padding: EdgeInsets.all(isMobile ? 18 : 28),
           child: Form(
@@ -744,6 +813,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                   _label('Priority'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: _priority,
                     decoration: _inputDecor(Icons.flag_outlined),
                     items: const [
@@ -758,6 +828,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                   _label('Status'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: _status,
                     decoration: _inputDecor(Icons.toggle_on_outlined),
                     items: const [
@@ -777,6 +848,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                             _label('Priority'),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
+                              isExpanded: true,
                               initialValue: _priority,
                               decoration: _inputDecor(Icons.flag_outlined),
                               items: const [
@@ -798,6 +870,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                             _label('Status'),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
+                              isExpanded: true,
                               initialValue: _status,
                               decoration: _inputDecor(Icons.toggle_on_outlined),
                               items: const [
@@ -916,6 +989,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                   _label('Display Type'),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: _displayType,
                     decoration: _inputDecor(Icons.web_asset_rounded),
                     items: const [
@@ -947,6 +1021,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                             _label('Display Type'),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
+                              isExpanded: true,
                               initialValue: _displayType,
                               decoration: _inputDecor(Icons.web_asset_rounded),
                               items: const [
@@ -1002,33 +1077,73 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                   ),
                 ],
                 const SizedBox(height: 24),
-                Row(children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AdminStyles.textSecondary,
-                        side: const BorderSide(color: AdminStyles.border),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _saving ? null : _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AdminStyles.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: _saving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Save Announcement', style: TextStyle(fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                ]),
+                LayoutBuilder(
+                  builder: (context, btnConstraints) {
+                    if (btnConstraints.maxWidth < 360) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ElevatedButton(
+                            onPressed: _saving ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AdminStyles.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: _saving
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Text('Save Announcement', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                          ),
+                          const SizedBox(height: 10),
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AdminStyles.textSecondary,
+                              side: const BorderSide(color: AdminStyles.border),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AdminStyles.textSecondary,
+                              side: const BorderSide(color: AdminStyles.border),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 3,
+                          child: ElevatedButton(
+                            onPressed: _saving ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AdminStyles.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            child: _saving
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Text('Save Announcement', style: TextStyle(fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ],
             ),
           ),

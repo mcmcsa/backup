@@ -160,10 +160,8 @@ class Room {
       if (roomTypeId.isNotEmpty) 'room_type_id': roomTypeId,
       'status': status,
       'image_url': imageUrl,
+      'department_id': departmentId.isNotEmpty ? departmentId : null,
     };
-    if (departmentId.isNotEmpty) {
-      map['department_id'] = departmentId;
-    }
     if (qrCodeData != null) {
       map['qr_code_data'] = qrCodeData;
     }

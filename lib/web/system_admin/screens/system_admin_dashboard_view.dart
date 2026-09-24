@@ -536,30 +536,40 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
       children: [
         _buildSectionLabel('Quick Actions'),
         const SizedBox(height: 14),
-        isMobile
-            ? LayoutBuilder(
-                builder: (context, constraints) {
-                  final crossCount = constraints.maxWidth < 420 ? 1 : 2;
-                  final aspect = constraints.maxWidth < 420 ? 3.8 : 2.2;
-                  return GridView.count(
-                    crossAxisCount: crossCount,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: aspect,
-                    children: actions.map(_buildQuickActionTile).toList(),
-                  );
-                },
-              )
-            : Row(
-                children: actions
-                    .map((a) => Expanded(child: _buildQuickActionTile(a)))
-                    .toList()
-                    .expand((w) => [w, const SizedBox(width: 12)])
-                    .toList()
-                  ..removeLast(),
-              ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            if (width < 450) {
+              return GridView.count(
+                crossAxisCount: 1,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 3.8,
+                children: actions.map(_buildQuickActionTile).toList(),
+              );
+            } else if (width < 960) {
+              return GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 2.6,
+                children: actions.map(_buildQuickActionTile).toList(),
+              );
+            }
+            return Row(
+              children: actions
+                  .map((a) => Expanded(child: _buildQuickActionTile(a)))
+                  .toList()
+                  .expand((w) => [w, const SizedBox(width: 12)])
+                  .toList()
+                ..removeLast(),
+            );
+          },
+        ),
       ],
     );
   }
@@ -747,23 +757,20 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         if (width < 550) {
-          return GridView.count(
-            crossAxisCount: 1,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 2.4,
-            children: cards.map(_buildStatCardWidget).toList(),
+          return Column(
+            children: cards.map((c) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildStatCardWidget(c),
+            )).toList(),
           );
-        } else if (width < 800) {
+        } else if (width < 960) {
           return GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 1.45,
+            childAspectRatio: 1.35,
             children: cards.map(_buildStatCardWidget).toList(),
           );
         }
@@ -781,6 +788,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
 
   Widget _buildStatCardWidget(_StatCard card) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -796,7 +804,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -842,7 +850,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
                 ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
@@ -867,6 +875,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
+          const SizedBox(height: 2),
           Text(
             card.subtitle,
             style: AdminStyles.bodyStyle(

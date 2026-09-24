@@ -286,40 +286,48 @@ class _AdminRequestTypesWebState extends State<AdminRequestTypesWeb> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: _pageBg,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Request Types',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: _darkText,
-                letterSpacing: -0.5,
-              ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 700;
+        return Container(
+          color: _pageBg,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 16 : 32,
+              vertical: isMobile ? 20 : 32,
             ),
-            const SizedBox(height: 24),
-            _buildSearchAndActions(),
-            const SizedBox(height: 14),
-            FacilityQuickActionsRow(
-              activeIndex: widget.activeIndex,
-              onSelect: widget.onNavigate,
-              config: widget.quickActionsConfig,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Request Types',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: _darkText,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _buildSearchAndActions(),
+                const SizedBox(height: 14),
+                FacilityQuickActionsRow(
+                  activeIndex: widget.activeIndex,
+                  onSelect: widget.onNavigate,
+                  config: widget.quickActionsConfig,
+                ),
+                const SizedBox(height: 24),
+                if (_isLoading)
+                  const Center(
+                    child: CircularProgressIndicator(color: _primaryBlue),
+                  )
+                else
+                  _buildRequestTypesTable(),
+              ],
             ),
-            const SizedBox(height: 24),
-            if (_isLoading)
-              const Center(
-                child: CircularProgressIndicator(color: _primaryBlue),
-              )
-            else
-              _buildRequestTypesTable(),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

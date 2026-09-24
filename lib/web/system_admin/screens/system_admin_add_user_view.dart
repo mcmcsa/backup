@@ -275,6 +275,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                       _buildInputWrapper(
                                         label: 'Department',
                                         child: DropdownButtonFormField<String?>(
+                                          isExpanded: true,
                                           initialValue: _selectedDeptId,
                                           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textSecondary),
                                           decoration: _inputDecoration(icon: Icons.business_rounded),
@@ -286,7 +287,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                             ...widget.departments.map<DropdownMenuItem<String?>>((d) {
                                               return DropdownMenuItem<String?>(
                                                 value: d.id,
-                                                child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
+                                                child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
                                               );
                                             }),
                                           ],
@@ -371,6 +372,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                             child: _buildInputWrapper(
                                               label: 'Department',
                                               child: DropdownButtonFormField<String?>(
+                                                isExpanded: true,
                                                 initialValue: _selectedDeptId,
                                                 icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textSecondary),
                                                 decoration: _inputDecoration(icon: Icons.business_rounded),
@@ -382,7 +384,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                                   ...widget.departments.map<DropdownMenuItem<String?>>((d) {
                                                     return DropdownMenuItem<String?>(
                                                       value: d.id,
-                                                      child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
+                                                      child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
                                                     );
                                                   }),
                                                 ],
@@ -451,32 +453,68 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                       ],
 
                       // Actions
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          TextButton(
-                            onPressed: widget.onCancel,
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                              foregroundColor: AdminStyles.textSecondary,
-                            ),
-                            child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
-                          ),
-                          const SizedBox(width: 16),
-                          ElevatedButton(
-                            onPressed: _isLoading ? null : _submit,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AdminStyles.primary,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 2,
-                            ),
-                            child: _isLoading
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                : const Text('Create User Account', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                          ),
-                        ],
+                      LayoutBuilder(
+                        builder: (context, actionConstraints) {
+                          final isNarrow = actionConstraints.maxWidth < 450;
+                          if (isNarrow) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ElevatedButton(
+                                  onPressed: _isLoading ? null : _submit,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AdminStyles.primary,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    elevation: 2,
+                                  ),
+                                  child: _isLoading
+                                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                      : const Text('Create User Account', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                                ),
+                                const SizedBox(height: 12),
+                                OutlinedButton(
+                                  onPressed: widget.onCancel,
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    foregroundColor: AdminStyles.textSecondary,
+                                    side: const BorderSide(color: AdminStyles.border),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            );
+                          }
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: widget.onCancel,
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                                  foregroundColor: AdminStyles.textSecondary,
+                                ),
+                                child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                              const SizedBox(width: 16),
+                              ElevatedButton(
+                                onPressed: _isLoading ? null : _submit,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AdminStyles.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  elevation: 2,
+                                ),
+                                child: _isLoading
+                                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                    : const Text('Create User Account', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 60),
                     ],
@@ -614,7 +652,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AdminStyles.error, width: 2),
       ),
-      contentPadding: const EdgeInsets.symmetric(vertical: 18),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
   }
 

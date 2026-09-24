@@ -850,19 +850,30 @@ class _SystemAdminQrManagementViewState
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Column(
-          children: [
-            _buildTableHeader(),
-            const Divider(height: 1, color: AdminStyles.border),
-            Expanded(
-              child: ListView.separated(
-                itemCount: rows.length,
-                separatorBuilder: (context, index) =>
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final tableWidth = constraints.maxWidth < 920 ? 920.0 : constraints.maxWidth;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: tableWidth,
+                child: Column(
+                  children: [
+                    _buildTableHeader(),
                     const Divider(height: 1, color: AdminStyles.border),
-                itemBuilder: (_, i) => _buildTableRow(rows[i]),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: rows.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, color: AdminStyles.border),
+                        itemBuilder: (_, i) => _buildTableRow(rows[i]),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

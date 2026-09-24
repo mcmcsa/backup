@@ -12,6 +12,8 @@ class SystemAdminAuditLogsView extends StatefulWidget {
   State<SystemAdminAuditLogsView> createState() => _SystemAdminAuditLogsViewState();
 }
 
+enum DateFilterPreset { all, today, thisWeek, thisMonth, thisYear, custom }
+
 class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
   bool _loading = true;
   String? _error;
@@ -22,6 +24,7 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
   final _searchCtrl = TextEditingController();
   DateTime? _startDate;
   DateTime? _endDate;
+  DateFilterPreset _datePreset = DateFilterPreset.all;
   String _roleFilter = 'all';
 
   // Pagination
@@ -87,7 +90,7 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
       }
       if (_roleFilter != 'all' && log.role.toLowerCase() != _roleFilter.toLowerCase()) return false;
       if (_startDate != null && log.loggedInAt.isBefore(_startDate!)) return false;
-      if (_endDate != null && log.loggedInAt.isAfter(_endDate!.add(const Duration(days: 1)))) return false;
+      if (_endDate != null && log.loggedInAt.isAfter(_endDate!)) return false;
       return true;
     }).toList();
   }
@@ -100,6 +103,191 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
   }
 
   int get _totalPages => (_filteredLogs.isEmpty ? 1 : ((_filteredLogs.length - 1) / _pageSize).ceil());
+
+  // ── Date Preset & Picker Methods ──────────────────────────────────────────
+
+  void _applyPreset(DateFilterPreset preset) {
+    final now = DateTime.now();
+    setState(() {
+      _datePreset = preset;
+      _page = 0;
+      switch (preset) {
+        case DateFilterPreset.all:
+          _startDate = null;
+          _endDate = null;
+          break;
+        case DateFilterPreset.today:
+          _startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
+          _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+          break;
+        case DateFilterPreset.thisWeek:
+          final monday = now.subtract(Duration(days: now.weekday - 1));
+          final sunday = monday.add(const Duration(days: 6));
+          _startDate = DateTime(monday.year, monday.month, monday.day, 0, 0, 0);
+          _endDate = DateTime(sunday.year, sunday.month, sunday.day, 23, 59, 59, 999);
+          break;
+        case DateFilterPreset.thisMonth:
+          _startDate = DateTime(now.year, now.month, 1, 0, 0, 0);
+          final lastDayOfMonth = DateTime(now.year, now.month + 1, 0);
+          _endDate = DateTime(lastDayOfMonth.year, lastDayOfMonth.month, lastDayOfMonth.day, 23, 59, 59, 999);
+          break;
+        case DateFilterPreset.thisYear:
+          _startDate = DateTime(now.year, 1, 1, 0, 0, 0);
+          _endDate = DateTime(now.year, 12, 31, 23, 59, 59, 999);
+          break;
+        case DateFilterPreset.custom:
+          _startDate ??= DateTime(now.year, now.month, now.day, 0, 0, 0);
+          _endDate ??= DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+          break;
+      }
+    });
+  }
+
+  Future<void> _pickFromDate() async {
+    final now = DateTime.now();
+    final initialDate = _startDate ?? now;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: _endDate ?? DateTime(2035),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AdminStyles.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AdminStyles.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _startDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
+        if (_endDate != null && _startDate!.isAfter(_endDate!)) {
+          _endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59, 999);
+        }
+        _datePreset = DateFilterPreset.custom;
+        _page = 0;
+      });
+    }
+  }
+
+  Future<void> _pickToDate() async {
+    final now = DateTime.now();
+    final initialDate = _endDate ?? (_startDate ?? now);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: _startDate ?? DateTime(2020),
+      lastDate: DateTime(2035),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AdminStyles.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AdminStyles.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59, 999);
+        if (_startDate != null && _endDate!.isBefore(_startDate!)) {
+          _startDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
+        }
+        _datePreset = DateFilterPreset.custom;
+        _page = 0;
+      });
+    }
+  }
+
+  Widget _buildPresetChip(String label, DateFilterPreset preset) {
+    final isSelected = _datePreset == preset;
+    return InkWell(
+      onTap: () => _applyPreset(preset),
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AdminStyles.primary
+              : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? AdminStyles.primary
+                : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected ? Colors.white : AdminStyles.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateButton({
+    required String label,
+    required DateTime? selectedDate,
+    required VoidCallback onTap,
+  }) {
+    final hasDate = selectedDate != null;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: hasDate
+              ? AdminStyles.primary.withValues(alpha: 0.08)
+              : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: hasDate
+                ? AdminStyles.primary.withValues(alpha: 0.4)
+                : const Color(0xFFCBD5E1),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.calendar_month_rounded,
+              size: 14,
+              color: hasDate ? AdminStyles.primary : AdminStyles.textMuted,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              hasDate
+                  ? '$label: ${DateFormat('MMM d, yyyy').format(selectedDate)}'
+                  : '$label Date',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: hasDate ? FontWeight.w700 : FontWeight.w600,
+                color: hasDate ? AdminStyles.primary : AdminStyles.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   // ── Exports ─────────────────────────────────────────────────────────────
 
@@ -232,7 +420,21 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
             ],
           ),
         ),
-        if (!isMobile) ...[
+        if (isMobile) ...[
+          IconButton(
+            icon: Icon(
+              _isTimelineView ? Icons.table_chart_rounded : Icons.timeline_rounded,
+              color: AdminStyles.primary,
+            ),
+            tooltip: _isTimelineView ? 'Switch to Table View' : 'Switch to Timeline View',
+            onPressed: () => setState(() => _isTimelineView = !_isTimelineView),
+          ),
+          IconButton(
+            icon: const Icon(Icons.download_rounded, color: AdminStyles.primary),
+            tooltip: 'Export CSV',
+            onPressed: _exportCSV,
+          ),
+        ] else ...[
           Container(
             width: 200,
             height: 44,
@@ -277,114 +479,56 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
 
   Widget _buildToolbar(bool isMobile) {
     final searchBox = Container(
-      height: 44,
+      height: 42,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AdminStyles.border),
       ),
       child: TextField(
         controller: _searchCtrl,
-        style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary, fontWeight: FontWeight.w600),
+        style: AdminStyles.bodyStyle(
+          color: AdminStyles.textPrimary,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
         decoration: InputDecoration(
           hintText: 'Search user, action, or details…',
-          hintStyle: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
-          prefixIcon: const Icon(Icons.search_rounded, color: AdminStyles.textMuted, size: 20),
+          hintStyle: AdminStyles.bodyStyle(
+            color: AdminStyles.textMuted,
+            fontSize: 13,
+          ),
+          prefixIcon: const Icon(Icons.search_rounded,
+              color: AdminStyles.textMuted, size: 20),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
           filled: false,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-        ),
-      ),
-    );
-
-    final dateFilter = InkWell(
-      onTap: () async {
-        final range = await showDialog<DateTimeRange>(
-          context: context,
-          builder: (ctx) => Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            clipBehavior: Clip.antiAlias,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500, maxHeight: 560),
-              child: Theme(
-                data: ThemeData.light().copyWith(
-                  colorScheme: const ColorScheme.light(
-                    primary: AdminStyles.primary,
-                    onPrimary: Colors.white,
-                    surface: Colors.white,
-                    onSurface: AdminStyles.textPrimary,
-                  ),
-                ),
-                child: DateRangePickerDialog(
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime.now(),
-                  initialDateRange: _startDate != null && _endDate != null
-                      ? DateTimeRange(start: _startDate!, end: _endDate!)
-                      : null,
-                ),
-              ),
-            ),
-          ),
-        );
-        if (range != null) {
-          setState(() {
-            _startDate = range.start;
-            _endDate = range.end;
-            _page = 0;
-          });
-        }
-      },
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AdminStyles.border),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.calendar_today_rounded, size: 16, color: AdminStyles.textMuted),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _startDate != null && _endDate != null
-                    ? '${DateFormat.MMMd().format(_startDate!)} - ${DateFormat.MMMd().format(_endDate!)}'
-                    : 'Any Date',
-                style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600, color: AdminStyles.textPrimary),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (_startDate != null)
-              GestureDetector(
-                onTap: () => setState(() {
-                  _startDate = null;
-                  _endDate = null;
-                  _page = 0;
-                }),
-                child: const Icon(Icons.close_rounded, size: 16, color: AdminStyles.textMuted),
-              )
-          ],
+          contentPadding:
+              const EdgeInsets.symmetric(vertical: 11, horizontal: 4),
         ),
       ),
     );
 
     final roleFilter = Container(
-      height: 44,
+      height: 42,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AdminStyles.border),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _roleFilter,
           isExpanded: true,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textMuted, size: 18),
-          style: AdminStyles.bodyStyle(color: AdminStyles.textPrimary, fontWeight: FontWeight.w600),
+          icon: const Icon(Icons.keyboard_arrow_down_rounded,
+              color: AdminStyles.textMuted, size: 18),
+          style: AdminStyles.bodyStyle(
+            color: AdminStyles.textPrimary,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
           items: const [
             DropdownMenuItem(value: 'all', child: Text('All Roles')),
             DropdownMenuItem(value: 'admin', child: Text('System Admin')),
@@ -400,39 +544,104 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
       ),
     );
 
+    final presetButtons = [
+      _buildPresetChip('All Time', DateFilterPreset.all),
+      _buildPresetChip('Today', DateFilterPreset.today),
+      _buildPresetChip('This Week', DateFilterPreset.thisWeek),
+      _buildPresetChip('This Month', DateFilterPreset.thisMonth),
+      _buildPresetChip('This Year', DateFilterPreset.thisYear),
+    ];
+
+    final customDateControls = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildDateButton(
+          label: 'From',
+          selectedDate: _startDate,
+          onTap: _pickFromDate,
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 6),
+          child: Icon(Icons.arrow_forward_rounded,
+              size: 14, color: AdminStyles.textMuted),
+        ),
+        _buildDateButton(
+          label: 'To',
+          selectedDate: _endDate,
+          onTap: _pickToDate,
+        ),
+        if (_startDate != null || _endDate != null) ...[
+          const SizedBox(width: 6),
+          Tooltip(
+            message: 'Clear date filter',
+            child: InkWell(
+              onTap: () => _applyPreset(DateFilterPreset.all),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AdminStyles.border),
+                ),
+                child: const Icon(Icons.close_rounded,
+                    size: 16, color: AdminStyles.textSecondary),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+
     if (isMobile) {
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           searchBox,
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: dateFilter),
-              const SizedBox(width: 8),
-              Expanded(child: roleFilter),
-            ],
-          ),
-          const SizedBox(height: 8),
+          roleFilter,
+          const SizedBox(height: 10),
           Container(
-            height: 44,
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AdminStyles.border),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ViewToggleBtn(
-                  icon: Icons.table_chart_rounded,
-                  label: 'Table',
-                  isActive: !_isTimelineView,
-                  onTap: () => setState(() => _isTimelineView = false),
+                Row(
+                  children: [
+                    const Icon(Icons.filter_alt_outlined,
+                        size: 15, color: AdminStyles.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Date Filter:',
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AdminStyles.textPrimary,
+                      ),
+                    ),
+                  ],
                 ),
-                _ViewToggleBtn(
-                  icon: Icons.timeline_rounded,
-                  label: 'Timeline',
-                  isActive: _isTimelineView,
-                  onTap: () => setState(() => _isTimelineView = true),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: presetButtons
+                        .map((b) =>
+                            Padding(padding: const EdgeInsets.only(right: 6), child: b))
+                        .toList(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: AdminStyles.border),
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: customDateControls,
                 ),
               ],
             ),
@@ -441,14 +650,96 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
       );
     }
 
-    return Row(
-      children: [
-        Expanded(flex: 3, child: searchBox),
-        const SizedBox(width: 10),
-        Expanded(flex: 2, child: dateFilter),
-        const SizedBox(width: 10),
-        Expanded(flex: 2, child: roleFilter),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 1120;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Row 1: Search & Role Filter
+            Row(
+              children: [
+                Expanded(child: searchBox),
+                const SizedBox(width: 12),
+                SizedBox(width: 200, child: roleFilter),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Row 2: Date Filtering Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AdminStyles.border),
+              ),
+              child: isNarrow
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.date_range_rounded,
+                                size: 16, color: AdminStyles.primary),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Date Filter:',
+                              style: AdminStyles.bodyStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AdminStyles.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: presetButtons
+                                      .map((b) => Padding(
+                                          padding:
+                                              const EdgeInsets.only(right: 6),
+                                          child: b))
+                                      .toList(),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Divider(height: 1, color: AdminStyles.border),
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: customDateControls,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        const Icon(Icons.date_range_rounded,
+                            size: 16, color: AdminStyles.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Date Filter:',
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AdminStyles.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        ...presetButtons.map((b) => Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: b)),
+                        const Spacer(),
+                        customDateControls,
+                      ],
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -474,36 +765,58 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AdminStyles.border),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Column(
-          children: [
-            Container(
-              color: const Color(0xFFF8FAFC),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-              child: Row(
-                children: [
-                  _th('Timestamp', flex: 2),
-                  _th('User & Role', flex: 3),
-                  _th('Action', flex: 2),
-                  _th('Affected Record', flex: 3),
-                  _th('Device/IP', flex: 2),
-                  _th('Status', flex: 1, center: true),
-                ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const minTableWidth = 1150.0;
+            final tableWidth = constraints.maxWidth < minTableWidth
+                ? minTableWidth
+                : constraints.maxWidth;
+
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: tableWidth,
+                height: constraints.maxHeight,
+                child: Column(
+                  children: [
+                    Container(
+                      color: const Color(0xFFF8FAFC),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
+                      child: Row(
+                        children: [
+                          _th('Timestamp', flex: 2),
+                          _th('User & Role', flex: 3),
+                          _th('Action', flex: 3),
+                          _th('Affected Record', flex: 4),
+                          _th('Device / IP', flex: 2),
+                          _th('Status', flex: 1, center: true),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: AdminStyles.border),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: _paginated.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, color: AdminStyles.border),
+                        itemBuilder: (_, i) => _buildTableRow(_paginated[i]),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1, color: AdminStyles.border),
-            Expanded(
-              child: ListView.separated(
-                itemCount: _paginated.length,
-                separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
-                itemBuilder: (_, i) => _buildTableRow(_paginated[i]),
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -513,11 +826,16 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
     return Expanded(
       flex: flex,
       child: Padding(
-        padding: EdgeInsets.only(right: center ? 0 : 12),
+        padding: EdgeInsets.only(right: center ? 0 : 14),
         child: Text(
           label.toUpperCase(),
           textAlign: center ? TextAlign.center : TextAlign.left,
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AdminStyles.textMuted, letterSpacing: 1.0),
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: AdminStyles.textMuted,
+            letterSpacing: 0.8,
+          ),
         ),
       ),
     );
@@ -525,91 +843,294 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
 
   Widget _buildTableRow(LoginActivity log) {
     final actionColor = _getActionColor(log.eventType);
+    final roleColor = _getRoleColor(log.role);
+    final roleName = _formatRole(log.role);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       child: Row(
         children: [
+          // 1. Timestamp (flex: 2)
           Expanded(
             flex: 2,
             child: Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.only(right: 14),
+              child: Row(
                 children: [
-                  Text(DateFormat('MMM d, yyyy').format(log.loggedInAt), style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  Text(DateFormat('h:mm:ss a').format(log.loggedInAt), style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textSecondary)),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.access_time_rounded,
+                        size: 15, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          DateFormat('MMM d, yyyy').format(log.loggedInAt),
+                          style: AdminStyles.bodyStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                            color: AdminStyles.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          DateFormat('h:mm:ss a').format(log.loggedInAt),
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 11,
+                            color: AdminStyles.textMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
+
+          // 2. User & Role (flex: 3)
           Expanded(
             flex: 3,
             child: Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.only(right: 14),
+              child: Row(
                 children: [
-                  Text(log.userName, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AdminStyles.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text(_formatRole(log.role), style: AdminStyles.bodyStyle(fontSize: 11, color: _getRoleColor(log.role)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: roleColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        log.userName.isNotEmpty
+                            ? log.userName[0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          color: roleColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          log.userName,
+                          style: AdminStyles.bodyStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: AdminStyles.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: roleColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            roleName,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: roleColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
+
+          // 3. Action (flex: 3)
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Padding(
-              padding: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.only(right: 14),
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: actionColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: actionColor.withValues(alpha: 0.25), width: 1),
-                  ),
-                  child: Text(
-                    log.title,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: actionColor),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                child: Tooltip(
+                  message: log.title,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: actionColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border:
+                          Border.all(color: actionColor.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(_getActionIcon(log.eventType),
+                            size: 13, color: actionColor),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            log.title,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: actionColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
+
+          // 4. Affected Record (flex: 4)
           Expanded(
-            flex: 3,
+            flex: 4,
             child: Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Text(
-                log.details ?? log.workRequestId ?? '-',
-                style: AdminStyles.bodyStyle(fontSize: 12),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              padding: const EdgeInsets.only(right: 14),
+              child: Tooltip(
+                message: log.details ?? log.workRequestId ?? '-',
+                child: Row(
+                  children: [
+                    const Icon(Icons.article_outlined,
+                        size: 14, color: AdminStyles.textMuted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        log.details ?? log.workRequestId ?? '—',
+                        style: AdminStyles.bodyStyle(
+                          fontSize: 12,
+                          fontWeight: (log.details != null &&
+                                  log.details!.isNotEmpty &&
+                                  log.details != '-')
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                          color: (log.details != null &&
+                                  log.details!.isNotEmpty &&
+                                  log.details != '-')
+                              ? AdminStyles.textPrimary
+                              : AdminStyles.textMuted,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
+
+          // 5. Device / IP (flex: 2)
           Expanded(
             flex: 2,
             child: Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: const EdgeInsets.only(right: 14),
+              child: Row(
                 children: [
-                  Text('Browser', style: AdminStyles.bodyStyle(fontSize: 12)),
-                  Text('Unknown IP', style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted)),
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: const Icon(Icons.desktop_windows_outlined,
+                        size: 14, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Browser',
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          'Unknown IP',
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 10,
+                            color: AdminStyles.textMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
           ),
+
+          // 6. Status (flex: 1, center: true)
           Expanded(
             flex: 1,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(color: AdminStyles.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
-                child: const Text('Success', style: TextStyle(fontSize: 10, color: AdminStyles.success, fontWeight: FontWeight.bold)),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCFCE7),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF16A34A),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'Success',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF16A34A),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -765,6 +1286,26 @@ class _SystemAdminAuditLogsViewState extends State<SystemAdminAuditLogsView> {
     if (eventType.toLowerCase().contains('add') || eventType.toLowerCase().contains('create')) return AdminStyles.success;
     if (eventType.toLowerCase().contains('update') || eventType.toLowerCase().contains('edit')) return AdminStyles.warning;
     return AdminStyles.secondary;
+  }
+
+  IconData _getActionIcon(String eventType) {
+    final lower = eventType.toLowerCase();
+    if (lower == 'login') return Icons.login_rounded;
+    if (lower.contains('delete') || lower.contains('remove')) {
+      return Icons.delete_outline_rounded;
+    }
+    if (lower.contains('add') ||
+        lower.contains('create') ||
+        lower.contains('insert')) {
+      return Icons.add_circle_outline_rounded;
+    }
+    if (lower.contains('update') || lower.contains('edit')) {
+      return Icons.edit_note_rounded;
+    }
+    if (lower.contains('qr')) {
+      return Icons.qr_code_rounded;
+    }
+    return Icons.history_rounded;
   }
 }
 

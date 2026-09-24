@@ -170,7 +170,7 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
           'room': room,
           'code': _text(room.code.isNotEmpty ? room.code : room.id, fallback: 'N/A'),
           'name': _text(room.name, fallback: 'Unnamed Room'),
-          'department': _text(room.department),
+          'department': _text(room.department, fallback: 'None'),
           'building': _text(room.building),
           'roomType': _text(room.roomType),
           'status': statusLabel,
@@ -291,7 +291,6 @@ class _AdminRoomsWebState extends State<AdminRoomsWeb> {
                 final isTablet = constraints.maxWidth >= 780 && constraints.maxWidth < 1200;
 
                 return SingleChildScrollView(
-                  primary: true,
                   padding: EdgeInsets.all(isMobile ? 12 : 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

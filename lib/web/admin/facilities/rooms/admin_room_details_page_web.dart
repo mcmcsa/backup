@@ -438,7 +438,7 @@ class _AdminRoomDetailsPageWebState extends State<AdminRoomDetailsPageWeb> {
           _SummaryRow(
             icon: Icons.apartment_rounded,
             label: 'Managing Department',
-            value: _safe(_room.department),
+            value: _safe(_room.department, fallback: 'None'),
           ),
           const Divider(height: 24, thickness: 1, color: AdminStyles.border),
           _SummaryRow(

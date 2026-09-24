@@ -237,7 +237,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
     if (_error != null) return Center(child: Text('Error: $_error', style: const TextStyle(color: AdminStyles.error)));
 
     return LayoutBuilder(builder: (ctx, constraints) {
-      final isMobile = constraints.maxWidth < 800;
+      final isMobile = constraints.maxWidth < 950;
       return Container(
         color: AdminStyles.bg,
         child: SingleChildScrollView(

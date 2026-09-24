@@ -58,15 +58,29 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
       setState(() => _isLoading = true);
     }
     try {
-      final results = await Future.wait([
-        BuildingService.fetchAll(),
-        RoomService.fetchAll(),
-        DepartmentService.fetchAll(),
-      ]);
+      List<Building> buildings = [];
+      List<Room> rooms = [];
+      List<Department> departments = [];
 
-      final buildings = results[0] as List<Building>;
-      final rooms = results[1] as List<Room>;
-      final departments = results[2] as List<Department>;
+      try {
+        buildings = await BuildingService.fetchAll();
+      } catch (e) {
+        debugPrint('[AdminBuildingsWeb] Error loading buildings: $e');
+      }
+
+      try {
+        rooms = await RoomService.fetchAll();
+      } catch (e) {
+        debugPrint('[AdminBuildingsWeb] Error loading rooms: $e');
+      }
+
+      try {
+        departments = await DepartmentService.fetchAll();
+      } catch (e) {
+        debugPrint('[AdminBuildingsWeb] Error loading departments: $e');
+      }
+
+      final deptMap = {for (var d in departments) d.id: d.name};
 
       if (!mounted) return;
 
@@ -80,37 +94,37 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
             .toSet()
             .length;
 
-        final departmentNames =
-            buildingRooms
-                .map((room) => room.department.trim())
-                .where((name) => name.isNotEmpty)
-                .toSet()
-                .toList()
-              ..sort();
+        final List<String> resolvedDeptNames = [];
+        if (building.departmentNames.isNotEmpty) {
+          resolvedDeptNames.addAll(building.departmentNames);
+        } else if (building.departmentIds.isNotEmpty) {
+          for (final dId in building.departmentIds) {
+            if (deptMap.containsKey(dId)) {
+              resolvedDeptNames.add(deptMap[dId]!);
+            }
+          }
+        }
+        if (resolvedDeptNames.isEmpty && buildingRooms.isNotEmpty) {
+          final roomDepts = buildingRooms
+              .map((r) => r.department.trim())
+              .where((d) => d.isNotEmpty)
+              .toSet();
+          resolvedDeptNames.addAll(roomDepts);
+        }
 
-        final deptsInBuilding = departments
-            .where((dept) => dept.buildingId == building.id)
-            .map((dept) => dept.name.trim())
-            .where((name) => name.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
-
-        final departmentLabel = deptsInBuilding.isNotEmpty
-            ? deptsInBuilding.join(', ')
-            : departmentNames.isNotEmpty
-            ? departmentNames.join(', ')
-            : building.department.isNotEmpty
-            ? building.department
-            : '-';
+        final departmentsDisplay = resolvedDeptNames.isNotEmpty
+            ? resolvedDeptNames.join(', ')
+            : 'None Assigned';
 
         return {
           'buildingModel': building,
           'id': building.code.isNotEmpty ? building.code : building.id,
           'name': building.name,
-          'department': departmentLabel,
           'floors': floorCount > 0 ? floorCount.toString() : '-',
           'rooms': buildingRooms.length.toString(),
+          'departments': departmentsDisplay,
+          'departmentsList': resolvedDeptNames,
+          'hasDepartment': resolvedDeptNames.isNotEmpty,
           'status': 'Active',
         };
       }).toList();
@@ -120,7 +134,8 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
         _buildings = mapped;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AdminBuildingsWeb] Unexpected load error: $e');
       if (!mounted) return;
       setState(() {
         if (!silent) _buildings = [];
@@ -189,7 +204,7 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                             final building = Building(
                               id: const Uuid().v4(),
                               name: name,
-                              departmentId: '',
+                              departmentIds: const [],
                               createdAt: now,
                               updatedAt: now,
                             );
@@ -235,7 +250,15 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
 
   Future<void> _showEditBuildingDialog(Building building) async {
     final nameController = TextEditingController(text: building.name);
+    final Set<String> selectedDeptIds = building.departmentIds.toSet();
     bool isSubmitting = false;
+
+    List<Department> departments = [];
+    try {
+      departments = await DepartmentService.fetchAll();
+    } catch (_) {}
+
+    if (!mounted) return;
 
     await showDialog<void>(
       context: context,
@@ -246,18 +269,94 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
             return AlertDialog(
               title: const Text('Edit Building'),
               content: SizedBox(
-                width: 420,
+                width: 440,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       TextField(
                         controller: nameController,
                         autofocus: true,
                         decoration: const InputDecoration(
-                          labelText: 'Building Name',
+                          labelText: 'Building Name *',
                           border: OutlineInputBorder(),
                         ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Associated Departments',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AdminStyles.textPrimary,
+                            ),
+                          ),
+                          if (selectedDeptIds.isNotEmpty)
+                            Text(
+                              '${selectedDeptIds.length} selected',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: AdminStyles.primary,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                        constraints: const BoxConstraints(maxHeight: 200),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border.all(color: AdminStyles.border),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: departments.isEmpty
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Text('No departments available.'),
+                              )
+                            : Scrollbar(
+                                child: ListView.builder(
+                                  shrinkWrap: true,
+                                  itemCount: departments.length,
+                                  itemBuilder: (context, index) {
+                                    final d = departments[index];
+                                    final isChecked = selectedDeptIds.contains(d.id);
+                                    return CheckboxListTile(
+                                      dense: true,
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                                      title: Text(
+                                        d.name,
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          color: AdminStyles.textPrimary,
+                                        ),
+                                      ),
+                                      value: isChecked,
+                                      activeColor: AdminStyles.primary,
+                                      controlAffinity: ListTileControlAffinity.leading,
+                                      onChanged: (val) {
+                                        setDialogState(() {
+                                          if (val == true) {
+                                            selectedDeptIds.add(d.id);
+                                          } else {
+                                            selectedDeptIds.remove(d.id);
+                                          }
+                                        });
+                                      },
+                                    );
+                                  },
+                                ),
+                              ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Select departments that have rooms or facilities in this building.',
+                        style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600),
                       ),
                     ],
                   ),
@@ -288,11 +387,16 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                           setDialogState(() => isSubmitting = true);
 
                           try {
-                            final updated = building.copyWith(
+                            final err = await BuildingService.updateBuilding(
+                              id: building.id,
                               name: name,
-                              updatedAt: DateTime.now(),
+                              departmentIds: selectedDeptIds.toList(),
+                              isActive: building.isActive,
+                              allBuildings: _buildings
+                                  .map((b) => b['buildingModel'] as Building)
+                                  .toList(),
                             );
-                            await BuildingService.update(updated);
+                            if (err != null) throw Exception(err);
                             if (!dialogContext.mounted) return;
                             Navigator.of(dialogContext).pop();
                             await _loadBuildings();
@@ -332,6 +436,412 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
     nameController.dispose();
   }
 
+  void _showBuildingDetailsDialog(Building building, List<String> departments, int roomCount) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AdminStyles.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Dialog Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 20, 14, 16),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AdminStyles.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.business_rounded,
+                            color: AdminStyles.primary,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                building.name,
+                                style: AdminStyles.headingStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Building Details & Department Allocations',
+                                style: AdminStyles.bodyStyle(
+                                  fontSize: 12,
+                                  color: AdminStyles.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, size: 20, color: AdminStyles.textSecondary),
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: AdminStyles.border),
+                  // Content
+                  Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Quick Stats Row
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AdminStyles.bg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AdminStyles.border),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: AdminStyles.border),
+                                      ),
+                                      child: const Icon(Icons.meeting_room_outlined, size: 18, color: AdminStyles.primary),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'TOTAL ROOMS',
+                                          style: AdminStyles.bodyStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: AdminStyles.textMuted,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          '$roomCount',
+                                          style: AdminStyles.headingStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                            color: AdminStyles.textPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                width: 1,
+                                height: 32,
+                                color: AdminStyles.border,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: AdminStyles.border),
+                                      ),
+                                      child: const Icon(Icons.domain_rounded, size: 18, color: AdminStyles.primary),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'DEPARTMENTS',
+                                          style: AdminStyles.bodyStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: AdminStyles.textMuted,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          '${departments.length}',
+                                          style: AdminStyles.headingStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                            color: AdminStyles.textPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Assigned Departments Section
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'ASSIGNED DEPARTMENTS',
+                              style: AdminStyles.bodyStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AdminStyles.textMuted,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AdminStyles.primary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '${departments.length}',
+                                style: AdminStyles.bodyStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AdminStyles.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        if (departments.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AdminStyles.border),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_outline_rounded, size: 18, color: AdminStyles.textMuted),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'No departments are currently assigned to this building.',
+                                    style: AdminStyles.bodyStyle(
+                                      fontSize: 13,
+                                      color: AdminStyles.textMuted,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 220),
+                            child: SingleChildScrollView(
+                              child: Column(
+                                children: departments.map((dName) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: AdminStyles.border),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(color: AdminStyles.border),
+                                          ),
+                                          child: const Icon(
+                                            Icons.school_rounded,
+                                            size: 16,
+                                            color: AdminStyles.primary,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            dName,
+                                            style: AdminStyles.bodyStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w600,
+                                              color: AdminStyles.textPrimary,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1, color: AdminStyles.border),
+                  // Footer Actions
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        OutlinedButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AdminStyles.textSecondary,
+                            side: const BorderSide(color: AdminStyles.border),
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: const Text('Close'),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                            _showEditBuildingDialog(building);
+                          },
+                          icon: const Icon(Icons.edit_outlined, size: 16),
+                          label: const Text('Edit Building'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AdminStyles.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDepartmentsCell(Map<String, dynamic> building) {
+    final deptsList = (building['departmentsList'] as List<dynamic>?)?.cast<String>() ?? [];
+    final bldgModel = building['buildingModel'] as Building;
+    final roomCount = int.tryParse(building['rooms']?.toString() ?? '0') ?? 0;
+
+    if (deptsList.isEmpty) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.business_outlined,
+            size: 15,
+            color: AdminStyles.textMuted,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'None Assigned',
+            style: AdminStyles.bodyStyle(
+              fontSize: 13,
+              color: AdminStyles.textMuted,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final countLabel = deptsList.length == 1
+        ? '1 Department'
+        : '${deptsList.length} Departments';
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Tooltip(
+        message: deptsList.join(', '),
+        child: InkWell(
+          onTap: () => _showBuildingDetailsDialog(bldgModel, deptsList, roomCount),
+          borderRadius: BorderRadius.circular(8),
+          hoverColor: AdminStyles.primary.withValues(alpha: 0.08),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AdminStyles.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AdminStyles.primary.withValues(alpha: 0.25),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.domain_rounded,
+                  size: 14,
+                  color: AdminStyles.primary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  countLabel,
+                  style: AdminStyles.bodyStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AdminStyles.primary,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 13,
+                  color: AdminStyles.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   List<Map<String, dynamic>> get _filteredBuildings {
     final query = _searchController.text.toLowerCase();
     if (query.isEmpty) return _buildings;
@@ -339,7 +849,7 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
         .where(
           (b) =>
               (b['name']?.toString().toLowerCase().contains(query) ?? false) ||
-              (b['department']?.toString().toLowerCase().contains(query) ?? false),
+              (b['id']?.toString().toLowerCase().contains(query) ?? false),
         )
         .toList();
   }
@@ -352,32 +862,40 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: _pageBg,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Buildings', style: AdminStyles.pageTitleStyle()),
-            const SizedBox(height: 24),
-            _buildSearchAndActions(),
-            const SizedBox(height: 14),
-            FacilityQuickActionsRow(
-              activeIndex: widget.activeIndex,
-              onSelect: widget.onNavigate,
-              config: widget.quickActionsConfig,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 700;
+        return Container(
+          color: _pageBg,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 16 : 32,
+              vertical: isMobile ? 20 : 32,
             ),
-            const SizedBox(height: 24),
-            if (_isLoading)
-              const Center(
-                child: CircularProgressIndicator(color: _primaryBlue),
-              )
-            else
-              _buildBuildingsTable(),
-          ],
-        ),
-      ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Buildings', style: AdminStyles.pageTitleStyle()),
+                const SizedBox(height: 24),
+                _buildSearchAndActions(),
+                const SizedBox(height: 14),
+                FacilityQuickActionsRow(
+                  activeIndex: widget.activeIndex,
+                  onSelect: widget.onNavigate,
+                  config: widget.quickActionsConfig,
+                ),
+                const SizedBox(height: 24),
+                if (_isLoading)
+                  const Center(
+                    child: CircularProgressIndicator(color: _primaryBlue),
+                  )
+                else
+                  _buildBuildingsTable(),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -522,20 +1040,20 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                         children: [
                           Expanded(
                             flex: 3,
-                            child: _buildTableHeader('Building Name', alignment: Alignment.centerLeft),
+                            child: _buildTableHeader('BUILDING NAME', alignment: Alignment.centerLeft),
                           ),
                           Expanded(
-                            flex: 2,
-                            child: _buildTableHeader('Department', alignment: Alignment.centerLeft),
+                            flex: 4,
+                            child: _buildTableHeader('DEPARTMENTS', alignment: Alignment.centerLeft),
                           ),
                           SizedBox(
                             width: roomsColWidth,
-                            child: _buildTableHeader('Rooms', alignment: Alignment.center),
+                            child: _buildTableHeader('ROOMS', alignment: Alignment.center),
                           ),
                           SizedBox(width: columnsGap),
                           SizedBox(
                             width: actionsColWidth,
-                            child: _buildTableHeader('Actions', alignment: Alignment.center),
+                            child: _buildTableHeader('ACTIONS', alignment: Alignment.center),
                           ),
                         ],
                       ),
@@ -565,16 +1083,8 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                                   ),
                                 ),
                                 Expanded(
-                                  flex: 2,
-                                  child: Text(
-                                    '${building['department'] ?? '-'}',
-                                    style: AdminStyles.bodyStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                      color: _subtleText,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                  flex: 4,
+                                  child: _buildDepartmentsCell(building),
                                 ),
                                 SizedBox(
                                   width: roomsColWidth,

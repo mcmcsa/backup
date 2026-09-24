@@ -432,30 +432,44 @@ class _SystemAdminBackupRestoreViewState extends State<SystemAdminBackupRestoreV
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              color: const Color(0xFFF8FAFC),
-              child: Row(
-                children: [
-                  _th('Backup File', flex: 3),
-                  _th('Created At', flex: 2),
-                  _th('Size', flex: 1),
-                  _th('Status', flex: 1),
-                  _th('Actions', flex: 2, center: true),
-                ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const minWidth = 850.0;
+            final tableWidth = constraints.maxWidth < minWidth ? minWidth : constraints.maxWidth;
+
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: tableWidth,
+                height: constraints.maxHeight,
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      color: const Color(0xFFF8FAFC),
+                      child: Row(
+                        children: [
+                          _th('Backup File', flex: 3),
+                          _th('Created At', flex: 2),
+                          _th('Size', flex: 1),
+                          _th('Status', flex: 1),
+                          _th('Actions', flex: 2, center: true),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: AdminStyles.border),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: _backups.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
+                        itemBuilder: (_, i) => _buildRow(_backups[i]),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1, color: AdminStyles.border),
-            Expanded(
-              child: ListView.separated(
-                itemCount: _backups.length,
-                separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
-                itemBuilder: (_, i) => _buildRow(_backups[i]),
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

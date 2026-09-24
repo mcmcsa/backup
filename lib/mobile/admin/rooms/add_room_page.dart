@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../shared/utils/app_route_observer.dart';
 import '../../../shared/models/room_model.dart';
+import '../../../shared/models/department_model.dart';
 import '../../../shared/services/room_service.dart';
-import '../../../shared/services/building_service.dart';
 import '../../../shared/services/floor_service.dart';
 import '../../../shared/services/room_type_service.dart';
 import '../../../shared/services/app_settings_service.dart';
@@ -19,7 +19,7 @@ class AddRoomPage extends StatefulWidget {
 }
 
 class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
-  static const String _noDepartmentOption = 'Not specified';
+  static const String _noDepartmentOption = 'None';
 
   final _dropdownHelper = DropdownDataHelper();
   final _roomCodeController = TextEditingController();
@@ -27,8 +27,8 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
   final _buildingController = TextEditingController();
   final _departmentController = TextEditingController();
   final _capacityController = TextEditingController();
-  List<String> _departmentOptions = [];
-  List<String> _buildingOptionsByDepartment = [];
+  List<String> _buildingOptions = [];
+  List<String> _departmentOptionsByBuilding = [];
   List<String> _floors = [];
   List<String> _roomTypes = [];
   String _selectedBuilding = '';
@@ -42,9 +42,7 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
   String _generatedQrData = '';
   bool _allowQrRegeneration = false;
 
-  bool get _isDepartmentSelected =>
-      _selectedDepartment != _noDepartmentOption &&
-      _selectedDepartment.isNotEmpty;
+  bool get _isBuildingSelected => _selectedBuilding.isNotEmpty;
 
   @override
   void initState() {
@@ -102,30 +100,23 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
   }
 
   Future<void> _loadDropdownOptions({
-    String? preferredDepartment,
+    String? preferredBuilding,
     String? preferredFloor,
   }) async {
-    final departments = await _dropdownHelper.getDepartmentNames();
+    final buildings = await _dropdownHelper.getBuildingNames();
     final floors = await _dropdownHelper.getFloorNames();
     final roomTypes = await _dropdownHelper.getRoomTypes();
 
     if (!mounted) return;
 
     setState(() {
-      _departmentOptions = departments;
+      _buildingOptions = buildings;
       _floors = floors;
       _roomTypes = roomTypes;
 
-      final desiredDepartment = preferredDepartment ?? _selectedDepartment;
-      if (desiredDepartment == _noDepartmentOption || desiredDepartment.isEmpty) {
-        _selectedDepartment = _noDepartmentOption;
-      } else {
-        _selectedDepartment = _departmentOptions.contains(desiredDepartment)
-            ? desiredDepartment
-            : _noDepartmentOption;
-      }
-      _departmentController.text =
-          _selectedDepartment == _noDepartmentOption ? '' : _selectedDepartment;
+      final desiredBuilding = preferredBuilding ?? _selectedBuilding;
+      _selectedBuilding = _buildingOptions.contains(desiredBuilding) ? desiredBuilding : '';
+      _buildingController.text = _selectedBuilding;
 
       if (_floors.isNotEmpty) {
         final desiredFloor = preferredFloor ?? _selectedFloor;
@@ -144,8 +135,8 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
       }
     });
 
-    if (_selectedDepartment != _noDepartmentOption && _selectedDepartment.isNotEmpty) {
-      await _loadBuildingsByDepartment(_selectedDepartment);
+    if (_selectedBuilding.isNotEmpty) {
+      await _loadDepartmentsByBuilding(_selectedBuilding);
     }
   }
 
@@ -155,95 +146,67 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
     setState(() {
       _selectedBuilding = value;
       _buildingController.text = value;
+      _selectedDepartment = _noDepartmentOption;
+      _departmentController.text = '';
       _qrGenerated = false;
       _generatedQrData = '';
     });
+
+    await _loadDepartmentsByBuilding(value);
   }
 
-  Future<void> _loadBuildingsByDepartment(String departmentName) async {
+  Future<void> _loadDepartmentsByBuilding(String buildingName) async {
     try {
-      final normalizedDepartment = departmentName.trim();
-      if (normalizedDepartment == _noDepartmentOption ||
-          normalizedDepartment.isEmpty) {
-        // Building must remain disabled until a department is selected.
+      final normalizedBuilding = buildingName.trim();
+      if (normalizedBuilding.isEmpty) {
         setState(() {
-          _buildingOptionsByDepartment = [];
-          _selectedBuilding = '';
-          _buildingController.text = '';
+          _departmentOptionsByBuilding = [];
+          _selectedDepartment = _noDepartmentOption;
+          _departmentController.text = '';
           _qrGenerated = false;
           _generatedQrData = '';
         });
         return;
       }
 
-      // Get the department object to get its ID
-      final department =
-          await _dropdownHelper.getDepartmentByName(normalizedDepartment);
-      if (department == null) {
+      final building = await _dropdownHelper.getBuildingByName(normalizedBuilding);
+      if (building == null) {
         setState(() {
-          _buildingOptionsByDepartment = [];
-          _selectedBuilding = '';
-          _buildingController.text = '';
+          _departmentOptionsByBuilding = [];
+          _selectedDepartment = _noDepartmentOption;
+          _departmentController.text = '';
         });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Department "$normalizedDepartment" was not found.'),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
         return;
       }
 
-      final matchingBuildings = await _dropdownHelper.getBuildingNamesByDepartment(department.id);
+      final matchingDepartments = await _dropdownHelper.getDepartmentNamesByBuilding(building.id);
       
       if (!mounted) return;
       setState(() {
-        _buildingOptionsByDepartment = matchingBuildings;
-        final currentBuilding = _selectedBuilding;
-        _selectedBuilding = matchingBuildings.contains(currentBuilding)
-            ? currentBuilding
-            : (matchingBuildings.isNotEmpty ? matchingBuildings.first : '');
-        _buildingController.text = _selectedBuilding;
+        _departmentOptionsByBuilding = matchingDepartments;
+        // Do NOT auto-select department; keep current if valid, otherwise default to None
+        final currentDept = _selectedDepartment;
+        _selectedDepartment = (currentDept != _noDepartmentOption && matchingDepartments.contains(currentDept))
+            ? currentDept
+            : _noDepartmentOption;
+        _departmentController.text = _selectedDepartment == _noDepartmentOption ? '' : _selectedDepartment;
         _qrGenerated = false;
         _generatedQrData = '';
       });
-
-      if (matchingBuildings.isEmpty && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No buildings found under $normalizedDepartment yet.'),
-            backgroundColor: Colors.orange,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading buildings for this department: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      debugPrint('Error loading departments by building: $e');
     }
   }
 
   Future<void> _handleDepartmentSelection(String? value) async {
     if (value == null) return;
-
     setState(() {
       _selectedDepartment = value;
       _departmentController.text =
           value == _noDepartmentOption ? '' : value;
+      _qrGenerated = false;
+      _generatedQrData = '';
     });
-    
-    // Load buildings for the selected department
-    await _loadBuildingsByDepartment(value);
   }
 
   void _handleRoomTypeSelection(String? value) {
@@ -269,11 +232,10 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
   void _generateQRCode() {
     if (_roomCodeController.text.trim().isEmpty ||
         _nameController.text.trim().isEmpty ||
-        _selectedBuilding.isEmpty ||
-        _selectedDepartment == _noDepartmentOption) {
+        _selectedBuilding.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please fill in room code, room name, department, and building first'),
+          content: Text('Please fill in room code, room name, and building first'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -290,11 +252,10 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
   void _showConfirmDialog() {
     if (_roomCodeController.text.trim().isEmpty ||
         _nameController.text.trim().isEmpty ||
-        _selectedDepartment == _noDepartmentOption ||
         _selectedBuilding.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a department and building first'),
+          content: Text('Please fill in room code, room name, and building first'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -423,28 +384,37 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
     setState(() => _isSaving = true);
 
     try {
-        final roomCode = _roomCodeController.text.trim().toUpperCase();
+      final roomCode = _roomCodeController.text.trim().toUpperCase();
       final buildingName = _selectedBuilding.trim();
-      final departmentName =
-          _selectedDepartment == _noDepartmentOption ? '' : _selectedDepartment.trim();
+      final isNoneDepartment = _selectedDepartment == _noDepartmentOption || _selectedDepartment.trim().isEmpty;
+      final departmentName = isNoneDepartment ? '' : _selectedDepartment.trim();
       final qrData = _generatedQrData.isNotEmpty
           ? _generatedQrData
           : 'ROOM:${roomCode.toUpperCase()}';
 
-      final department = await _dropdownHelper.getDepartmentByName(departmentName);
-      if (department == null) {
-        throw Exception('Selected department was not found');
-      }
-
-      final building = await BuildingService.fetchByNameAndDepartment(
-        buildingName,
-        department.id,
-      );
+      final building = await _dropdownHelper.getBuildingByName(buildingName);
       if (building == null) {
-        throw Exception('Selected building was not found under the selected department');
+        throw Exception('Selected building was not found');
       }
 
-      final departmentId = department.id;
+      Department? department;
+      if (!isNoneDepartment) {
+        department = await _dropdownHelper.getDepartmentByName(departmentName);
+        if (department == null) {
+          throw Exception('Selected department was not found');
+        }
+
+        final validDeptNames = await _dropdownHelper.getDepartmentNamesByBuilding(
+          building.id,
+        );
+        if (!validDeptNames.contains(departmentName)) {
+          throw Exception(
+            'Selected department "$departmentName" is not associated with "$buildingName"',
+          );
+        }
+      }
+
+      final departmentId = department?.id ?? '';
       final floor = await FloorService.findOrCreateByName(_selectedFloor);
       final roomType = await RoomTypeService.fetchByName(_selectedRoomType);
       if (roomType == null) {
@@ -461,10 +431,11 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
         floor: _selectedFloor,
         seats: int.tryParse(_capacityController.text) ?? 40,
         departmentId: departmentId,
-        department: departmentName,
+        department: department?.name ?? '',
         roomTypeId: roomType.id,
         roomType: _selectedRoomType,
         status: _selectedStatus,
+        imageUrl: null,
         qrCodeData: qrData,
       );
 
@@ -640,29 +611,26 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
                   ),
                   const SizedBox(height: 18),
 
-                  // Department
-                  _buildDropdown(
-                    value: _selectedDepartment == _noDepartmentOption
-                        ? null
-                        : _selectedDepartment,
-                    hintText: 'Select department',
-                    items: [
-                      _noDepartmentOption,
-                      ..._departmentOptions,
-                    ],
-                    onChanged: _handleDepartmentSelection,
-                  ),
-                  const SizedBox(height: 18),
-
                   // Building
                   _buildDropdown(
                     value: _selectedBuilding.isEmpty ? null : _selectedBuilding,
-                    hintText: _isDepartmentSelected
-                        ? 'Select building'
-                        : 'Select department first',
-                    items: _buildingOptionsByDepartment,
-                    onChanged:
-                        _isDepartmentSelected ? _handleBuildingSelection : null,
+                    hintText: 'Select building',
+                    items: _buildingOptions,
+                    onChanged: _handleBuildingSelection,
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Department
+                  _buildDropdown(
+                    value: _selectedDepartment.isEmpty ? _noDepartmentOption : _selectedDepartment,
+                    hintText: _isBuildingSelected
+                        ? 'Select department'
+                        : 'Select building first',
+                    items: [
+                      _noDepartmentOption,
+                      ..._departmentOptionsByBuilding,
+                    ],
+                    onChanged: _isBuildingSelected ? _handleDepartmentSelection : null,
                   ),
                   const SizedBox(height: 18),
 

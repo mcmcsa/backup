@@ -6,6 +6,7 @@ import '../../../../shared/utils/app_route_observer.dart';
 import '../../../../shared/models/room_model.dart';
 import '../../../../shared/models/department_model.dart';
 import '../../../../shared/services/room_service.dart';
+import '../../../../shared/services/department_service.dart';
 import '../../../../shared/services/building_service.dart';
 import '../../../../shared/services/floor_service.dart';
 import '../../../../shared/services/room_type_service.dart';
@@ -25,7 +26,7 @@ class AddRoomPage extends StatefulWidget {
 }
 
 class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
-  static const String _noDepartmentOption = 'Not specified';
+  static const String _noDepartmentOption = 'None';
 
   final _dropdownHelper = DropdownDataHelper();
   final _roomCodeController = TextEditingController();
@@ -213,24 +214,15 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
       if (!mounted) return;
       setState(() {
         _departmentOptionsByBuilding = matchingDepartments;
+        // Do NOT auto-select department; keep current if still valid, otherwise default to "None"
         final currentDept = _selectedDepartment;
         _selectedDepartment = (currentDept != _noDepartmentOption && matchingDepartments.contains(currentDept))
             ? currentDept
-            : (matchingDepartments.isNotEmpty ? matchingDepartments.first : _noDepartmentOption);
+            : _noDepartmentOption;
         _departmentController.text = _selectedDepartment == _noDepartmentOption ? '' : _selectedDepartment;
         _qrGenerated = false;
         _generatedQrData = '';
       });
-
-      if (matchingDepartments.isEmpty && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('No departments found under $normalizedBuilding yet.'),
-            backgroundColor: Colors.orange,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     } catch (e) {
       debugPrint('Error loading departments by building: $e');
     }
@@ -261,11 +253,10 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
   void _generateQRCode() {
     if (_roomCodeController.text.trim().isEmpty ||
         _nameController.text.trim().isEmpty ||
-        _selectedBuilding.isEmpty ||
-        _selectedDepartment == _noDepartmentOption) {
+        _selectedBuilding.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please fill in room code, room name, department, and building first'),
+          content: Text('Please fill in room code, room name, and building first'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -281,12 +272,11 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
   void _showConfirmDialog() {
     if (_roomCodeController.text.trim().isEmpty ||
         _nameController.text.isEmpty ||
-        _selectedDepartment == _noDepartmentOption ||
         _selectedBuilding.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Please fill in Room Code, Department, and Building first',
+            'Please fill in Room Code, Room Name, and Building first',
           ),
           behavior: SnackBarBehavior.floating,
         ),
@@ -398,6 +388,15 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
                           const SizedBox(height: 6),
                           Text(
                             'Building: $_selectedBuilding',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF334155),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Department: ${_selectedDepartment == _noDepartmentOption ? "None" : _selectedDepartment}',
                             style: const TextStyle(
                               fontSize: 13,
                               color: Color(0xFF334155),
@@ -562,20 +561,23 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
 
       // Find or create building/department in database
       Department? department;
-      if (departmentName.isNotEmpty) {
+      if (departmentName.isNotEmpty && departmentName != _noDepartmentOption) {
         department = await _dropdownHelper.getDepartmentByName(departmentName);
       }
 
-      var building = await BuildingService.fetchByNameAndDepartment(
-        buildingName,
-        department?.id ?? '',
-      );
-      building ??= await BuildingService.fetchByName(buildingName);
+      var building = await BuildingService.fetchByName(buildingName);
       if (building == null) {
         throw Exception('Selected building was not found');
       }
 
-      final departmentId = department?.id ?? (building.departmentId.isNotEmpty ? building.departmentId : '');
+      if (department != null) {
+        final deptsInBldg = await DepartmentService.fetchByBuilding(building.id);
+        if (!deptsInBldg.any((d) => d.id == department!.id)) {
+          throw Exception('Department "${department.name}" is not associated with building "${building.name}".');
+        }
+      }
+
+      final departmentId = department?.id ?? '';
       final floor = await FloorService.findOrCreateByName(_selectedFloor);
       final roomType = await RoomTypeService.findOrCreateByName(_selectedRoomType);
 
@@ -1203,9 +1205,7 @@ class _AddRoomPageState extends State<AddRoomPage> with RouteAware {
                 child: _buildFieldBlock(
                   label: 'Department',
                   child: _buildDropdown(
-                    value: _selectedDepartment == _noDepartmentOption
-                        ? null
-                        : _selectedDepartment,
+                    value: _selectedDepartment.isEmpty ? _noDepartmentOption : _selectedDepartment,
                     hintText: _isBuildingSelected
                         ? 'Select department'
                         : 'Select building first',

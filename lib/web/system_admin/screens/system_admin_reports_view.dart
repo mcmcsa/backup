@@ -620,37 +620,41 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   }
 
   Widget _buildCharts(bool isMobile) {
-    if (isMobile) {
-      return Column(
-        children: [
-          _buildBarChart('Monthly Requests', _monthlyRequests),
-          const SizedBox(height: 16),
-          _buildBarChart('Requests by Status', _statusDistribution),
-          const SizedBox(height: 16),
-          _buildBarChart('Request Type Statistics', _categoryDistribution),
-          const SizedBox(height: 16),
-          _buildBarChart('Top Personnel', _personnelPerformance),
-        ],
-      );
-    }
-    return Column(
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (isMobile || constraints.maxWidth < 960) {
+          return Column(
+            children: [
+              _buildBarChart('Monthly Requests', _monthlyRequests),
+              const SizedBox(height: 16),
+              _buildBarChart('Requests by Status', _statusDistribution),
+              const SizedBox(height: 16),
+              _buildBarChart('Request Type Statistics', _categoryDistribution),
+              const SizedBox(height: 16),
+              _buildBarChart('Personnel Performance (Completed)', _personnelPerformance),
+            ],
+          );
+        }
+        return Column(
           children: [
-            Expanded(child: _buildBarChart('Monthly Requests', _monthlyRequests)),
-            const SizedBox(width: 16),
-            Expanded(child: _buildBarChart('Requests by Status', _statusDistribution)),
+            Row(
+              children: [
+                Expanded(child: _buildBarChart('Monthly Requests', _monthlyRequests)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildBarChart('Requests by Status', _statusDistribution)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(child: _buildBarChart('Request Type Statistics', _categoryDistribution)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildBarChart('Personnel Performance (Completed)', _personnelPerformance)),
+              ],
+            ),
           ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(child: _buildBarChart('Request Type Statistics', _categoryDistribution)),
-            const SizedBox(width: 16),
-            Expanded(child: _buildBarChart('Personnel Performance (Completed)', _personnelPerformance)),
-          ],
-        ),
-      ],
+        );
+      },
     );
   }
 

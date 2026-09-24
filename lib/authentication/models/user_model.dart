@@ -8,6 +8,7 @@ class AppUser {
   final bool isActive;
   final String? campus;
   final String? department;
+  final String? departmentId;
   final String? position;
   final String? employeeId;
   final String? phone;
@@ -25,6 +26,7 @@ class AppUser {
     this.mustChangePassword = false,
     this.campus,
     this.department,
+    this.departmentId,
     this.position,
     this.employeeId,
     this.phone,
@@ -62,6 +64,7 @@ class AppUser {
           _nonEmptyString(fallbackDeptName) ??
           _nonEmptyString(map['department_name']) ??
           _nonEmptyString(map['department']),
+      departmentId: deptId,
       position: _nonEmptyString(adminProfile['position']) ??
           _nonEmptyString(adminProfile['designation']) ??
           _nonEmptyString(teacherProfile['position']) ??
@@ -169,6 +172,7 @@ class AppUser {
     bool? mustChangePassword,
     String? campus,
     String? department,
+    String? departmentId,
     String? position,
     String? employeeId,
     String? phone,
@@ -185,6 +189,7 @@ class AppUser {
       mustChangePassword: mustChangePassword ?? this.mustChangePassword,
       campus: campus ?? this.campus,
       department: department ?? this.department,
+      departmentId: departmentId ?? this.departmentId,
       position: position ?? this.position,
       employeeId: employeeId ?? this.employeeId,
       phone: phone ?? this.phone,

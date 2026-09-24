@@ -191,7 +191,9 @@ class _SystemAdminFeedbackViewState extends State<SystemAdminFeedbackView> {
             Expanded(
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32),
-                child: _filtered.isEmpty ? _buildEmpty() : _buildTable(),
+                child: _filtered.isEmpty
+                    ? _buildEmpty()
+                    : (isMobile ? _buildMobileList() : _buildTable()),
               ),
             ),
             if (_filtered.isNotEmpty)
@@ -380,6 +382,132 @@ class _SystemAdminFeedbackViewState extends State<SystemAdminFeedbackView> {
         ),
       );
 
+  Widget _buildMobileList() {
+    return ListView.separated(
+      itemCount: _paginated.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12),
+      itemBuilder: (_, i) => _buildMobileCard(_paginated[i]),
+    );
+  }
+
+  Widget _buildMobileCard(SystemFeedback f) {
+    Color catColor = AdminStyles.primary;
+    if (f.category == 'Bug Report') catColor = AdminStyles.error;
+    if (f.category == 'Feature Request') catColor = AdminStyles.warning;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AdminStyles.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  f.userName,
+                  style: AdminStyles.bodyStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: AdminStyles.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: f.status == 'resolved'
+                      ? AdminStyles.success.withValues(alpha: 0.1)
+                      : AdminStyles.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  f.status.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: f.status == 'resolved'
+                        ? AdminStyles.success
+                        : AdminStyles.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: catColor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                f.category,
+                style: AdminStyles.bodyStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: catColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text('•', style: TextStyle(color: AdminStyles.textMuted)),
+              const SizedBox(width: 8),
+              Text(
+                DateFormat('MMM d, yyyy').format(f.createdAt),
+                style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            f.message,
+            style: AdminStyles.bodyStyle(fontSize: 13, color: const Color(0xFF334155)),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: AdminStyles.border),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton.icon(
+                onPressed: () => _viewFeedback(f),
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                label: const Text('View & Reply'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AdminStyles.primary,
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Delete',
+                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AdminStyles.error),
+                onPressed: () => _deleteFeedback(f),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTable() {
     return Container(
       decoration: BoxDecoration(
@@ -390,30 +518,41 @@ class _SystemAdminFeedbackViewState extends State<SystemAdminFeedbackView> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              color: const Color(0xFFF8FAFC),
-              child: Row(
-                children: [
-                  _th('Sender', flex: 2),
-                  _th('Category', flex: 2),
-                  _th('Message', flex: 4),
-                  _th('Status', flex: 1),
-                  _th('Actions', flex: 1, center: true),
-                ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final tableWidth = constraints.maxWidth < 850 ? 850.0 : constraints.maxWidth;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: tableWidth,
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      color: const Color(0xFFF8FAFC),
+                      child: Row(
+                        children: [
+                          _th('Sender', flex: 2),
+                          _th('Category', flex: 2),
+                          _th('Message', flex: 4),
+                          _th('Status', flex: 1),
+                          _th('Actions', flex: 1, center: true),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: AdminStyles.border),
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: _paginated.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
+                        itemBuilder: (_, i) => _buildRow(_paginated[i]),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1, color: AdminStyles.border),
-            Expanded(
-              child: ListView.separated(
-                itemCount: _paginated.length,
-                separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
-                itemBuilder: (_, i) => _buildRow(_paginated[i]),
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

@@ -230,6 +230,20 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     }
   }
 
+  String? _getUserDepartment(AppUser user) {
+    if (user.department != null && user.department!.trim().isNotEmpty) {
+      return user.department!.trim();
+    }
+    if (user.departmentId != null && user.departmentId!.trim().isNotEmpty) {
+      final dept =
+          _departments.where((d) => d.id == user.departmentId).firstOrNull;
+      if (dept != null && dept.name.trim().isNotEmpty) {
+        return dept.name.trim();
+      }
+    }
+    return null;
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   //  Computed
   // ─────────────────────────────────────────────────────────────────────────
@@ -237,14 +251,16 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   List<AppUser> get _filtered {
     final q = _searchCtrl.text.trim().toLowerCase();
     return _allUsers.where((u) {
+      final deptName = _getUserDepartment(u) ?? '';
       if (q.isNotEmpty) {
         final matches = u.name.toLowerCase().contains(q) ||
             u.email.toLowerCase().contains(q) ||
-            (u.employeeId ?? '').toLowerCase().contains(q);
+            (u.employeeId ?? '').toLowerCase().contains(q) ||
+            deptName.toLowerCase().contains(q);
         if (!matches) return false;
       }
       if (_roleFilter != 'all' && u.role.name != _roleFilter) return false;
-      if (_deptFilter != 'all' && (u.department ?? '') != _deptFilter) {
+      if (_deptFilter != 'all' && deptName != _deptFilter) {
         return false;
       }
       if (_statusFilter == 'active' && !u.isActive) return false;
@@ -467,22 +483,60 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
 
     return LayoutBuilder(builder: (ctx, constraints) {
       final isMobile = constraints.maxWidth < 950;
+
+      if (isMobile) {
+        return Container(
+          color: AdminStyles.bg,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPageHeader(true, constraints.maxWidth),
+                const SizedBox(height: 16),
+                _buildSummaryCards(true, constraints.maxWidth),
+                const SizedBox(height: 16),
+                _buildToolbar(true, constraints.maxWidth),
+                if (_showSelection && _selectedIds.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _buildBulkBar(),
+                ],
+                const SizedBox(height: 16),
+                if (_filtered.isEmpty)
+                  _buildEmpty()
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _paginated.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) => _buildMobileCard(_paginated[i]),
+                  ),
+                if (_filtered.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _buildPagination(),
+                ],
+              ],
+            ),
+          ),
+        );
+      }
+
       return Container(
         color: AdminStyles.bg,
         child: Column(
           children: [
             // ── Header + summary cards ──────────────────────────────────────
             Padding(
-              padding: EdgeInsets.fromLTRB(
-                  isMobile ? 16 : 32, isMobile ? 16 : 28, isMobile ? 16 : 32, 0),
+              padding: const EdgeInsets.fromLTRB(32, 28, 32, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildPageHeader(isMobile, constraints.maxWidth),
+                  _buildPageHeader(false, constraints.maxWidth),
                   const SizedBox(height: 20),
-                  _buildSummaryCards(isMobile, constraints.maxWidth),
+                  _buildSummaryCards(false, constraints.maxWidth),
                   const SizedBox(height: 20),
-                  _buildToolbar(isMobile, constraints.maxWidth),
+                  _buildToolbar(false, constraints.maxWidth),
                   if (_showSelection && _selectedIds.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _buildBulkBar(),
@@ -495,20 +549,18 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
             // ── Table / List ────────────────────────────────────────────────
             Expanded(
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32),
+                padding: const EdgeInsets.symmetric(horizontal: 32),
                 child: _filtered.isEmpty
                     ? _buildEmpty()
-                    : isMobile
-                        ? _buildMobileList()
-                        : _buildDesktopTable(),
+                    : _buildDesktopTable(),
               ),
             ),
 
             // ── Pagination ──────────────────────────────────────────────────
             if (_filtered.isNotEmpty)
               Padding(
-                padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 16 : 32, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 32, vertical: 12),
                 child: _buildPagination(),
               ),
           ],
@@ -690,8 +742,8 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     ];
 
     if (isMobile) {
-      final crossAxisCount = maxWidth < 480 ? 1 : 2;
-      final childAspectRatio = maxWidth < 480 ? 4.0 : 2.2;
+      const crossAxisCount = 2;
+      final childAspectRatio = maxWidth < 480 ? 2.0 : 2.2;
       return GridView.count(
         crossAxisCount: crossAxisCount,
         shrinkWrap: true,
@@ -715,7 +767,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
 
   Widget _buildSummaryTile(_SummaryCard c) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
@@ -730,27 +782,36 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: c.color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(c.icon, color: c.color, size: 20),
+            child: Icon(c.icon, color: c.color, size: 18),
           ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('${c.value}',
-                  style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: c.color,
-                      letterSpacing: -0.5)),
-              Text(c.label, style: AdminStyles.bodyStyle(fontSize: 11)),
-            ],
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('${c.value}',
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        color: c.color,
+                        letterSpacing: -0.5)),
+                Text(c.label,
+                    style: AdminStyles.bodyStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AdminStyles.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
         ],
       ),
@@ -982,21 +1043,32 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Column(
-          children: [
-            // Header row
-            _buildTableHeader(allPageSelected, users),
-            const Divider(height: 1, color: AdminStyles.border),
-            // Data rows
-            Expanded(
-              child: ListView.separated(
-                itemCount: users.length,
-                separatorBuilder: (context, index) =>
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final tableWidth = constraints.maxWidth < 1050 ? 1050.0 : constraints.maxWidth;
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: tableWidth,
+                child: Column(
+                  children: [
+                    // Header row
+                    _buildTableHeader(allPageSelected, users),
                     const Divider(height: 1, color: AdminStyles.border),
-                itemBuilder: (_, i) => _buildTableRow(users[i]),
+                    // Data rows
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: users.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 1, color: AdminStyles.border),
+                        itemBuilder: (_, i) => _buildTableRow(users[i]),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -1032,7 +1104,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
           _th('Email', flex: 3, center: true),
           _th('Role', flex: 2, center: true),
           _th('Status', flex: 2, center: true),
-          _th('Last Login', flex: 2, center: true),
+          _th('Department', flex: 3, center: true),
           _th('Actions', flex: 2, center: true),
         ],
       ),
@@ -1059,7 +1131,6 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   }
 
   Widget _buildTableRow(AppUser user) {
-    final lastLogin = _lastLoginMap[user.id];
     final isSelected = _selectedIds.contains(user.id);
 
     return AnimatedContainer(
@@ -1158,22 +1229,13 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
               child: _StatusBadge(isActive: user.isActive, alignLeft: false),
             ),
           ),
-          // Last Login (Centered)
+          // Department (Centered)
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Align(
-                alignment: Alignment.center,
-                child: Text(
-                  lastLogin != null ? _formatRelative(lastLogin) : 'Never',
-                  textAlign: TextAlign.center,
-                  style: AdminStyles.bodyStyle(
-                      fontSize: 11,
-                      color: lastLogin != null
-                          ? AdminStyles.textSecondary
-                          : AdminStyles.textMuted),
-                ),
+              child: _DepartmentBadge(
+                department: _getUserDepartment(user),
               ),
             ),
           ),
@@ -1243,16 +1305,7 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
     );
   }
 
-  // ── Mobile List ───────────────────────────────────────────────────────────
-
-  Widget _buildMobileList() {
-    final users = _paginated;
-    return ListView.separated(
-      itemCount: users.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 10),
-      itemBuilder: (_, i) => _buildMobileCard(users[i]),
-    );
-  }
+  // ── Mobile Card ───────────────────────────────────────────────────────────
 
   Widget _buildMobileCard(AppUser user) {
     final isSelected = _selectedIds.contains(user.id);
@@ -1458,32 +1511,6 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
   }
 
   // ── Utilities ─────────────────────────────────────────────────────────────
-
-  String _formatRelative(DateTime dt) {
-    final now = DateTime.now();
-    final localDt = dt.toLocal();
-    var diff = now.difference(localDt);
-    if (diff.isNegative) {
-      diff = Duration.zero;
-    }
-
-    final seconds = diff.inSeconds;
-    final minutes = diff.inMinutes;
-    final hours = diff.inHours;
-    final days = diff.inDays;
-
-    if (seconds < 30) {
-      return 'Just now';
-    } else if (minutes < 60) {
-      return minutes <= 1 ? '1m ago' : '${minutes}m ago';
-    } else if (hours < 24) {
-      return '${hours}h ago';
-    } else if (days < 30) {
-      return '${days}d ago';
-    } else {
-      return '${(days / 30).floor()}mo ago';
-    }
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1613,6 +1640,70 @@ class _StatusBadge extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DepartmentBadge extends StatelessWidget {
+  final String? department;
+
+  const _DepartmentBadge({
+    required this.department,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasDept = department != null &&
+        department!.trim().isNotEmpty &&
+        department!.trim() != '-';
+    final deptName = hasDept ? department!.trim() : 'No Department';
+
+    return Align(
+      alignment: Alignment.center,
+      child: Tooltip(
+        message: deptName,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: hasDept
+                ? const Color(0xFFEFF6FF)
+                : const Color(0xFFF3F4F6),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: hasDept
+                  ? const Color(0xFFBFDBFE)
+                  : const Color(0xFFE5E7EB),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                hasDept ? Icons.school_outlined : Icons.remove_circle_outline,
+                size: 13,
+                color: hasDept
+                    ? const Color(0xFF2563EB)
+                    : AdminStyles.textMuted,
+              ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  hasDept ? deptName : '—',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: hasDept
+                        ? const Color(0xFF1E40AF)
+                        : AdminStyles.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

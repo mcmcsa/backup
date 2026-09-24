@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/work_request_model.dart';
+import '../models/room_model.dart';
 import 'maintenance_status_service.dart';
 import 'room_service.dart';
 import 'department_service.dart';
@@ -1022,24 +1023,30 @@ class WorkRequestService {
       payload['id'] = _generateWorkRequestId();
     }
 
-    // Layer 2: Room-to-Department Validation
-    if (request.roomId != null &&
-        request.roomId!.isNotEmpty &&
-        request.departmentId != null &&
-        request.departmentId!.isNotEmpty) {
-      final room = await RoomService.fetchById(request.roomId!);
-      if (room != null &&
-          room.departmentId.isNotEmpty &&
-          room.departmentId != request.departmentId) {
-        throw Exception('Access Denied: Selected room does not belong to your department.');
-      }
+    Room? room;
+    if (request.roomId != null && request.roomId!.toString().trim().isNotEmpty) {
+      room = await RoomService.fetchById(request.roomId!.toString().trim());
     }
 
-    // Department Head resolution & snapshot locking
+    final roomHasDepartment = room != null && room.departmentId.trim().isNotEmpty;
+
+    // Layer 2: Room-to-Department Validation & Routing
     bool isHead = false;
     String? resolvedDeptHeadId;
-    if (request.departmentId != null && request.departmentId!.isNotEmpty) {
-      final dept = await DepartmentService.fetchById(request.departmentId!);
+
+    if (roomHasDepartment) {
+      // Cross-department check: if requestor specifies a department, it must match the room's department
+      if (request.departmentId != null &&
+          request.departmentId!.trim().isNotEmpty &&
+          request.departmentId!.trim() != room.departmentId.trim()) {
+        throw Exception('Access Denied: Selected room does not belong to your department.');
+      }
+
+      // Department-owned Room: work_requests.department_id = room.department_id
+      payload['department_id'] = room.departmentId;
+
+      final deptId = room.departmentId;
+      final dept = await DepartmentService.fetchById(deptId);
       if (dept != null) {
         if (dept.headUserId != null &&
             dept.headUserId!.isNotEmpty &&
@@ -1047,24 +1054,33 @@ class WorkRequestService {
           isHead = true;
         } else {
           resolvedDeptHeadId = dept.headUserId ??
-              await DepartmentService.fetchDepartmentHeadUserId(request.departmentId!);
+              await DepartmentService.fetchDepartmentHeadUserId(deptId);
         }
       }
-    }
 
-    if (isHead) {
-      payload['dept_head_status'] = 'not_applicable';
-      payload['dept_head_id'] = null;
-      payload['status'] = 'Pending';
-    } else if (request.departmentId != null && request.departmentId!.isNotEmpty) {
-      if (resolvedDeptHeadId == null || resolvedDeptHeadId.isEmpty) {
-        throw Exception(
-          'No active Department Head assigned to your department. Please contact the administrator before submitting.',
-        );
+      if (isHead) {
+        payload['dept_head_status'] = 'not_applicable';
+        payload['dept_head_id'] = null;
+        payload['status'] = 'Pending';
+      } else {
+        if (resolvedDeptHeadId == null || resolvedDeptHeadId.isEmpty) {
+          throw Exception(
+            'No active Department Head assigned to ${dept?.name ?? "this department"}. Please contact the administrator before submitting.',
+          );
+        }
+        payload['dept_head_id'] = resolvedDeptHeadId;
+        payload['dept_head_status'] = 'pending';
+        payload['status'] = 'Pending Department Head';
       }
-      payload['dept_head_id'] = resolvedDeptHeadId;
-      payload['dept_head_status'] = 'pending';
-      payload['status'] = 'Pending Department Head';
+    } else {
+      // Case 2: Department-less Room (Comfort Room, Lobby, Hallway, Common Area)
+      // Requestor -> Room -> Campus Admin directly -> Maintenance
+      // DO NOT route through requestor's Department Head.
+      // work_requests.department_id = NULL, work_requests.dept_head_id = NULL
+      payload['department_id'] = null;
+      payload['dept_head_id'] = null;
+      payload['dept_head_status'] = 'not_applicable';
+      payload['status'] = 'Pending';
     }
 
     // Automatically check for duplicates in the same room

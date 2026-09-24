@@ -214,26 +214,32 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
       _MetricCard('Failed Logins', '${_metrics!['failed_login_attempts']}', Icons.gpp_bad_rounded, _metrics!['failed_login_attempts'] > 10 ? AdminStyles.error : AdminStyles.warning),
     ];
 
-    if (isMobile) {
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final crossCount = constraints.maxWidth < 450 ? 1 : 2;
-          final aspect = constraints.maxWidth < 450 ? 2.4 : 1.4;
-          return GridView.count(
-            crossAxisCount: crossCount,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: aspect,
-            children: cards.map((c) => _buildMetricTile(c)).toList(),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        if (width >= 1150) {
+          return Row(
+            children: cards
+                .map((c) => Expanded(child: _buildMetricTile(c)))
+                .expand((w) => [w, const SizedBox(width: 12)])
+                .toList()
+              ..removeLast(),
           );
-        },
-      );
-    }
+        }
 
-    return Row(
-      children: cards.map((c) => Expanded(child: _buildMetricTile(c))).expand((w) => [w, const SizedBox(width: 12)]).toList()..removeLast(),
+        final crossCount = width < 480 ? 1 : width < 800 ? 2 : 3;
+        final aspect = width < 480 ? 3.2 : 1.8;
+
+        return GridView.count(
+          crossAxisCount: crossCount,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: aspect,
+          children: cards.map((c) => _buildMetricTile(c)).toList(),
+        );
+      },
     );
   }
 
@@ -314,10 +320,14 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
       ),
     );
 
-    if (isMobile) {
-      return Column(children: [reqChart, const SizedBox(height: 16), storageChart]);
-    }
-    return Row(children: [Expanded(flex: 2, child: reqChart), const SizedBox(width: 16), Expanded(flex: 1, child: storageChart)]);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 960) {
+          return Column(children: [reqChart, const SizedBox(height: 16), storageChart]);
+        }
+        return Row(children: [Expanded(flex: 2, child: reqChart), const SizedBox(width: 16), Expanded(flex: 1, child: storageChart)]);
+      },
+    );
   }
 
   Widget _buildRecentErrors() {
