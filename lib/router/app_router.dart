@@ -115,6 +115,10 @@ String? resolveAuthRedirect({
     return dashboardRoute;
   }
 
+  if (location.startsWith('/system admin') || location.startsWith('/system%20admin')) {
+    return user.role == UserRole.admin ? '/system-admin/dashboard' : dashboardRoute;
+  }
+
   if (location.startsWith('/system-admin') && user.role != UserRole.admin) {
     return dashboardRoute;
   }
@@ -260,6 +264,14 @@ GoRouter buildAppRouter(AuthService authService) {
               ? const web_sysadmin.SystemAdminMainNavigationWeb()
               : const mobile_sysadmin.SystemAdminMainNavigation(),
         ),
+      ),
+      GoRoute(
+        path: '/system admin/dashboard',
+        redirect: (context, state) => '/system-admin/dashboard',
+      ),
+      GoRoute(
+        path: '/system%20admin/dashboard',
+        redirect: (context, state) => '/system-admin/dashboard',
       ),
       GoRoute(
         path: teacherDashboardRoute,

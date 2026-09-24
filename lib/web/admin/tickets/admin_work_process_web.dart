@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import '../../../shared/widgets/attachment_image_widget.dart';
@@ -31,6 +32,8 @@ import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../../shared/services/user_service.dart';
+import '../../../shared/models/work_request_follow_up_model.dart';
+import '../../../shared/services/work_request_follow_up_service.dart';
 
 class AdminWorkProcessWeb extends StatefulWidget {
   final WorkRequest request;
@@ -57,6 +60,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   List<WorkRequestNote> _notes = [];
   List<WorkRequestActivity> _activities = [];
   List<ESignature> _signatures = [];
+  List<WorkRequestFollowUp> _followUps = [];
   bool _isLoading = true;
   int _selectedSection = 0;
   String? _activeSubView;
@@ -129,6 +133,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       _tasks = await CollaborationService.fetchTasks(_request!.id);
       _notes = await CollaborationService.fetchNotes(_request!.id);
       _activities = await CollaborationService.fetchActivities(_request!.id);
+      _followUps = await WorkRequestFollowUpService.fetchFollowUpsForRequest(_request!.id);
       
       final userIds = <String>{};
       if (_preInspection?.adminApprovedBy != null) userIds.add(_preInspection!.adminApprovedBy!);
@@ -1175,19 +1180,42 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       isActive: false,
     ));
 
+    // Department Head Endorsement (if applicable)
+    final bool hasDeptHead = (task.deptHeadStatus != null && task.deptHeadStatus != 'not_applicable') || task.deptHeadId != null;
+    final bool isDeptHeadApproved = task.isDeptHeadApproved;
+    final bool isDeptHeadDeclined = task.isDeptHeadDeclined;
+    if (hasDeptHead) {
+      steps.add(_TimelineStep(
+        title: isDeptHeadDeclined ? 'Declined by Dept Head' : 'Dept Head Endorsement',
+        subtitle: isDeptHeadDeclined
+            ? 'Declined by ${task.deptHeadName ?? "Department Head"}: ${task.deptHeadNotes ?? "No reason specified"}.'
+            : (isDeptHeadApproved
+                ? 'Endorsed by ${task.deptHeadName ?? "Department Head"}.'
+                : 'Waiting for evaluation from ${task.deptHeadName ?? "Department Head"}.'),
+        time: formatTime(task.deptHeadApprovedDate),
+        isCompleted: isDeptHeadApproved,
+        isActive: task.isPendingDeptHead,
+        isWarning: isDeptHeadDeclined,
+      ));
+
+      if (isDeptHeadDeclined) {
+        return steps.asMap().entries.map((e) => _buildTimelineItem(e.value, isLast: e.key == steps.length - 1)).toList();
+      }
+    }
+
     // 2. Admin Review & Approval
     final isApproved = ['assigned', 'confirmed', 'rework', 'completed', 'in progress', 'in_progress', 'declined'].contains(task.status.toLowerCase());
-    final isDeclinedInitially = task.status.toLowerCase() == 'declined' && task.preInspectionId == null;
+    final isDeclinedInitially = task.status.toLowerCase() == 'declined' && task.preInspectionId == null && !isDeptHeadDeclined;
     steps.add(_TimelineStep(
       title: isDeclinedInitially ? 'Request Declined' : 'Admin Review & Approval',
       subtitle: isDeclinedInitially
           ? 'Request was declined and closed.'
           : (isApproved
               ? 'Request approved by ${task.approvedByName ?? "Admin"}.'
-              : 'Waiting for admin approval.'),
+              : (task.isPendingDeptHead ? 'Awaiting Department Head approval first.' : 'Waiting for admin approval.')),
       time: formatTime(task.approvedDate),
       isCompleted: isApproved,
-      isActive: !isApproved,
+      isActive: !isApproved && !task.isPendingDeptHead,
       isWarning: isDeclinedInitially,
     ));
 
@@ -1506,6 +1534,360 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     );
   }
 
+  Widget _buildDeptHeadEvaluationCard() {
+    final hasDeptHead = (_request!.deptHeadStatus != null && _request!.deptHeadStatus != 'not_applicable') || _request!.deptHeadId != null;
+    if (!hasDeptHead) return const SizedBox.shrink();
+
+    final isApproved = _request!.isDeptHeadApproved;
+    final isDeclined = _request!.isDeptHeadDeclined;
+    final badgeColor = isApproved ? AdminStyles.success : (isDeclined ? AdminStyles.error : AdminStyles.warning);
+    final badgeText = isApproved ? 'Endorsed' : (isDeclined ? 'Declined' : 'Pending Review');
+
+    final deptHeadSig = _signatures.cast<ESignature?>().firstWhere(
+      (s) => s?.signatureType == 'dept_head_approval',
+      orElse: () => null,
+    );
+
+    return Container(
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.all(28),
+      decoration: AdminStyles.cardDecoration(borderRadius: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.verified_user_rounded, color: badgeColor, size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('DEPARTMENT HEAD ENDORSEMENT', style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1)),
+                    const SizedBox(height: 2),
+                    Text(
+                      _request!.deptHeadName ?? 'Department Head',
+                      style: AdminStyles.headingStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  badgeText,
+                  style: AdminStyles.bodyStyle(fontSize: 11, fontWeight: FontWeight.bold, color: badgeColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+          if (_request!.deptHeadApprovedDate != null)
+            _buildSummaryRow(
+              'Date Evaluated',
+              DateFormat('MMM dd, yyyy · HH:mm').format(_request!.deptHeadApprovedDate!),
+            ),
+          if (_request!.deptHeadNotes != null && _request!.deptHeadNotes!.isNotEmpty) ...[
+            Text('Evaluation Notes / Remarks:', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Text(
+                _request!.deptHeadNotes!,
+                style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (deptHeadSig != null && deptHeadSig.signatureData.isNotEmpty) ...[
+            Text('Digital Signature', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+            const SizedBox(height: 8),
+            Container(
+              height: 70,
+              width: 180,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Builder(
+                builder: (context) {
+                  try {
+                    final cleanBase64 = deptHeadSig.signatureData.contains(',')
+                        ? deptHeadSig.signatureData.split(',').last
+                        : deptHeadSig.signatureData;
+                    return Image.memory(
+                      base64Decode(cleanBase64.trim()),
+                      fit: BoxFit.contain,
+                    );
+                  } catch (_) {
+                    return const Center(child: Icon(Icons.broken_image, size: 20));
+                  }
+                },
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFollowUpsCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.all(28),
+      decoration: AdminStyles.cardDecoration(borderRadius: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0284C7).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.help_outline_rounded, color: Color(0xFF0284C7), size: 20),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('REQUESTOR INQUIRIES & FOLLOW-UPS', style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_followUps.length} Follow-up Inquiry(s)',
+                      style: AdminStyles.headingStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 16),
+          if (_followUps.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text('No follow-up inquiries submitted yet.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+              ),
+            )
+          else
+            ..._followUps.map((fu) => Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: fu.isReplied ? AdminStyles.success.withValues(alpha: 0.1) : AdminStyles.warning.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          fu.isReplied ? 'Replied' : 'Pending Response',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: fu.isReplied ? AdminStyles.success : AdminStyles.warning,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        DateFormat('MMM dd · HH:mm').format(fu.createdAt),
+                        style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(fu.message, style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textPrimary)),
+                  if (fu.response != null) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.reply_rounded, size: 14, color: AdminStyles.primary),
+                              const SizedBox(width: 4),
+                              Text('Official Response', style: AdminStyles.headingStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AdminStyles.primary)),
+                              const Spacer(),
+                              if (fu.respondedAt != null)
+                                Text(DateFormat('MMM dd · HH:mm').format(fu.respondedAt!), style: AdminStyles.bodyStyle(fontSize: 10, color: AdminStyles.textMuted)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(fu.response!, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary)),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () => _showReplyFollowUpDialog(fu),
+                        icon: const Icon(Icons.reply_rounded, size: 16),
+                        label: const Text('Reply to Requestor', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AdminStyles.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            )),
+        ],
+      ),
+    );
+  }
+
+  void _showReplyFollowUpDialog(WorkRequestFollowUp followUp) {
+    final replyController = TextEditingController();
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            width: 500,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.reply_rounded, color: AdminStyles.primary),
+                    const SizedBox(width: 10),
+                    Text('Reply to Follow-up', style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Text(followUp.message, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary)),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: replyController,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Your Response / Update',
+                    hintText: 'Provide updates regarding the work request status...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminStyles.primary,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              final text = replyController.text.trim();
+                              if (text.isEmpty) return;
+                              setDialogState(() => isSubmitting = true);
+                              final auth = Provider.of<AuthService>(context, listen: false);
+                              final responderId = auth.currentUser?.id ?? '';
+                              final ok = await WorkRequestFollowUpService.respondToFollowUp(
+                                followUpId: followUp.id,
+                                responderId: responderId,
+                                responseText: text,
+                              );
+                              if (ok && mounted) {
+                                await AppNotificationService.notifyFollowUpReplied(
+                                  requestorId: _request!.requestorId ?? '',
+                                  workRequestId: _request!.id,
+                                  responderName: 'Campus Admin',
+                                  response: text,
+                                );
+                                Navigator.pop(ctx);
+                                _loadData();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Response sent to requestor!'), backgroundColor: Colors.green),
+                                );
+                              } else {
+                                setDialogState(() => isSubmitting = false);
+                              }
+                            },
+                      child: isSubmitting
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('Send Response'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDetailsColumn() {
     final requestor = _request!.requestorName.isNotEmpty
         ? _request!.requestorName
@@ -1544,6 +1926,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           const SizedBox(height: 20),
           _buildSignaturesListCard(),
         ],
+        _buildDeptHeadEvaluationCard(),
+        _buildFollowUpsCard(),
         const SizedBox(height: 20),
         _buildActionCard(),
       ],

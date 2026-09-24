@@ -40,7 +40,19 @@ class _AdminRequestTypesWebState extends State<AdminRequestTypesWeb> {
     _loadRequestTypes();
   }
 
-  Future<void> _loadRequestTypes() async {
+  @override
+  void didUpdateWidget(covariant AdminRequestTypesWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.activeIndex == widget.quickActionsConfig.requestTypesIndex &&
+        oldWidget.activeIndex != widget.quickActionsConfig.requestTypesIndex) {
+      _loadRequestTypes(silent: true);
+    }
+  }
+
+  Future<void> _loadRequestTypes({bool silent = false}) async {
+    if (!silent && _requestTypes.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       final requestTypes = await RequestTypeService.fetchAll();
       if (!mounted) return;
@@ -60,7 +72,7 @@ class _AdminRequestTypesWebState extends State<AdminRequestTypesWeb> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _requestTypes = [];
+        if (!silent) _requestTypes = [];
         _isLoading = false;
       });
     }

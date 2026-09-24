@@ -451,14 +451,12 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
     final formKey = GlobalKey<FormState>();
     final emailController = TextEditingController();
     final nameController = TextEditingController();
-    final passwordController = TextEditingController();
     final empIdController = TextEditingController();
     final phoneController = TextEditingController();
     final specController = TextEditingController();
     final posController = TextEditingController();
     String selectedRole = 'teacher';
-    String? selectedDeptId =
-        _departments.isNotEmpty ? _departments.first.id : null;
+    String? selectedDeptId;
 
     showDialog(
       context: context,
@@ -485,15 +483,6 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                         validator: (v) => v?.isEmpty ?? true ? 'Required' : null,
                       ),
                       const SizedBox(height: 8),
-                      TextFormField(
-                        controller: passwordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(labelText: 'Password'),
-                        validator: (v) => (v?.length ?? 0) < 6
-                            ? 'Min 6 characters'
-                            : null,
-                      ),
-                      const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
                         initialValue: selectedRole,
                         onChanged: (val) =>
@@ -506,18 +495,41 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                           DropdownMenuItem(value: 'maintenance', child: Text('Maintenance')),
                         ],
                       ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: empIdController,
+                        decoration: const InputDecoration(
+                          labelText: 'Employee ID',
+                          helperText: 'Default password for login (min. 6 chars)',
+                        ),
+                        validator: (v) {
+                          final val = v?.trim() ?? '';
+                          if (val.isEmpty) return 'Employee ID is required';
+                          if (val.length < 6) return 'Must be at least 6 characters';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: phoneController,
+                        decoration: const InputDecoration(labelText: 'Phone'),
+                      ),
                       if (selectedRole == 'teacher') ...[
                         const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
+                        DropdownButtonFormField<String?>(
                           initialValue: selectedDeptId,
                           onChanged: (val) => setState(() => selectedDeptId = val),
                           decoration: const InputDecoration(labelText: 'Department'),
-                          items: _departments
-                              .map((d) => DropdownMenuItem(
-                                    value: d.id,
-                                    child: Text(d.name),
-                                  ))
-                              .toList(),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('None'),
+                            ),
+                            ..._departments.map((d) => DropdownMenuItem<String?>(
+                                  value: d.id,
+                                  child: Text(d.name),
+                                )),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         TextFormField(
@@ -530,19 +542,6 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                         TextFormField(
                           controller: specController,
                           decoration: const InputDecoration(labelText: 'Specialization'),
-                        ),
-                      ],
-                      if (selectedRole == 'teacher' ||
-                          selectedRole == 'maintenance') ...[
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: empIdController,
-                          decoration: const InputDecoration(labelText: 'Employee ID'),
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: phoneController,
-                          decoration: const InputDecoration(labelText: 'Phone'),
                         ),
                       ],
                     ],
@@ -558,16 +557,17 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                   style: ElevatedButton.styleFrom(backgroundColor: _primaryTeal),
                   onPressed: () async {
                     if (formKey.currentState?.validate() ?? false) {
+                      final empId = empIdController.text.trim();
                       final err = await SystemAdminService.createUserAccount(
-                        email: emailController.text,
-                        password: passwordController.text,
-                        name: nameController.text,
+                        email: emailController.text.trim(),
+                        password: empId,
+                        name: nameController.text.trim(),
                         role: selectedRole,
-                        departmentId: selectedDeptId,
-                        position: posController.text,
-                        employeeId: empIdController.text,
-                        phone: phoneController.text,
-                        specialization: specController.text,
+                        departmentId: selectedDeptId?.isNotEmpty == true ? selectedDeptId : null,
+                        position: posController.text.trim(),
+                        employeeId: empId,
+                        phone: phoneController.text.trim(),
+                        specialization: specController.text.trim(),
                       );
                       if (ctx.mounted) Navigator.pop(ctx);
                       if (!context.mounted) return;

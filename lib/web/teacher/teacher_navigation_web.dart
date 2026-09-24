@@ -19,6 +19,9 @@ import 'menu/teacher_workflow_web.dart';
 import 'menu/teacher_archives_web.dart';
 import '../admin/shared/admin_styles.dart';
 import 'reports/teacher_create_request_web.dart';
+import 'reports/teacher_dept_head_approvals_web.dart';
+import '../../../shared/services/department_service.dart';
+import '../../../shared/services/work_request_service.dart';
 import 'chat/teacher_chat_web.dart';
 import 'notifications/teacher_notifications_web.dart';
 import '../../shared/widgets/lazy_indexed_stack.dart';
@@ -51,10 +54,35 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   ChatRoom? _selectedChatRoom;
 
   int _unreadNotificationCount = 0;
+  bool _isDeptHead = false;
+  int _pendingDeptHeadCount = 0;
   RealtimeChannel? _notificationsChannel;
   StreamSubscription<void>? _settingsSubscription;
   StreamSubscription<void>? _notifSubscription;
+  StreamSubscription<void>? _wrSubscription;
   Timer? _notifTimer;
+
+  Future<void> _checkDeptHeadStatus() async {
+    final user = context.read<AuthService>().currentUser;
+    if (user == null) return;
+    try {
+      final depts = await DepartmentService.fetchAll();
+      final isHead = depts.any((d) => d.headUserId == user.id);
+      if (mounted) {
+        setState(() {
+          _isDeptHead = isHead;
+        });
+      }
+      if (isHead) {
+        final pending = await WorkRequestService.fetchPendingForDeptHead(user.id);
+        if (mounted) {
+          setState(() {
+            _pendingDeptHeadCount = pending.length;
+          });
+        }
+      }
+    } catch (_) {}
+  }
 
   Future<void> _loadUnreadNotificationCount() async {
     try {
@@ -105,6 +133,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    _checkDeptHeadStatus();
     _loadUnreadNotificationCount();
     _subscribeNotifications();
     _settingsSubscription = AppSettingsService.changes.listen((_) {
@@ -113,8 +142,12 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
     _notifSubscription = AppNotificationService.changes.listen((_) {
       _loadUnreadNotificationCount();
     });
+    _wrSubscription = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      _checkDeptHeadStatus();
+    });
     _notifTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _loadUnreadNotificationCount();
+      _checkDeptHeadStatus();
     });
   }
 
@@ -122,6 +155,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   void dispose() {
     _settingsSubscription?.cancel();
     _notifSubscription?.cancel();
+    _wrSubscription?.cancel();
     _notifTimer?.cancel();
     if (_notificationsChannel != null) {
       Supabase.instance.client.removeChannel(_notificationsChannel!);
@@ -259,6 +293,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
           departmentName: _createDepartmentName,
         ),
         const TeacherNotificationsWeb(),
+        const TeacherDeptHeadApprovalsWeb(),
       ],
     );
   }
@@ -401,10 +436,10 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'FACULTY',
+                        _isDeptHead ? 'DEPARTMENT HEAD' : 'FACULTY',
                         style: TextStyle(
                           fontSize: 10,
-                          color: _textMuted,
+                          color: _isDeptHead ? _sidebarSelected : _textMuted,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.5,
                         ),
@@ -421,6 +456,8 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
               child: ListView(
                 children: [
                   _buildNavItem(index: 0, icon: Icons.dashboard_rounded, title: 'Home', closeDrawerOnTap: closeDrawerOnTap),
+                  if (_isDeptHead)
+                    _buildNavItem(index: 13, icon: Icons.approval_rounded, title: 'Dept Approvals', badge: _pendingDeptHeadCount, closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 1, icon: Icons.receipt_long_rounded, title: 'Logs', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 2, icon: Icons.qr_code_2_rounded, title: 'Scanner', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 3, icon: Icons.assessment_rounded, title: 'Reports', closeDrawerOnTap: closeDrawerOnTap),

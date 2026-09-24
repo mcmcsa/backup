@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+import 'connectivity_service.dart';
 
 // Represents an action to be executed when online
 class OfflineAction {
@@ -45,9 +46,23 @@ class OfflineSyncService {
   
   // Callback registry to handle syncing different types of actions
   final Map<String, Future<bool> Function(Map<String, dynamic>)> _handlers = {};
+  bool _isAutoSyncInitialized = false;
 
   Future<void> initialize() async {
     await _updateQueueCount();
+
+    if (!_isAutoSyncInitialized) {
+      _isAutoSyncInitialized = true;
+      ConnectivityService().isConnected.addListener(() {
+        if (ConnectivityService().isConnected.value && queueCount.value > 0 && !isSyncing.value) {
+          syncNow();
+        }
+      });
+    }
+
+    if (ConnectivityService().isConnected.value && queueCount.value > 0 && !isSyncing.value) {
+      syncNow();
+    }
   }
 
   void registerHandler(String type, Future<bool> Function(Map<String, dynamic>) handler) {

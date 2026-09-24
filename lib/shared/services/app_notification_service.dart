@@ -1195,6 +1195,112 @@ class AppNotificationService {
     );
   }
 
+  /// Notify Department Head of a newly submitted work request from faculty
+  static Future<void> notifyDeptHeadNewRequest({
+    required String deptHeadUserId,
+    required String workRequestId,
+    required String requestTitle,
+    required String requestorName,
+    required String departmentName,
+  }) async {
+    await createForUser(
+      targetUserId: deptHeadUserId,
+      title: 'Department Approval Required',
+      message: '$requestorName submitted a work request "$requestTitle" requiring your evaluation.',
+      type: 'dept_head_approval_required',
+      workRequestId: workRequestId,
+      targetPage: '/approvals',
+    );
+  }
+
+  /// Notify Campus Admin that a Department Head has approved/endorsed a request
+  static Future<void> notifyCampusAdminDeptHeadApproved({
+    required String workRequestId,
+    required String requestTitle,
+    required String deptHeadName,
+    required String departmentName,
+  }) async {
+    await createForRole(
+      targetRole: 'campadmin',
+      title: 'New Work Request (Dept Head Approved)',
+      message: 'Work request "$requestTitle" from $departmentName was endorsed by Department Head $deptHeadName and is awaiting admin approval.',
+      type: 'work_request_submitted',
+      workRequestId: workRequestId,
+      targetPage: '/reports',
+    );
+  }
+
+  /// Notify Requestor of the Department Head's decision (approved or declined)
+  static Future<void> notifyRequestorDeptHeadDecision({
+    required String requestorId,
+    required String workRequestId,
+    required String requestTitle,
+    required bool isApproved,
+    required String deptHeadName,
+    String? notes,
+  }) async {
+    final statusText = isApproved ? 'endorsed and forwarded to Campus Admin' : 'declined';
+    final notesText = (notes != null && notes.trim().isNotEmpty) ? ' Note: $notes' : '';
+    await createForUser(
+      targetUserId: requestorId,
+      title: isApproved ? 'Request Endorsed by Department Head' : 'Request Declined by Department Head',
+      message: 'Your work request "$requestTitle" was $statusText by Department Head $deptHeadName.$notesText',
+      type: isApproved ? 'dept_head_approved' : 'dept_head_declined',
+      workRequestId: workRequestId,
+      targetPage: '/status',
+    );
+  }
+
+  /// Notify appropriate reviewer (Dept Head or Campus Admin) about a Follow-Up inquiry
+  static Future<void> notifyFollowUpSubmitted({
+    required String workRequestId,
+    required String requestorId,
+    required String requestorName,
+    required String message,
+    required String targetStage,
+    String? recipientUserId,
+    required String workRequestTitle,
+  }) async {
+    final preview = message.length > 80 ? '${message.substring(0, 80)}…' : message;
+    if (targetStage == 'dept_head' && recipientUserId != null && recipientUserId.isNotEmpty) {
+      await createForUser(
+        targetUserId: recipientUserId,
+        title: 'Work Request Follow-Up',
+        message: '$requestorName sent an inquiry on "$workRequestTitle": "$preview"',
+        type: 'work_request_follow_up',
+        workRequestId: workRequestId,
+        targetPage: '/approvals',
+      );
+    } else {
+      await createForRole(
+        targetRole: 'campadmin',
+        title: 'Work Request Follow-Up',
+        message: '$requestorName sent an inquiry on "$workRequestTitle": "$preview"',
+        type: 'work_request_follow_up',
+        workRequestId: workRequestId,
+        targetPage: '/reports',
+      );
+    }
+  }
+
+  /// Notify Requestor that a reviewer replied to their Follow-Up inquiry
+  static Future<void> notifyFollowUpReplied({
+    required String requestorId,
+    required String workRequestId,
+    required String responderName,
+    required String response,
+  }) async {
+    final preview = response.length > 80 ? '${response.substring(0, 80)}…' : response;
+    await createForUser(
+      targetUserId: requestorId,
+      title: 'Response to Your Inquiry',
+      message: '$responderName replied to your follow-up: "$preview"',
+      type: 'work_request_follow_up_reply',
+      workRequestId: workRequestId,
+      targetPage: '/status',
+    );
+  }
+
   static Future<void> markAllAsRead({
     required String role,
     required String userId,

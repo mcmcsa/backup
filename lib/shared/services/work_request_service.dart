@@ -7,6 +7,8 @@ import 'dart:convert';
 import '../models/work_request_model.dart';
 import 'maintenance_status_service.dart';
 import 'room_service.dart';
+import 'department_service.dart';
+import 'app_notification_service.dart';
 
 class WorkRequestService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -34,6 +36,7 @@ class WorkRequestService {
       'requestor:users!work_requests_requestor_id_fkey(name, teacher_users(position)), '
       'approver:users!work_requests_approved_by_id_fkey(name), '
       'assignee:users!work_requests_assigned_to_id_fkey(name), '
+      'dept_head:users!work_requests_dept_head_id_fkey(name), '
       'pre_reports:pre_inspection_reports(id), '
       'post_reports:post_repair_reports(id)';
   static final Uuid _uuid = Uuid();
@@ -86,6 +89,53 @@ class WorkRequestService {
         .order('date_submitted', ascending: false);
     final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
     return await enrichMissingRequestorNames(requests);
+  }
+
+  /// Fetch requests awaiting approval by the designated Department Head
+  static Future<List<WorkRequest>> fetchPendingForDeptHead(String deptHeadId) async {
+    final cleanId = deptHeadId.trim();
+    if (cleanId.isEmpty) return [];
+    try {
+      final data = await _db
+          .from(_table)
+          .select(_selectWithRelations)
+          .eq('dept_head_id', cleanId)
+          .eq('dept_head_status', 'pending')
+          .order('date_submitted', ascending: false);
+      final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+      return await enrichMissingRequestorNames(requests);
+    } catch (_) {
+      try {
+        final data = await _db
+            .from(_table)
+            .select()
+            .eq('dept_head_id', cleanId)
+            .eq('dept_head_status', 'pending')
+            .order('date_submitted', ascending: false);
+        final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+        return await enrichMissingRequestorNames(requests);
+      } catch (e) {
+        return [];
+      }
+    }
+  }
+
+  /// Fetch all requests that were evaluated (approved or declined) by this Department Head
+  static Future<List<WorkRequest>> fetchEvaluatedByDeptHead(String deptHeadId) async {
+    final cleanId = deptHeadId.trim();
+    if (cleanId.isEmpty) return [];
+    try {
+      final data = await _db
+          .from(_table)
+          .select(_selectWithRelations)
+          .eq('dept_head_id', cleanId)
+          .neq('dept_head_status', 'pending')
+          .order('date_submitted', ascending: false);
+      final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+      return await enrichMissingRequestorNames(requests);
+    } catch (_) {
+      return [];
+    }
   }
 
   static Future<List<WorkRequest>> fetchAwaitingPreInspection() async {
@@ -292,6 +342,33 @@ class WorkRequestService {
               return r;
             }).toList();
           }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Resolve Dept Head names for requests that have deptHeadId but missing deptHeadName
+    final missingDeptHead = updatedList
+        .where((r) => r.deptHeadId != null && r.deptHeadId!.trim().isNotEmpty && (r.deptHeadName == null || r.deptHeadName!.trim().isEmpty))
+        .toList();
+    if (missingDeptHead.isNotEmpty) {
+      final deptHeadUserIds = missingDeptHead.map((r) => r.deptHeadId!.trim()).toSet().toList();
+      try {
+        final headUsers = await _db
+            .from('users')
+            .select('id, name')
+            .inFilter('id', deptHeadUserIds);
+        final headNameMap = <String, String>{
+          for (final u in (headUsers as List))
+            if (u['id'] != null && u['name'] != null && u['name'].toString().trim().isNotEmpty)
+              u['id'].toString(): u['name'].toString().trim(),
+        };
+        if (headNameMap.isNotEmpty) {
+          updatedList = updatedList.map((r) {
+            if (r.deptHeadId != null && headNameMap.containsKey(r.deptHeadId)) {
+              return r.copyWith(deptHeadName: headNameMap[r.deptHeadId]);
+            }
+            return r;
+          }).toList();
         }
       } catch (_) {}
     }
@@ -576,6 +653,118 @@ class WorkRequestService {
     } catch (_) {}
   }
 
+  /// Department Head approves/endorses a work request
+  static Future<void> approveByDeptHead(
+    String id,
+    String deptHeadId,
+    String deptHeadName, {
+    String? notes,
+    String? signatureData,
+  }) async {
+    final updateData = {
+      'dept_head_status': 'approved',
+      'dept_head_approved_date': DateTime.now().toIso8601String(),
+      if (notes != null && notes.trim().isNotEmpty) 'dept_head_notes': notes.trim(),
+      'status': 'Pending', // Advances ticket to Campus Admin queue
+    };
+
+    if (id.startsWith('WR-')) {
+      await _db.from(_table).update(updateData).eq('legacy_id', id);
+    } else {
+      await _db.from(_table).update(updateData).eq('id', id);
+    }
+
+    if (signatureData != null && signatureData.trim().isNotEmpty) {
+      try {
+        await _db.from('e_signatures').insert({
+          'work_request_id': id,
+          'signer_id': deptHeadId,
+          'signer_name': deptHeadName,
+          'signer_role': 'dept_head',
+          'signature_type': 'dept_head_approval',
+          'signature_data': signatureData,
+          'signed_at': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
+    }
+
+    notifyChange();
+
+    try {
+      final req = await fetchById(id);
+      if (req != null) {
+        await AppNotificationService.notifyCampusAdminDeptHeadApproved(
+          workRequestId: req.id,
+          requestTitle: req.title,
+          deptHeadName: deptHeadName,
+          departmentName: req.departmentName ?? 'Department',
+        );
+        if (req.requestorId != null && req.requestorId!.isNotEmpty) {
+          await AppNotificationService.notifyRequestorDeptHeadDecision(
+            requestorId: req.requestorId!,
+            workRequestId: req.id,
+            requestTitle: req.title,
+            isApproved: true,
+            deptHeadName: deptHeadName,
+            notes: notes,
+          );
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Department Head declines a work request (terminates workflow)
+  static Future<void> declineByDeptHead(
+    String id,
+    String deptHeadId,
+    String deptHeadName, {
+    required String reason,
+    String? signatureData,
+  }) async {
+    final updateData = {
+      'dept_head_status': 'declined',
+      'dept_head_approved_date': DateTime.now().toIso8601String(),
+      'dept_head_notes': reason.trim(),
+      'status': 'Declined', // Request ends and does NOT proceed to Campus Admin
+    };
+
+    if (id.startsWith('WR-')) {
+      await _db.from(_table).update(updateData).eq('legacy_id', id);
+    } else {
+      await _db.from(_table).update(updateData).eq('id', id);
+    }
+
+    if (signatureData != null && signatureData.trim().isNotEmpty) {
+      try {
+        await _db.from('e_signatures').insert({
+          'work_request_id': id,
+          'signer_id': deptHeadId,
+          'signer_name': deptHeadName,
+          'signer_role': 'dept_head',
+          'signature_type': 'dept_head_approval',
+          'signature_data': signatureData,
+          'signed_at': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
+    }
+
+    notifyChange();
+
+    try {
+      final req = await fetchById(id);
+      if (req?.requestorId != null && req!.requestorId!.isNotEmpty) {
+        await AppNotificationService.notifyRequestorDeptHeadDecision(
+          requestorId: req.requestorId!,
+          workRequestId: req.id,
+          requestTitle: req.title,
+          isApproved: false,
+          deptHeadName: deptHeadName,
+          notes: reason,
+        );
+      }
+    } catch (_) {}
+  }
+
   static Future<void> approveRequest(
     String id,
     String approvedById,
@@ -833,6 +1022,51 @@ class WorkRequestService {
       payload['id'] = _generateWorkRequestId();
     }
 
+    // Layer 2: Room-to-Department Validation
+    if (request.roomId != null &&
+        request.roomId!.isNotEmpty &&
+        request.departmentId != null &&
+        request.departmentId!.isNotEmpty) {
+      final room = await RoomService.fetchById(request.roomId!);
+      if (room != null &&
+          room.departmentId.isNotEmpty &&
+          room.departmentId != request.departmentId) {
+        throw Exception('Access Denied: Selected room does not belong to your department.');
+      }
+    }
+
+    // Department Head resolution & snapshot locking
+    bool isHead = false;
+    String? resolvedDeptHeadId;
+    if (request.departmentId != null && request.departmentId!.isNotEmpty) {
+      final dept = await DepartmentService.fetchById(request.departmentId!);
+      if (dept != null) {
+        if (dept.headUserId != null &&
+            dept.headUserId!.isNotEmpty &&
+            dept.headUserId == request.requestorId) {
+          isHead = true;
+        } else {
+          resolvedDeptHeadId = dept.headUserId ??
+              await DepartmentService.fetchDepartmentHeadUserId(request.departmentId!);
+        }
+      }
+    }
+
+    if (isHead) {
+      payload['dept_head_status'] = 'not_applicable';
+      payload['dept_head_id'] = null;
+      payload['status'] = 'Pending';
+    } else if (request.departmentId != null && request.departmentId!.isNotEmpty) {
+      if (resolvedDeptHeadId == null || resolvedDeptHeadId.isEmpty) {
+        throw Exception(
+          'No active Department Head assigned to your department. Please contact the administrator before submitting.',
+        );
+      }
+      payload['dept_head_id'] = resolvedDeptHeadId;
+      payload['dept_head_status'] = 'pending';
+      payload['status'] = 'Pending Department Head';
+    }
+
     // Automatically check for duplicates in the same room
     final roomId = payload['room_id'];
     if (roomId != null && roomId.toString().isNotEmpty) {
@@ -859,6 +1093,19 @@ class WorkRequestService {
     // Update room status
     if (request.roomId != null && request.roomId!.isNotEmpty) {
       await updateRoomStatusFromRequests(request.roomId!);
+    }
+
+    // Trigger Department Head notification if awaiting Dept Head review
+    if (!isHead && resolvedDeptHeadId != null && resolvedDeptHeadId.isNotEmpty) {
+      try {
+        await AppNotificationService.notifyDeptHeadNewRequest(
+          deptHeadUserId: resolvedDeptHeadId,
+          workRequestId: data['id']?.toString() ?? payload['id'],
+          requestTitle: request.title,
+          requestorName: request.requestorName,
+          departmentName: request.departmentName ?? 'Department',
+        );
+      } catch (_) {}
     }
 
     notifyChange();

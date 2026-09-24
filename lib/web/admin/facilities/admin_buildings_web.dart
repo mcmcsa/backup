@@ -29,7 +29,6 @@ class AdminBuildingsWeb extends StatefulWidget {
 class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _buildings = [];
-  List<Department> _departments = [];
   bool _isLoading = true;
 
   static const Color _primaryBlue = AdminStyles.primary;
@@ -45,7 +44,19 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
     _loadBuildings();
   }
 
-  Future<void> _loadBuildings() async {
+  @override
+  void didUpdateWidget(covariant AdminBuildingsWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.activeIndex == widget.quickActionsConfig.buildingsIndex &&
+        oldWidget.activeIndex != widget.quickActionsConfig.buildingsIndex) {
+      _loadBuildings(silent: true);
+    }
+  }
+
+  Future<void> _loadBuildings({bool silent = false}) async {
+    if (!silent && _buildings.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       final results = await Future.wait([
         BuildingService.fetchAll(),
@@ -77,10 +88,20 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                 .toList()
               ..sort();
 
-        final departmentLabel = building.department.isNotEmpty
-            ? building.department
+        final deptsInBuilding = departments
+            .where((dept) => dept.buildingId == building.id)
+            .map((dept) => dept.name.trim())
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+
+        final departmentLabel = deptsInBuilding.isNotEmpty
+            ? deptsInBuilding.join(', ')
             : departmentNames.isNotEmpty
             ? departmentNames.join(', ')
+            : building.department.isNotEmpty
+            ? building.department
             : '-';
 
         return {
@@ -94,16 +115,15 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
         };
       }).toList();
 
+      if (!mounted) return;
       setState(() {
         _buildings = mapped;
-        _departments = departments;
         _isLoading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _buildings = [];
-        _departments = [];
+        if (!silent) _buildings = [];
         _isLoading = false;
       });
     }
@@ -111,7 +131,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
 
   Future<void> _showAddBuildingDialog() async {
     final nameController = TextEditingController();
-    String? selectedDepartmentId;
     bool isSubmitting = false;
 
     await showDialog<void>(
@@ -120,8 +139,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final canInputBuildingDetails = selectedDepartmentId != null;
-
             return AlertDialog(
               title: const Text('Add Building'),
               content: SizedBox(
@@ -130,30 +147,12 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: selectedDepartmentId,
-                        decoration: const InputDecoration(
-                          labelText: 'Department',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: _departments
-                            .map(
-                              (department) => DropdownMenuItem<String>(
-                                value: department.id,
-                                child: Text(department.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          setDialogState(() => selectedDepartmentId = value);
-                        },
-                      ),
-                      const SizedBox(height: 12),
                       TextField(
                         controller: nameController,
-                        enabled: canInputBuildingDetails,
+                        autofocus: true,
                         decoration: const InputDecoration(
                           labelText: 'Building Name',
+                          hintText: 'ex. New Building',
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -172,17 +171,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                   onPressed: isSubmitting
                       ? null
                       : () async {
-                          if (selectedDepartmentId == null) {
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Department is required'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                            return;
-                          }
-                          final selectedDeptId = selectedDepartmentId!;
-
                           final name = nameController.text.trim();
                           if (name.isEmpty) {
                             ScaffoldMessenger.of(this.context).showSnackBar(
@@ -201,7 +189,7 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                             final building = Building(
                               id: const Uuid().v4(),
                               name: name,
-                              departmentId: selectedDeptId,
+                              departmentId: '',
                               createdAt: now,
                               updatedAt: now,
                             );
@@ -247,9 +235,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
 
   Future<void> _showEditBuildingDialog(Building building) async {
     final nameController = TextEditingController(text: building.name);
-    String? selectedDepartmentId = building.departmentId.isNotEmpty
-        ? building.departmentId
-        : null;
     bool isSubmitting = false;
 
     await showDialog<void>(
@@ -258,8 +243,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final canInputBuildingDetails = selectedDepartmentId != null;
-
             return AlertDialog(
               title: const Text('Edit Building'),
               content: SizedBox(
@@ -268,28 +251,9 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: selectedDepartmentId,
-                        decoration: const InputDecoration(
-                          labelText: 'Department',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: _departments
-                            .map(
-                              (department) => DropdownMenuItem<String>(
-                                value: department.id,
-                                child: Text(department.name),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          setDialogState(() => selectedDepartmentId = value);
-                        },
-                      ),
-                      const SizedBox(height: 12),
                       TextField(
                         controller: nameController,
-                        enabled: canInputBuildingDetails,
+                        autofocus: true,
                         decoration: const InputDecoration(
                           labelText: 'Building Name',
                           border: OutlineInputBorder(),
@@ -310,17 +274,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                   onPressed: isSubmitting
                       ? null
                       : () async {
-                          if (selectedDepartmentId == null) {
-                            ScaffoldMessenger.of(this.context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Department is required'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                            return;
-                          }
-                          final selectedDeptId = selectedDepartmentId!;
-
                           final name = nameController.text.trim();
                           if (name.isEmpty) {
                             ScaffoldMessenger.of(this.context).showSnackBar(
@@ -337,7 +290,6 @@ class _AdminBuildingsWebState extends State<AdminBuildingsWeb> {
                           try {
                             final updated = building.copyWith(
                               name: name,
-                              departmentId: selectedDeptId,
                               updatedAt: DateTime.now(),
                             );
                             await BuildingService.update(updated);

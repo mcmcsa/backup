@@ -86,6 +86,27 @@ class DropdownDataHelper {
     }
   }
 
+  /// Get department names for a specific building
+  Future<List<String>> getDepartmentNamesByBuilding(String buildingId) async {
+    try {
+      final depts = await DepartmentService.fetchByBuilding(buildingId);
+      return depts.map((d) => d.name).toList();
+    } catch (e) {
+      print('Error fetching departments by building: $e');
+      return [];
+    }
+  }
+
+  /// Get departments for a specific building
+  Future<List<Department>> getDepartmentsByBuilding(String buildingId) async {
+    try {
+      return await DepartmentService.fetchByBuilding(buildingId);
+    } catch (e) {
+      print('Error fetching departments by building: $e');
+      return [];
+    }
+  }
+
   /// Get departments list with caching
   /// Returns department names as strings
   Future<List<String>> getDepartmentNames() async {

@@ -76,9 +76,8 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
     Navigator.pop(context);
   }
 
-  bool get _isDepartmentSelected =>
-      _selectedDepartment != _noDepartmentOption &&
-      _selectedDepartment.isNotEmpty;
+  bool get _isBuildingSelected =>
+      _selectedBuilding.trim().isNotEmpty;
 
   @override
   void initState() {
@@ -110,20 +109,19 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
   }
 
   Future<void> _loadDropdownOptions() async {
-    final departments = await _dropdownHelper.getDepartmentNames();
+    final buildings = await _dropdownHelper.getBuildingNames();
     final floors = await _dropdownHelper.getFloorNames();
     final roomTypes = await _dropdownHelper.getRoomTypes();
     if (!mounted) return;
 
     setState(() {
-      _departmentOptions = _uniqueNonEmpty(departments);
+      _buildingOptions = _uniqueNonEmpty(buildings);
+      if (_selectedBuilding.isNotEmpty && !_buildingOptions.contains(_selectedBuilding)) {
+        _buildingOptions = [..._buildingOptions, _selectedBuilding];
+      }
+
       _floors = _uniqueNonEmpty(floors);
       _roomTypes = _uniqueNonEmpty(roomTypes);
-
-      if (_selectedDepartment != _noDepartmentOption &&
-          !_departmentOptions.contains(_selectedDepartment)) {
-        _selectedDepartment = _noDepartmentOption;
-      }
 
       if (_roomTypes.isNotEmpty && !_roomTypes.contains(_selectedRoomType)) {
         _roomTypes = [..._roomTypes, _selectedRoomType];
@@ -134,44 +132,48 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
       }
     });
 
-    await _loadBuildingsByDepartment(_selectedDepartment);
+    await _loadDepartmentsByBuilding(_selectedBuilding);
   }
 
-  Future<void> _loadBuildingsByDepartment(String departmentName) async {
-    final normalizedDepartment = departmentName.trim();
-    if (normalizedDepartment == _noDepartmentOption ||
-        normalizedDepartment.isEmpty) {
+  Future<void> _loadDepartmentsByBuilding(String buildingName) async {
+    final normalizedBuilding = buildingName.trim();
+    if (normalizedBuilding.isEmpty) {
       if (!mounted) return;
       setState(() {
-        _buildingOptions = [];
-        _selectedBuilding = '';
+        _departmentOptions = [];
+        _selectedDepartment = _noDepartmentOption;
       });
       return;
     }
 
-    final department = await _dropdownHelper.getDepartmentByName(
-      normalizedDepartment,
+    final building = await _dropdownHelper.getBuildingByName(
+      normalizedBuilding,
     );
-    if (department == null) {
+    if (building == null) {
       if (!mounted) return;
       setState(() {
-        _buildingOptions = [];
-        _selectedBuilding = '';
+        _departmentOptions = [];
+        _selectedDepartment = _noDepartmentOption;
       });
       return;
     }
 
-    final buildings = _uniqueNonEmpty(
-      await _dropdownHelper.getBuildingNamesByDepartment(department.id),
+    final departments = _uniqueNonEmpty(
+      await _dropdownHelper.getDepartmentNamesByBuilding(building.id),
     );
 
     if (!mounted) return;
     setState(() {
-      _buildingOptions = buildings;
-      if (!_buildingOptions.contains(_selectedBuilding)) {
-        _selectedBuilding = _buildingOptions.isNotEmpty
-            ? _buildingOptions.first
-            : '';
+      _departmentOptions = departments;
+      if (_selectedDepartment != _noDepartmentOption &&
+          !_departmentOptions.contains(_selectedDepartment)) {
+        if (_selectedDepartment == widget.room.department) {
+          _departmentOptions = [..._departmentOptions, _selectedDepartment];
+        } else {
+          _selectedDepartment = _departmentOptions.isNotEmpty
+              ? _departmentOptions.first
+              : _noDepartmentOption;
+        }
       }
     });
   }
@@ -849,14 +851,17 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
             children: [
               Expanded(
                 child: _buildFieldBlock(
-                  label: 'Department',
+                  label: 'Building',
                   child: _buildDropdown(
-                    value: _selectedDepartment,
-                    items: [_noDepartmentOption, ..._departmentOptions],
+                    value: _selectedBuilding,
+                    items: _buildingOptions,
                     onChanged: (v) async {
                       if (v == null) return;
-                      setState(() => _selectedDepartment = v);
-                      await _loadBuildingsByDepartment(v);
+                      setState(() {
+                        _selectedBuilding = v;
+                        _selectedDepartment = _noDepartmentOption;
+                      });
+                      await _loadDepartmentsByBuilding(v);
                     },
                   ),
                 ),
@@ -864,14 +869,14 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
               const SizedBox(width: 12),
               Expanded(
                 child: _buildFieldBlock(
-                  label: 'Building',
+                  label: 'Department',
                   child: _buildDropdown(
-                    value: _selectedBuilding,
-                    items: _buildingOptions,
-                    onChanged: _isDepartmentSelected
+                    value: _selectedDepartment,
+                    items: [_noDepartmentOption, ..._departmentOptions],
+                    onChanged: _isBuildingSelected
                         ? (v) {
                             if (v == null) return;
-                            setState(() => _selectedBuilding = v);
+                            setState(() => _selectedDepartment = v);
                           }
                         : null,
                   ),

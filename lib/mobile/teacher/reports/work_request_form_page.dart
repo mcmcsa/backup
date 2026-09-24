@@ -1164,7 +1164,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 550),
-            child: SingleChildScrollView(
+            child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1204,7 +1204,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   SignaturePadWidget(
                     title: 'E-Signature',
                     subtitle: 'Draw signature below or upload clear image',
-                    height: 280,
+                    height: 240,
                     onSignatureComplete: (base64) {
                       if (base64.isNotEmpty) {
                         setState(() => _requesterSignatureBase64 = base64);

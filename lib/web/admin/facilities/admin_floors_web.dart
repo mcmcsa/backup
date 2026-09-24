@@ -39,7 +39,19 @@ class _AdminFloorsWebState extends State<AdminFloorsWeb> {
     _loadFloors();
   }
 
-  Future<void> _loadFloors() async {
+  @override
+  void didUpdateWidget(covariant AdminFloorsWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.activeIndex == widget.quickActionsConfig.floorsIndex &&
+        oldWidget.activeIndex != widget.quickActionsConfig.floorsIndex) {
+      _loadFloors(silent: true);
+    }
+  }
+
+  Future<void> _loadFloors({bool silent = false}) async {
+    if (!silent && _floors.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       final floors = await FloorService.fetchAll();
 
@@ -49,6 +61,7 @@ class _AdminFloorsWebState extends State<AdminFloorsWeb> {
         return {'floorModel': floor, 'id': floor.id, 'name': floor.name};
       }).toList();
 
+      if (!mounted) return;
       setState(() {
         _floors = mapped;
         _isLoading = false;
@@ -56,7 +69,7 @@ class _AdminFloorsWebState extends State<AdminFloorsWeb> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _floors = [];
+        if (!silent) _floors = [];
         _isLoading = false;
       });
     }

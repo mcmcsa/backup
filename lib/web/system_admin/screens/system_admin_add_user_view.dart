@@ -24,7 +24,6 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
   
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   final _empIdController = TextEditingController();
   final _phoneController = TextEditingController();
   final _specController = TextEditingController();
@@ -33,21 +32,17 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
   String _selectedRole = 'teacher';
   String? _selectedDeptId;
   bool _isLoading = false;
-  bool _obscurePassword = true;
 
   @override
   void initState() {
     super.initState();
-    if (widget.departments.isNotEmpty) {
-      _selectedDeptId = widget.departments.first.id;
-    }
+    _selectedDeptId = null;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _passwordController.dispose();
     _empIdController.dispose();
     _phoneController.dispose();
     _specController.dispose();
@@ -58,18 +53,29 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final empId = _empIdController.text.trim();
+    if (empId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Employee ID is required (it serves as the default password).'),
+          backgroundColor: AdminStyles.error,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     final error = await SystemAdminService.createUserAccount(
-      email: _emailController.text,
-      password: _passwordController.text,
-      name: _nameController.text,
+      email: _emailController.text.trim(),
+      password: empId,
+      name: _nameController.text.trim(),
       role: _selectedRole,
-      departmentId: _selectedDeptId,
-      position: _posController.text,
-      employeeId: _empIdController.text,
-      phone: _phoneController.text,
-      specialization: _specController.text,
+      departmentId: _selectedDeptId?.isNotEmpty == true ? _selectedDeptId : null,
+      position: _posController.text.trim(),
+      employeeId: empId,
+      phone: _phoneController.text.trim(),
+      specialization: _specController.text.trim(),
     );
 
     setState(() => _isLoading = false);
@@ -189,25 +195,6 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                       validator: (v) => v!.isEmpty ? 'Required' : null,
                                     ),
                                   ),
-                                  const SizedBox(height: 20),
-                                  _buildInputWrapper(
-                                    label: 'Password',
-                                    child: _buildTextField(
-                                      controller: _passwordController,
-                                      hint: 'e.g. Password_12345',
-                                      icon: Icons.lock_outline_rounded,
-                                      obscure: _obscurePassword,
-                                      validator: (v) => v!.length < 6 ? 'Min 6 characters' : null,
-                                      suffixIcon: IconButton(
-                                        icon: Icon(
-                                          _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                          color: AdminStyles.textSecondary,
-                                          size: 20,
-                                        ),
-                                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                                      ),
-                                    ),
-                                  ),
                                 ],
                               )
                             : Column(
@@ -240,34 +227,6 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 20),
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: _buildInputWrapper(
-                                          label: 'Password',
-                                          child: _buildTextField(
-                                            controller: _passwordController,
-                                            hint: 'e.g. Password_12345',
-                                            icon: Icons.lock_outline_rounded,
-                                            obscure: _obscurePassword,
-                                            validator: (v) => v!.length < 6 ? 'Min 6 characters' : null,
-                                            suffixIcon: IconButton(
-                                              icon: Icon(
-                                                _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                                color: AdminStyles.textSecondary,
-                                                size: 20,
-                                              ),
-                                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 24),
-                                      const Expanded(child: SizedBox()),
-                                    ],
-                                  ),
                                 ],
                               ),
                       ),
@@ -291,8 +250,15 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                       label: 'Employee ID',
                                       child: _buildTextField(
                                         controller: _empIdController,
-                                        hint: 'Optional',
+                                        hint: 'e.g. EMP-2024-001',
+                                        helperText: 'Default password for initial login (min. 6 chars)',
                                         icon: Icons.badge_outlined,
+                                        validator: (v) {
+                                          final val = v?.trim() ?? '';
+                                          if (val.isEmpty) return 'Employee ID is required';
+                                          if (val.length < 6) return 'Must be at least 6 characters';
+                                          return null;
+                                        },
                                       ),
                                     ),
                                     const SizedBox(height: 20),
@@ -308,16 +274,22 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                       const SizedBox(height: 20),
                                       _buildInputWrapper(
                                         label: 'Department',
-                                        child: DropdownButtonFormField<String>(
+                                        child: DropdownButtonFormField<String?>(
                                           initialValue: _selectedDeptId,
                                           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textSecondary),
                                           decoration: _inputDecoration(icon: Icons.business_rounded),
-                                          items: widget.departments.map<DropdownMenuItem<String>>((d) {
-                                            return DropdownMenuItem<String>(
-                                              value: d.id,
-                                              child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
-                                            );
-                                          }).toList(),
+                                          items: [
+                                            const DropdownMenuItem<String?>(
+                                              value: null,
+                                              child: Text('None'),
+                                            ),
+                                            ...widget.departments.map<DropdownMenuItem<String?>>((d) {
+                                              return DropdownMenuItem<String?>(
+                                                value: d.id,
+                                                child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
+                                              );
+                                            }),
+                                          ],
                                           onChanged: (v) => setState(() => _selectedDeptId = v),
                                         ),
                                       ),
@@ -365,8 +337,15 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                             label: 'Employee ID',
                                             child: _buildTextField(
                                               controller: _empIdController,
-                                              hint: 'Optional',
+                                              hint: 'e.g. EMP-2024-001',
+                                              helperText: 'Default password for initial login (min. 6 chars)',
                                               icon: Icons.badge_outlined,
+                                              validator: (v) {
+                                                final val = v?.trim() ?? '';
+                                                if (val.isEmpty) return 'Employee ID is required';
+                                                if (val.length < 6) return 'Must be at least 6 characters';
+                                                return null;
+                                              },
                                             ),
                                           ),
                                         ),
@@ -391,16 +370,22 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                           Expanded(
                                             child: _buildInputWrapper(
                                               label: 'Department',
-                                              child: DropdownButtonFormField<String>(
+                                              child: DropdownButtonFormField<String?>(
                                                 initialValue: _selectedDeptId,
                                                 icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textSecondary),
                                                 decoration: _inputDecoration(icon: Icons.business_rounded),
-                                                items: widget.departments.map<DropdownMenuItem<String>>((d) {
-                                                  return DropdownMenuItem<String>(
-                                                    value: d.id,
-                                                    child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
-                                                  );
-                                                }).toList(),
+                                                items: [
+                                                  const DropdownMenuItem<String?>(
+                                                    value: null,
+                                                    child: Text('None'),
+                                                  ),
+                                                  ...widget.departments.map<DropdownMenuItem<String?>>((d) {
+                                                    return DropdownMenuItem<String?>(
+                                                      value: d.id,
+                                                      child: Text(d.name, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
+                                                    );
+                                                  }),
+                                                ],
                                                 onChanged: (v) => setState(() => _selectedDeptId = v),
                                               ),
                                             ),
@@ -598,9 +583,16 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
     );
   }
 
-  InputDecoration _inputDecoration({required IconData icon, String? hint, Widget? suffixIcon}) {
+  InputDecoration _inputDecoration({
+    required IconData icon,
+    String? hint,
+    String? helperText,
+    Widget? suffixIcon,
+  }) {
     return InputDecoration(
       hintText: hint,
+      helperText: helperText,
+      helperStyle: const TextStyle(color: AdminStyles.textSecondary, fontSize: 12),
       hintStyle: const TextStyle(color: Colors.black38, fontSize: 14),
       prefixIcon: Icon(icon, size: 20, color: AdminStyles.textSecondary),
       suffixIcon: suffixIcon,
@@ -631,6 +623,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
     required String hint,
     required IconData icon,
     bool obscure = false,
+    String? helperText,
     String? Function(String?)? validator,
     Widget? suffixIcon,
   }) {
@@ -639,7 +632,12 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
       obscureText: obscure,
       validator: validator,
       style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600, color: AdminStyles.textPrimary),
-      decoration: _inputDecoration(icon: icon, hint: hint, suffixIcon: suffixIcon),
+      decoration: _inputDecoration(
+        icon: icon,
+        hint: hint,
+        helperText: helperText,
+        suffixIcon: suffixIcon,
+      ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../authentication/models/user_model.dart';
 import '../../authentication/services/auth_service.dart';
+import 'department_service.dart';
 
 class SystemAdminService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -150,6 +151,28 @@ class SystemAdminService {
         }
       }
 
+      // 3. Handle official Department Head synchronization (Rules 1, 2, & 3)
+      bool userIsActive = true;
+      if (isActive != null) {
+        userIsActive = isActive;
+      } else {
+        try {
+          final u = await _db.from('users').select('is_active').eq('id', id).maybeSingle();
+          userIsActive = u?['is_active'] ?? true;
+        } catch (_) {}
+      }
+
+      final bool isHeadPosition = position?.trim().toLowerCase() == 'head';
+
+      if (role == 'teacher' && userIsActive && isHeadPosition && departmentId != null && departmentId.isNotEmpty) {
+        // Rule 1 & 2: Active teacher with Position = "Head" -> set as official department head
+        await DepartmentService.setDepartmentHead(departmentId, id);
+      } else {
+        // Rule 3: If user is deactivated, changed away from Head, transferred, or role changed,
+        // clear departments.head_user_id where head_user_id == id
+        await DepartmentService.clearHeadIfAssigned(id);
+      }
+
       return null;
     } catch (e) {
       return e.toString();
@@ -269,6 +292,13 @@ class SystemAdminService {
           'position': position?.trim().isNotEmpty == true ? position!.trim() : null,
           'employee_id': employeeId?.trim().isNotEmpty == true ? employeeId!.trim() : null,
         }, onConflict: 'user_id');
+
+        // Rule 1: Active teacher created with Position = "Head" and a Department -> assign as official Department Head
+        if (departmentId != null &&
+            departmentId.isNotEmpty &&
+            position?.trim().toLowerCase() == 'head') {
+          await DepartmentService.setDepartmentHead(departmentId, newUserId);
+        }
       } else if (role == 'maintenance') {
         await _db.from('maintenance_users').upsert({
           'user_id': newUserId,

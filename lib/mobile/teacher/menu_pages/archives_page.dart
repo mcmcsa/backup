@@ -55,7 +55,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
     List<WorkRequest> filtered = _archivedRequests;
     if (_selectedFilter == 'Completed') {
       filtered = filtered.where((r) => r.status.toLowerCase().contains('completed')).toList();
-    } else if (_selectedFilter == 'Declined' || _selectedFilter == 'Cancelled') {
+    } else if (_selectedFilter == 'Declined') {
       filtered = filtered.where((r) {
         final s = r.status.toLowerCase();
         return s.contains('declined') || s.contains('cancelled');
@@ -170,8 +170,6 @@ class _ArchivesPageState extends State<ArchivesPage> {
                 _buildFilterChip('Completed', themeProvider),
                 const SizedBox(width: 8),
                 _buildFilterChip('Declined', themeProvider),
-                const SizedBox(width: 8),
-                _buildFilterChip('Cancelled', themeProvider),
               ],
             ),
           ),

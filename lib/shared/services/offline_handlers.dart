@@ -51,13 +51,16 @@ void registerOfflineHandlers() {
 
       // 3. Insert Signature
       if (signatureData != null && request.requestorId != null) {
+        final signerRole = payload['signer_role'] as String? ?? 'teacher';
+        final signatureType = payload['signature_type'] as String? ?? 'requestor';
+
         await ESignatureService.insert(ESignature(
           id: '',
           workRequestId: inserted.id,
           signerId: request.requestorId!,
           signerName: request.requestorName,
-          signerRole: 'teacher',
-          signatureType: 'approval',
+          signerRole: signerRole,
+          signatureType: signatureType,
           signatureData: signatureData,
           signedAt: DateTime.now(),
         ));

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -147,7 +148,17 @@ class _ChatComposerState extends State<ChatComposer> {
       if (result != null && result.files.isNotEmpty) {
         final List<AttachmentItem> newItems = [];
         for (final file in result.files) {
-          final bytes = file.bytes;
+          Uint8List? bytes = file.bytes;
+          if (bytes == null && file.path != null && !kIsWeb) {
+            try {
+              final ioFile = File(file.path!);
+              if (await ioFile.exists()) {
+                bytes = await ioFile.readAsBytes();
+              }
+            } catch (e) {
+              debugPrint('Error reading picked file bytes: $e');
+            }
+          }
           if (bytes != null && bytes.isNotEmpty) {
             newItems.add(AttachmentItem(
               name: file.name,

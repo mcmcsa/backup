@@ -57,8 +57,8 @@ class _SystemAdminMainNavigationWebState
   static const _contentBg = Color(0xFFF8FAFC);
   static const _primaryBlue = Color(0xFF0F766E); // Consistent Teal accent
 
-  static const int _departmentsIndex = 2; // Default Facility Management is Department
-  static const int _buildingsIndex = 12;
+  static const int _buildingsIndex = 2; // Default Facility Management is Building
+  static const int _departmentsIndex = 12;
   static const int _floorsIndex = 13;
   static const int _roomTypesIndex = 14;
   static const int _requestTypesIndex = 15;
@@ -71,6 +71,62 @@ class _SystemAdminMainNavigationWebState
         roomTypesIndex: _roomTypesIndex,
         requestTypesIndex: _requestTypesIndex,
       );
+
+  bool get _isFacilityTab =>
+      _selectedIndex == _buildingsIndex ||
+      _selectedIndex == _departmentsIndex ||
+      _selectedIndex == _floorsIndex ||
+      _selectedIndex == _roomTypesIndex ||
+      _selectedIndex == _requestTypesIndex;
+
+  int get _facilitySubIndex {
+    switch (_selectedIndex) {
+      case _departmentsIndex:
+        return 1;
+      case _floorsIndex:
+        return 2;
+      case _roomTypesIndex:
+        return 3;
+      case _requestTypesIndex:
+        return 4;
+      case _buildingsIndex:
+      default:
+        return 0;
+    }
+  }
+
+  Widget _buildFacilityManagementView() {
+    return IndexedStack(
+      index: _facilitySubIndex,
+      children: [
+        AdminBuildingsWeb(
+          activeIndex: _selectedIndex,
+          onNavigate: _handleFacilityQuickNavigate,
+          quickActionsConfig: _facilityQuickActionsConfig,
+        ),
+        AdminDepartmentsWeb(
+          activeIndex: _selectedIndex,
+          onNavigate: _handleFacilityQuickNavigate,
+          quickActionsConfig: _facilityQuickActionsConfig,
+        ),
+        AdminFloorsWeb(
+          activeIndex: _selectedIndex,
+          onNavigate: _handleFacilityQuickNavigate,
+          quickActionsConfig: _facilityQuickActionsConfig,
+        ),
+        AdminRoomTypesWeb(
+          activeIndex: _selectedIndex,
+          onNavigate: _handleFacilityQuickNavigate,
+          quickActionsConfig: _facilityQuickActionsConfig,
+        ),
+        AdminRequestTypesWeb(
+          activeIndex: _selectedIndex,
+          onNavigate: _handleFacilityQuickNavigate,
+          quickActionsConfig: _facilityQuickActionsConfig,
+        ),
+      ],
+    );
+  }
 
   void _handleFacilityQuickNavigate(int index) {
     setState(() => _selectedIndex = index);
@@ -294,7 +350,7 @@ class _SystemAdminMainNavigationWebState
                             );
                           },
                           child: KeyedSubtree(
-                            key: ValueKey<int>(_selectedIndex),
+                            key: ValueKey<String>(_isFacilityTab ? 'facility_management' : 'page_$_selectedIndex'),
                             child: _buildBodyContent(),
                           ),
                         ),
@@ -315,18 +371,12 @@ class _SystemAdminMainNavigationWebState
       case 0:
         return SystemAdminDashboardView(
           onCreateUser: () => setState(() => _selectedIndex = 1),
-          onAddDepartment: () => setState(() => _selectedIndex = 2),
+          onAddDepartment: () => setState(() => _selectedIndex = _departmentsIndex),
           onGenerateQR: () => setState(() => _selectedIndex = 4),
           onBackupData: () => setState(() => _selectedIndex = 10),
         );
       case 1:
         return const SystemAdminUsersView();
-      case 2:
-        return AdminDepartmentsWeb(
-          activeIndex: _selectedIndex,
-          onNavigate: _handleFacilityQuickNavigate,
-          quickActionsConfig: _facilityQuickActionsConfig,
-        );
       case 3:
         return Builder(
           builder: (context) {
@@ -366,29 +416,11 @@ class _SystemAdminMainNavigationWebState
       case 11:
         return const SystemAdminSettingsView();
       case _buildingsIndex:
-        return AdminBuildingsWeb(
-          activeIndex: _selectedIndex,
-          onNavigate: _handleFacilityQuickNavigate,
-          quickActionsConfig: _facilityQuickActionsConfig,
-        );
+      case _departmentsIndex:
       case _floorsIndex:
-        return AdminFloorsWeb(
-          activeIndex: _selectedIndex,
-          onNavigate: _handleFacilityQuickNavigate,
-          quickActionsConfig: _facilityQuickActionsConfig,
-        );
       case _roomTypesIndex:
-        return AdminRoomTypesWeb(
-          activeIndex: _selectedIndex,
-          onNavigate: _handleFacilityQuickNavigate,
-          quickActionsConfig: _facilityQuickActionsConfig,
-        );
       case _requestTypesIndex:
-        return AdminRequestTypesWeb(
-          activeIndex: _selectedIndex,
-          onNavigate: _handleFacilityQuickNavigate,
-          quickActionsConfig: _facilityQuickActionsConfig,
-        );
+        return _buildFacilityManagementView();
       default:
         return const Center(child: Text('Page not found'));
     }
@@ -599,12 +631,7 @@ class _SystemAdminMainNavigationWebState
   }) {
     bool isSelected = _selectedIndex == index;
     // Highlight Facility Management if a sub-view is active
-    if (index == _buildingsIndex &&
-        (_selectedIndex == _departmentsIndex ||
-         _selectedIndex == _buildingsIndex ||
-         _selectedIndex == _floorsIndex ||
-         _selectedIndex == _roomTypesIndex ||
-         _selectedIndex == _requestTypesIndex)) {
+    if (index == _buildingsIndex && _isFacilityTab) {
       isSelected = true;
     }
     return InkWell(

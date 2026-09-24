@@ -14,6 +14,7 @@ import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/room_service.dart';
+import '../../../shared/services/department_service.dart';
 import '../../../shared/services/duplicate_detection_service.dart';
 import '../../../shared/widgets/duplicate_detection_dialog.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
@@ -138,11 +139,30 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
     try {
       final room = await RoomService.findRoomByScannedCode(code);
       if (room != null && mounted) {
+        if (_selectedCollege.isNotEmpty &&
+            room.department.isNotEmpty &&
+            room.department.toLowerCase() != _selectedCollege.toLowerCase()) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Access Denied: Room ${room.code} belongs to ${room.department}. You can only file requests for rooms in your department ($_selectedCollege).',
+              ),
+              backgroundColor: AdminStyles.error,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          setState(() {
+            _roomNumberController.clear();
+            _officeRoomNameController.clear();
+          });
+          return;
+        }
+
         setState(() {
           if (_officeRoomNameController.text.trim().isEmpty || widget.roomName == null) {
             _officeRoomNameController.text = room.name;
           }
-          if (room.department.isNotEmpty && (_colleges.isEmpty || _colleges.contains(room.department))) {
+          if (_selectedCollege.isEmpty && room.department.isNotEmpty && (_colleges.isEmpty || _colleges.contains(room.department))) {
             _selectedCollege = room.department;
           }
           if (room.building.isNotEmpty) {
@@ -182,13 +202,18 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         }
       }
 
+      final user = context.read<AuthService>().currentUser;
+      final userDept = user?.department?.trim();
+
       setState(() {
         _colleges = depts;
         _floors = floors.where((f) => f.trim().isNotEmpty).toList();
         if (_floors.isEmpty) _floors = ['N/A'];
         _requestTypes = requestTypes;
         
-        if (widget.departmentName != null && widget.departmentName!.isNotEmpty && _colleges.contains(widget.departmentName)) {
+        if (userDept != null && userDept.isNotEmpty && _colleges.contains(userDept)) {
+          _selectedCollege = userDept;
+        } else if (widget.departmentName != null && widget.departmentName!.isNotEmpty && _colleges.contains(widget.departmentName)) {
           _selectedCollege = widget.departmentName!;
         } else if (widget.buildingName != null && widget.buildingName!.isNotEmpty) {
           _selectedCollege = _colleges.firstWhere(
@@ -339,6 +364,22 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       
       final building = await helper.getBuildingByName(_selectedBuilding);
       final dept = await helper.getDepartmentByName(_selectedCollege);
+
+      // Layer 1: Validate room belongs to requestor department
+      if (_selectedCollege.isNotEmpty &&
+          room.department.isNotEmpty &&
+          room.department.toLowerCase() != _selectedCollege.toLowerCase()) {
+        throw 'Access Denied: Room ${room.code} belongs to ${room.department}, not your department ($_selectedCollege). You may only request maintenance for rooms in your department.';
+      }
+
+      // Check active Department Head designation if requestor is not Head
+      if (dept != null) {
+        final headUserId = dept.headUserId ?? await DepartmentService.fetchDepartmentHeadUserId(dept.id);
+        final isHead = (dept.headUserId != null && dept.headUserId == user?.id);
+        if (!isHead && (headUserId == null || headUserId.isEmpty)) {
+          throw 'Cannot submit: No active Department Head is currently designated for $_selectedCollege. Please contact the administrator before filing a request.';
+        }
+      }
       
       final baseType = _selectedRequestType == 'Others'
           ? (specify.isNotEmpty ? 'Others: $specify' : 'Others')
@@ -831,6 +872,11 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   }
 
   bool get _isLocationLocked => widget.roomId != null && widget.roomId!.isNotEmpty;
+  bool get _isDepartmentLocked {
+    if (_isLocationLocked) return true;
+    final dept = context.read<AuthService>().currentUser?.department?.trim();
+    return dept != null && dept.isNotEmpty;
+  }
 
   Widget _buildMainForm({bool isNarrow = false}) {
     return Column(
@@ -890,7 +936,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                 value: _selectedCollege,
                 hintText: 'Select Department',
                 items: _colleges,
-                enabled: !_isLocationLocked,
+                enabled: !_isDepartmentLocked,
                 showError: _showDropdownErrors,
                 onChanged: (v) => setState(() {
                   _selectedCollege = v ?? '';
@@ -952,7 +998,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                       value: _selectedCollege,
                       hintText: 'Select Department',
                       items: _colleges,
-                      enabled: !_isLocationLocked,
+                      enabled: !_isDepartmentLocked,
                       showError: _showDropdownErrors,
                       onChanged: (v) => setState(() {
                         _selectedCollege = v ?? '';
@@ -1164,14 +1210,193 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
           title: 'Signature',
           icon: Icons.draw_rounded,
           children: [
-             SignaturePadWidget(
-               title: 'E-Signature',
-               subtitle: 'Sign to verify this request',
-               onSignatureComplete: (v) => setState(() => _requesterSignatureBase64 = v),
-             ),
+            if (_requesterSignatureBase64 == null || _requesterSignatureBase64!.isEmpty)
+              InkWell(
+                onTap: _openSignaturePadDialog,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.primary.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AdminStyles.primary.withValues(alpha: 0.4),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AdminStyles.primary.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.draw_rounded,
+                          color: AdminStyles.primary,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Provide Signature',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: AdminStyles.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Click to draw or upload your signature in a popup',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AdminStyles.primary, width: 1.5),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.check_circle_rounded, size: 18, color: AdminStyles.primary),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Signature Confirmed',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: _openSignaturePadDialog,
+                          icon: const Icon(Icons.edit_rounded, size: 15, color: AdminStyles.primary),
+                          label: const Text('Change', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AdminStyles.primary)),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton.icon(
+                          onPressed: () => setState(() => _requesterSignatureBase64 = null),
+                          icon: const Icon(Icons.delete_outline_rounded, size: 15, color: Colors.redAccent),
+                          label: const Text('Remove', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      height: 100,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(
+                          base64Decode(_requesterSignatureBase64!),
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ],
+    );
+  }
+
+  void _openSignaturePadDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.draw_rounded, color: AdminStyles.primary, size: 22),
+                          SizedBox(width: 10),
+                          Text(
+                            'Electronic Signature',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AdminStyles.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Sign clearly in the area below or upload your signature image.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SignaturePadWidget(
+                    title: 'E-Signature',
+                    subtitle: 'Draw signature below or upload clear image',
+                    height: 240,
+                    onSignatureComplete: (base64) {
+                      if (base64.isNotEmpty) {
+                        setState(() => _requesterSignatureBase64 = base64);
+                        Navigator.of(dialogContext).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Signature captured and confirmed.'),
+                            backgroundColor: AdminStyles.primary,
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    },
+                    onSignatureCleared: () {
+                      setState(() => _requesterSignatureBase64 = null);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

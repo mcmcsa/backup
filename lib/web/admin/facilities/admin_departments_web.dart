@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../shared/models/building_model.dart';
 import '../../../shared/models/department_model.dart';
+import '../../../shared/services/building_service.dart';
 import '../../../shared/services/department_service.dart';
 import '../../../shared/services/room_service.dart';
 import '../shared/admin_styles.dart';
@@ -41,10 +44,24 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
     _loadDepartments();
   }
 
-  Future<void> _loadDepartments() async {
+  @override
+  void didUpdateWidget(covariant AdminDepartmentsWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.activeIndex == widget.quickActionsConfig.departmentsIndex &&
+        oldWidget.activeIndex != widget.quickActionsConfig.departmentsIndex) {
+      _loadDepartments(silent: true);
+    }
+  }
+
+  Future<void> _loadDepartments({bool silent = false}) async {
+    if (!silent && _departments.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       final departments = await DepartmentService.fetchAll();
       final rooms = await RoomService.fetchAll();
+      final buildings = await BuildingService.fetchAll();
+      final bldgMap = {for (var b in buildings) b.id: b.name};
 
       if (!mounted) return;
 
@@ -52,20 +69,32 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
         final deptRooms = rooms
             .where((room) => room.departmentId == department.id)
             .toList();
-        final primaryBuilding = deptRooms.isNotEmpty
+
+        final buildingName = (department.buildingName != null && department.buildingName!.isNotEmpty)
+            ? department.buildingName!
+            : (department.buildingId != null && bldgMap.containsKey(department.buildingId))
+            ? bldgMap[department.buildingId]!
+            : deptRooms.isNotEmpty
             ? deptRooms.first.building
-            : '-';
+            : 'None Assigned';
+
+        final headName = (department.headUserName != null && department.headUserName!.trim().isNotEmpty)
+            ? department.headUserName!.trim()
+            : 'None Assigned';
 
         return {
           'departmentModel': department,
           'id': department.id,
           'name': department.name,
-          'head': '-',
-          'building': primaryBuilding,
+          'head': headName,
+          'hasHead': headName != 'None Assigned',
+          'building': buildingName,
+          'hasBuilding': buildingName != 'None Assigned',
           'status': 'Active',
         };
       }).toList();
 
+      if (!mounted) return;
       setState(() {
         _departments = mapped;
         _isLoading = false;
@@ -73,7 +102,7 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _departments = [];
+        if (!silent) _departments = [];
         _isLoading = false;
       });
     }
@@ -81,7 +110,16 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
 
   Future<void> _showAddDepartmentDialog() async {
     String departmentName = '';
+    String? selectedBuildingId;
     bool isSubmitting = false;
+
+    // Load available buildings
+    List<Building> buildings = [];
+    try {
+      buildings = await BuildingService.fetchAll();
+    } catch (_) {}
+
+    if (!mounted) return;
 
     await showDialog<void>(
       context: context,
@@ -89,18 +127,50 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final canInputDepartment = selectedBuildingId != null && selectedBuildingId!.isNotEmpty;
+
             return AlertDialog(
               title: const Text('Add Department'),
               content: SizedBox(
-                width: 400,
-                child: TextFormField(
-                  autofocus: true,
-                  initialValue: departmentName,
-                  onChanged: (value) => departmentName = value,
-                  decoration: const InputDecoration(
-                    labelText: 'Department Name',
-                    border: OutlineInputBorder(),
-                  ),
+                width: 440,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedBuildingId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Building *',
+                        border: OutlineInputBorder(),
+                        helperText: 'Select the building this department belongs to',
+                      ),
+                      items: buildings
+                          .map(
+                            (b) => DropdownMenuItem<String>(
+                              value: b.id,
+                              child: Text(b.name),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        setDialogState(() => selectedBuildingId = value);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      enabled: canInputDepartment,
+                      initialValue: departmentName,
+                      onChanged: (value) => departmentName = value,
+                      decoration: InputDecoration(
+                        labelText: 'Department Name *',
+                        hintText: canInputDepartment
+                            ? 'e.g., Information Technology'
+                            : 'Select a building first',
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               actions: [
@@ -114,11 +184,21 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
                   onPressed: isSubmitting
                       ? null
                       : () async {
+                          if (selectedBuildingId == null || selectedBuildingId!.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please select a building first.'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
+
                           final name = departmentName.trim();
                           if (name.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('Department name is required'),
+                                content: Text('Department name is required.'),
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -131,6 +211,7 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
                             final department = Department(
                               id: const Uuid().v4(),
                               name: name,
+                              buildingId: selectedBuildingId,
                               createdAt: now,
                               updatedAt: now,
                             );
@@ -174,7 +255,47 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
 
   Future<void> _showEditDepartmentDialog(Department department) async {
     String departmentName = department.name;
+    String? selectedHeadId = department.headUserId;
+    String? selectedBuildingId = department.buildingId;
     bool isSubmitting = false;
+
+    // Load available buildings
+    List<Building> buildings = [];
+    try {
+      buildings = await BuildingService.fetchAll();
+    } catch (_) {}
+
+    // Load active faculty for this department
+    List<Map<String, String>> eligibleTeachers = [];
+    try {
+      final res = await Supabase.instance.client
+          .from('teacher_users')
+          .select('user_id, position, users!teacher_users_user_id_fkey(id, name, is_active)')
+          .eq('department_id', department.id);
+      for (final t in (res as List)) {
+        final u = t['users'];
+        if (u is Map && u['is_active'] == true) {
+          eligibleTeachers.add({
+            'id': u['id'].toString(),
+            'name': u['name']?.toString() ?? 'Unnamed',
+            'position': t['position']?.toString() ?? '',
+          });
+        }
+      }
+    } catch (_) {}
+
+    // Verify selectedHeadId is in list, else add current if present
+    if (selectedHeadId != null && !eligibleTeachers.any((t) => t['id'] == selectedHeadId)) {
+      if (department.headUserName != null && department.headUserName!.isNotEmpty) {
+        eligibleTeachers.insert(0, {
+          'id': selectedHeadId,
+          'name': department.headUserName!,
+          'position': 'Head',
+        });
+      }
+    }
+
+    if (!mounted) return;
 
     await showDialog<void>(
       context: context,
@@ -185,15 +306,71 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
             return AlertDialog(
               title: const Text('Edit Department'),
               content: SizedBox(
-                width: 400,
-                child: TextFormField(
-                  autofocus: true,
-                  initialValue: departmentName,
-                  onChanged: (value) => departmentName = value,
-                  decoration: const InputDecoration(
-                    labelText: 'Department Name',
-                    border: OutlineInputBorder(),
-                  ),
+                width: 440,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String?>(
+                      initialValue: selectedBuildingId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Assigned Building',
+                        border: OutlineInputBorder(),
+                        helperText: 'Select the building this department belongs to',
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('None Assigned (Unassigned)'),
+                        ),
+                        ...buildings.map(
+                          (b) => DropdownMenuItem<String?>(
+                            value: b.id,
+                            child: Text(b.name),
+                          ),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        setDialogState(() => selectedBuildingId = val);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      autofocus: true,
+                      initialValue: departmentName,
+                      onChanged: (value) => departmentName = value,
+                      decoration: const InputDecoration(
+                        labelText: 'Department Name *',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String?>(
+                      initialValue: selectedHeadId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Official Department Head',
+                        border: OutlineInputBorder(),
+                        helperText: 'Select from active faculty in this department',
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('None Assigned (Unassigned)'),
+                        ),
+                        ...eligibleTeachers.map(
+                          (t) => DropdownMenuItem<String?>(
+                            value: t['id'],
+                            child: Text('${t['name']}${t['position']!.isNotEmpty ? ' (${t['position']})' : ''}'),
+                          ),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        setDialogState(() => selectedHeadId = val);
+                      },
+                    ),
+                  ],
                 ),
               ),
               actions: [
@@ -220,11 +397,23 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
 
                           setDialogState(() => isSubmitting = true);
                           try {
-                            final updated = department.copyWith(
-                              name: name,
-                              updatedAt: DateTime.now(),
-                            );
-                            await DepartmentService.update(updated);
+                            if (name != department.name || selectedBuildingId != department.buildingId) {
+                              final updated = department.copyWith(
+                                name: name,
+                                buildingId: selectedBuildingId,
+                                updatedAt: DateTime.now(),
+                              );
+                              await DepartmentService.update(updated);
+                            }
+
+                            // Rule 4: If Department Head selection changed
+                            if (selectedHeadId != department.headUserId) {
+                              await DepartmentService.setDepartmentHead(
+                                department.id,
+                                selectedHeadId,
+                              );
+                            }
+
                             if (!dialogContext.mounted) return;
                             Navigator.of(dialogContext).pop();
                             await _loadDepartments();
@@ -421,9 +610,11 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
       );
     }
 
-    const nameColWidth = 460.0;
-    const actionsColWidth = 120.0;
-    const tableMinWidth = nameColWidth + actionsColWidth;
+    const nameColWidth = 260.0;
+    const buildingColWidth = 240.0;
+    const headColWidth = 260.0;
+    const actionsColWidth = 100.0;
+    const tableMinWidth = nameColWidth + buildingColWidth + headColWidth + actionsColWidth;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -463,7 +654,16 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
                           child: Row(
                             children: [
                               Expanded(
+                                flex: 3,
                                 child: _buildTableHeader('Department Name', alignment: Alignment.centerLeft),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: _buildTableHeader('Building', alignment: Alignment.centerLeft),
+                              ),
+                              Expanded(
+                                flex: 3,
+                                child: _buildTableHeader('Department Head', alignment: Alignment.centerLeft),
                               ),
                               SizedBox(
                                 width: actionsColWidth,
@@ -485,6 +685,7 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
                                 child: Row(
                                   children: [
                                     Expanded(
+                                      flex: 3,
                                       child: Text(
                                         '${dept['name'] ?? '-'}',
                                         style: AdminStyles.headingStyle(
@@ -493,6 +694,54 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
                                           color: _darkText,
                                         ),
                                         overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.apartment_outlined,
+                                            size: 15,
+                                            color: dept['hasBuilding'] == true ? AdminStyles.primary : AdminStyles.textMuted,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              '${dept['building'] ?? 'None Assigned'}',
+                                              style: AdminStyles.bodyStyle(
+                                                fontSize: 13,
+                                                fontWeight: dept['hasBuilding'] == true ? FontWeight.w500 : FontWeight.normal,
+                                                color: dept['hasBuilding'] == true ? _darkText : AdminStyles.textMuted,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            dept['hasHead'] == true ? Icons.verified_user_rounded : Icons.person_off_outlined,
+                                            size: 15,
+                                            color: dept['hasHead'] == true ? AdminStyles.primary : AdminStyles.textMuted,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              '${dept['head'] ?? 'None Assigned'}',
+                                              style: AdminStyles.bodyStyle(
+                                                fontSize: 13,
+                                                fontWeight: dept['hasHead'] == true ? FontWeight.w600 : FontWeight.normal,
+                                                color: dept['hasHead'] == true ? _darkText : AdminStyles.textMuted,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                     SizedBox(
@@ -510,7 +759,7 @@ class _AdminDepartmentsWebState extends State<AdminDepartmentsWeb> {
                                                 dept['departmentModel']
                                                     as Department,
                                               ),
-                                          tooltip: 'Edit',
+                                          tooltip: 'Edit Department & Head',
                                         ),
                                       ),
                                     ),

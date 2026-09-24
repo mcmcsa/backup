@@ -32,6 +32,12 @@ class WorkRequest {
   final String? maintenanceNotes;
   final List<String>? attachmentUrls;
   final List<String>? voiceNotes;
+  // Department Head approval fields
+  final String? deptHeadId;
+  final String deptHeadStatus; // 'pending', 'approved', 'declined', 'not_applicable'
+  final DateTime? deptHeadApprovedDate;
+  final String? deptHeadNotes;
+  final String? deptHeadName;
   // New workflow fields
   final String? acceptedById;
   final String? acceptedByName;
@@ -187,6 +193,11 @@ class WorkRequest {
     this.maintenanceNotes,
     this.attachmentUrls,
     this.voiceNotes,
+    this.deptHeadId,
+    this.deptHeadStatus = 'pending',
+    this.deptHeadApprovedDate,
+    this.deptHeadNotes,
+    this.deptHeadName,
     this.acceptedById,
     this.acceptedByName,
     this.acceptedDate,
@@ -302,6 +313,13 @@ class WorkRequest {
       voiceNotes: map['voice_notes'] != null 
           ? List<String>.from(map['voice_notes'])
           : null,
+      deptHeadId: map['dept_head_id']?.toString(),
+      deptHeadStatus: map['dept_head_status']?.toString() ?? 'pending',
+      deptHeadApprovedDate: map['dept_head_approved_date'] != null
+          ? DateTime.tryParse(map['dept_head_approved_date'].toString())
+          : null,
+      deptHeadNotes: map['dept_head_notes']?.toString(),
+      deptHeadName: map['dept_head_name'] ?? _nestedText(map['dept_head'], 'name'),
       acceptedById:
           map['accepted_by_id'] ??
           ((map['accepted_date'] != null) ? map['assigned_to_id'] : null),
@@ -359,6 +377,11 @@ class WorkRequest {
       'reported_by_id': requestorId,
       'approved_by_id': approvedById,
       'approved_date': approvedDate?.toIso8601String(),
+      if (deptHeadId != null) 'dept_head_id': deptHeadId,
+      'dept_head_status': deptHeadStatus,
+      if (deptHeadApprovedDate != null)
+        'dept_head_approved_date': deptHeadApprovedDate?.toIso8601String(),
+      if (deptHeadNotes != null) 'dept_head_notes': deptHeadNotes,
       'assigned_to_id': assignedToId,
       'accepted_date': acceptedDate?.toIso8601String(),
       'maintenance_start_time': maintenanceStartTime?.toIso8601String(),
@@ -409,6 +432,11 @@ class WorkRequest {
     String? maintenanceNotes,
     List<String>? attachmentUrls,
     List<String>? voiceNotes,
+    String? deptHeadId,
+    String? deptHeadStatus,
+    DateTime? deptHeadApprovedDate,
+    String? deptHeadNotes,
+    String? deptHeadName,
     String? acceptedById,
     String? acceptedByName,
     DateTime? acceptedDate,
@@ -445,14 +473,19 @@ class WorkRequest {
       requestorId: requestorId ?? this.requestorId,
       approvedById: approvedById ?? this.approvedById,
       approvedDate: approvedDate ?? this.approvedDate,
-        approvedByName: approvedByName ?? this.approvedByName,
+      approvedByName: approvedByName ?? this.approvedByName,
       reportedById: reportedById ?? this.reportedById,
-        reportedByName: reportedByName ?? this.reportedByName,
+      reportedByName: reportedByName ?? this.reportedByName,
       assignedToId: assignedToId ?? this.assignedToId,
       workEvidence: workEvidence ?? this.workEvidence,
       maintenanceNotes: maintenanceNotes ?? this.maintenanceNotes,
       attachmentUrls: attachmentUrls ?? this.attachmentUrls,
       voiceNotes: voiceNotes ?? this.voiceNotes,
+      deptHeadId: deptHeadId ?? this.deptHeadId,
+      deptHeadStatus: deptHeadStatus ?? this.deptHeadStatus,
+      deptHeadApprovedDate: deptHeadApprovedDate ?? this.deptHeadApprovedDate,
+      deptHeadNotes: deptHeadNotes ?? this.deptHeadNotes,
+      deptHeadName: deptHeadName ?? this.deptHeadName,
       acceptedById: acceptedById ?? this.acceptedById,
       acceptedByName: acceptedByName ?? this.acceptedByName,
       acceptedDate: acceptedDate ?? this.acceptedDate,
@@ -467,6 +500,13 @@ class WorkRequest {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+
+  bool get isPendingDeptHead =>
+      deptHeadStatus.toLowerCase() == 'pending' &&
+      (status.toLowerCase() == 'pending' || status.toLowerCase() == 'pending department head');
+  bool get isDeptHeadApproved => deptHeadStatus.toLowerCase() == 'approved';
+  bool get isDeptHeadDeclined => deptHeadStatus.toLowerCase() == 'declined';
+  bool get isDeptHeadBypassed => deptHeadStatus.toLowerCase() == 'not_applicable';
 
   String get formattedId => '#${id.padLeft(3, '0')}';
 

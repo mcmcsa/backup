@@ -41,7 +41,19 @@ class _AdminRoomTypesWebState extends State<AdminRoomTypesWeb> {
     _loadRoomTypes();
   }
 
-  Future<void> _loadRoomTypes() async {
+  @override
+  void didUpdateWidget(covariant AdminRoomTypesWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.activeIndex == widget.quickActionsConfig.roomTypesIndex &&
+        oldWidget.activeIndex != widget.quickActionsConfig.roomTypesIndex) {
+      _loadRoomTypes(silent: true);
+    }
+  }
+
+  Future<void> _loadRoomTypes({bool silent = false}) async {
+    if (!silent && _roomTypes.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       final roomTypes = await RoomTypeService.fetchAll();
       final rooms = await RoomService.fetchAll();
@@ -74,6 +86,7 @@ class _AdminRoomTypesWebState extends State<AdminRoomTypesWeb> {
         };
       }).toList();
 
+      if (!mounted) return;
       setState(() {
         _roomTypes = mapped;
         _isLoading = false;
@@ -81,7 +94,7 @@ class _AdminRoomTypesWebState extends State<AdminRoomTypesWeb> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _roomTypes = [];
+        if (!silent) _roomTypes = [];
         _isLoading = false;
       });
     }

@@ -34,14 +34,14 @@ class FacilityQuickActionsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final actions = <Map<String, dynamic>>[
       {
-        'label': 'Department',
-        'icon': Icons.account_tree_rounded,
-        'index': config.departmentsIndex,
-      },
-      {
         'label': 'Building',
         'icon': Icons.apartment_rounded,
         'index': config.buildingsIndex,
+      },
+      {
+        'label': 'Department',
+        'icon': Icons.account_tree_rounded,
+        'index': config.departmentsIndex,
       },
       {
         'label': 'Floor',

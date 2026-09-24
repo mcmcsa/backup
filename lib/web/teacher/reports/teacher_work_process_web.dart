@@ -15,6 +15,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../admin/shared/admin_styles.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
+import '../../../shared/models/work_request_follow_up_model.dart';
+import '../../../shared/services/work_request_follow_up_service.dart';
 import 'teacher_official_form_web.dart';
 import 'dart:async';
 
@@ -34,6 +38,7 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
   List<ESignature> _signatures = [];
   PreInspectionReport? _preInspectionReport;
   List<PostRepairReport> _postRepairReports = [];
+  List<WorkRequestFollowUp> _followUps = [];
   bool _isLoading = true;
   final Map<String, String> _userNames = {};
   Timer? _autoRefreshTimer;
@@ -185,6 +190,8 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
         }
       }
 
+      final followUps = await WorkRequestFollowUpService.fetchFollowUpsForRequest(_req.id);
+
       if (mounted) {
         setState(() {
           _currentRequest = request;
@@ -192,6 +199,7 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
           _preInspectionReport = preInsp;
           _postRepairReports = postRepairs;
           _recoveredAttachments = recoveredAttachments;
+          _followUps = followUps;
           if (_isLoading) {
             _isLoading = false;
             _animController.forward();
@@ -365,6 +373,35 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
       isCompleted: true,
       color: AdminStyles.primary,
     ));
+
+    // 1.5. Department Head Review & Endorsement (if not bypassed)
+    final isBypassed = task.deptHeadStatus.toLowerCase() == 'not_applicable';
+    final isDeptHeadDeclined = task.deptHeadStatus.toLowerCase() == 'declined';
+    final isDeptHeadApproved = task.deptHeadStatus.toLowerCase() == 'approved';
+    final deptHeadDisplayName = (task.deptHeadName != null && task.deptHeadName!.trim().isNotEmpty)
+        ? task.deptHeadName!.trim()
+        : 'Department Head';
+
+    if (!isBypassed) {
+      steps.add(_TimelineStep(
+        icon: isDeptHeadDeclined
+            ? Icons.cancel_rounded
+            : (isDeptHeadApproved ? Icons.approval_rounded : Icons.pending_actions_rounded),
+        title: isDeptHeadDeclined
+            ? 'Declined by Department Head'
+            : (isDeptHeadApproved ? 'Department Head Endorsement' : 'Department Head Evaluation'),
+        desc: isDeptHeadDeclined
+            ? 'Request was declined by Department Head ($deptHeadDisplayName).${task.deptHeadNotes != null && task.deptHeadNotes!.isNotEmpty ? " Reason: ${task.deptHeadNotes}" : ""}'
+            : (isDeptHeadApproved
+                ? 'Endorsed by Department Head ($deptHeadDisplayName) and forwarded to Campus Admin.'
+                : 'Waiting for Department Head ($deptHeadDisplayName) evaluation.'),
+        date: task.deptHeadApprovedDate,
+        isCompleted: isDeptHeadApproved,
+        color: isDeptHeadDeclined ? AdminStyles.error : (isDeptHeadApproved ? const Color(0xFF10B981) : const Color(0xFFF59E0B)),
+      ));
+
+      if (isDeptHeadDeclined) return steps;
+    }
 
     // 2. Campus Admin Review & Approval
     final isApproved = ['assigned', 'confirmed', 'rework', 'completed', 'in progress', 'in_progress', 'declined'].contains(task.status.toLowerCase());
@@ -971,9 +1008,15 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
         icon = Icons.assignment_turned_in_rounded;
       }
     } else {
-      title = 'Awaiting Review';
-      desc = 'Your request has been received and is pending Campus Admin review.';
-      icon = Icons.pending_actions_rounded;
+      if (req.isPendingDeptHead) {
+        title = 'Awaiting Dept Head';
+        desc = 'Your request has been received and is awaiting evaluation by your Department Head (${req.deptHeadName ?? "Department Head"}).';
+        icon = Icons.pending_actions_rounded;
+      } else {
+        title = 'Awaiting Review';
+        desc = 'Your request has been received and is pending Campus Admin review.';
+        icon = Icons.pending_actions_rounded;
+      }
     }
 
     return Container(
@@ -1073,6 +1116,21 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
               ),
             ),
           ],
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.help_outline_rounded, size: 15),
+              label: Text(_followUps.isEmpty ? 'Send Follow-Up Inquiry' : 'Follow-Up Inquiries (${_followUps.length})'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0F766E),
+                side: const BorderSide(color: Color(0xFF0F766E)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+              onPressed: _showFollowUpDialog,
+            ),
+          ),
         ],
       ),
     );
@@ -1404,6 +1462,220 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
                 ],
               ),
             ),
+          const Divider(height: 32, color: Color(0xFFE2E8F0)),
+          Row(
+            children: [
+              const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: Color(0xFF0F766E)),
+              const SizedBox(width: 8),
+              Text(
+                'Follow-Up Inquiries',
+                style: AdminStyles.headingStyle(fontSize: 13, color: AdminStyles.textSecondary),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                icon: const Icon(Icons.add_rounded, size: 14),
+                label: const Text('Inquire', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: TextButton.styleFrom(foregroundColor: const Color(0xFF0F766E)),
+                onPressed: _showFollowUpDialog,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (_followUps.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Text(
+                'No follow-up inquiries submitted for this request yet.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+              ),
+            )
+          else
+            ..._followUps.map((f) => _buildFollowUpItem(f)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFollowUpItem(WorkRequestFollowUp f) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'To: ${f.targetStageLabel}',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F766E)),
+              ),
+              const Spacer(),
+              Text(
+                DateFormat('MMM dd, yyyy · HH:mm').format(f.createdAt),
+                style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(f.message, style: const TextStyle(fontSize: 13, color: Color(0xFF334155))),
+          if (f.adminResponse != null && f.adminResponse!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0FDFA),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFCCFBF1)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.reply_rounded, size: 14, color: Color(0xFF0F766E)),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Response from ${f.responderName ?? "Reviewer"}:',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0F766E)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(f.adminResponse!, style: const TextStyle(fontSize: 12, color: Color(0xFF0F172A))),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _showFollowUpDialog() {
+    final messageController = TextEditingController();
+    final isAwaitingDeptHead = _req.isPendingDeptHead;
+    final recipientName = isAwaitingDeptHead
+        ? (_req.deptHeadName ?? 'Department Head')
+        : 'Campus Admin';
+
+    showDialog(
+      context: context,
+      builder: (dContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF0F766E), size: 22),
+            SizedBox(width: 10),
+            Text('Send Follow-Up Inquiry', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+          ],
+        ),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF0F766E)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isAwaitingDeptHead
+                            ? 'Your request is currently awaiting Department Head review. This follow-up will be routed to $recipientName.'
+                            : 'This follow-up inquiry will be routed directly to Campus Admin.',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF0F766E), fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Inquiry Message*', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: messageController,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  hintText: 'Type your message or question regarding this work request...',
+                  hintStyle: const TextStyle(fontSize: 13),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dContext),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F766E),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              final text = messageController.text.trim();
+              if (text.isEmpty) return;
+
+              Navigator.pop(dContext);
+              final user = context.read<AuthService>().currentUser;
+              if (user == null) return;
+
+              final targetStage = isAwaitingDeptHead ? 'dept_head' : 'campus_admin';
+              final recipientUserId = isAwaitingDeptHead ? _req.deptHeadId : null;
+
+              final res = await WorkRequestFollowUpService.createFollowUp(
+                workRequestId: _req.id,
+                requestorId: user.id,
+                message: text,
+                targetStage: targetStage,
+                recipientUserId: recipientUserId,
+                workRequestTitle: _req.title,
+                requestorName: user.name,
+              );
+
+              if (mounted) {
+                if (res != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Follow-up inquiry sent successfully.'),
+                      backgroundColor: Color(0xFF10B981),
+                    ),
+                  );
+                  _loadSignatures();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Failed to send follow-up inquiry.'),
+                      backgroundColor: AdminStyles.error,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Send Inquiry'),
+          ),
         ],
       ),
     );

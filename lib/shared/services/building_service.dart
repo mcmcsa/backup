@@ -94,8 +94,8 @@ class BuildingService {
   static Future<String?> create({
     required String name,
     String code = '',
-    required String departmentId,
-    required int numberOfFloors,
+    String departmentId = '',
+    int numberOfFloors = 1,
   }) async {
     try {
       // Duplicate check for name
