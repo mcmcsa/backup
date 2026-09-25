@@ -232,7 +232,7 @@ class AboutSystemPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'PSU MMS',
+                  'PSU E-ayos',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 32,

@@ -32,7 +32,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         NotificationDetails(
           android: AndroidNotificationDetails(
             'psu_mms_notifications',
-            'PSU MMS Notifications',
+            'PSU E-ayos Notifications',
             channelDescription: 'Alerts for work requests, approvals, and messages.',
             importance: Importance.max,
             priority: Priority.high,
@@ -54,7 +54,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 const AndroidNotificationChannel _channel = AndroidNotificationChannel(
   'psu_mms_notifications',
-  'PSU MMS Notifications',
+  'PSU E-ayos Notifications',
   description: 'Alerts for work requests, approvals, and messages.',
   importance: Importance.max,
   playSound: true,
@@ -226,7 +226,7 @@ class FcmService {
               return;
             }
 
-            final title = newRecord['title']?.toString() ?? 'PSU MMS Notification';
+            final title = newRecord['title']?.toString() ?? 'PSU E-ayos Notification';
             final body = newRecord['message']?.toString() ?? '';
             final targetPage = newRecord['target_page']?.toString();
             final createdAtStr = newRecord['created_at']?.toString();

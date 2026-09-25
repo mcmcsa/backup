@@ -993,7 +993,6 @@ class _SystemAdminQrManagementViewState
                   onSelected: (v) {
                     if (v == 'view') _showDetailDialog(qr, room);
                     if (v == 'toggle') _toggleActive(qr);
-                    if (v == 'delete') _delete(qr);
                   },
                   itemBuilder: (ctx) => [
                     PopupMenuItem(
@@ -1021,18 +1020,6 @@ class _SystemAdminQrManagementViewState
                                   fontWeight: FontWeight.w600)),
                         ]),
                       ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(children: [
-                        const Icon(Icons.delete_outline_rounded,
-                            size: 18, color: AdminStyles.error),
-                        const SizedBox(width: 10),
-                        Text('Delete',
-                            style: AdminStyles.bodyStyle(
-                                color: AdminStyles.error,
-                                fontWeight: FontWeight.w600)),
-                      ]),
-                    ),
                   ],
                 ),
               ],
@@ -1327,7 +1314,6 @@ class _SystemAdminQrManagementViewState
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           onSelected: (v) {
             if (v == 'toggle') _toggleActive(qr);
-            if (v == 'delete') _delete(qr);
           },
           itemBuilder: (ctx) => [
             PopupMenuItem(
@@ -1343,18 +1329,6 @@ class _SystemAdminQrManagementViewState
                 Text(qr.isActive ? 'Deactivate' : 'Activate',
                     style: AdminStyles.bodyStyle(
                         color: qr.isActive ? AdminStyles.warning : AdminStyles.success,
-                        fontWeight: FontWeight.w600)),
-              ]),
-            ),
-            PopupMenuItem(
-              value: 'delete',
-              child: Row(children: [
-                const Icon(Icons.delete_outline_rounded,
-                    size: 18, color: AdminStyles.error),
-                const SizedBox(width: 10),
-                Text('Delete',
-                    style: AdminStyles.bodyStyle(
-                        color: AdminStyles.error,
                         fontWeight: FontWeight.w600)),
               ]),
             ),
@@ -1462,9 +1436,6 @@ class _SystemAdminQrManagementViewState
                 case 'toggle':
                   _toggleActive(qr);
                   break;
-                case 'delete':
-                  _delete(qr);
-                  break;
               }
             },
             itemBuilder: (ctx) => [
@@ -1473,8 +1444,6 @@ class _SystemAdminQrManagementViewState
               if (qr.isActive)
                 _popItem(Icons.do_not_disturb_on_rounded, 'Deactivate', 'toggle',
                     color: AdminStyles.warning),
-              _popItem(Icons.delete_outline_rounded, 'Delete', 'delete',
-                  color: AdminStyles.error),
             ],
           ),
         ],

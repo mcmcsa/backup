@@ -1,5 +1,5 @@
 -- SQL Script: Run this in Supabase SQL Editor to enable FCM Device Token storage
--- Project: PSU MMS
+-- Project: PSU E-ayos
 
 CREATE TABLE IF NOT EXISTS public.user_devices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

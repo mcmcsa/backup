@@ -656,7 +656,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'PSU MMS',
+                        'PSU E-ayos',
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
@@ -973,7 +973,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
           Row(
             children: [
               Text(
-                'PSU MMS',
+                'PSU E-ayos',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AdminStyles.headingStyle(

@@ -51,7 +51,7 @@ class StudentDrawer extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     const Text(
-                      'PSU MMS',
+                      'PSU E-ayos',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -164,7 +164,7 @@ class StudentDrawer extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(
-                  '© PSU MMS',
+                  '© PSU E-ayos',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.white.withValues(alpha: 0.7),

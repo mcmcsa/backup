@@ -47,6 +47,87 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   DateTime? _endDate;
   String? _selectedBuilding;
   String? _selectedRequestType;
+  String _datePreset = 'all'; // all, today, this_week, this_month, this_year, custom
+  DateTime? _customFromDate;
+  DateTime? _customToDate;
+
+  void _applyDatePreset(String preset) {
+    final now = DateTime.now();
+    setState(() {
+      _datePreset = preset;
+      if (preset == 'all') {
+        _startDate = null;
+        _endDate = null;
+      } else if (preset == 'today') {
+        _startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
+        _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      } else if (preset == 'this_week') {
+        final monday = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+        _startDate = DateTime(monday.year, monday.month, monday.day, 0, 0, 0);
+        final sunday = monday.add(const Duration(days: 6));
+        _endDate = DateTime(sunday.year, sunday.month, sunday.day, 23, 59, 59, 999);
+      } else if (preset == 'this_month') {
+        _startDate = DateTime(now.year, now.month, 1, 0, 0, 0);
+        _endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
+      } else if (preset == 'this_year') {
+        _startDate = DateTime(now.year, 1, 1, 0, 0, 0);
+        _endDate = DateTime(now.year, 12, 31, 23, 59, 59, 999);
+      } else if (preset == 'custom') {
+        if (_customFromDate != null) {
+          _startDate = DateTime(_customFromDate!.year, _customFromDate!.month, _customFromDate!.day, 0, 0, 0);
+        } else {
+          _startDate = null;
+        }
+        if (_customToDate != null) {
+          _endDate = DateTime(_customToDate!.year, _customToDate!.month, _customToDate!.day, 23, 59, 59, 999);
+        } else {
+          _endDate = null;
+        }
+      }
+    });
+  }
+
+  Future<void> _pickCustomDate({required bool isFrom}) async {
+    final now = DateTime.now();
+    final initial = isFrom
+        ? (_customFromDate ?? now)
+        : (_customToDate ?? (_customFromDate ?? now));
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: isFrom
+          ? (_customToDate ?? DateTime(2035))
+          : DateTime(2035),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AdminStyles.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AdminStyles.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _datePreset = 'custom';
+        if (isFrom) {
+          _customFromDate = picked;
+          _startDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
+        } else {
+          _customToDate = picked;
+          _endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59, 999);
+        }
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -150,7 +231,7 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
     return _allRequests.where((r) {
       // Date filter
       if (_startDate != null && r.dateSubmitted.isBefore(_startDate!)) return false;
-      if (_endDate != null && r.dateSubmitted.isAfter(_endDate!.add(const Duration(days: 1)))) return false;
+      if (_endDate != null && r.dateSubmitted.isAfter(_endDate!)) return false;
       
       // Request Type filter
       if (_selectedRequestType != null && _selectedRequestType!.isNotEmpty) {
@@ -412,82 +493,194 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
     );
   }
 
-  Widget _buildFilters(bool isMobile) {
-    final dateFilter = InkWell(
-      onTap: () async {
-        final range = await showDialog<DateTimeRange>(
-          context: context,
-          builder: (ctx) => Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            clipBehavior: Clip.antiAlias,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500, maxHeight: 560),
-              child: Theme(
-                data: ThemeData.light().copyWith(
-                  colorScheme: const ColorScheme.light(
-                    primary: AdminStyles.primary,
-                    onPrimary: Colors.white,
-                    surface: Colors.white,
-                    onSurface: AdminStyles.textPrimary,
-                  ),
-                ),
-                child: DateRangePickerDialog(
-                  firstDate: DateTime(2020),
-                  lastDate: DateTime.now(),
-                  initialDateRange: _startDate != null && _endDate != null
-                      ? DateTimeRange(start: _startDate!, end: _endDate!)
-                      : null,
-                ),
-              ),
-            ),
-          ),
-        );
-        if (range != null) {
-          setState(() {
-            _startDate = range.start;
-            _endDate = range.end;
-          });
-        }
-      },
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+  Widget _buildPresetButton(String key, String label, {IconData? icon}) {
+    final isSelected = _datePreset == key;
+    return InkWell(
+      onTap: () => _applyDatePreset(key),
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AdminStyles.border),
+          color: isSelected ? AdminStyles.primary : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AdminStyles.primary : AdminStyles.border,
+            width: 1.2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AdminStyles.primary.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  )
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
+                  )
+                ],
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.calendar_today_rounded, size: 18, color: AdminStyles.textMuted),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _startDate != null && _endDate != null
-                    ? '${DateFormat.yMMMd().format(_startDate!)} - ${DateFormat.yMMMd().format(_endDate!)}'
-                    : 'All Time Dates',
-                style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600, color: AdminStyles.textPrimary),
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 15,
+                color: isSelected ? Colors.white : AdminStyles.textSecondary,
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: AdminStyles.bodyStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected ? Colors.white : AdminStyles.textSecondary,
               ),
             ),
-            if (_startDate != null)
-              IconButton(
-                icon: const Icon(Icons.clear_rounded, size: 16, color: AdminStyles.textMuted),
-                onPressed: () => setState(() {
-                  _startDate = null;
-                  _endDate = null;
-                }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomDatePickers(bool isMobile) {
+    final fromPicker = InkWell(
+      onTap: () => _pickCustomDate(isFrom: true),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _customFromDate != null ? AdminStyles.primary : AdminStyles.border,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_today_rounded, size: 14, color: AdminStyles.primary),
+            const SizedBox(width: 8),
+            Text(
+              _customFromDate != null
+                  ? 'From: ${DateFormat('yyyy-MM-dd').format(_customFromDate!)}'
+                  : 'From Date',
+              style: AdminStyles.bodyStyle(
+                fontSize: 12,
+                fontWeight: _customFromDate != null ? FontWeight.w700 : FontWeight.w500,
+                color: _customFromDate != null ? AdminStyles.textPrimary : AdminStyles.textMuted,
               ),
+            ),
+            if (_customFromDate != null) ...[
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _customFromDate = null;
+                    _startDate = null;
+                  });
+                },
+                child: const Icon(Icons.close_rounded, size: 14, color: AdminStyles.textMuted),
+              ),
+            ],
           ],
         ),
       ),
     );
 
+    final toPicker = InkWell(
+      onTap: () => _pickCustomDate(isFrom: false),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _customToDate != null ? AdminStyles.primary : AdminStyles.border,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_today_rounded, size: 14, color: AdminStyles.primary),
+            const SizedBox(width: 8),
+            Text(
+              _customToDate != null
+                  ? 'To: ${DateFormat('yyyy-MM-dd').format(_customToDate!)}'
+                  : 'To Date',
+              style: AdminStyles.bodyStyle(
+                fontSize: 12,
+                fontWeight: _customToDate != null ? FontWeight.w700 : FontWeight.w500,
+                color: _customToDate != null ? AdminStyles.textPrimary : AdminStyles.textMuted,
+              ),
+            ),
+            if (_customToDate != null) ...[
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _customToDate = null;
+                    _endDate = null;
+                  });
+                },
+                child: const Icon(Icons.close_rounded, size: 14, color: AdminStyles.textMuted),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+
+    if (isMobile) {
+      return Row(
+        children: [
+          Expanded(child: fromPicker),
+          const SizedBox(width: 8),
+          Expanded(child: toPicker),
+        ],
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        fromPicker,
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 6),
+          child: Icon(Icons.arrow_forward_rounded, size: 14, color: AdminStyles.textMuted),
+        ),
+        toPicker,
+      ],
+    );
+  }
+
+  Widget _buildFilters(bool isMobile) {
+    final presetButtons = [
+      _buildPresetButton('all', 'All Time'),
+      _buildPresetButton('today', 'Today'),
+      _buildPresetButton('this_week', 'This Week'),
+      _buildPresetButton('this_month', 'This Month'),
+      _buildPresetButton('this_year', 'This Year'),
+      _buildPresetButton('custom', 'Custom Range', icon: Icons.date_range_rounded),
+    ];
+
     final reqTypeFilter = Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      height: 42,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AdminStyles.border),
       ),
       child: DropdownButtonHideUnderline(
@@ -509,38 +702,93 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
     final clearBtn = TextButton.icon(
       onPressed: () {
         setState(() {
-          _startDate = null;
-          _endDate = null;
+          _applyDatePreset('all');
+          _customFromDate = null;
+          _customToDate = null;
           _selectedBuilding = null;
           _selectedRequestType = null;
         });
       },
-      icon: const Icon(Icons.refresh_rounded, size: 16),
+      icon: const Icon(Icons.refresh_rounded, size: 14),
       label: const Text('Reset Filters'),
-      style: TextButton.styleFrom(foregroundColor: AdminStyles.textSecondary),
+      style: TextButton.styleFrom(
+        foregroundColor: AdminStyles.textSecondary,
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ),
     );
 
     if (isMobile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          dateFilter,
-          const SizedBox(height: 12),
-          reqTypeFilter,
-          const SizedBox(height: 12),
-          clearBtn,
-        ],
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AdminStyles.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: presetButtons.expand((w) => [w, const SizedBox(width: 8)]).toList()..removeLast(),
+              ),
+            ),
+            if (_datePreset == 'custom') ...[
+              const SizedBox(height: 12),
+              _buildCustomDatePickers(isMobile),
+            ],
+            const SizedBox(height: 12),
+            reqTypeFilter,
+            const SizedBox(height: 8),
+            Align(alignment: Alignment.centerRight, child: clearBtn),
+          ],
+        ),
       );
     }
 
-    return Row(
-      children: [
-        Expanded(flex: 2, child: dateFilter),
-        const SizedBox(width: 16),
-        Expanded(flex: 1, child: reqTypeFilter),
-        const SizedBox(width: 16),
-        clearBtn,
-      ],
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AdminStyles.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Row(
+                children: presetButtons.expand((w) => [w, const SizedBox(width: 8)]).toList()..removeLast(),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(width: 220, child: reqTypeFilter),
+              const Spacer(),
+              if (_startDate != null || _endDate != null || _selectedRequestType != null || _datePreset != 'all')
+                clearBtn,
+            ],
+          ),
+          if (_datePreset == 'custom') ...[
+            const SizedBox(height: 12),
+            _buildCustomDatePickers(isMobile),
+          ],
+        ],
+      ),
     );
   }
 

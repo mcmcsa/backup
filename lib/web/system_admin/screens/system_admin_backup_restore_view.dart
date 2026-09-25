@@ -215,28 +215,32 @@ class _SystemAdminBackupRestoreViewState extends State<SystemAdminBackupRestoreV
         children: [
           Container(
             color: AdminStyles.bg,
-            child: Column(
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(isMobile ? 16 : 32, isMobile ? 16 : 28, isMobile ? 16 : 32, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(isMobile),
-                      const SizedBox(height: 24),
-                      _buildStatCards(isMobile),
-                      const SizedBox(height: 24),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32),
-                    child: _backups.isEmpty ? _buildEmpty() : (isMobile ? _buildMobileHistoryList() : _buildHistoryTable()),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                isMobile ? 16 : 32,
+                isMobile ? 16 : 28,
+                isMobile ? 16 : 32,
+                32,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(isMobile),
+                  const SizedBox(height: 20),
+                  _buildStatCards(isMobile),
+                  const SizedBox(height: 24),
+                  Text('Backup Snapshots', style: AdminStyles.headingStyle(fontSize: isMobile ? 18 : 20)),
+                  const SizedBox(height: 14),
+                  if (_backups.isEmpty)
+                    _buildEmpty()
+                  else if (isMobile)
+                    _buildMobileHistoryList()
+                  else
+                    _buildHistoryTable(),
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
           
@@ -441,7 +445,6 @@ class _SystemAdminBackupRestoreViewState extends State<SystemAdminBackupRestoreV
               scrollDirection: Axis.horizontal,
               child: SizedBox(
                 width: tableWidth,
-                height: constraints.maxHeight,
                 child: Column(
                   children: [
                     Container(
@@ -458,12 +461,12 @@ class _SystemAdminBackupRestoreViewState extends State<SystemAdminBackupRestoreV
                       ),
                     ),
                     const Divider(height: 1, color: AdminStyles.border),
-                    Expanded(
-                      child: ListView.separated(
-                        itemCount: _backups.length,
-                        separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
-                        itemBuilder: (_, i) => _buildRow(_backups[i]),
-                      ),
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _backups.length,
+                      separatorBuilder: (context, index) => const Divider(height: 1, color: AdminStyles.border),
+                      itemBuilder: (_, i) => _buildRow(_backups[i]),
                     ),
                   ],
                 ),
@@ -556,6 +559,8 @@ class _SystemAdminBackupRestoreViewState extends State<SystemAdminBackupRestoreV
 
   Widget _buildMobileHistoryList() {
     return ListView.separated(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: _backups.length,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (_, i) => _buildMobileRow(_backups[i]),

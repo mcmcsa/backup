@@ -21,6 +21,11 @@ class _SystemAdminFeedbackViewState extends State<SystemAdminFeedbackView> {
   final _searchCtrl = TextEditingController();
   String _statusFilter = 'all'; // all, pending, resolved
   String _categoryFilter = 'all'; // all, Bug Report, Feature Request, General Feedback, Other
+  String _datePreset = 'all'; // all, today, this_week, this_month, this_year, custom
+  DateTime? _startDate;
+  DateTime? _endDate;
+  DateTime? _customFromDate;
+  DateTime? _customToDate;
 
   // Pagination
   static const _pageSize = 15;
@@ -58,6 +63,86 @@ class _SystemAdminFeedbackViewState extends State<SystemAdminFeedbackView> {
     }
   }
 
+  void _applyDatePreset(String preset) {
+    final now = DateTime.now();
+    setState(() {
+      _datePreset = preset;
+      _page = 0;
+      if (preset == 'all') {
+        _startDate = null;
+        _endDate = null;
+      } else if (preset == 'today') {
+        _startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
+        _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59, 999);
+      } else if (preset == 'this_week') {
+        final monday = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+        _startDate = DateTime(monday.year, monday.month, monday.day, 0, 0, 0);
+        final sunday = monday.add(const Duration(days: 6));
+        _endDate = DateTime(sunday.year, sunday.month, sunday.day, 23, 59, 59, 999);
+      } else if (preset == 'this_month') {
+        _startDate = DateTime(now.year, now.month, 1, 0, 0, 0);
+        _endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59, 999);
+      } else if (preset == 'this_year') {
+        _startDate = DateTime(now.year, 1, 1, 0, 0, 0);
+        _endDate = DateTime(now.year, 12, 31, 23, 59, 59, 999);
+      } else if (preset == 'custom') {
+        if (_customFromDate != null) {
+          _startDate = DateTime(_customFromDate!.year, _customFromDate!.month, _customFromDate!.day, 0, 0, 0);
+        } else {
+          _startDate = null;
+        }
+        if (_customToDate != null) {
+          _endDate = DateTime(_customToDate!.year, _customToDate!.month, _customToDate!.day, 23, 59, 59, 999);
+        } else {
+          _endDate = null;
+        }
+      }
+    });
+  }
+
+  Future<void> _pickCustomDate({required bool isFrom}) async {
+    final now = DateTime.now();
+    final initial = isFrom
+        ? (_customFromDate ?? now)
+        : (_customToDate ?? (_customFromDate ?? now));
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: isFrom
+          ? (_customToDate ?? DateTime(2035))
+          : DateTime(2035),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AdminStyles.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AdminStyles.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _datePreset = 'custom';
+        _page = 0;
+        if (isFrom) {
+          _customFromDate = picked;
+          _startDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
+        } else {
+          _customToDate = picked;
+          _endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59, 999);
+        }
+      });
+    }
+  }
+
   // ── Derived Data ────────────────────────────────────────────────────────
 
   List<SystemFeedback> get _filtered {
@@ -66,6 +151,8 @@ class _SystemAdminFeedbackViewState extends State<SystemAdminFeedbackView> {
       if (q.isNotEmpty && !f.userName.toLowerCase().contains(q) && !f.message.toLowerCase().contains(q)) return false;
       if (_statusFilter != 'all' && f.status != _statusFilter) return false;
       if (_categoryFilter != 'all' && f.category != _categoryFilter) return false;
+      if (_startDate != null && f.createdAt.isBefore(_startDate!)) return false;
+      if (_endDate != null && f.createdAt.isAfter(_endDate!)) return false;
       return true;
     }).toList();
   }
@@ -230,10 +317,16 @@ class _SystemAdminFeedbackViewState extends State<SystemAdminFeedbackView> {
   }
 
   Widget _buildStatCards(bool isMobile) {
-    final pending = _feedbacks.where((f) => f.status == 'pending').length;
-    final resolved = _feedbacks.where((f) => f.status == 'resolved').length;
-    final bugs = _feedbacks.where((f) => f.category == 'Bug Report').length;
-    final features = _feedbacks.where((f) => f.category == 'Feature Request').length;
+    final dateFiltered = (_startDate == null && _endDate == null)
+        ? _feedbacks
+        : _feedbacks.where((f) =>
+            (_startDate == null || !f.createdAt.isBefore(_startDate!)) &&
+            (_endDate == null || !f.createdAt.isAfter(_endDate!))).toList();
+
+    final pending = dateFiltered.where((f) => f.status == 'pending').length;
+    final resolved = dateFiltered.where((f) => f.status == 'resolved').length;
+    final bugs = dateFiltered.where((f) => f.category == 'Bug Report').length;
+    final features = dateFiltered.where((f) => f.category == 'Feature Request').length;
 
     final cards = [
       _Stat('Total Pending', pending, Icons.mark_chat_unread_rounded, AdminStyles.warning),
@@ -287,6 +380,237 @@ class _SystemAdminFeedbackViewState extends State<SystemAdminFeedbackView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPresetButton(String key, String label, {IconData? icon}) {
+    final isSelected = _datePreset == key;
+    return InkWell(
+      onTap: () => _applyDatePreset(key),
+      borderRadius: BorderRadius.circular(10),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AdminStyles.primary : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AdminStyles.primary : AdminStyles.border,
+            width: 1.2,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AdminStyles.primary.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  )
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 3,
+                    offset: const Offset(0, 1),
+                  )
+                ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 15,
+                color: isSelected ? Colors.white : AdminStyles.textSecondary,
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: AdminStyles.bodyStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                color: isSelected ? Colors.white : AdminStyles.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomDatePickers(bool isMobile) {
+    final fromPicker = InkWell(
+      onTap: () => _pickCustomDate(isFrom: true),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _customFromDate != null ? AdminStyles.primary : AdminStyles.border,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_today_rounded, size: 14, color: AdminStyles.primary),
+            const SizedBox(width: 8),
+            Text(
+              _customFromDate != null
+                  ? 'From: ${DateFormat('yyyy-MM-dd').format(_customFromDate!)}'
+                  : 'From Date',
+              style: AdminStyles.bodyStyle(
+                fontSize: 12,
+                fontWeight: _customFromDate != null ? FontWeight.w700 : FontWeight.w500,
+                color: _customFromDate != null ? AdminStyles.textPrimary : AdminStyles.textMuted,
+              ),
+            ),
+            if (_customFromDate != null) ...[
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _customFromDate = null;
+                    _startDate = null;
+                  });
+                },
+                child: const Icon(Icons.close_rounded, size: 14, color: AdminStyles.textMuted),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+
+    final toPicker = InkWell(
+      onTap: () => _pickCustomDate(isFrom: false),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 38,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _customToDate != null ? AdminStyles.primary : AdminStyles.border,
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.calendar_today_rounded, size: 14, color: AdminStyles.primary),
+            const SizedBox(width: 8),
+            Text(
+              _customToDate != null
+                  ? 'To: ${DateFormat('yyyy-MM-dd').format(_customToDate!)}'
+                  : 'To Date',
+              style: AdminStyles.bodyStyle(
+                fontSize: 12,
+                fontWeight: _customToDate != null ? FontWeight.w700 : FontWeight.w500,
+                color: _customToDate != null ? AdminStyles.textPrimary : AdminStyles.textMuted,
+              ),
+            ),
+            if (_customToDate != null) ...[
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _customToDate = null;
+                    _endDate = null;
+                  });
+                },
+                child: const Icon(Icons.close_rounded, size: 14, color: AdminStyles.textMuted),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+
+    if (isMobile) {
+      return Row(
+        children: [
+          Expanded(child: fromPicker),
+          const SizedBox(width: 8),
+          Expanded(child: toPicker),
+        ],
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        fromPicker,
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 6),
+          child: Icon(Icons.arrow_forward_rounded, size: 14, color: AdminStyles.textMuted),
+        ),
+        toPicker,
+      ],
+    );
+  }
+
+  Widget _buildDateFilterBar(bool isMobile) {
+    final presetButtons = [
+      _buildPresetButton('all', 'All'),
+      _buildPresetButton('today', 'Today'),
+      _buildPresetButton('this_week', 'This Week'),
+      _buildPresetButton('this_month', 'This Month'),
+      _buildPresetButton('this_year', 'This Year'),
+      _buildPresetButton('custom', 'Custom Range', icon: Icons.date_range_rounded),
+    ];
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: presetButtons.expand((w) => [w, const SizedBox(width: 8)]).toList()..removeLast(),
+            ),
+          ),
+          if (_datePreset == 'custom') ...[
+            const SizedBox(height: 10),
+            _buildCustomDatePickers(isMobile),
+          ],
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Row(
+          children: presetButtons.expand((w) => [w, const SizedBox(width: 8)]).toList()..removeLast(),
+        ),
+        if (_datePreset == 'custom') ...[
+          const SizedBox(width: 14),
+          _buildCustomDatePickers(isMobile),
+        ],
+        const Spacer(),
+        if (_searchCtrl.text.isNotEmpty || _statusFilter != 'all' || _categoryFilter != 'all' || _datePreset != 'all')
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _searchCtrl.clear();
+                _statusFilter = 'all';
+                _categoryFilter = 'all';
+                _applyDatePreset('all');
+              });
+            },
+            icon: const Icon(Icons.refresh_rounded, size: 14),
+            label: const Text('Reset Filters'),
+            style: TextButton.styleFrom(
+              foregroundColor: AdminStyles.textSecondary,
+              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+      ],
     );
   }
 
@@ -351,20 +675,30 @@ class _SystemAdminFeedbackViewState extends State<SystemAdminFeedbackView> {
 
     if (isMobile) {
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           searchBox,
           const SizedBox(height: 8),
           Row(children: [Expanded(child: statusFilter), const SizedBox(width: 8), Expanded(child: categoryFilter)]),
+          const SizedBox(height: 12),
+          _buildDateFilterBar(isMobile),
         ],
       );
     }
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(flex: 3, child: searchBox),
-        const SizedBox(width: 10),
-        Expanded(flex: 2, child: statusFilter),
-        const SizedBox(width: 10),
-        Expanded(flex: 2, child: categoryFilter),
+        Row(
+          children: [
+            Expanded(flex: 3, child: searchBox),
+            const SizedBox(width: 10),
+            Expanded(flex: 2, child: statusFilter),
+            const SizedBox(width: 10),
+            Expanded(flex: 2, child: categoryFilter),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _buildDateFilterBar(isMobile),
       ],
     );
   }

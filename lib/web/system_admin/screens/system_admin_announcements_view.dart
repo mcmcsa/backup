@@ -205,6 +205,7 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
         return Container(
           color: AdminStyles.bg,
           child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,7 +227,7 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: _paginated.length,
                     separatorBuilder: (context, index) => const SizedBox(height: 12),
-                    itemBuilder: (ctx, i) => _buildCard(_paginated[i]),
+                    itemBuilder: (ctx, i) => _buildCard(_paginated[i], isGrid: false),
                   ),
                   const SizedBox(height: 16),
                   _buildPagination(true),
@@ -505,13 +506,13 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
             childAspectRatio: aspect,
           ),
           itemCount: _paginated.length,
-          itemBuilder: (ctx, i) => _buildCard(_paginated[i]),
+          itemBuilder: (ctx, i) => _buildCard(_paginated[i], isGrid: false),
         );
       },
     );
   }
 
-  Widget _buildCard(SystemAnnouncement a) {
+  Widget _buildCard(SystemAnnouncement a, {bool isGrid = false}) {
     // Determine visual status
     String statusLabel = a.status.toUpperCase();
     Color statusColor = AdminStyles.secondary;
@@ -567,23 +568,39 @@ class _SystemAdminAnnouncementsViewState extends State<SystemAdminAnnouncementsV
             ],
           ),
           const SizedBox(height: 16),
-          Expanded(
-            child: Column(
+          if (isGrid) ...[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(a.title, style: AdminStyles.headingStyle(fontSize: 16), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Text(
+                      a.content,
+                      style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(a.title, style: AdminStyles.headingStyle(fontSize: 16), maxLines: 2, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 8),
-                Expanded(
-                  child: Text(
-                    a.content,
-                    style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                Text(
+                  a.content,
+                  style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
-          ),
+          ],
           const SizedBox(height: 12),
           const Divider(height: 1, color: AdminStyles.border),
           const SizedBox(height: 12),

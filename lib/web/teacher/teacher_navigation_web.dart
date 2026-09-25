@@ -426,7 +426,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'PSU MMS',
+                        'PSU E-ayos',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -616,7 +616,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'PSU MMS',
+              'PSU E-ayos',
               style: AdminStyles.headingStyle(
                 fontSize: isCompact ? 16 : 18,
                 fontWeight: FontWeight.bold,

@@ -73,7 +73,7 @@ class SystemWorkflowPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Your work request goes through the following stages in the PSU MMS before it is resolved.',
+                  'Your work request goes through the following stages in the PSU E-ayos before it is resolved.',
                   style: TextStyle(
                     fontSize: 13,
                     color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,

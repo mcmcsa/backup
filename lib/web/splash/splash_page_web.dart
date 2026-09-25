@@ -208,7 +208,7 @@ class _SplashPageWebState extends State<SplashPageWeb>
                                           ),
                                           const SizedBox(height: 24),
                                           const Text(
-                                            'PSU MMS',
+                                            'PSU E-ayos',
                                             style: TextStyle(
                                               fontSize: 28,
                                               fontWeight: FontWeight.w900,

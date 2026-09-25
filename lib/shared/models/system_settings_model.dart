@@ -15,13 +15,13 @@ class SystemSettings {
 
   SystemSettings({
     required this.id,
-    this.systemName = 'Pangasinan State University Maintenance System',
+    this.systemName = 'PSU E-ayos',
     this.campusName = 'Main Campus',
     this.schoolLogo,
     this.primaryColor = '#0F172A',
     this.theme = 'light',
     this.timezone = 'Asia/Manila',
-    this.academicYear = '2023-2024',
+    this.academicYear = '2025-2026',
     this.semester = '1st Semester',
     this.enforcePasswordPolicy = true,
     this.sessionTimeoutMinutes = 60,
@@ -32,18 +32,20 @@ class SystemSettings {
   factory SystemSettings.fromMap(Map<String, dynamic> map) {
     return SystemSettings(
       id: map['id']?.toString() ?? '',
-      systemName: map['system_name'] ?? 'PSU MMS',
+      systemName: map['system_name'] ?? 'PSU E-ayos',
       campusName: map['campus_name'] ?? 'Main Campus',
       schoolLogo: map['school_logo'],
       primaryColor: map['primary_color'] ?? '#0F172A',
       theme: map['theme'] ?? 'light',
       timezone: map['timezone'] ?? 'Asia/Manila',
-      academicYear: map['academic_year'] ?? '2023-2024',
+      academicYear: map['academic_year'] ?? '2025-2026',
       semester: map['semester'] ?? '1st Semester',
       enforcePasswordPolicy: map['enforce_password_policy'] ?? true,
-      sessionTimeoutMinutes: map['session_timeout_minutes'] ?? 60,
+      sessionTimeoutMinutes: (map['session_timeout_minutes'] as num?)?.toInt() ??
+          int.tryParse(map['session_timeout_minutes']?.toString() ?? '') ??
+          60,
       maintenanceMode: map['maintenance_mode'] ?? false,
-      updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.tryParse(map['updated_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 

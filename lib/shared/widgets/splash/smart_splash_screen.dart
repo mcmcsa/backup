@@ -201,7 +201,7 @@ class _SmartSplashScreenState extends State<SmartSplashScreen>
                                     child: Column(
                                       children: [
                                         const Text(
-                                          'PSU MMS',
+                                          'PSU E-ayos',
                                           style: TextStyle(
                                             fontSize: 32,
                                             fontWeight: FontWeight.w900,

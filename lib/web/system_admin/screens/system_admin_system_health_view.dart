@@ -66,6 +66,7 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
       return Container(
         color: AdminStyles.bg,
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.all(isMobile ? 16 : 32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,6 +80,7 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
               _buildChartsRow(isMobile),
               const SizedBox(height: 24),
               _buildRecentErrors(),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -227,8 +229,8 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
           );
         }
 
-        final crossCount = width < 480 ? 1 : width < 800 ? 2 : 3;
-        final aspect = width < 480 ? 3.2 : 1.8;
+        final crossCount = width < 380 ? 1 : width < 700 ? 2 : 3;
+        final aspect = width < 380 ? 2.5 : 1.6;
 
         return GridView.count(
           crossAxisCount: crossCount,

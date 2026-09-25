@@ -417,7 +417,7 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                 const SizedBox(height: 40),
                 // Footer small text
                 const Text(
-                  'PSU MMS v2.4.0 • Academic Year 2023-2024',
+                  'PSU E-ayos v2.4.0 • Academic Year 2023-2024',
                   style: TextStyle(fontSize: 12, color: Colors.black38),
                 ),
                 const SizedBox(height: 24),

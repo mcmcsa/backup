@@ -17,7 +17,7 @@ class StudentTeacherDashboardMobile extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         title: const Text(
-          'PSU MMS',
+          'PSU E-ayos',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,

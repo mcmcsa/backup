@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../authentication/services/auth_service.dart';
@@ -26,15 +27,12 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
   final _formKey = GlobalKey<FormState>();
   
   // Controllers
-  late TextEditingController _systemNameCtrl;
-  late TextEditingController _campusNameCtrl;
-  late TextEditingController _primaryColorCtrl;
-  late TextEditingController _academicYearCtrl;
   late TextEditingController _sessionTimeoutCtrl;
+  bool _controllersInitialized = false;
 
-  String _theme = 'light';
+  static const List<String> _timezoneOptions = ['Asia/Manila', 'UTC'];
+
   String _timezone = 'Asia/Manila';
-  String _semester = '1st Semester';
   bool _enforcePasswordPolicy = true;
   bool _maintenanceMode = false;
   bool _qrRegenerationEnabled = false;
@@ -47,6 +45,12 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
 
   bool _saving = false;
 
+  String _normalizeTimezone(String? val) {
+    final clean = (val ?? '').trim();
+    if (_timezoneOptions.contains(clean)) return clean;
+    return 'Asia/Manila';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -55,11 +59,7 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
 
   @override
   void dispose() {
-    if (_settings != null) {
-      _systemNameCtrl.dispose();
-      _campusNameCtrl.dispose();
-      _primaryColorCtrl.dispose();
-      _academicYearCtrl.dispose();
+    if (_controllersInitialized) {
       _sessionTimeoutCtrl.dispose();
     }
     super.dispose();
@@ -78,15 +78,14 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
       if (mounted) {
         setState(() {
           _settings = s;
-          _systemNameCtrl = TextEditingController(text: s.systemName);
-          _campusNameCtrl = TextEditingController(text: s.campusName);
-          _primaryColorCtrl = TextEditingController(text: s.primaryColor);
-          _academicYearCtrl = TextEditingController(text: s.academicYear);
-          _sessionTimeoutCtrl = TextEditingController(text: s.sessionTimeoutMinutes.toString());
+          if (_controllersInitialized) {
+            _sessionTimeoutCtrl.text = s.sessionTimeoutMinutes.toString();
+          } else {
+            _sessionTimeoutCtrl = TextEditingController(text: s.sessionTimeoutMinutes.toString());
+            _controllersInitialized = true;
+          }
           
-          _theme = s.theme;
-          _timezone = s.timezone;
-          _semester = s.semester;
+          _timezone = _normalizeTimezone(s.timezone);
           _enforcePasswordPolicy = s.enforcePasswordPolicy;
           _maintenanceMode = s.maintenanceMode;
           _qrRegenerationEnabled = qrEnabled;
@@ -193,16 +192,11 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
     setState(() => _saving = true);
     
     final newSettings = _settings!.copyWith(
-      systemName: _systemNameCtrl.text.trim(),
-      campusName: _campusNameCtrl.text.trim(),
-      primaryColor: _primaryColorCtrl.text.trim(),
-      academicYear: _academicYearCtrl.text.trim(),
-      sessionTimeoutMinutes: int.tryParse(_sessionTimeoutCtrl.text.trim()) ?? 60,
-      theme: _theme,
       timezone: _timezone,
-      semester: _semester,
+      sessionTimeoutMinutes: int.tryParse(_sessionTimeoutCtrl.text.trim()) ?? 60,
       enforcePasswordPolicy: _enforcePasswordPolicy,
       maintenanceMode: _maintenanceMode,
+      updatedAt: DateTime.now(),
     );
 
     final err = await SystemSettingsService.updateSettings(newSettings);
@@ -213,7 +207,11 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
         _settings = newSettings;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(children: [Icon(Icons.check_circle_rounded, color: Colors.white, size: 18), SizedBox(width: 10), Text('Global Settings Saved')]),
+            content: const Row(children: [
+              Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+              SizedBox(width: 10),
+              Text('Settings saved successfully'),
+            ]),
             backgroundColor: AdminStyles.success,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -252,40 +250,38 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
                 child: isMobile
                     ? Column(
                         children: [
-                          _buildNotificationSettingsCard(),
-                          const SizedBox(height: 16),
-                          _buildGeneralCard(),
-                          const SizedBox(height: 16),
-                          _buildAcademicCard(),
-                          const SizedBox(height: 16),
-                          _buildQrCodeCard(),
+                          _buildTimezoneCard(),
                           const SizedBox(height: 16),
                           _buildSecurityCard(),
+                          const SizedBox(height: 16),
+                          _buildMaintenanceCard(),
+                          const SizedBox(height: 16),
+                          _buildNotificationSettingsCard(),
+                          const SizedBox(height: 16),
+                          _buildQrCodeCard(),
                         ],
                       )
                     : Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            flex: 3,
                             child: Column(
                               children: [
+                                _buildTimezoneCard(),
+                                const SizedBox(height: 24),
                                 _buildNotificationSettingsCard(),
                                 const SizedBox(height: 24),
-                                _buildGeneralCard(),
-                                const SizedBox(height: 24),
-                                _buildAcademicCard(),
+                                _buildQrCodeCard(),
                               ],
                             ),
                           ),
                           const SizedBox(width: 24),
                           Expanded(
-                            flex: 2,
                             child: Column(
                               children: [
-                                _buildQrCodeCard(),
-                                const SizedBox(height: 24),
                                 _buildSecurityCard(),
+                                const SizedBox(height: 24),
+                                _buildMaintenanceCard(),
                               ],
                             ),
                           ),
@@ -304,21 +300,68 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
     final titleCol = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Global Settings', style: AdminStyles.headingStyle(fontSize: isMobile ? 22 : 28)),
+        Row(
+          children: [
+            Text('System Settings', style: AdminStyles.headingStyle(fontSize: isMobile ? 22 : 28)),
+            const SizedBox(width: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: _maintenanceMode
+                    ? AdminStyles.error.withValues(alpha: 0.1)
+                    : AdminStyles.success.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _maintenanceMode
+                      ? AdminStyles.error.withValues(alpha: 0.4)
+                      : AdminStyles.success.withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: _maintenanceMode ? AdminStyles.error : AdminStyles.success,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _maintenanceMode ? 'Maintenance Mode' : 'System Online',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _maintenanceMode ? AdminStyles.error : AdminStyles.success,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 4),
-        Text('Manage core system configurations and environment variables.', style: AdminStyles.bodyStyle(fontSize: 13)),
+        Text(
+          'Manage system timezone, security policies, QR codes, and personal alerts.',
+          style: AdminStyles.bodyStyle(fontSize: 13),
+        ),
       ],
     );
 
     final saveBtn = ElevatedButton.icon(
       onPressed: _saving ? null : _save,
-      icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save_rounded, size: 18),
+      icon: _saving
+          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+          : const Icon(Icons.save_rounded, size: 18),
       label: Text(_saving ? 'Saving...' : 'Save Configuration'),
       style: ElevatedButton.styleFrom(
         backgroundColor: AdminStyles.primary,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        elevation: 1,
       ),
     );
 
@@ -342,131 +385,363 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
     );
   }
 
-  Widget _buildGeneralCard() {
+  Widget _buildTimezoneCard() {
+    DateTime now = DateTime.now();
+    if (_timezone == 'UTC') {
+      now = now.toUtc();
+    }
+    final timeStr = DateFormat('MMMM d, yyyy • hh:mm a').format(now);
+
     return _SettingsCard(
-      title: 'General Settings',
-      icon: Icons.tune_rounded,
+      title: 'System Timezone & Regional',
+      icon: Icons.language_rounded,
       children: [
-        _buildTextField('System Name', _systemNameCtrl, Icons.computer_rounded, required: true),
-        const SizedBox(height: 16),
-        _buildTextField('Campus Name', _campusNameCtrl, Icons.location_city_rounded, required: true),
-        const SizedBox(height: 16),
-        MediaQuery.of(context).size.width < 600
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTextField('Primary Color (Hex)', _primaryColorCtrl, Icons.color_lens_rounded, required: true),
-                  const SizedBox(height: 16),
-                  _label('Theme Default'),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: _theme,
-                    decoration: _inputDecor(Icons.dark_mode_rounded),
-                    items: const [
-                      DropdownMenuItem(value: 'light', child: Text('Light Theme')),
-                      DropdownMenuItem(value: 'dark', child: Text('Dark Theme')),
-                      DropdownMenuItem(value: 'system', child: Text('System Default')),
-                    ],
-                    onChanged: (v) => setState(() => _theme = v ?? 'light'),
-                  ),
-                ],
-              )
-            : Row(
-                children: [
-                  Expanded(child: _buildTextField('Primary Color (Hex)', _primaryColorCtrl, Icons.color_lens_rounded, required: true)),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _label('Theme Default'),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: _theme,
-                          decoration: _inputDecor(Icons.dark_mode_rounded),
-                          items: const [
-                            DropdownMenuItem(value: 'light', child: Text('Light Theme')),
-                            DropdownMenuItem(value: 'dark', child: Text('Dark Theme')),
-                            DropdownMenuItem(value: 'system', child: Text('System Default')),
-                          ],
-                          onChanged: (v) => setState(() => _theme = v ?? 'light'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-        const SizedBox(height: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _label('System Timezone'),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _timezone,
-              decoration: _inputDecor(Icons.access_time_filled_rounded),
-              items: const [
-                DropdownMenuItem(value: 'Asia/Manila', child: Text('Asia/Manila (PST)')),
-                DropdownMenuItem(value: 'UTC', child: Text('Universal Time (UTC)')),
-              ],
-              onChanged: (v) => setState(() => _timezone = v ?? 'Asia/Manila'),
+        Text(
+          'Configure the primary timezone used for logging timestamps, work order submissions, and audit events.',
+          style: AdminStyles.bodyStyle(fontSize: 13),
+        ),
+        const SizedBox(height: 18),
+        _label('Active Timezone'),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          key: ValueKey(_timezone),
+          initialValue: _normalizeTimezone(_timezone),
+          decoration: _inputDecor(Icons.access_time_filled_rounded),
+          items: const [
+            DropdownMenuItem(
+              value: 'Asia/Manila',
+              child: Text('Asia/Manila (PHT, UTC+8) — Default'),
+            ),
+            DropdownMenuItem(
+              value: 'UTC',
+              child: Text('Universal Time (UTC)'),
             ),
           ],
+          onChanged: (v) => setState(() => _timezone = v ?? 'Asia/Manila'),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AdminStyles.bg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AdminStyles.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AdminStyles.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.schedule_rounded, size: 20, color: AdminStyles.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Current Reference Time', style: AdminStyles.bodyStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text(
+                      timeStr,
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AdminStyles.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildAcademicCard() {
+  Widget _buildNotificationSettingsCard() {
     return _SettingsCard(
-      title: 'Academic Configuration',
-      icon: Icons.school_rounded,
+      title: 'Personal Notification Preferences',
+      icon: Icons.notifications_active_outlined,
       children: [
-        MediaQuery.of(context).size.width < 600
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        SwitchListTile(
+          value: _notificationsEnabled,
+          onChanged: _isLoadingPreferences ? null : _toggleMasterNotifications,
+          activeThumbColor: AdminStyles.primary,
+          title: Text('Enable Notifications', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('Master toggle: overall on/off switch for all alerts.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+          contentPadding: EdgeInsets.zero,
+        ),
+        const Divider(height: 24, color: AdminStyles.border),
+        Opacity(
+          opacity: _notificationsEnabled ? 1.0 : 0.45,
+          child: SwitchListTile(
+            value: _notificationsEnabled ? _emailNotifications : false,
+            onChanged: (_isLoadingPreferences || !_notificationsEnabled) ? null : _toggleEmailNotifications,
+            activeThumbColor: AdminStyles.primary,
+            title: Text('Email Notifications', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text('Receive email updates about critical requests and administrative updates.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const Divider(height: 24, color: AdminStyles.border),
+        Opacity(
+          opacity: _notificationsEnabled ? 1.0 : 0.45,
+          child: SwitchListTile(
+            value: _notificationsEnabled ? _pushNotifications : false,
+            onChanged: (_isLoadingPreferences || !_notificationsEnabled) ? null : _togglePushNotifications,
+            activeThumbColor: AdminStyles.primary,
+            title: Text('Push Notifications', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text('Receive real-time desktop browser notifications and audible alerts.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQrCodeCard() {
+    return _SettingsCard(
+      title: 'QR Code Configuration',
+      icon: Icons.qr_code_2_outlined,
+      children: [
+        SwitchListTile(
+          value: _qrRegenerationEnabled,
+          onChanged: _toggleQrRegeneration,
+          activeThumbColor: AdminStyles.primary,
+          title: Text('Allow QR Code Regeneration', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(
+            'Enables the regenerate action in Add/Edit Room forms across all campus facilities.',
+            style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+          ),
+          contentPadding: EdgeInsets.zero,
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFBEB),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFFDE68A)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFFD97706)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Note: Regenerating a QR code generates a new UUID. Previously printed QR physical stickers will no longer scan.',
+                  style: AdminStyles.bodyStyle(fontSize: 12, color: const Color(0xFF92400E)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSecurityCard() {
+    final timeoutPresets = [15, 30, 60, 120, 240];
+    final currentTimeout = int.tryParse(_sessionTimeoutCtrl.text.trim());
+
+    return _SettingsCard(
+      title: 'Security & Access Control',
+      icon: Icons.security_rounded,
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: AdminStyles.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.lock_reset_rounded, color: AdminStyles.primary, size: 20),
+          ),
+          title: Text('Change Password', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('Update your personal account administrator password.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+          trailing: OutlinedButton(
+            onPressed: _showChangePasswordDialog,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AdminStyles.primary,
+              side: const BorderSide(color: AdminStyles.border),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Change'),
+          ),
+        ),
+        const Divider(height: 28, color: AdminStyles.border),
+        _buildTextField(
+          'Session Inactivity Timeout (Minutes)',
+          _sessionTimeoutCtrl,
+          Icons.timer_outlined,
+          isNumber: true,
+          required: true,
+          validator: _validateSessionTimeout,
+          helperText: 'Duration of inactivity before the user is automatically logged out (5 to 1440 min).',
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Text('Quick Presets: ', style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: timeoutPresets.map((m) {
+                  final isSelected = currentTimeout == m;
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        _sessionTimeoutCtrl.text = m.toString();
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AdminStyles.primary : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: isSelected ? AdminStyles.primary : AdminStyles.border,
+                        ),
+                      ),
+                      child: Text(
+                        '$m m',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isSelected ? Colors.white : AdminStyles.textSecondary,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+        const Divider(height: 28, color: AdminStyles.border),
+        SwitchListTile(
+          value: _enforcePasswordPolicy,
+          onChanged: (v) => setState(() => _enforcePasswordPolicy = v),
+          title: Text('Enforce Strict Passwords', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('Requires uppercase, lowercase, numbers, and symbols for all system accounts.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
+          activeThumbColor: AdminStyles.primary,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMaintenanceCard() {
+    return _SettingsCard(
+      title: 'Maintenance Mode',
+      icon: Icons.construction_rounded,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: _maintenanceMode ? AdminStyles.error.withValues(alpha: 0.06) : AdminStyles.bg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _maintenanceMode ? AdminStyles.error.withValues(alpha: 0.4) : AdminStyles.border,
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  _buildTextField('Academic Year', _academicYearCtrl, Icons.calendar_today_rounded, required: true),
-                  const SizedBox(height: 16),
-                  _label('Current Semester'),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: _semester,
-                    decoration: _inputDecor(Icons.layers_rounded),
-                    items: const [
-                      DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
-                      DropdownMenuItem(value: '2nd Semester', child: Text('2nd Semester')),
-                      DropdownMenuItem(value: 'Midyear', child: Text('Midyear / Summer')),
-                    ],
-                    onChanged: (v) => setState(() => _semester = v ?? '1st Semester'),
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: (_maintenanceMode ? AdminStyles.error : AdminStyles.success).withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _maintenanceMode ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded,
+                      color: _maintenanceMode ? AdminStyles.error : AdminStyles.success,
+                      size: 20,
+                    ),
                   ),
-                ],
-              )
-            : Row(
-                children: [
-                  Expanded(child: _buildTextField('Academic Year', _academicYearCtrl, Icons.calendar_today_rounded, required: true)),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _label('Current Semester'),
-                        const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: _semester,
-                          decoration: _inputDecor(Icons.layers_rounded),
-                          items: const [
-                            DropdownMenuItem(value: '1st Semester', child: Text('1st Semester')),
-                            DropdownMenuItem(value: '2nd Semester', child: Text('2nd Semester')),
-                            DropdownMenuItem(value: 'Midyear', child: Text('Midyear / Summer')),
-                          ],
-                          onChanged: (v) => setState(() => _semester = v ?? '1st Semester'),
+                        Text(
+                          _maintenanceMode ? 'System is in Maintenance' : 'System is Live & Online',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: _maintenanceMode ? AdminStyles.error : AdminStyles.success,
+                          ),
+                        ),
+                        Text(
+                          _maintenanceMode ? 'Normal user access is currently blocked' : 'All users can log in and submit requests',
+                          style: AdminStyles.bodyStyle(fontSize: 11),
                         ),
                       ],
                     ),
                   ),
+                  Switch(
+                    value: _maintenanceMode,
+                    activeThumbColor: AdminStyles.error,
+                    onChanged: (v) async {
+                      if (v) {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: const Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: AdminStyles.error, size: 24),
+                                SizedBox(width: 10),
+                                Text('Enable Maintenance Mode?'),
+                              ],
+                            ),
+                            content: const Text(
+                              'When maintenance mode is active, only System Administrators can log in. All teachers, maintenance staff, and regular admins will be locked out until maintenance is disabled.\n\nAre you sure you want to proceed?',
+                            ),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AdminStyles.error,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Enable Maintenance'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm != true) return;
+                      }
+                      setState(() => _maintenanceMode = v);
+                    },
+                  ),
                 ],
               ),
+              const SizedBox(height: 12),
+              Text(
+                'When enabled, all non-system-admin users are prevented from logging in. Use this during planned database maintenance or major updates.',
+                style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -716,151 +991,32 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
     );
   }
 
-  Widget _buildQrCodeCard() {
-    return _SettingsCard(
-      title: 'QR Code Settings',
-      icon: Icons.qr_code_2_outlined,
-      children: [
-        SwitchListTile(
-          value: _qrRegenerationEnabled,
-          onChanged: _toggleQrRegeneration,
-          activeThumbColor: AdminStyles.primary,
-          title: Text('Allow QR Regeneration', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text('Show regenerate option in Add/Edit Room across all campuses.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-          contentPadding: EdgeInsets.zero,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNotificationSettingsCard() {
-    return _SettingsCard(
-      title: 'Personal Notification Preferences',
-      icon: Icons.notifications_active_outlined,
-      children: [
-        SwitchListTile(
-          value: _notificationsEnabled,
-          onChanged: _isLoadingPreferences ? null : _toggleMasterNotifications,
-          activeThumbColor: AdminStyles.primary,
-          title: Text('Enable Notifications', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text('Master toggle: overall on/off switch for all alerts.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-          contentPadding: EdgeInsets.zero,
-        ),
-        const Divider(height: 20, color: AdminStyles.border),
-        Opacity(
-          opacity: _notificationsEnabled ? 1.0 : 0.45,
-          child: SwitchListTile(
-            value: _notificationsEnabled ? _emailNotifications : false,
-            onChanged: (_isLoadingPreferences || !_notificationsEnabled) ? null : _toggleEmailNotifications,
-            activeThumbColor: AdminStyles.primary,
-            title: Text('Email Notifications', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text('Receive email updates about relevant requests and activities.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-            contentPadding: EdgeInsets.zero,
-          ),
-        ),
-        const Divider(height: 20, color: AdminStyles.border),
-        Opacity(
-          opacity: _notificationsEnabled ? 1.0 : 0.45,
-          child: SwitchListTile(
-            value: _notificationsEnabled ? _pushNotifications : false,
-            onChanged: (_isLoadingPreferences || !_notificationsEnabled) ? null : _togglePushNotifications,
-            activeThumbColor: AdminStyles.primary,
-            title: Text('Push Notifications', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
-            subtitle: Text('Receive real-time desktop browser notifications and alerts.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-            contentPadding: EdgeInsets.zero,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSecurityCard() {
-    return _SettingsCard(
-      title: 'Security & Access',
-      icon: Icons.security_rounded,
-      children: [
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.lock_outline_rounded, color: AdminStyles.primary),
-          title: Text('Change Password', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text('Update your personal account password.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-          trailing: const Icon(Icons.chevron_right_rounded, color: AdminStyles.textMuted),
-          onTap: _showChangePasswordDialog,
-        ),
-        const Divider(height: 24, color: AdminStyles.border),
-        _buildTextField('Session Timeout (Minutes)', _sessionTimeoutCtrl, Icons.timer_rounded, isNumber: true, required: true),
-        const SizedBox(height: 24),
-        
-        SwitchListTile(
-          value: _enforcePasswordPolicy,
-          onChanged: (v) => setState(() => _enforcePasswordPolicy = v),
-          title: Text('Enforce Strict Passwords', style: AdminStyles.bodyStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text('Requires uppercase, lowercase, numbers, and symbols.', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-          activeThumbColor: AdminStyles.primary,
-          contentPadding: EdgeInsets.zero,
-        ),
-        const Divider(height: 32, color: AdminStyles.border),
-        
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: _maintenanceMode ? AdminStyles.error.withValues(alpha: 0.05) : AdminStyles.bg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _maintenanceMode ? AdminStyles.error.withValues(alpha: 0.3) : AdminStyles.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.build_circle_rounded, color: _maintenanceMode ? AdminStyles.error : AdminStyles.textMuted, size: 24),
-                  const SizedBox(width: 10),
-                  Text('Maintenance Mode', style: AdminStyles.headingStyle(fontSize: 16)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text('When enabled, only System Administrators can log in. All other users will see a maintenance screen.', style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(_maintenanceMode ? 'SYSTEM IS OFFLINE' : 'System is Online', style: TextStyle(fontWeight: FontWeight.w800, color: _maintenanceMode ? AdminStyles.error : AdminStyles.success)),
-                  Switch(
-                    value: _maintenanceMode,
-                    onChanged: (v) => setState(() => _maintenanceMode = v),
-                    activeThumbColor: AdminStyles.error,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 32),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _saving ? null : _save,
-            icon: _saving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save_rounded, size: 18),
-            label: Text(_saving ? 'Saving...' : 'Save Configuration'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminStyles.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   // ── Helpers ─────────────────────────────────────────────────────────────
+
+  String? _validateSessionTimeout(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Session timeout is required';
+    final n = int.tryParse(v.trim());
+    if (n == null || n < 5 || n > 1440) {
+      return 'Must be between 5 and 1440 minutes (24 hours)';
+    }
+    return null;
+  }
 
   Widget _label(String text) {
     return Text(text, style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AdminStyles.textSecondary));
   }
 
-  Widget _buildTextField(String label, TextEditingController ctrl, IconData icon, {bool required = false, bool isNumber = false}) {
+  Widget _buildTextField(
+    String label,
+    TextEditingController ctrl,
+    IconData icon, {
+    bool required = false,
+    bool isNumber = false,
+    String? Function(String?)? validator,
+    String? helperText,
+    Widget? suffixWidget,
+    void Function(String)? onChanged,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -870,17 +1026,22 @@ class _SystemAdminSettingsViewState extends State<SystemAdminSettingsView> {
           controller: ctrl,
           keyboardType: isNumber ? TextInputType.number : TextInputType.text,
           inputFormatters: isNumber ? [FilteringTextInputFormatter.digitsOnly] : null,
-          decoration: _inputDecor(icon),
-          validator: required ? (v) => v == null || v.isEmpty ? 'Required field' : null : null,
+          decoration: _inputDecor(icon, suffixWidget: suffixWidget, helperText: helperText),
+          onChanged: onChanged,
+          validator: validator ?? (required ? (v) => v == null || v.trim().isEmpty ? 'Required field' : null : null),
         ),
       ],
     );
   }
 
-  InputDecoration _inputDecor(IconData icon) {
+  InputDecoration _inputDecor(IconData icon, {Widget? suffixWidget, String? helperText}) {
     return InputDecoration(
       prefixIcon: Icon(icon, size: 18, color: AdminStyles.textSecondary),
-      filled: true, fillColor: Colors.white,
+      suffixIcon: suffixWidget,
+      helperText: helperText,
+      helperStyle: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+      filled: true,
+      fillColor: Colors.white,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.border)),
       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.border)),
       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.primary, width: 2)),
@@ -903,7 +1064,13 @@ class _SettingsCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AdminStyles.border),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 3))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -924,7 +1091,7 @@ class _SettingsCard extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: children,

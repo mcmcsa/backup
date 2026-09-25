@@ -293,7 +293,7 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb>
             border: Border.all(color: _blue.withValues(alpha: 0.4)),
           ),
           child: Text(
-            'PSU MMS PORTAL',
+            'PSU E-ayos PORTAL',
             style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _blue, letterSpacing: 1.2),
           ),
         ),
