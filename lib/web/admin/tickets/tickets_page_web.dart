@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/providers/work_request_provider.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/duplicate_detection_service.dart';
 import '../shared/admin_styles.dart';
@@ -47,6 +49,8 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
   bool _isHistorical(String status) {
     final s = status.toLowerCase();
     return s == 'completed' ||
+        s == 'acknowledged' ||
+        s == 'acknowledged by department head' ||
         s == 'declined' ||
         s == 'cancelled' ||
         s == 'declined/cancelled' ||
@@ -59,6 +63,14 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Instant initial render if provider has data cached to avoid blocking spinner
+    try {
+      final provider = Provider.of<WorkRequestProvider>(context, listen: false);
+      if (provider.requests.isNotEmpty) {
+        _requests = List<WorkRequest>.from(provider.requests);
+        _isLoading = false;
+      }
+    } catch (_) {}
     _loadRequests();
     _setupRealtime();
     _startAutoRefresh();
@@ -95,7 +107,7 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
 
   void _startAutoRefresh() {
     _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _loadRequests();
     });
   }
@@ -108,16 +120,19 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
     }
 
     try {
-      final data = await WorkRequestService.fetchAll();
+      final results = await Future.wait([
+        WorkRequestService.fetchAll(),
+        DuplicateDetectionService.fetchPotentialDuplicateGroups().catchError((_) => <List<WorkRequest>>[]),
+      ]);
+      final data = results[0] as List<WorkRequest>;
+      final groups = results[1] as List<List<WorkRequest>>;
+
       Set<String> duplicateIds = {};
-      try {
-        final groups = await DuplicateDetectionService.fetchPotentialDuplicateGroups();
-        for (final group in groups) {
-          for (final r in group) {
-            duplicateIds.add(r.id);
-          }
+      for (final group in groups) {
+        for (final r in group) {
+          duplicateIds.add(r.id);
         }
-      } catch (_) {}
+      }
 
       if (mounted && currentSequence == _loadSequence) {
         setState(() {
@@ -139,12 +154,22 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
 
   List<WorkRequest> get _filteredRequests {
     final query = _searchController.text.toLowerCase();
-    var requests = _requests.where((r) => !_isHistorical(r.status)).toList();
+    var requests = _requests
+        .where((r) =>
+            !_isHistorical(r.status) &&
+            !r.isPendingDeptHead &&
+            !r.isAcknowledged &&
+            !r.status.toLowerCase().contains('acknowledged'))
+        .toList();
 
     // Apply status filter
     if (_selectedFilter == 1) {
       requests = requests
-          .where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment')
+          .where((r) =>
+              (r.status.toLowerCase() == 'pending' ||
+               r.status.toLowerCase() == 'pending assignment' ||
+               r.status.toLowerCase() == 'pending campus admin') &&
+              !r.isPendingDeptHead)
           .toList();
     } else if (_selectedFilter == 2) {
       requests = requests
@@ -195,13 +220,17 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
   }
 
   int _getCountByFilter(int filter) {
-    final active = _requests.where((r) => !_isHistorical(r.status));
+    final active = _requests.where((r) =>
+        !_isHistorical(r.status) &&
+        !r.isPendingDeptHead &&
+        !r.isAcknowledged &&
+        !r.status.toLowerCase().contains('acknowledged'));
     switch (filter) {
       case 0:
         return active.length;
       case 1:
         return active
-            .where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment')
+            .where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment' || r.status.toLowerCase() == 'pending campus admin')
             .length;
       case 2:
         return active
@@ -593,7 +622,7 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                         Expanded(flex: 2, child: _buildTableHeader('Requestor')),
                         Expanded(flex: 2, child: _buildTableHeader('Title / Issue')),
                         Expanded(flex: 2, child: _buildTableHeader('Date & Type')),
-                        Expanded(flex: 1, child: _buildTableHeader('Status')),
+                        Expanded(flex: 2, child: _buildTableHeader('Status')),
                         Expanded(flex: 1, child: _buildTableHeader('Action')),
                       ],
                     ),
@@ -1155,15 +1184,20 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final config = _getConfig();
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: AdminStyles.pillDecoration(color: config.textColor, isSecondary: true),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: config.textColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: config.textColor.withValues(alpha: 0.25)),
+      ),
       child: Text(
         config.label.toUpperCase(),
+        textAlign: TextAlign.center,
         style: AdminStyles.headingStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
           color: config.textColor,
-          letterSpacing: 0.5,
+          letterSpacing: 0.3,
         ),
       ),
     );
@@ -1178,6 +1212,19 @@ class _StatusBadge extends StatelessWidget {
           'PENDING',
           const Color(0xFFF3F4F6),
           const Color(0xFF6B7280),
+        );
+      case 'pending campus admin':
+        return _Config(
+          'PENDING CAMPUS ADMIN',
+          const Color(0xFFFEF3C7),
+          const Color(0xFFD97706),
+        );
+      case 'pending dept head':
+      case 'pending department head':
+        return _Config(
+          'PENDING DEPT HEAD',
+          const Color(0xFFEDE9FE),
+          const Color(0xFF8B5CF6),
         );
       case 'in progress':
       case 'in_progress':
@@ -1412,7 +1459,7 @@ class _TicketTableRowState extends State<_TicketTableRow> {
               ),
             ),
             Expanded(
-              flex: 1,
+              flex: 2,
               child: Center(
                 child: _StatusBadge(status: isDuplicate ? 'duplicate' : widget.request.status),
               ),

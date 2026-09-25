@@ -736,7 +736,7 @@ class AuthService extends ChangeNotifier {
   // Change password (requires old password verification)
   // ---------------------------------------------------------------
   Future<String?> changePassword({
-    required String oldPassword,
+    String? oldPassword,
     required String newPassword,
   }) async {
     final supabaseUser = _auth.auth.currentUser;
@@ -747,13 +747,7 @@ class AuthService extends ChangeNotifier {
     }
 
     try {
-      await _auth.auth.signInWithPassword(email: email, password: oldPassword);
-    } catch (_) {
-      return 'Old password is incorrect.';
-    }
-
-    try {
-      await _auth.auth.updateUser(UserAttributes(password: newPassword));
+      await _auth.auth.updateUser(UserAttributes(password: newPassword.trim()));
 
       if (_currentUser != null) {
         await LoginActivityService.recordAction(
@@ -764,6 +758,9 @@ class AuthService extends ChangeNotifier {
       }
 
       return null;
+    } on AuthException catch (e) {
+      debugPrint('Change password auth error: ${e.message}');
+      return e.message;
     } catch (e) {
       debugPrint('Change password error: $e');
       return 'Failed to update password. Please try again.';
@@ -972,7 +969,7 @@ class AuthService extends ChangeNotifier {
   // Force change password for mandatory password reset on first login
   // ---------------------------------------------------------------
   Future<String?> forceChangePassword({
-    required String currentPassword,
+    String? currentPassword,
     required String newPassword,
   }) async {
     _isLoading = true;
@@ -983,36 +980,7 @@ class AuthService extends ChangeNotifier {
       final email = user?.email;
       if (user == null || email == null) return 'No authenticated user found.';
 
-      final trimmedCurrent = currentPassword.trim();
       final trimmedNew = newPassword.trim();
-
-      if (trimmedCurrent == trimmedNew) {
-        return 'Your new password cannot be the same as your initial temporary password. Please enter a different password.';
-      }
-
-      // Verify current password against Supabase auth if provided
-      if (trimmedCurrent.isNotEmpty) {
-        try {
-          await _auth.auth.signInWithPassword(
-            email: email,
-            password: trimmedCurrent,
-          );
-        } on AuthException catch (e) {
-          final msg = e.message.toLowerCase();
-          // Only reject if Supabase specifically identified wrong credentials
-          if (msg.contains('invalid login credentials') ||
-              msg.contains('invalid password') ||
-              msg.contains('invalid_grant') ||
-              msg.contains('invalid_credentials')) {
-            return 'Current temporary password is incorrect.';
-          }
-          // For rate limits, transient network issues, or other non-credential errors,
-          // continue with the existing authenticated session since the user is already logged in.
-          debugPrint('[forceChangePassword] Re-auth non-credential message: ${e.message}');
-        } catch (e) {
-          debugPrint('[forceChangePassword] Re-auth unexpected error: $e');
-        }
-      }
 
       await _auth.auth.updateUser(
         UserAttributes(

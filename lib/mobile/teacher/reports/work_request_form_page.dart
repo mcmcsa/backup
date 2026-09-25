@@ -22,6 +22,7 @@ import '../../../shared/utils/dropdown_data_helper.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../../shared/services/login_activity_service.dart';
 import '../../../authentication/models/user_model.dart';
+import '../../../shared/widgets/department_mismatch_dialog.dart';
 
 class WorkRequestFormPage extends StatefulWidget {
   final String? roomId;
@@ -350,11 +351,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           return;
         }
 
-        if (_selectedImages.isEmpty) {
-          if (!mounted) return;
-          _showErrorDialog('Please upload at least one photo of the issue.');
-          return;
-        }
+
 
         if (_requesterSignatureBase64 == null ||
             _requesterSignatureBase64!.isEmpty) {
@@ -381,6 +378,21 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         if (selectedRoom == null) {
           if (!mounted) return;
           _showErrorDialog('Room not found. Please check the room code or room name.');
+          return;
+        }
+
+        final currentUser = context.read<AuthService>().currentUser;
+        if (isRoomOfOtherDepartment(user: currentUser, room: selectedRoom)) {
+          setState(() => _isSubmitting = false);
+          if (mounted) {
+            await showDepartmentMismatchDialog(
+              context: context,
+              roomCode: selectedRoom.code,
+              roomName: selectedRoom.name,
+              roomDepartment: selectedRoom.department,
+              userDepartment: currentUser?.department,
+            );
+          }
           return;
         }
 
@@ -540,8 +552,8 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
             ),
           );
 
-          if (isAdmin && currentUser != null) {
-            await LoginActivityService.recordAdminAction(
+          if (currentUser != null) {
+            await LoginActivityService.recordAction(
               user: currentUser,
               title: 'Created Work Request',
               details: 'Created work request for $_selectedBuilding • ${_officeRoomNameController.text.trim()}',
@@ -837,7 +849,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _buildLabel('Upload Photos *'),
+                  _buildLabel('Upload Photos (Optional)'),
                   const SizedBox(height: 8),
                   Row(
                     children: [

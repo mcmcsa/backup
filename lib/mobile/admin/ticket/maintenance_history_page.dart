@@ -3,6 +3,7 @@ import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import 'admin_work_process_page.dart';
 import '../../../shared/widgets/room_comparison_dialog.dart';
+import '../../../shared/widgets/app_date_range_dialog.dart';
 
 class MaintenanceHistoryPage extends StatefulWidget {
   const MaintenanceHistoryPage({super.key});
@@ -107,25 +108,12 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
   }
 
   Future<void> _showDateRangePicker() async {
-    final DateTimeRange? picked = await showDateRangePicker(
+    final DateTimeRange? picked = await showAppDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      initialDateRange: _startDate != null && _endDate != null
-          ? DateTimeRange(start: _startDate!, end: _endDate!)
-          : null,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF4169E1),
-              onPrimary: Colors.white,
-              onSurface: Colors.black87,
-            ),
-          ),
-          child: child!,
-        );
-      },
+      initialStartDate: _startDate,
+      initialEndDate: _endDate,
     );
 
     if (picked != null) {

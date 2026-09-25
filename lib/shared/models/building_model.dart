@@ -17,11 +17,14 @@ class Building {
     this.code = '',
     this.numberOfFloors = 1,
     this.isActive = true,
-    this.departmentIds = const [],
+    List<String> departmentIds = const [],
     this.departmentNames = const [],
+    String? departmentId,
     required this.createdAt,
     required this.updatedAt,
-  });
+  }) : departmentIds = departmentIds.isNotEmpty
+            ? departmentIds
+            : (departmentId != null && departmentId.isNotEmpty ? [departmentId] : const []);
 
   /// Backward-compatibility getters
   String get departmentId => departmentIds.isNotEmpty ? departmentIds.first : '';

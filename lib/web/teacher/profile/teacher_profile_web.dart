@@ -4,10 +4,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../authentication/models/user_model.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../shared/services/login_activity_service.dart';
 import '../../admin/shared/admin_styles.dart';
 
 class TeacherProfileWeb extends StatefulWidget {
-  const TeacherProfileWeb({super.key});
+  final bool isActive;
+  const TeacherProfileWeb({super.key, this.isActive = true});
 
   @override
   State<TeacherProfileWeb> createState() => _TeacherProfileWebState();
@@ -23,6 +25,13 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
   late final TextEditingController _positionController;
   late final TextEditingController _employeeIdController;
   late final TextEditingController _phoneController;
+
+  // Focus nodes for interactive tap-to-edit
+  final _nameFocusNode = FocusNode();
+  final _departmentFocusNode = FocusNode();
+  final _positionFocusNode = FocusNode();
+  final _employeeIdFocusNode = FocusNode();
+  final _phoneFocusNode = FocusNode();
 
   bool _isEditing = false;
   String? _lastUserId;
@@ -46,6 +55,31 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
   }
 
   @override
+  void didUpdateWidget(TeacherProfileWeb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Discard unsaved changes when navigating away to another tab
+    if (oldWidget.isActive && !widget.isActive) {
+      if (_isEditing) {
+        _cancelEdit();
+      }
+    }
+  }
+
+  void _cancelEdit() {
+    final user = context.read<AuthService>().currentUser;
+    _nameController.text = user?.name ?? '';
+    _emailController.text = user?.email ?? '';
+    _departmentController.text = user?.department ?? '';
+    _positionController.text = user?.position ?? '';
+    _employeeIdController.text = user?.employeeId ?? '';
+    _phoneController.text = user?.phone ?? '';
+    FocusScope.of(context).unfocus();
+    if (mounted) {
+      setState(() => _isEditing = false);
+    }
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
@@ -53,6 +87,11 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
     _positionController.dispose();
     _employeeIdController.dispose();
     _phoneController.dispose();
+    _nameFocusNode.dispose();
+    _departmentFocusNode.dispose();
+    _positionFocusNode.dispose();
+    _employeeIdFocusNode.dispose();
+    _phoneFocusNode.dispose();
     super.dispose();
   }
 
@@ -106,6 +145,11 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
 
       if (!mounted) return;
       if (success) {
+        await LoginActivityService.recordAction(
+          user: user,
+          title: 'Profile Picture Updated',
+          details: 'Updated profile picture',
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Profile picture updated successfully!'),
@@ -155,6 +199,12 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
 
       if (success) {
         setState(() => _isEditing = false);
+        FocusScope.of(context).unfocus();
+        await LoginActivityService.recordAction(
+          user: user,
+          title: 'Profile Updated',
+          details: 'Updated profile details: Name: ${updated.name}, Department: ${updated.department ?? 'N/A'}, Position: ${updated.position ?? 'N/A'}',
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Profile updated successfully!'),
@@ -395,9 +445,11 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
         runSpacing: 8,
         children: [
           TextButton(
-            onPressed: () => setState(() => _isEditing = false),
-            child: Text('Cancel',
-                style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+            onPressed: _cancelEdit,
+            child: Text(
+              'Cancel',
+              style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary),
+            ),
           ),
           ElevatedButton.icon(
             onPressed: isLoading ? null : _saveProfile,
@@ -406,43 +458,86 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white))
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                 : const Icon(Icons.check_circle_rounded, size: 18),
             label: const Text('Save Changes'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AdminStyles.primary,
               foregroundColor: Colors.white,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],
       );
     }
     return ElevatedButton.icon(
-      onPressed: () => setState(() => _isEditing = true),
+      onPressed: () {
+        setState(() => _isEditing = true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _nameFocusNode.requestFocus();
+        });
+      },
       icon: const Icon(Icons.edit_rounded, size: 18),
       label: const Text('Edit Profile'),
       style: ElevatedButton.styleFrom(
         backgroundColor: AdminStyles.primary,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
   Widget _buildRegistrationDetails(bool isMobile) {
     final fields = [
-      _buildField(Icons.person_outline_rounded, 'Full Name', _nameController, _isEditing),
-      _buildField(Icons.email_outlined, 'Institutional Email', _emailController, false, helperText: 'Email address cannot be changed here.'),
-      _buildField(Icons.badge_outlined, 'Employee ID', _employeeIdController, _isEditing),
-      _buildField(Icons.phone_outlined, 'Contact Number', _phoneController, _isEditing),
-      _buildField(Icons.school_outlined, 'Department', _departmentController, _isEditing),
-      _buildField(Icons.work_outline_rounded, 'Designation / Position', _positionController, _isEditing),
+      _buildField(
+        icon: Icons.person_outline_rounded,
+        label: 'Full Name',
+        controller: _nameController,
+        focusNode: _nameFocusNode,
+        isEditable: true,
+      ),
+      _buildField(
+        icon: Icons.email_outlined,
+        label: 'Institutional Email',
+        controller: _emailController,
+        isEditable: false,
+        helperText: 'Email address cannot be changed here.',
+      ),
+      _buildField(
+        icon: Icons.badge_outlined,
+        label: 'Employee ID',
+        controller: _employeeIdController,
+        focusNode: _employeeIdFocusNode,
+        isEditable: true,
+      ),
+      _buildField(
+        icon: Icons.phone_outlined,
+        label: 'Contact Number',
+        controller: _phoneController,
+        focusNode: _phoneFocusNode,
+        isEditable: true,
+      ),
+      _buildField(
+        icon: Icons.school_outlined,
+        label: 'Department',
+        controller: _departmentController,
+        focusNode: _departmentFocusNode,
+        isEditable: true,
+      ),
+      _buildField(
+        icon: Icons.work_outline_rounded,
+        label: 'Designation / Position',
+        controller: _positionController,
+        focusNode: _positionFocusNode,
+        isEditable: true,
+      ),
     ];
 
     return Container(
@@ -451,19 +546,56 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Personal Information', style: AdminStyles.headingStyle(fontSize: 18)),
+          Row(
+            children: [
+              Text(
+                'Personal Information',
+                style: AdminStyles.headingStyle(fontSize: 18),
+              ),
+              if (!_isEditing) ...[
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.touch_app_rounded, size: 13, color: Color(0xFF0F766E)),
+                      SizedBox(width: 4),
+                      Text(
+                        'Click any field to edit',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F766E),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
           const SizedBox(height: 8),
           Text(
             'These details were set by the System Admin when your account was created. You may update them here.',
-            style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
+            style: AdminStyles.bodyStyle(
+              fontSize: 12,
+              color: AdminStyles.textMuted,
+            ),
           ),
           const SizedBox(height: 28),
           if (isMobile)
             Column(
-              children: fields.map((f) => Padding(
-                padding: const EdgeInsets.only(bottom: 24),
-                child: f,
-              )).toList(),
+              children: fields
+                  .map((f) => Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: f,
+                      ))
+                  .toList(),
             )
           else
             Column(
@@ -496,68 +628,166 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
                 ),
               ],
             ),
+          if (_isEditing) ...[
+            const SizedBox(height: 28),
+            const Divider(color: Color(0xFFE2E8F0)),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                OutlinedButton(
+                  onPressed: _cancelEdit,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF64748B),
+                    side: const BorderSide(color: Color(0xFFCBD5E1)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _saveProfile,
+                  icon: const Icon(Icons.check_rounded, size: 16),
+                  label: const Text('Save Changes'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminStyles.primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildField(
-    IconData icon,
-    String label,
-    TextEditingController controller,
-    bool enabled, {
+  Widget _buildField({
+    required IconData icon,
+    required String label,
+    required TextEditingController controller,
+    FocusNode? focusNode,
+    required bool isEditable,
     String? helperText,
   }) {
+    final canEdit = isEditable && _isEditing;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, size: 16, color: AdminStyles.textSecondary),
+            Icon(
+              icon,
+              size: 16,
+              color: isEditable
+                  ? AdminStyles.textSecondary
+                  : AdminStyles.textMuted,
+            ),
             const SizedBox(width: 8),
             Text(
               label,
               style: AdminStyles.bodyStyle(
-                  fontSize: 13,
-                  color: AdminStyles.textSecondary,
-                  fontWeight: FontWeight.bold),
+                fontSize: 13,
+                color: isEditable
+                    ? AdminStyles.textSecondary
+                    : AdminStyles.textMuted,
+                fontWeight: FontWeight.bold,
+              ),
             ),
+            if (!isEditable) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'Locked',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
         const SizedBox(height: 12),
-        TextFormField(
-          controller: controller,
-          enabled: enabled,
-          style: AdminStyles.bodyStyle(
-              color: enabled
-                  ? AdminStyles.textPrimary
-                  : AdminStyles.textMuted),
-          decoration: InputDecoration(
-            helperText: helperText,
-            helperStyle: AdminStyles.bodyStyle(
-                fontSize: 11, color: AdminStyles.textMuted),
-            filled: true,
-            fillColor: enabled ? Colors.white : AdminStyles.bg,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AdminStyles.border),
+        InkWell(
+          onTap: isEditable && !_isEditing
+              ? () {
+                  setState(() => _isEditing = true);
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    focusNode?.requestFocus();
+                  });
+                }
+              : null,
+          borderRadius: BorderRadius.circular(12),
+          child: IgnorePointer(
+            ignoring: isEditable && !_isEditing,
+            child: TextFormField(
+              controller: controller,
+              focusNode: focusNode,
+              enabled: isEditable,
+              readOnly: !isEditable,
+              style: AdminStyles.bodyStyle(
+                color: isEditable
+                    ? AdminStyles.textPrimary
+                    : AdminStyles.textMuted,
+              ),
+              decoration: InputDecoration(
+                helperText: helperText,
+                helperStyle: AdminStyles.bodyStyle(
+                  fontSize: 11,
+                  color: AdminStyles.textMuted,
+                ),
+                filled: true,
+                fillColor: canEdit
+                    ? Colors.white
+                    : (isEditable
+                        ? const Color(0xFFF8FAFC)
+                        : AdminStyles.bg),
+                suffixIcon: isEditable && !_isEditing
+                    ? const Icon(
+                        Icons.edit_outlined,
+                        size: 16,
+                        color: Color(0xFF94A3B8),
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AdminStyles.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: canEdit
+                        ? AdminStyles.primary
+                        : AdminStyles.border,
+                  ),
+                ),
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(
+                    color: AdminStyles.border.withValues(alpha: 0.5),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: AdminStyles.primary, width: 2),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              ),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AdminStyles.border),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                  color: AdminStyles.border.withValues(alpha: 0.5)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  const BorderSide(color: AdminStyles.primary, width: 2),
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           ),
         ),
       ],

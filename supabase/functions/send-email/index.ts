@@ -41,7 +41,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: `PSU E-ayos <${senderEmail}>`,
+          from: `PSU E-Ayos <${senderEmail}>`,
           to: [payload.recipient_email],
           subject: payload.subject,
           html: `

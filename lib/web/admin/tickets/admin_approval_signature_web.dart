@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -56,7 +57,12 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   void initState() {
     super.initState();
     _loadData();
-    _isApproved = widget.request.status != 'Pending';
+    final s = widget.request.status.toLowerCase().trim();
+    _isApproved = s != 'pending' &&
+        s != 'pending campus admin' &&
+        s != 'pending assignment' &&
+        s != 'pending dept head' &&
+        s != 'pending department head';
     _setupRealtime();
   }
 
@@ -231,44 +237,54 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
       final primaryId = _selectedMaintenanceIds.first;
       await WorkRequestService.assignTo(widget.request.id, primaryId);
       
-      // Invite secondary collaborators
-      for (int i = 1; i < _selectedMaintenanceIds.length; i++) {
-        try {
-          await CollaborationService.inviteCollaborator(
-            widget.request.id,
-            _selectedMaintenanceIds[i],
-            'secondary',
-            user.id,
-          );
-        } catch (collabErr) {
-          debugPrint('Error inviting secondary collaborator ${_selectedMaintenanceIds[i]}: $collabErr');
-        }
-      }
-
-      final primaryStaff = _maintenanceStaff.where((s) => s.userId == primaryId).firstOrNull;
-      await AppNotificationService.notifyApprovedToMaintenance(
-        workRequestId: widget.request.id,
-        adminName: user.name,
-        assignedMaintenanceId: primaryId,
-        assignedMaintenanceName: primaryStaff?.fullName,
-        requestorId: widget.request.requestorId ?? widget.request.reportedById,
-      );
-
-      await LoginActivityService.recordAdminAction(
-        user: user,
-        title: 'Approved Request',
-        details: 'Approved work request for ${widget.request.officeRoom}',
-        workRequestId: widget.request.id,
-      );
-
+      // Instantly switch to Approved state so the user doesn't wait on background tasks
       if (mounted) {
         setState(() {
           _isApproved = true;
           _isProcessing = false;
         });
         _showSuccess('Work request approved successfully!');
-        _loadData(); // Refresh signatures
       }
+
+      // Asynchronous background operations (collaborations, notifications, audit log)
+      unawaited(() async {
+        for (int i = 1; i < _selectedMaintenanceIds.length; i++) {
+          try {
+            await CollaborationService.inviteCollaborator(
+              widget.request.id,
+              _selectedMaintenanceIds[i],
+              'secondary',
+              user.id,
+            );
+          } catch (collabErr) {
+            debugPrint('Error inviting secondary collaborator ${_selectedMaintenanceIds[i]}: $collabErr');
+          }
+        }
+
+        final primaryStaff = _maintenanceStaff.where((s) => s.userId == primaryId).firstOrNull;
+        await AppNotificationService.notifyApprovedToMaintenance(
+          workRequestId: widget.request.id,
+          adminName: user.name,
+          assignedMaintenanceId: primaryId,
+          assignedMaintenanceName: primaryStaff?.fullName,
+          requestorId: widget.request.requestorId ?? widget.request.reportedById,
+        ).catchError((e) => debugPrint('Error notifying maintenance: $e'));
+
+        await LoginActivityService.recordAdminAction(
+          user: user,
+          title: 'Approved Request',
+          details: 'Approved work request for ${widget.request.officeRoom}',
+          workRequestId: widget.request.id,
+        ).catchError((e) => debugPrint('Error recording admin action: $e'));
+
+        // Refresh signatures silently
+        final sigs = await ESignatureService.fetchByWorkRequest(widget.request.id).catchError((_) => <ESignature>[]);
+        if (mounted) {
+          setState(() {
+            _signatures = sigs;
+          });
+        }
+      }());
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
@@ -291,13 +307,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                 ? const Center(
                     child: CircularProgressIndicator(color: AdminStyles.primary),
                   )
-                : _isProcessing
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AdminStyles.primary,
-                        ),
-                      )
-                    : SingleChildScrollView(
+                : SingleChildScrollView(
                         child: Padding(
                           padding: const EdgeInsets.all(40),
                           child: Center(
@@ -570,163 +580,36 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
     required DateTime date,
     String? signatureData,
   }) {
-    final hasSig = signatureData != null && signatureData.trim().isNotEmpty;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        onTap: hasSig ? () => _showSignaturePreviewModal(signerName, label, signatureData) : null,
-        borderRadius: BorderRadius.circular(12),
-        hoverColor: AdminStyles.primary.withValues(alpha: 0.05),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: AdminStyles.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
-                child: const Icon(Icons.verified_rounded, size: 16, color: AdminStyles.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      signerName,
-                      style: AdminStyles.headingStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$label • ${DateFormat('MMM dd, yyyy · HH:mm').format(date)}',
-                      style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
-                    ),
-                  ],
-                ),
-              ),
-              if (hasSig)
-                Tooltip(
-                  message: 'View signature',
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AdminStyles.bg,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AdminStyles.border),
-                    ),
-                    child: const Icon(Icons.remove_red_eye_outlined, size: 15, color: AdminStyles.textSecondary),
-                  ),
-                ),
-            ],
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.verified_rounded, size: 18, color: Color(0xFF0F766E)),
           ),
-        ),
-      ),
-    );
-  }
-
-  void _showSignaturePreviewModal(String signerName, String roleLabel, String base64Data) {
-    Uint8List? bytes;
-    try {
-      final clean = base64Data.contains(',') ? base64Data.split(',').last : base64Data;
-      bytes = base64Decode(clean);
-    } catch (_) {
-      bytes = null;
-    }
-
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: Container(
-          width: 520,
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  signerName,
+                  style: AdminStyles.headingStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$label • ${DateFormat('MMM dd, yyyy · HH:mm').format(date)}',
+                  style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
+                ),
+              ],
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AdminStyles.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.verified_user_rounded, color: AdminStyles.primary, size: 20),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('$roleLabel Signature', style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 2),
-                        Text('Signed by $signerName', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                height: 220,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF9FAFB),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AdminStyles.border),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      bottom: 28,
-                      left: 20,
-                      right: 20,
-                      child: Container(height: 1, color: Colors.black12),
-                    ),
-                    const Positioned(
-                      bottom: 10,
-                      left: 24,
-                      child: Text(
-                        'Verified Signature Record',
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black26, letterSpacing: 0.5),
-                      ),
-                    ),
-                    Center(
-                      child: bytes != null
-                          ? Image.memory(bytes, fit: BoxFit.contain)
-                          : const Text('Signature preview not available'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminStyles.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
-                  ),
-                  child: const Text('Close'),
-                ),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
@@ -1131,21 +1014,6 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                           ],
                         ),
                       ),
-                      if (_pendingSignatureBase64 != null && _pendingSignatureBase64!.isNotEmpty) ...[
-                        const SizedBox(width: 16),
-                        OutlinedButton.icon(
-                          onPressed: _openSignatureDialog,
-                          icon: const Icon(Icons.verified_user_rounded, size: 18),
-                          label: const Text('View Approved Signature'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AdminStyles.success,
-                            side: BorderSide(color: AdminStyles.success.withValues(alpha: 0.5)),
-                            backgroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -1158,10 +1026,13 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
   }
 
   Widget _buildStatusBadge() {
-    final status = widget.request.status;
+    final status = _isApproved ? 'IN PROGRESS' : widget.request.status;
     Color color = AdminStyles.warning;
-    if (status == 'Pending') color = AdminStyles.warning;
-    if (status == 'In Progress' || status == 'Confirmed' || status == 'Rework') color = AdminStyles.success;
+    if (_isApproved || status == 'In Progress' || status == 'Confirmed' || status == 'Rework') {
+      color = AdminStyles.success;
+    } else if (status == 'Pending' || status == 'Pending Campus Admin') {
+      color = AdminStyles.warning;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

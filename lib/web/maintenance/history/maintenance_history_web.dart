@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../shared/widgets/app_date_range_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:psu_maintsystem/authentication/services/auth_service.dart';
 import '../../../shared/services/work_request_service.dart';
@@ -68,19 +69,12 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
         ? DateTimeRange(start: _startDate!, end: _endDate!)
         : DateTimeRange(start: now.subtract(const Duration(days: 14)), end: now);
 
-    final picked = await showDateRangePicker(
+    final picked = await showAppDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: now.add(const Duration(days: 365)),
-      initialDateRange: initial,
-      builder: (context, child) {
-        return Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520, maxHeight: 620),
-            child: child,
-          ),
-        );
-      },
+      initialStartDate: initial.start,
+      initialEndDate: initial.end,
     );
 
     if (picked != null) {

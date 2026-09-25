@@ -454,24 +454,6 @@ class _TeacherLogsWebState extends State<TeacherLogsWeb> {
                         style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569)),
                       ),
                     ],
-                    if (log.workRequestId != null && log.workRequestId!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 5),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          'Request: ${log.workRequestId}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF475569),
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),

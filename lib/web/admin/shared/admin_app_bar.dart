@@ -47,7 +47,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'PSU E-ayos',
+                'PSU E-Ayos',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,

@@ -1267,25 +1267,48 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        const Icon(Icons.check_circle_rounded, size: 18, color: AdminStyles.primary),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Signature Confirmed',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle_rounded, size: 18, color: AdminStyles.primary),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Signature Confirmed',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+                            ),
+                          ],
                         ),
-                        const Spacer(),
-                        TextButton.icon(
-                          onPressed: _openSignaturePadDialog,
-                          icon: const Icon(Icons.edit_rounded, size: 15, color: AdminStyles.primary),
-                          label: const Text('Change', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AdminStyles.primary)),
-                        ),
-                        const SizedBox(width: 8),
-                        TextButton.icon(
-                          onPressed: () => setState(() => _requesterSignatureBase64 = null),
-                          icon: const Icon(Icons.delete_outline_rounded, size: 15, color: Colors.redAccent),
-                          label: const Text('Remove', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton.icon(
+                              onPressed: _openSignaturePadDialog,
+                              icon: const Icon(Icons.edit_rounded, size: 14, color: AdminStyles.primary),
+                              label: const Text('Change', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AdminStyles.primary)),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            TextButton.icon(
+                              onPressed: () => setState(() => _requesterSignatureBase64 = null),
+                              icon: const Icon(Icons.delete_outline_rounded, size: 14, color: Colors.redAccent),
+                              label: const Text('Remove', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

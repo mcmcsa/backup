@@ -16,6 +16,11 @@ class PostRepairReport {
   final String? adminEvaluationNotes;
   final String? adminEvaluatedBy;
   final DateTime? adminEvaluatedDate;
+  final String? requestorEvaluation; // 'satisfy', 'not_satisfy'
+  final int? requestorRating; // 1 to 5 (optional)
+  final String? requestorComment; // optional
+  final String? requestorEvaluatedBy;
+  final DateTime? requestorEvaluatedDate;
   final String status; // 'Pending', 'Completed', 'Rework'
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -38,6 +43,11 @@ class PostRepairReport {
     this.adminEvaluationNotes,
     this.adminEvaluatedBy,
     this.adminEvaluatedDate,
+    this.requestorEvaluation,
+    this.requestorRating,
+    this.requestorComment,
+    this.requestorEvaluatedBy,
+    this.requestorEvaluatedDate,
     this.status = 'Pending',
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -65,6 +75,15 @@ class PostRepairReport {
       adminEvaluatedDate: map['admin_evaluated_date'] != null
           ? DateTime.parse(map['admin_evaluated_date'])
           : null,
+      requestorEvaluation: map['requestor_evaluation'],
+      requestorRating: map['requestor_rating'] is int
+          ? map['requestor_rating']
+          : int.tryParse(map['requestor_rating']?.toString() ?? ''),
+      requestorComment: map['requestor_comment'],
+      requestorEvaluatedBy: map['requestor_evaluated_by']?.toString(),
+      requestorEvaluatedDate: map['requestor_evaluated_date'] != null
+          ? DateTime.parse(map['requestor_evaluated_date'])
+          : null,
       status: map['status'] ?? 'Pending',
       createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
       updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
@@ -89,6 +108,11 @@ class PostRepairReport {
       'admin_evaluation_notes': adminEvaluationNotes,
       'admin_evaluated_by': adminEvaluatedBy,
       'admin_evaluated_date': adminEvaluatedDate?.toIso8601String(),
+      'requestor_evaluation': requestorEvaluation,
+      'requestor_rating': requestorRating,
+      'requestor_comment': requestorComment,
+      'requestor_evaluated_by': requestorEvaluatedBy,
+      'requestor_evaluated_date': requestorEvaluatedDate?.toIso8601String(),
       'status': status,
     };
     // Only include 'id' when it's a real UUID (not empty) to allow DB auto-generation on insert
@@ -114,6 +138,11 @@ class PostRepairReport {
     String? adminEvaluationNotes,
     String? adminEvaluatedBy,
     DateTime? adminEvaluatedDate,
+    String? requestorEvaluation,
+    int? requestorRating,
+    String? requestorComment,
+    String? requestorEvaluatedBy,
+    DateTime? requestorEvaluatedDate,
     String? status,
   }) {
     return PostRepairReport(
@@ -134,8 +163,30 @@ class PostRepairReport {
       adminEvaluationNotes: adminEvaluationNotes ?? this.adminEvaluationNotes,
       adminEvaluatedBy: adminEvaluatedBy ?? this.adminEvaluatedBy,
       adminEvaluatedDate: adminEvaluatedDate ?? this.adminEvaluatedDate,
+      requestorEvaluation: requestorEvaluation ?? this.requestorEvaluation,
+      requestorRating: requestorRating ?? this.requestorRating,
+      requestorComment: requestorComment ?? this.requestorComment,
+      requestorEvaluatedBy: requestorEvaluatedBy ?? this.requestorEvaluatedBy,
+      requestorEvaluatedDate: requestorEvaluatedDate ?? this.requestorEvaluatedDate,
       status: status ?? this.status,
     );
+  }
+
+  /// Whether the requestor has submitted their review / evaluation
+  bool get isRequestorEvaluated =>
+      requestorEvaluation != null && requestorEvaluation!.trim().isNotEmpty;
+
+  /// Whether the requestor selected SATISFY
+  bool get isRequestorSatisfied => requestorEvaluation == 'satisfy';
+
+  /// Whether the requestor selected NOT SATISFY
+  bool get isRequestorNotSatisfied => requestorEvaluation == 'not_satisfy';
+
+  /// User-friendly display label for the requestor evaluation
+  String get requestorEvaluationLabel {
+    if (isRequestorSatisfied) return 'Satisfied';
+    if (isRequestorNotSatisfied) return 'Not Satisfied';
+    return 'Pending Requestor Evaluation';
   }
 
   String get statusLabel {

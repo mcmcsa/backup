@@ -27,7 +27,7 @@ class _ViewQueuePageState extends State<ViewQueuePage> {
 
   Future<void> _loadRequests() async {
     try {
-      final data = await WorkRequestService.fetchByStatus('pending');
+      final data = await WorkRequestService.fetchPendingForCampusAdmin();
       if (mounted) setState(() { _allPending = data; _isLoading = false; });
     } catch (_) {
       if (mounted) setState(() { _isLoading = false; });

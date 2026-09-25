@@ -36,6 +36,7 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
     'In Progress',
     'Confirmed',
     'Rework',
+    'History',
   ];
 
   bool _isHistorical(String status) {
@@ -44,7 +45,8 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
         s == 'declined' ||
         s == 'cancelled' ||
         s == 'declined/cancelled' ||
-        s == 'pre-inspection declined';
+        s == 'pre-inspection declined' ||
+        s == 'acknowledged';
   }
 
   @override
@@ -107,7 +109,20 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
     try {
       final user = context.read<AuthService>().currentUser;
       if (user == null) return;
-      final data = await WorkRequestService.fetchByRequestor(user.id);
+      final results = await Future.wait([
+        WorkRequestService.fetchByRequestor(user.id),
+        WorkRequestService.fetchEvaluatedByDeptHead(user.id),
+      ]);
+      final map = <String, WorkRequest>{};
+      for (final r in results[1]) {
+        map[r.id] = r;
+      }
+      for (final r in results[0]) {
+        map[r.id] = r;
+      }
+      final data = map.values.toList()
+        ..sort((a, b) => b.dateSubmitted.compareTo(a.dateSubmitted));
+
       if (mounted) {
         setState(() {
           _requests = data;
@@ -124,6 +139,7 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
   }
 
   void _applyFilters() {
+    final user = context.read<AuthService>().currentUser;
     setState(() {
       _filteredRequests = _requests.where((r) {
         final matchesSearch =
@@ -131,19 +147,31 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
                 (r.roomName
                         ?.toLowerCase()
                         .contains(_searchQuery.toLowerCase()) ??
-                    false);
+                    false) ||
+                r.formattedId.toLowerCase().contains(_searchQuery.toLowerCase());
         bool matchesStatus = false;
         if (_selectedStatus == 'All') {
-          matchesStatus = !_isHistorical(r.status);
+          matchesStatus = !_isHistorical(r.status) && (r.requestorId == user?.id);
+        } else if (_selectedStatus == 'History') {
+          matchesStatus = _isHistorical(r.status) || (r.deptHeadId == user?.id && (r.deptHeadStatus == 'approved' || r.deptHeadStatus == 'acknowledged'));
         } else {
           final sel = _selectedStatus.toLowerCase();
           final status = r.status.toLowerCase();
           if (sel == 'pending') {
-            matchesStatus = (status == 'pending' || status == 'pending assignment');
+            matchesStatus = (status == 'pending' ||
+                    status == 'pending assignment' ||
+                    status == 'pending department head' ||
+                    status == 'pending campus admin') &&
+                !_isHistorical(r.status);
           } else if (sel == 'in progress') {
-            matchesStatus = (status == 'in progress' || status == 'in_progress' || status == 'assigned' || status == 'accepted by maintenance');
+            matchesStatus = (status == 'in progress' ||
+                status == 'in_progress' ||
+                status == 'assigned' ||
+                status == 'accepted by maintenance');
           } else if (sel == 'confirmed') {
-            matchesStatus = (status == 'confirmed' || status == 'pre-inspection approved' || status == 'under_maintenance');
+            matchesStatus = (status == 'confirmed' ||
+                status == 'pre-inspection approved' ||
+                status == 'under_maintenance');
           } else if (sel == 'rework') {
             matchesStatus = (status == 'rework' || status == 'for rework');
           }
@@ -719,6 +747,9 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
     switch (status.toLowerCase()) {
       case 'completed':
         return AdminStyles.success;
+      case 'acknowledged':
+      case 'acknowledged by department head':
+        return const Color(0xFF6366F1);
       case 'in progress':
       case 'in_progress':
       case 'assigned':
@@ -735,6 +766,10 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
       case 'rework':
       case 'for rework':
         return AdminStyles.warning;
+      case 'pending department head':
+        return AdminStyles.warning;
+      case 'pending campus admin':
+        return AdminStyles.info;
       case 'pending':
       case 'pending assignment':
         return AdminStyles.textMuted;
@@ -759,6 +794,8 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
         return AdminStyles.warning;
       case 'Completed':
         return AdminStyles.success;
+      case 'History':
+        return const Color(0xFF6366F1);
       default:
         return AdminStyles.textMuted;
     }
@@ -770,15 +807,24 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
       case 'pending':
       case 'pending assignment':
         return 'PENDING';
+      case 'pending department head':
+        return 'PENDING DEPT HEAD';
+      case 'pending campus admin':
+        return 'PENDING CAMPUS ADMIN';
+      case 'acknowledged':
+      case 'acknowledged by department head':
+        return 'ACKNOWLEDGED BY DEPT HEAD';
       case 'in progress':
       case 'in_progress':
       case 'assigned':
       case 'accepted by maintenance':
         return 'IN PROGRESS';
       case 'declined':
-      case 'cancelled':
-      case 'declined/cancelled':
         return 'DECLINED';
+      case 'cancelled':
+        return 'CANCELLED';
+      case 'declined/cancelled':
+        return 'DECLINED/CANCELLED';
       case 'confirmed':
       case 'pre-inspection approved':
       case 'under_maintenance':
@@ -819,6 +865,9 @@ class _PremiumRequestCardState extends State<_PremiumRequestCard> {
     switch (widget.request.status.toLowerCase()) {
       case 'completed':
         return AdminStyles.success;
+      case 'acknowledged':
+      case 'acknowledged by department head':
+        return const Color(0xFF6366F1);
       case 'in progress':
       case 'in_progress':
       case 'assigned':
@@ -835,6 +884,10 @@ class _PremiumRequestCardState extends State<_PremiumRequestCard> {
       case 'rework':
       case 'for rework':
         return AdminStyles.warning;
+      case 'pending department head':
+        return AdminStyles.warning;
+      case 'pending campus admin':
+        return AdminStyles.info;
       case 'pending':
       case 'pending assignment':
         return AdminStyles.textMuted;
@@ -849,15 +902,24 @@ class _PremiumRequestCardState extends State<_PremiumRequestCard> {
       case 'pending':
       case 'pending assignment':
         return 'PENDING';
+      case 'pending department head':
+        return 'PENDING DEPT HEAD';
+      case 'pending campus admin':
+        return 'PENDING CAMPUS ADMIN';
+      case 'acknowledged':
+      case 'acknowledged by department head':
+        return 'ACKNOWLEDGED BY DEPT HEAD';
       case 'in progress':
       case 'in_progress':
       case 'assigned':
       case 'accepted by maintenance':
         return 'IN PROGRESS';
       case 'declined':
-      case 'cancelled':
-      case 'declined/cancelled':
         return 'DECLINED';
+      case 'cancelled':
+        return 'CANCELLED';
+      case 'declined/cancelled':
+        return 'DECLINED/CANCELLED';
       case 'confirmed':
       case 'pre-inspection approved':
       case 'under_maintenance':

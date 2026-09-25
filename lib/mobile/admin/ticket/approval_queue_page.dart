@@ -28,7 +28,7 @@ class _ApprovalQueuePageState extends State<ApprovalQueuePage> {
 
   Future<void> _loadRequests() async {
     try {
-      final pending = await WorkRequestService.fetchByStatus('Pending');
+      final pending = await WorkRequestService.fetchPendingForCampusAdmin();
       final preInspection = await WorkRequestService.fetchAwaitingPreInspection();
       final postRepair = await WorkRequestService.fetchAwaitingPostRepair();
       if (mounted) {

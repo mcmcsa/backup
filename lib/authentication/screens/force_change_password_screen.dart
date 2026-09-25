@@ -14,11 +14,9 @@ class ForceChangePasswordScreen extends StatefulWidget {
 class _ForceChangePasswordScreenState
     extends State<ForceChangePasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _currentPassCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
 
-  bool _obscureCurrent = true;
   bool _obscurePass = true;
   bool _obscureConfirm = true;
   bool _submitting = false;
@@ -26,7 +24,6 @@ class _ForceChangePasswordScreenState
 
   @override
   void dispose() {
-    _currentPassCtrl.dispose();
     _passCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
@@ -42,7 +39,6 @@ class _ForceChangePasswordScreenState
 
     final authService = context.read<AuthService>();
     final error = await authService.forceChangePassword(
-      currentPassword: _currentPassCtrl.text.trim(),
       newPassword: _passCtrl.text.trim(),
     );
 
@@ -166,59 +162,6 @@ class _ForceChangePasswordScreenState
                         const SizedBox(height: 16),
                       ],
 
-                      // Current / Temporary Password Field
-                      const Text(
-                        'Current Password',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF334155),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      TextFormField(
-                        controller: _currentPassCtrl,
-                        obscureText: _obscureCurrent,
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Please enter your current/temporary password.';
-                          }
-                          return null;
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Password_12345',
-                          prefixIcon: const Icon(Icons.lock_clock_rounded,
-                              size: 20, color: Color(0xFF64748B)),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscureCurrent
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                              size: 20,
-                              color: const Color(0xFF64748B),
-                            ),
-                            onPressed: () =>
-                                setState(() => _obscureCurrent = !_obscureCurrent),
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFFF8FAFC),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                                color: Color(0xFF0F766E), width: 2),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
                       // New Password Field
                       const Text(
                         'New Password',
@@ -238,9 +181,6 @@ class _ForceChangePasswordScreenState
                           }
                           if (v.trim().length < 6) {
                             return 'Password must be at least 6 characters.';
-                          }
-                          if (v.trim() == _currentPassCtrl.text.trim()) {
-                            return 'New password cannot be the same as your initial temporary password.';
                           }
                           return null;
                         },

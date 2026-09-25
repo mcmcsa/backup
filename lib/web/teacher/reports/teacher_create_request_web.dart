@@ -12,7 +12,6 @@ import '../../../shared/services/offline_sync_service.dart';
 import '../../../shared/services/work_request_service.dart';
 
 import '../../../shared/services/e_signature_service.dart';
-import '../../../shared/services/app_notification_service.dart';
 import '../../../shared/services/room_service.dart';
 import '../../../shared/services/department_service.dart';
 import '../../../shared/services/duplicate_detection_service.dart';
@@ -20,6 +19,7 @@ import '../../../shared/widgets/duplicate_detection_dialog.dart';
 import '../../../shared/utils/dropdown_data_helper.dart';
 import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/widgets/department_mismatch_dialog.dart';
 import '../../admin/shared/admin_styles.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
@@ -140,30 +140,21 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       final room = await RoomService.findRoomByScannedCode(code);
       if (room != null && mounted) {
         final user = context.read<AuthService>().currentUser;
-        bool isDenied = false;
-
-        if (user?.departmentId != null && user!.departmentId!.isNotEmpty && room.departmentId.isNotEmpty) {
-          isDenied = (user.departmentId != room.departmentId);
-        } else if (_selectedCollege.isNotEmpty &&
-            room.department.isNotEmpty &&
-            room.department.toLowerCase() != _selectedCollege.toLowerCase()) {
-          isDenied = true;
-        }
-
-        if (isDenied) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Access Denied: Room ${room.code} belongs to ${room.department}. You can only file requests for rooms in your department${_selectedCollege.isNotEmpty ? ' ($_selectedCollege)' : ''}.',
-              ),
-              backgroundColor: AdminStyles.error,
-              duration: const Duration(seconds: 4),
-            ),
-          );
+        if (isRoomOfOtherDepartment(user: user, room: room)) {
           setState(() {
             _roomNumberController.clear();
             _officeRoomNameController.clear();
+            _lastCheckedRoomCode = '';
           });
+          if (mounted) {
+            await showDepartmentMismatchDialog(
+              context: context,
+              roomCode: room.code,
+              roomName: room.name,
+              roomDepartment: room.department,
+              userDepartment: user?.department,
+            );
+          }
           return;
         }
 
@@ -288,16 +279,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       return;
     }
 
-    if (_selectedImages.isEmpty) {
-      setState(() => _showDropdownErrors = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please upload at least one photo of the issue.'),
-          backgroundColor: AdminStyles.error,
-        ),
-      );
-      return;
-    }
+
 
     if (_requesterSignatureBase64 == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Signature is required'), backgroundColor: AdminStyles.error));
@@ -312,6 +294,21 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
 
       if (room == null) {
         throw 'Room not found. Please verify the room code.';
+      }
+
+      final user = context.read<AuthService>().currentUser;
+      if (isRoomOfOtherDepartment(user: user, room: room)) {
+        setState(() => _isSubmitting = false);
+        if (mounted) {
+          await showDepartmentMismatchDialog(
+            context: context,
+            roomCode: room.code,
+            roomName: room.name,
+            roomDepartment: room.department,
+            userDepartment: user?.department,
+          );
+        }
+        return;
       }
 
       // ── Duplicate detection ─────────────────────────────────────────────
@@ -367,8 +364,6 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
       // ── End duplicate detection ─────────────────────────────────────────
 
       if (!mounted) return;
-      final authService = context.read<AuthService>();
-      final user = authService.currentUser;
       final helper = DropdownDataHelper();
       
       final building = await helper.getBuildingByName(_selectedBuilding);
@@ -513,13 +508,8 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
         ));
       }
 
-      await AppNotificationService.notifyWorkRequestSubmitted(
-        workRequestId: inserted.id,
-        roomName: request.roomName ?? '',
-        buildingName: request.buildingName ?? '',
-        requestorName: _fullNameController.text.trim(),
-        requestorId: user?.id,
-      );
+      // Note: Initial notification is dispatched accurately by WorkRequestService.insert()
+      // (Dept Head only for department rooms, Campus Admin only for common/department-less rooms).
 
       if (user != null) {
         await LoginActivityService.recordAction(
@@ -1098,11 +1088,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
             const SizedBox(height: 24),
             Row(
               children: [
-                _buildLabel('Upload Photos'),
-                const Text(
-                  ' *',
-                  style: TextStyle(color: AdminStyles.error, fontWeight: FontWeight.bold),
-                ),
+                _buildLabel('Upload Photos (Optional)'),
               ],
             ),
             const SizedBox(height: 8),
@@ -1114,11 +1100,7 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                   label: const Text('Add Photos'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AdminStyles.primary,
-                    side: BorderSide(
-                      color: (_showDropdownErrors && _selectedImages.isEmpty)
-                          ? AdminStyles.error
-                          : AdminStyles.primary,
-                    ),
+                    side: const BorderSide(color: AdminStyles.primary),
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -1132,13 +1114,6 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                 ),
               ],
             ),
-            if (_showDropdownErrors && _selectedImages.isEmpty) ...[
-              const SizedBox(height: 6),
-              const Text(
-                'Please upload at least one photo of the issue.',
-                style: TextStyle(color: AdminStyles.error, fontSize: 12),
-              ),
-            ],
             if (_selectedImages.isNotEmpty) ...[
               const SizedBox(height: 16),
               Wrap(
@@ -1294,25 +1269,48 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
                       children: [
-                        const Icon(Icons.check_circle_rounded, size: 18, color: AdminStyles.primary),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Signature Confirmed',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_circle_rounded, size: 18, color: AdminStyles.primary),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Signature Confirmed',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+                            ),
+                          ],
                         ),
-                        const Spacer(),
-                        TextButton.icon(
-                          onPressed: _openSignaturePadDialog,
-                          icon: const Icon(Icons.edit_rounded, size: 15, color: AdminStyles.primary),
-                          label: const Text('Change', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AdminStyles.primary)),
-                        ),
-                        const SizedBox(width: 8),
-                        TextButton.icon(
-                          onPressed: () => setState(() => _requesterSignatureBase64 = null),
-                          icon: const Icon(Icons.delete_outline_rounded, size: 15, color: Colors.redAccent),
-                          label: const Text('Remove', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton.icon(
+                              onPressed: _openSignaturePadDialog,
+                              icon: const Icon(Icons.edit_rounded, size: 14, color: AdminStyles.primary),
+                              label: const Text('Change', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AdminStyles.primary)),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            TextButton.icon(
+                              onPressed: () => setState(() => _requesterSignatureBase64 = null),
+                              icon: const Icon(Icons.delete_outline_rounded, size: 14, color: Colors.redAccent),
+                              label: const Text('Remove', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

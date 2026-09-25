@@ -15,7 +15,7 @@ class SystemSettings {
 
   SystemSettings({
     required this.id,
-    this.systemName = 'PSU E-ayos',
+    this.systemName = 'PSU E-Ayos',
     this.campusName = 'Main Campus',
     this.schoolLogo,
     this.primaryColor = '#0F172A',
@@ -32,7 +32,7 @@ class SystemSettings {
   factory SystemSettings.fromMap(Map<String, dynamic> map) {
     return SystemSettings(
       id: map['id']?.toString() ?? '',
-      systemName: map['system_name'] ?? 'PSU E-ayos',
+      systemName: map['system_name'] ?? 'PSU E-Ayos',
       campusName: map['campus_name'] ?? 'Main Campus',
       schoolLogo: map['school_logo'],
       primaryColor: map['primary_color'] ?? '#0F172A',

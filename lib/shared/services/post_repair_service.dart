@@ -52,8 +52,39 @@ class PostRepairService {
     return PostRepairReport.fromMap(data);
   }
 
+  /// Requestor evaluates the post-repair report (Satisfy or Not Satisfy, optional rating and comment)
+  static Future<void> submitRequestorEvaluation({
+    required String id,
+    required String requestorId,
+    required String evaluation, // 'satisfy' or 'not_satisfy'
+    int? rating, // 1 to 5 (optional)
+    String? comment, // optional
+  }) async {
+    assert(evaluation == 'satisfy' || evaluation == 'not_satisfy',
+        'Evaluation must be either satisfy or not_satisfy');
+    if (rating != null) {
+      assert(rating >= 1 && rating <= 5, 'Rating must be between 1 and 5');
+    }
+
+    final updateData = <String, dynamic>{
+      'requestor_evaluation': evaluation,
+      'requestor_rating': rating,
+      'requestor_comment': (comment != null && comment.trim().isNotEmpty) ? comment.trim() : null,
+      'requestor_evaluated_by': requestorId,
+      'requestor_evaluated_date': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    await _db.from(_table).update(updateData).eq('id', id);
+  }
+
   /// Admin evaluates the post-repair report - mark satisfied (completed)
   static Future<void> markSatisfied(String id, String adminId, {String? notes}) async {
+    final existing = await fetchById(id);
+    if (existing == null || !existing.isRequestorEvaluated) {
+      throw StateError('Cannot finalize evaluation: Requestor has not yet evaluated this post-repair report.');
+    }
+
     await _db.from(_table).update({
       'admin_evaluation': 'satisfied',
       'admin_evaluation_notes': notes,
@@ -66,6 +97,11 @@ class PostRepairService {
 
   /// Admin evaluates the post-repair report - mark for rework
   static Future<void> markRework(String id, String adminId, String reworkNotes) async {
+    final existing = await fetchById(id);
+    if (existing == null || !existing.isRequestorEvaluated) {
+      throw StateError('Cannot send for rework: Requestor has not yet evaluated this post-repair report.');
+    }
+
     await _db.from(_table).update({
       'admin_evaluation': 'rework',
       'admin_evaluation_notes': reworkNotes,

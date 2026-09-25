@@ -98,7 +98,7 @@ class RoomSuccessPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 18),
                     const Text(
-                      'The new room has been registered in the PSU E-ayos.',
+                      'The new room has been registered in the PSU E-Ayos.',
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.5,

@@ -38,7 +38,13 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
   }
 
   List<WorkRequest> get _allRequests {
-    return Provider.of<WorkRequestProvider>(context).requests;
+    return Provider.of<WorkRequestProvider>(context)
+        .requests
+        .where((r) =>
+            !r.isPendingDeptHead &&
+            !r.isAcknowledged &&
+            !r.status.toLowerCase().contains('acknowledged'))
+        .toList();
   }
   
   bool get _isLoading {
@@ -108,7 +114,11 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
     final width = MediaQuery.of(context).size.width;
     final isCompact = width < 1280;
 
-    final pendingCount = _getCountByStatus('pending');
+    // Count all requests awaiting campus admin action (both plain Pending and dept-head-approved)
+    final pendingCount = _allRequests.where((r) {
+      final s = r.status.toLowerCase();
+      return s == 'pending' || s == 'pending campus admin';
+    }).length;
     final inProgressCount = _getCountByActiveStatuses();
     final completedCount = _getCountByStatus('completed');
     final roomsCount = Provider.of<RoomProvider>(context).rooms.length;
@@ -810,6 +820,15 @@ class _StatusBadge extends StatelessWidget {
       case 'pending assignment':
         color = _textMuted;
         label = 'Pending';
+        break;
+      case 'pending campus admin':
+        color = _accentAmber;
+        label = 'Pending Campus Admin';
+        break;
+      case 'pending dept head':
+      case 'pending department head':
+        color = Colors.purple;
+        label = 'Pending Dept Head';
         break;
       case 'in progress':
       case 'in_progress':

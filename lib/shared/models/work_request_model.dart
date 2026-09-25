@@ -34,10 +34,16 @@ class WorkRequest {
   final List<String>? voiceNotes;
   // Department Head approval fields
   final String? deptHeadId;
-  final String deptHeadStatus; // 'pending', 'approved', 'declined', 'not_applicable'
+  final String deptHeadStatus; // 'pending', 'approved', 'acknowledged', 'declined', 'not_applicable'
   final DateTime? deptHeadApprovedDate;
+  final DateTime? deptHeadEvaluatedDate;
   final String? deptHeadNotes;
   final String? deptHeadName;
+  // Cancellation fields
+  final String? cancelledById;
+  final DateTime? cancelledAt;
+  final String? cancellationReasonType;
+  final String? cancellationReason;
   // New workflow fields
   final String? acceptedById;
   final String? acceptedByName;
@@ -196,8 +202,13 @@ class WorkRequest {
     this.deptHeadId,
     this.deptHeadStatus = 'pending',
     this.deptHeadApprovedDate,
+    this.deptHeadEvaluatedDate,
     this.deptHeadNotes,
     this.deptHeadName,
+    this.cancelledById,
+    this.cancelledAt,
+    this.cancellationReasonType,
+    this.cancellationReason,
     this.acceptedById,
     this.acceptedByName,
     this.acceptedDate,
@@ -318,8 +329,19 @@ class WorkRequest {
       deptHeadApprovedDate: map['dept_head_approved_date'] != null
           ? DateTime.tryParse(map['dept_head_approved_date'].toString())
           : null,
+      deptHeadEvaluatedDate: map['dept_head_evaluated_date'] != null
+          ? DateTime.tryParse(map['dept_head_evaluated_date'].toString())
+          : (map['dept_head_approved_date'] != null
+              ? DateTime.tryParse(map['dept_head_approved_date'].toString())
+              : null),
       deptHeadNotes: map['dept_head_notes']?.toString(),
       deptHeadName: map['dept_head_name'] ?? _nestedText(map['dept_head'], 'name'),
+      cancelledById: map['cancelled_by']?.toString(),
+      cancelledAt: map['cancelled_at'] != null
+          ? DateTime.tryParse(map['cancelled_at'].toString())
+          : null,
+      cancellationReasonType: map['cancellation_reason_type']?.toString(),
+      cancellationReason: map['cancellation_reason']?.toString(),
       acceptedById:
           map['accepted_by_id'] ??
           ((map['accepted_date'] != null) ? map['assigned_to_id'] : null),
@@ -381,7 +403,14 @@ class WorkRequest {
       'dept_head_status': deptHeadStatus,
       if (deptHeadApprovedDate != null)
         'dept_head_approved_date': deptHeadApprovedDate?.toIso8601String(),
+      if (deptHeadEvaluatedDate != null)
+        'dept_head_evaluated_date': deptHeadEvaluatedDate?.toIso8601String(),
       if (deptHeadNotes != null) 'dept_head_notes': deptHeadNotes,
+      if (cancelledById != null) 'cancelled_by': cancelledById,
+      if (cancelledAt != null) 'cancelled_at': cancelledAt?.toIso8601String(),
+      if (cancellationReasonType != null)
+        'cancellation_reason_type': cancellationReasonType,
+      if (cancellationReason != null) 'cancellation_reason': cancellationReason,
       'assigned_to_id': assignedToId,
       'accepted_date': acceptedDate?.toIso8601String(),
       'maintenance_start_time': maintenanceStartTime?.toIso8601String(),
@@ -435,8 +464,13 @@ class WorkRequest {
     String? deptHeadId,
     String? deptHeadStatus,
     DateTime? deptHeadApprovedDate,
+    DateTime? deptHeadEvaluatedDate,
     String? deptHeadNotes,
     String? deptHeadName,
+    String? cancelledById,
+    DateTime? cancelledAt,
+    String? cancellationReasonType,
+    String? cancellationReason,
     String? acceptedById,
     String? acceptedByName,
     DateTime? acceptedDate,
@@ -484,8 +518,13 @@ class WorkRequest {
       deptHeadId: deptHeadId ?? this.deptHeadId,
       deptHeadStatus: deptHeadStatus ?? this.deptHeadStatus,
       deptHeadApprovedDate: deptHeadApprovedDate ?? this.deptHeadApprovedDate,
+      deptHeadEvaluatedDate: deptHeadEvaluatedDate ?? this.deptHeadEvaluatedDate,
       deptHeadNotes: deptHeadNotes ?? this.deptHeadNotes,
       deptHeadName: deptHeadName ?? this.deptHeadName,
+      cancelledById: cancelledById ?? this.cancelledById,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      cancellationReasonType: cancellationReasonType ?? this.cancellationReasonType,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
       acceptedById: acceptedById ?? this.acceptedById,
       acceptedByName: acceptedByName ?? this.acceptedByName,
       acceptedDate: acceptedDate ?? this.acceptedDate,
@@ -501,14 +540,23 @@ class WorkRequest {
     );
   }
 
+  bool get isAcknowledged =>
+      deptHeadStatus.toLowerCase() == 'acknowledged' ||
+      status.toLowerCase() == 'acknowledged';
+  bool get isCancelled => status.toLowerCase() == 'cancelled';
+  bool get isPendingCampusAdmin =>
+      status == 'Pending Campus Admin' ||
+      (status == 'Pending' && (isDeptHeadApproved || isDeptHeadBypassed) && !isCancelled);
   bool get isPendingDeptHead =>
       deptHeadStatus.toLowerCase() == 'pending' &&
-      (status.toLowerCase() == 'pending' || status.toLowerCase() == 'pending department head');
+      (status.toLowerCase() == 'pending' || status.toLowerCase() == 'pending department head') &&
+      !isDeptHeadBypassed &&
+      !isCancelled;
   bool get isDeptHeadApproved => deptHeadStatus.toLowerCase() == 'approved';
   bool get isDeptHeadDeclined => deptHeadStatus.toLowerCase() == 'declined';
   bool get isDeptHeadBypassed => deptHeadStatus.toLowerCase() == 'not_applicable';
 
-  String get formattedId => '#${id.padLeft(3, '0')}';
+  String get formattedId => '#${id.length > 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase()}';
 
   String? get department => departmentName;
   String? get officeRoom => roomName;
@@ -553,9 +601,21 @@ class WorkRequest {
   }
 
   String get statusLabel {
+    if (isAcknowledged) return 'ACKNOWLEDGED';
+    if (isCancelled) return 'CANCELLED';
+    if (isPendingDeptHead) return 'PENDING DEPT HEAD';
+    if (status == 'Pending Campus Admin') return 'PENDING ADMIN';
     switch (status) {
       case 'Pending':
-        return 'PENDING';
+        return isPendingDeptHead ? 'PENDING DEPT HEAD' : 'PENDING';
+      case 'Pending Department Head':
+        return 'PENDING DEPT HEAD';
+      case 'Pending Campus Admin':
+        return 'PENDING ADMIN';
+      case 'Acknowledged':
+        return 'ACKNOWLEDGED';
+      case 'Cancelled':
+        return 'CANCELLED';
       case 'In Progress':
         return 'IN PROGRESS';
       case 'Declined':

@@ -26,6 +26,8 @@ class _MaintenanceNotificationsWebState extends State<MaintenanceNotificationsWe
   StreamSubscription<void>? _settingsSub;
   NotificationTypeFilter _selectedType = NotificationTypeFilter.all;
   NotificationDateFilter _selectedDate = NotificationDateFilter.all;
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
 
   static const Color _primaryBlue = Color(0xFF0EA5E9);
   static const Color _darkText = Color(0xFF0F172A);
@@ -200,6 +202,8 @@ class _MaintenanceNotificationsWebState extends State<MaintenanceNotificationsWe
       _notifications,
       typeFilter: _selectedType,
       dateFilter: _selectedDate,
+      customStartDate: _customStartDate,
+      customEndDate: _customEndDate,
     );
   }
 
@@ -221,6 +225,15 @@ class _MaintenanceNotificationsWebState extends State<MaintenanceNotificationsWe
               onTypeChanged: (type) => setState(() => _selectedType = type),
               selectedDate: _selectedDate,
               onDateChanged: (date) => setState(() => _selectedDate = date),
+              customStartDate: _customStartDate,
+              customEndDate: _customEndDate,
+              onCustomRangeChanged: (start, end) {
+                setState(() {
+                  _customStartDate = start;
+                  _customEndDate = end;
+                  _selectedDate = NotificationDateFilter.custom;
+                });
+              },
               primaryColor: _primaryBlue,
               unreadCount: _unreadCount,
               onMarkAllAsRead: _markAllAsRead,

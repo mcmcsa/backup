@@ -102,6 +102,7 @@ class WorkRequestService {
           .select(_selectWithRelations)
           .eq('dept_head_id', cleanId)
           .eq('dept_head_status', 'pending')
+          .neq('status', 'Cancelled')
           .order('date_submitted', ascending: false);
       final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
       return await enrichMissingRequestorNames(requests);
@@ -112,6 +113,7 @@ class WorkRequestService {
             .select()
             .eq('dept_head_id', cleanId)
             .eq('dept_head_status', 'pending')
+            .neq('status', 'Cancelled')
             .order('date_submitted', ascending: false);
         final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
         return await enrichMissingRequestorNames(requests);
@@ -121,7 +123,7 @@ class WorkRequestService {
     }
   }
 
-  /// Fetch all requests that were evaluated (approved or declined) by this Department Head
+  /// Fetch all requests that were evaluated (approved or acknowledged) or cancelled for this Department Head
   static Future<List<WorkRequest>> fetchEvaluatedByDeptHead(String deptHeadId) async {
     final cleanId = deptHeadId.trim();
     if (cleanId.isEmpty) return [];
@@ -135,7 +137,53 @@ class WorkRequestService {
       final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
       return await enrichMissingRequestorNames(requests);
     } catch (_) {
-      return [];
+      try {
+        final data = await _db
+            .from(_table)
+            .select()
+            .eq('dept_head_id', cleanId)
+            .neq('dept_head_status', 'pending')
+            .order('date_submitted', ascending: false);
+        final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+        return await enrichMissingRequestorNames(requests);
+      } catch (e) {
+        return [];
+      }
+    }
+  }
+
+  /// Fetch requests awaiting Campus Admin assignment & approval
+  static Future<List<WorkRequest>> fetchPendingForCampusAdmin() async {
+    try {
+      final data = await _db
+          .from(_table)
+          .select(_selectWithRelations)
+          .or('status.eq.Pending,status.eq.Pending Campus Admin')
+          .neq('dept_head_status', 'pending')
+          .neq('dept_head_status', 'acknowledged')
+          .neq('status', 'Cancelled')
+          .neq('status', 'Acknowledged')
+          .order('date_submitted', ascending: false);
+      final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+      final filtered = requests.where((r) => !r.isPendingDeptHead && !r.isAcknowledged && !r.isCancelled).toList();
+      return await enrichMissingRequestorNames(filtered);
+    } catch (_) {
+      try {
+        final data = await _db
+            .from(_table)
+            .select('*')
+            .or('status.eq.Pending,status.eq.Pending Campus Admin')
+            .neq('dept_head_status', 'pending')
+            .neq('dept_head_status', 'acknowledged')
+            .neq('status', 'Cancelled')
+            .neq('status', 'Acknowledged')
+            .order('date_submitted', ascending: false);
+        final requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+        final filtered = requests.where((r) => !r.isPendingDeptHead && !r.isAcknowledged && !r.isCancelled).toList();
+        return await enrichMissingRequestorNames(filtered);
+      } catch (e) {
+        return [];
+      }
     }
   }
 
@@ -221,7 +269,8 @@ class WorkRequestService {
       return status != 'completed' &&
           status != 'declined' &&
           status != 'cancelled' &&
-          status != 'declined/cancelled';
+          status != 'declined/cancelled' &&
+          status != 'acknowledged';
     });
   }
 
@@ -248,6 +297,60 @@ class WorkRequestService {
         .eq('requestor_id', requestorId)
         .order('date_submitted', ascending: false);
     return (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+  }
+
+  /// Fetches complete history for a user:
+  /// 1. Requests submitted by the user (where status is completed, cancelled, declined, or acknowledged)
+  /// 2. Requests evaluated by the user as Department Head (approved, acknowledged, or declined)
+  /// This ensures that even if a Department Head steps down or becomes a regular faculty,
+  /// they can always review their past evaluations, approvals, and acknowledgements in their History page.
+  static Future<List<WorkRequest>> fetchHistoryForUser(String userId) async {
+    final cleanId = userId.trim();
+    if (cleanId.isEmpty) return [];
+
+    try {
+      final results = await Future.wait([
+        fetchByRequestor(cleanId),
+        fetchEvaluatedByDeptHead(cleanId),
+      ]);
+
+      final requested = results[0];
+      final evaluated = results[1];
+
+      // Requests submitted by user that have concluded
+      final historicalRequested = requested.where((r) {
+        final s = r.status.toLowerCase();
+        return s == 'completed' ||
+            s == 'complete' ||
+            s == 'declined' ||
+            s == 'cancelled' ||
+            s == 'declined/cancelled' ||
+            s == 'pre-inspection declined' ||
+            s == 'acknowledged' ||
+            r.isAcknowledged;
+      });
+
+      // Deduplicate by ID (giving precedence to enriched evaluated data)
+      final map = <String, WorkRequest>{};
+      for (final r in historicalRequested) {
+        map[r.id] = r;
+      }
+      for (final r in evaluated) {
+        map[r.id] = r;
+      }
+
+      final combined = map.values.toList();
+      combined.sort((a, b) {
+        final dateA = a.deptHeadApprovedDate ?? a.dateSubmitted;
+        final dateB = b.deptHeadApprovedDate ?? b.dateSubmitted;
+        return dateB.compareTo(dateA);
+      });
+
+      return await enrichMissingRequestorNames(combined);
+    } catch (e) {
+      debugPrint('[WorkRequestService] Error in fetchHistoryForUser: $e');
+      return [];
+    }
   }
 
   /// Enriches any requests where requestorName is empty by querying `users` table
@@ -636,6 +739,9 @@ class WorkRequestService {
 
   static Future<void> assignTo(String id, String userId) async {
     final oldReq = await fetchById(id);
+    if (oldReq != null && oldReq.isPendingDeptHead) {
+      throw Exception('Action Denied: Cannot assign maintenance while request is pending Department Head review.');
+    }
     final oldAssigneeId = oldReq?.assignedToId;
 
     if (id.startsWith('WR-')) {
@@ -654,67 +760,255 @@ class WorkRequestService {
     } catch (_) {}
   }
 
+  static Future<bool> _safeUpdateWorkRequest(String id, Map<String, dynamic> data) async {
+    final payload = Map<String, dynamic>.from(data);
+    while (true) {
+      try {
+        final res = await (id.startsWith('WR-')
+            ? _db.from(_table).update(payload).eq('legacy_id', id).select('id')
+            : _db.from(_table).update(payload).eq('id', id).select('id'));
+        if (res.isEmpty) {
+          debugPrint('[WorkRequestService] Warning: update on $id modified 0 rows (possible RLS restriction).');
+          return false;
+        }
+        return true;
+      } on PostgrestException catch (e) {
+        if (e.message.contains('work_requests_status_check')) {
+          if (payload['status'] == 'Pending Department Head') {
+            // Old DBs without 'Pending Department Head' constraint: fall back gracefully
+            payload['status'] = 'Pending';
+            continue;
+          } else if (payload['status'] == 'Acknowledged') {
+            payload['status'] = 'Completed';
+            continue;
+          } else if (payload['status'] == 'Cancelled') {
+            payload['status'] = 'Declined';
+            continue;
+          }
+          // 'Pending Campus Admin' must NOT be silently downgraded to 'Pending' —
+          // that would leave dept_head_status='pending' and break the whole workflow.
+          // Surface the error so the caller (and developer) can see it.
+        }
+        final match = RegExp(r"Could not find the '([^']+)' column").firstMatch(e.message);
+        if (match != null) {
+          final missingCol = match.group(1);
+          if (missingCol != null && payload.containsKey(missingCol)) {
+            debugPrint('[WorkRequestService] Schema fallback: removing missing column "$missingCol"');
+            payload.remove(missingCol);
+            continue;
+          }
+        }
+        rethrow;
+      }
+    }
+  }
+
+  static Future<void> _safeInsertSignature(Map<String, dynamic> sigPayload) async {
+    try {
+      await _db.from('e_signatures').insert(sigPayload);
+    } on PostgrestException catch (e) {
+      if (e.message.contains('e_signatures_signature_type_check') ||
+          e.message.contains('e_signatures_signer_role_check') ||
+          e.message.contains('signature_type') ||
+          e.message.contains('signer_role')) {
+        final fallback = Map<String, dynamic>.from(sigPayload);
+        fallback['signature_type'] = 'approval';
+        fallback['signer_role'] = 'teacher';
+        try {
+          await _db.from('e_signatures').insert(fallback);
+        } catch (_) {}
+      } else {
+        rethrow;
+      }
+    }
+  }
+
   /// Department Head approves/endorses a work request
-  static Future<void> approveByDeptHead(
+  static Future<bool> approveByDeptHead(
     String id,
     String deptHeadId,
     String deptHeadName, {
     String? notes,
     String? signatureData,
   }) async {
-    final updateData = {
+    final nowIso = DateTime.now().toIso8601String();
+    final updateData = <String, dynamic>{
       'dept_head_status': 'approved',
-      'dept_head_approved_date': DateTime.now().toIso8601String(),
+      'dept_head_approved_date': nowIso,
       if (notes != null && notes.trim().isNotEmpty) 'dept_head_notes': notes.trim(),
-      'status': 'Pending', // Advances ticket to Campus Admin queue
+      'status': 'Pending Campus Admin', // Advances ticket to Campus Admin queue
     };
 
-    if (id.startsWith('WR-')) {
-      await _db.from(_table).update(updateData).eq('legacy_id', id);
-    } else {
-      await _db.from(_table).update(updateData).eq('id', id);
-    }
+    final updated = await _safeUpdateWorkRequest(id, updateData);
 
     if (signatureData != null && signatureData.trim().isNotEmpty) {
       try {
-        await _db.from('e_signatures').insert({
+        await _safeInsertSignature({
           'work_request_id': id,
           'signer_id': deptHeadId,
           'signer_name': deptHeadName,
           'signer_role': 'dept_head',
           'signature_type': 'dept_head_approval',
           'signature_data': signatureData,
-          'signed_at': DateTime.now().toIso8601String(),
+          'signed_at': nowIso,
         });
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Failed to save dept head approval signature: $e');
+      }
+    }
+
+    notifyChange();
+
+    unawaited(() async {
+      try {
+        final req = await fetchById(id);
+        if (req != null) {
+          await AppNotificationService.notifyCampusAdminDeptHeadApproved(
+            workRequestId: req.id,
+            requestTitle: req.title,
+            deptHeadName: deptHeadName,
+            departmentName: req.departmentName ?? 'Department',
+          );
+          if (req.requestorId != null && req.requestorId!.isNotEmpty) {
+            await AppNotificationService.notifyRequestorDeptHeadDecision(
+              requestorId: req.requestorId!,
+              workRequestId: req.id,
+              requestTitle: req.title,
+              isApproved: true,
+              deptHeadName: deptHeadName,
+              notes: notes,
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('[WorkRequestService] Error sending dept head approval notifications: $e');
+      }
+    }());
+
+    return updated;
+  }
+
+  /// Department Head acknowledges a work request (department will handle internally)
+  static Future<bool> acknowledgeByDeptHead(
+    String id,
+    String deptHeadId,
+    String deptHeadName, {
+    String? notes,
+    String? signatureData,
+  }) async {
+    final nowIso = DateTime.now().toIso8601String();
+    final updateData = <String, dynamic>{
+      'dept_head_status': 'acknowledged',
+      'dept_head_approved_date': nowIso,
+      if (notes != null && notes.trim().isNotEmpty) 'dept_head_notes': notes.trim(),
+      'status': 'Acknowledged', // Request handled internally; terminates centralized workflow
+    };
+
+    final updated = await _safeUpdateWorkRequest(id, updateData);
+
+    if (signatureData != null && signatureData.trim().isNotEmpty) {
+      try {
+        await _safeInsertSignature({
+          'work_request_id': id,
+          'signer_id': deptHeadId,
+          'signer_name': deptHeadName,
+          'signer_role': 'dept_head',
+          'signature_type': 'dept_head_acknowledgement',
+          'signature_data': signatureData,
+          'signed_at': nowIso,
+        });
+      } catch (e) {
+        debugPrint('Failed to save dept head acknowledgement signature: $e');
+      }
+    }
+
+    notifyChange();
+
+    unawaited(() async {
+      try {
+        final req = await fetchById(id);
+        if (req?.requestorId != null && req!.requestorId!.isNotEmpty) {
+          await AppNotificationService.notifyRequestorDeptHeadAcknowledged(
+            requestorId: req.requestorId!,
+            workRequestId: req.id,
+            requestTitle: req.title,
+            deptHeadName: deptHeadName,
+            notes: notes,
+          );
+        }
+      } catch (e) {
+        debugPrint('[WorkRequestService] Error sending dept head acknowledgement notification: $e');
+      }
+    }());
+
+    return updated;
+  }
+
+  /// Requestor cancels a work request
+  static Future<void> cancelByRequestor(
+    String id,
+    String userId, {
+    required String reasonType,
+    String? reason,
+  }) async {
+    final req = await fetchById(id);
+    if (req == null) throw Exception('Request not found.');
+
+    final isDeptOwned = req.departmentId != null && req.deptHeadStatus != 'not_applicable';
+    if (isDeptOwned) {
+      if (req.deptHeadStatus != 'pending') {
+        throw Exception('Cannot cancel request after Department Head has made a decision.');
+      }
+    } else {
+      if (req.status.toLowerCase() != 'pending' || req.assignedToId != null) {
+        throw Exception('Cannot cancel request after maintenance processing has begun.');
+      }
+    }
+
+    final nowIso = DateTime.now().toIso8601String();
+    final resolvedReason = (reason != null && reason.trim().isNotEmpty) ? reason.trim() : reasonType;
+    final updateData = {
+      'status': 'Cancelled',
+      'cancelled_by': userId,
+      'cancelled_at': nowIso,
+      'cancellation_reason_type': reasonType,
+      'cancellation_reason': resolvedReason,
+    };
+
+    try {
+      if (id.startsWith('WR-')) {
+        await _db.from(_table).update(updateData).eq('legacy_id', id);
+      } else {
+        await _db.from(_table).update(updateData).eq('id', id);
+      }
+    } on PostgrestException catch (e) {
+      if (e.message.contains('work_requests_status_check')) {
+        updateData['status'] = 'Declined';
+        if (id.startsWith('WR-')) {
+          await _db.from(_table).update(updateData).eq('legacy_id', id);
+        } else {
+          await _db.from(_table).update(updateData).eq('id', id);
+        }
+      } else {
+        rethrow;
+      }
     }
 
     notifyChange();
 
     try {
-      final req = await fetchById(id);
-      if (req != null) {
-        await AppNotificationService.notifyCampusAdminDeptHeadApproved(
-          workRequestId: req.id,
-          requestTitle: req.title,
-          deptHeadName: deptHeadName,
-          departmentName: req.departmentName ?? 'Department',
-        );
-        if (req.requestorId != null && req.requestorId!.isNotEmpty) {
-          await AppNotificationService.notifyRequestorDeptHeadDecision(
-            requestorId: req.requestorId!,
-            workRequestId: req.id,
-            requestTitle: req.title,
-            isApproved: true,
-            deptHeadName: deptHeadName,
-            notes: notes,
-          );
-        }
+      if (req.roomId != null) {
+        await updateRoomStatusFromRequests(req.roomId!);
       }
+      await AppNotificationService.notifyRequestorCancelled(
+        workRequestId: req.id,
+        requestTitle: req.title,
+        deptHeadId: req.deptHeadId,
+      );
     } catch (_) {}
   }
 
-  /// Department Head declines a work request (terminates workflow)
+  /// Department Head declines a work request (legacy/fallback method)
   static Future<void> declineByDeptHead(
     String id,
     String deptHeadId,
@@ -722,48 +1016,47 @@ class WorkRequestService {
     required String reason,
     String? signatureData,
   }) async {
-    final updateData = {
+    final nowIso = DateTime.now().toIso8601String();
+    final updateData = <String, dynamic>{
       'dept_head_status': 'declined',
-      'dept_head_approved_date': DateTime.now().toIso8601String(),
+      'dept_head_approved_date': nowIso,
       'dept_head_notes': reason.trim(),
       'status': 'Declined', // Request ends and does NOT proceed to Campus Admin
     };
 
-    if (id.startsWith('WR-')) {
-      await _db.from(_table).update(updateData).eq('legacy_id', id);
-    } else {
-      await _db.from(_table).update(updateData).eq('id', id);
-    }
+    await _safeUpdateWorkRequest(id, updateData);
 
     if (signatureData != null && signatureData.trim().isNotEmpty) {
       try {
-        await _db.from('e_signatures').insert({
+        await _safeInsertSignature({
           'work_request_id': id,
           'signer_id': deptHeadId,
           'signer_name': deptHeadName,
           'signer_role': 'dept_head',
           'signature_type': 'dept_head_approval',
           'signature_data': signatureData,
-          'signed_at': DateTime.now().toIso8601String(),
+          'signed_at': nowIso,
         });
       } catch (_) {}
     }
 
     notifyChange();
 
-    try {
-      final req = await fetchById(id);
-      if (req?.requestorId != null && req!.requestorId!.isNotEmpty) {
-        await AppNotificationService.notifyRequestorDeptHeadDecision(
-          requestorId: req.requestorId!,
-          workRequestId: req.id,
-          requestTitle: req.title,
-          isApproved: false,
-          deptHeadName: deptHeadName,
-          notes: reason,
-        );
-      }
-    } catch (_) {}
+    unawaited(() async {
+      try {
+        final req = await fetchById(id);
+        if (req?.requestorId != null && req!.requestorId!.isNotEmpty) {
+          await AppNotificationService.notifyRequestorDeptHeadDecision(
+            requestorId: req.requestorId!,
+            workRequestId: req.id,
+            requestTitle: req.title,
+            isApproved: false,
+            deptHeadName: deptHeadName,
+            notes: reason,
+          );
+        }
+      } catch (_) {}
+    }());
   }
 
   static Future<void> approveRequest(
@@ -773,6 +1066,10 @@ class WorkRequestService {
     String priority = '',
     String? estimatedDuration,
   }) async {
+    final existing = await fetchById(id);
+    if (existing != null && existing.isPendingDeptHead) {
+      throw Exception('Action Denied: Cannot approve request while pending Department Head review.');
+    }
     DateTime? dateDue;
     if (estimatedDuration != null && estimatedDuration.trim().isNotEmpty) {
       final durLower = estimatedDuration.toLowerCase();
@@ -1070,7 +1367,8 @@ class WorkRequestService {
         }
         payload['dept_head_id'] = resolvedDeptHeadId;
         payload['dept_head_status'] = 'pending';
-        payload['status'] = 'Pending Department Head';
+        // 'Pending' satisfies all database check constraints while dept_head_status='pending' routes to Dept Head
+        payload['status'] = 'Pending';
       }
     } else {
       // Case 2: Department-less Room (Comfort Room, Lobby, Hallway, Common Area)
@@ -1111,7 +1409,7 @@ class WorkRequestService {
       await updateRoomStatusFromRequests(request.roomId!);
     }
 
-    // Trigger Department Head notification if awaiting Dept Head review
+    // Trigger notification: Dept Head ONLY if awaiting Dept Head review, Campus Admin ONLY if common/bypassed
     if (!isHead && resolvedDeptHeadId != null && resolvedDeptHeadId.isNotEmpty) {
       try {
         await AppNotificationService.notifyDeptHeadNewRequest(
@@ -1120,6 +1418,16 @@ class WorkRequestService {
           requestTitle: request.title,
           requestorName: request.requestorName,
           departmentName: request.departmentName ?? 'Department',
+        );
+      } catch (_) {}
+    } else {
+      try {
+        await AppNotificationService.notifyWorkRequestSubmitted(
+          workRequestId: data['id']?.toString() ?? payload['id'],
+          roomName: request.roomName ?? (room?.name ?? ''),
+          buildingName: request.buildingName ?? '',
+          requestorName: request.requestorName,
+          requestorId: request.requestorId,
         );
       } catch (_) {}
     }
@@ -1281,6 +1589,12 @@ class WorkRequestService {
             .select(_selectWithRelations)
             .single();
       } on PostgrestException catch (error) {
+        if (error.message.contains('work_requests_status_check')) {
+          if (sanitizedPayload['status'] != 'Pending') {
+            sanitizedPayload['status'] = 'Pending';
+            continue;
+          }
+        }
         final removedColumn = _removeMissingSchemaColumn(
           error,
           sanitizedPayload,
@@ -1306,6 +1620,21 @@ class WorkRequestService {
         }
         return;
       } on PostgrestException catch (error) {
+        if (error.message.contains('work_requests_status_check')) {
+          if (sanitizedPayload['status'] == 'Pending Department Head' ||
+              sanitizedPayload['status'] == 'Pending Campus Admin') {
+            sanitizedPayload['status'] = 'Pending';
+            continue;
+          }
+          if (sanitizedPayload['status'] == 'Acknowledged') {
+            sanitizedPayload['status'] = 'Completed';
+            continue;
+          }
+          if (sanitizedPayload['status'] == 'Cancelled') {
+            sanitizedPayload['status'] = 'Declined';
+            continue;
+          }
+        }
         final removedColumn = _removeMissingSchemaColumn(
           error,
           sanitizedPayload,

@@ -721,7 +721,7 @@ class _SystemAdminMainNavigationWebState
                     const SizedBox(width: 8),
                   ],
                   Text(
-                    'PSU E-ayos',
+                    'PSU E-Ayos',
                     style: const TextStyle(
                       color: Color(0xFF1E293B),
                       fontSize: 18,

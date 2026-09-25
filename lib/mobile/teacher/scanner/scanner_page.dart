@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/room_service.dart';
 import '../../../shared/widgets/common_app_bar.dart';
+import '../../../shared/widgets/department_mismatch_dialog.dart';
 import '../../admin/shared/notifications_page.dart';
 
 class ScannerPage extends StatefulWidget {
@@ -143,13 +145,24 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
       if (!mounted) return;
 
       if (room != null) {
-        await context.push(
-          '/room-verification',
-          extra: {
-            'roomId': room.code.isNotEmpty ? room.code : room.id,
-            'room': room,
-          },
-        );
+        final user = context.read<AuthService>().currentUser;
+        if (isRoomOfOtherDepartment(user: user, room: room)) {
+          await showDepartmentMismatchDialog(
+            context: context,
+            roomCode: room.code,
+            roomName: room.name,
+            roomDepartment: room.department,
+            userDepartment: user?.department,
+          );
+        } else {
+          await context.push(
+            '/room-verification',
+            extra: {
+              'roomId': room.code.isNotEmpty ? room.code : room.id,
+              'room': room,
+            },
+          );
+        }
       } else {
         _showInvalidQRCodeDialog();
       }

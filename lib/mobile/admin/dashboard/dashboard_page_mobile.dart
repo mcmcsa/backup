@@ -157,7 +157,7 @@ class _DashboardPageMobileState extends State<DashboardPageMobile>
                   return const Center(child: CircularProgressIndicator());
                 }
                 final pendingCount = _requests
-                    .where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment')
+                    .where((r) => !r.isPendingDeptHead && (r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment' || r.status.toLowerCase() == 'pending campus admin'))
                     .length;
                 final ongoingCount = _requests
                     .where((r) => ['in progress', 'in_progress', 'assigned', 'accepted by maintenance', 'confirmed', 'rework'].contains(r.status.toLowerCase()))
@@ -570,6 +570,7 @@ class _DashboardPageMobileState extends State<DashboardPageMobile>
   Widget _buildAgingTicketsSection() {
     final agingRequests = _requests
         .where((r) =>
+          !r.isPendingDeptHead &&
           r.status.toLowerCase() != 'completed' &&
           r.status.toLowerCase() != 'declined' &&
           r.status.toLowerCase() != 'cancelled' &&
@@ -603,7 +604,7 @@ class _DashboardPageMobileState extends State<DashboardPageMobile>
   }
 
   Widget _buildLatestRequestsTable() {
-    final latest = List<WorkRequest>.from(_requests)
+    final latest = List<WorkRequest>.from(_requests.where((r) => !r.isPendingDeptHead))
       ..sort((a, b) => b.dateSubmitted.compareTo(a.dateSubmitted));
     final top = latest.take(5).toList();
 

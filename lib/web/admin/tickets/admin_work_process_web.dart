@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import '../../../shared/widgets/attachment_image_widget.dart';
@@ -61,7 +60,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   List<WorkRequestActivity> _activities = [];
   List<ESignature> _signatures = [];
   List<WorkRequestFollowUp> _followUps = [];
-  bool _isLoading = true;
+  bool _isLoading = false;
   int _selectedSection = 0;
   String? _activeSubView;
   bool _showCollaboration = false;
@@ -80,7 +79,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   @override
   void initState() {
     super.initState();
-    _loadData(showSpinner: true);
+    _request = widget.request; // Instant initial render to eliminate spinner lag
+    _loadData(showSpinner: false);
     _startCountdownTimer();
     _startAutoRefresh();
   }
@@ -95,7 +95,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
 
   void _startAutoRefresh() {
     _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       _loadData(showSpinner: false);
     });
   }
@@ -109,17 +109,42 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   }
 
   Future<void> _loadData({bool showSpinner = false}) async {
-    if (showSpinner) {
+    if (showSpinner && _request == null && mounted) {
       setState(() => _isLoading = true);
     }
+    final reqId = widget.request.id;
     try {
-      _request = await WorkRequestService.fetchById(widget.request.id) ?? widget.request;
-      _preInspection = await PreInspectionService.fetchLatestByWorkRequest(_request!.id);
-      _postRepair = await PostRepairService.fetchLatestByWorkRequest(_request!.id);
-      _postRepairs = await PostRepairService.fetchByWorkRequest(_request!.id);
-      _costTracking = await CostTrackingService.fetchByWorkRequestId(_request!.id);
-      _signatures = await ESignatureService.fetchByWorkRequest(_request!.id);
-      
+      final results = await Future.wait([
+        WorkRequestService.fetchById(reqId),
+        PreInspectionService.fetchLatestByWorkRequest(reqId),
+        PostRepairService.fetchLatestByWorkRequest(reqId),
+        PostRepairService.fetchByWorkRequest(reqId),
+        CostTrackingService.fetchByWorkRequestId(reqId),
+        ESignatureService.fetchByWorkRequest(reqId),
+        CollaborationService.fetchCollaborators(reqId),
+        CollaborationService.fetchTasks(reqId),
+        CollaborationService.fetchNotes(reqId),
+        CollaborationService.fetchActivities(reqId),
+        WorkRequestFollowUpService.fetchFollowUpsForRequest(reqId),
+      ]);
+
+      final fetchedRequest = results[0] as WorkRequest?;
+      if (mounted) {
+        setState(() {
+          _request = fetchedRequest ?? _request ?? widget.request;
+          _preInspection = results[1] as PreInspectionReport?;
+          _postRepair = results[2] as PostRepairReport?;
+          _postRepairs = (results[3] as List<PostRepairReport>?) ?? [];
+          _costTracking = results[4] as WorkRequestCost?;
+          _signatures = (results[5] as List<ESignature>?) ?? [];
+          _collaborators = (results[6] as List<WorkRequestCollaborator>?) ?? [];
+          _tasks = (results[7] as List<WorkRequestTask>?) ?? [];
+          _notes = (results[8] as List<WorkRequestNote>?) ?? [];
+          _activities = (results[9] as List<WorkRequestActivity>?) ?? [];
+          _followUps = (results[10] as List<WorkRequestFollowUp>?) ?? [];
+        });
+      }
+
       // Populate cache of user names from signatures to bypass RLS issues
       for (final sig in _signatures) {
         if (sig.signerId.isNotEmpty && sig.signerName.isNotEmpty) {
@@ -127,14 +152,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           _userNames[sig.signerId] = isAdm ? 'Campus Admin - ${sig.signerName}' : sig.signerName;
         }
       }
-      
-      // Load collaboration data
-      _collaborators = await CollaborationService.fetchCollaborators(_request!.id);
-      _tasks = await CollaborationService.fetchTasks(_request!.id);
-      _notes = await CollaborationService.fetchNotes(_request!.id);
-      _activities = await CollaborationService.fetchActivities(_request!.id);
-      _followUps = await WorkRequestFollowUpService.fetchFollowUpsForRequest(_request!.id);
-      
+
       final userIds = <String>{};
       if (_preInspection?.adminApprovedBy != null) userIds.add(_preInspection!.adminApprovedBy!);
       for (final report in _postRepairs) {
@@ -143,14 +161,16 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       final missingIds = userIds.where((id) => !_userNames.containsKey(id)).toList();
       if (missingIds.isNotEmpty) {
         final names = await UserService.fetchNamesByIds(missingIds);
-        if (names.isNotEmpty) {
-          _userNames.addAll(names);
+        if (names.isNotEmpty && mounted) {
+          setState(() {
+            _userNames.addAll(names);
+          });
         }
       }
     } catch (e) {
       debugPrint('Error loading data: $e');
     }
-    if (mounted) setState(() => _isLoading = false);
+    if (mounted && _isLoading) setState(() => _isLoading = false);
   }
 
   @override
@@ -1029,6 +1049,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
         durationText = _calculateDuration();
       } else if (_request!.status == 'Confirmed' || _request!.status == 'Rework') {
         durationText = _calculateCountdown();
+      } else if (_request!.status == 'Pending Campus Admin') {
+        durationText = 'Awaiting admin approval';
       } else {
         durationText = _request!.maintenanceNotes ?? 'Pending acceptance';
       }
@@ -1181,18 +1203,31 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     ));
 
     // Department Head Endorsement (if applicable)
-    final bool hasDeptHead = (task.deptHeadStatus != null && task.deptHeadStatus != 'not_applicable') || task.deptHeadId != null;
+    final bool hasDeptHead = (task.deptHeadStatus.isNotEmpty && task.deptHeadStatus != 'not_applicable') || task.deptHeadId != null;
     final bool isDeptHeadApproved = task.isDeptHeadApproved;
+    final bool isDeptHeadAcknowledged = task.isAcknowledged;
     final bool isDeptHeadDeclined = task.isDeptHeadDeclined;
     if (hasDeptHead) {
+      if (isDeptHeadAcknowledged) {
+        steps.add(_TimelineStep(
+          title: 'Acknowledged by Dept Head',
+          subtitle: 'Acknowledged by ${task.deptHeadName ?? "Department Head"}. Handled internally by department. Centralized workflow ended.',
+          time: formatTime(task.deptHeadEvaluatedDate ?? task.deptHeadApprovedDate),
+          isCompleted: true,
+          isActive: false,
+          isWarning: false,
+        ));
+        return steps.asMap().entries.map((e) => _buildTimelineItem(e.value, isLast: e.key == steps.length - 1)).toList();
+      }
+
       steps.add(_TimelineStep(
-        title: isDeptHeadDeclined ? 'Declined by Dept Head' : 'Dept Head Endorsement',
+        title: isDeptHeadDeclined ? 'Declined by Dept Head' : 'Dept Head Approval',
         subtitle: isDeptHeadDeclined
             ? 'Declined by ${task.deptHeadName ?? "Department Head"}: ${task.deptHeadNotes ?? "No reason specified"}.'
             : (isDeptHeadApproved
-                ? 'Endorsed by ${task.deptHeadName ?? "Department Head"}.'
+                ? 'Approved by ${task.deptHeadName ?? "Department Head"}.'
                 : 'Waiting for evaluation from ${task.deptHeadName ?? "Department Head"}.'),
-        time: formatTime(task.deptHeadApprovedDate),
+        time: formatTime(task.deptHeadApprovedDate ?? task.deptHeadEvaluatedDate),
         isCompleted: isDeptHeadApproved,
         isActive: task.isPendingDeptHead,
         isWarning: isDeptHeadDeclined,
@@ -1203,19 +1238,34 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       }
     }
 
+    if (task.isCancelled || task.status.toLowerCase() == 'cancelled') {
+      steps.add(_TimelineStep(
+        title: 'Request Cancelled',
+        subtitle: 'Request cancelled by requestor.${task.cancellationReason != null ? " Reason: ${task.cancellationReason}" : ""}',
+        time: formatTime(task.cancelledAt),
+        isCompleted: true,
+        isActive: false,
+        isWarning: true,
+      ));
+      return steps.asMap().entries.map((e) => _buildTimelineItem(e.value, isLast: e.key == steps.length - 1)).toList();
+    }
+
     // 2. Admin Review & Approval
     final isApproved = ['assigned', 'confirmed', 'rework', 'completed', 'in progress', 'in_progress', 'declined'].contains(task.status.toLowerCase());
     final isDeclinedInitially = task.status.toLowerCase() == 'declined' && task.preInspectionId == null && !isDeptHeadDeclined;
+    final isAdminStepActive = !isApproved && !task.isPendingDeptHead && (task.isPendingCampusAdmin || isDeptHeadApproved);
     steps.add(_TimelineStep(
       title: isDeclinedInitially ? 'Request Declined' : 'Admin Review & Approval',
       subtitle: isDeclinedInitially
           ? 'Request was declined and closed.'
           : (isApproved
               ? 'Request approved by ${task.approvedByName ?? "Admin"}.'
-              : (task.isPendingDeptHead ? 'Awaiting Department Head approval first.' : 'Waiting for admin approval.')),
+              : (task.isPendingDeptHead
+                  ? 'Awaiting Department Head approval first.'
+                  : 'Waiting for admin approval.')),
       time: formatTime(task.approvedDate),
       isCompleted: isApproved,
-      isActive: !isApproved && !task.isPendingDeptHead,
+      isActive: isAdminStepActive,
       isWarning: isDeclinedInitially,
     ));
 
@@ -1297,21 +1347,39 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           isActive: false,
         ));
 
+        // 6b. Requestor Evaluation
+        final isRequestorEvaluated = report.isRequestorEvaluated;
+        final isLatestReport = i == sortedAttempts.length - 1;
+        if (isRequestorEvaluated || isLatestReport) {
+          steps.add(_TimelineStep(
+            title: isRequestorEvaluated
+                ? 'Requestor Evaluation: ${report.isRequestorSatisfied ? "Satisfied" : "Not Satisfied"}'
+                : 'Requestor Evaluation',
+            subtitle: isRequestorEvaluated
+                ? 'Evaluated by ${task.requestorName.isNotEmpty ? task.requestorName : "Requestor"}${report.requestorRating != null ? " • Rating: ${report.requestorRating}/5" : ""}${report.requestorComment != null && report.requestorComment!.isNotEmpty ? ' • "${report.requestorComment}"' : ""}'
+                : 'Awaiting original Requestor evaluation.',
+            time: formatTime(report.requestorEvaluatedDate),
+            isCompleted: isRequestorEvaluated,
+            isActive: !isRequestorEvaluated,
+            isWarning: isRequestorEvaluated && report.isRequestorNotSatisfied,
+          ));
+        }
+
+        // 6c. Campus Admin Decision
         final isEvaluated = report.adminEvaluation != null;
         final isRework = report.adminEvaluation == 'rework';
         final evaluatedByName = report.adminEvaluatedBy != null
             ? (_userNames[report.adminEvaluatedBy] ?? report.adminEvaluatedBy)
             : "Campus Admin";
         
-        final isLatestReport = i == sortedAttempts.length - 1;
-        if (isEvaluated || isLatestReport) {
+        if (isEvaluated || (isLatestReport && isRequestorEvaluated)) {
           steps.add(_TimelineStep(
-            title: isRework ? 'Post-Repair Evaluation - Rework Required' : 'Post-Repair Evaluation',
+            title: isRework ? 'Campus Admin Decision - Rework Required' : 'Campus Admin Final Decision',
             subtitle: isEvaluated
                 ? (isRework
                     ? 'Rework required by $evaluatedByName'
                     : 'Approved by $evaluatedByName')
-                : 'Awaiting Campus Admin evaluation.',
+                : 'Awaiting Campus Admin final decision.',
             time: formatTime(report.adminEvaluatedDate),
             isCompleted: isEvaluated && !isRework,
             isActive: !isEvaluated,
@@ -1332,7 +1400,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
         ));
       }
     } else {
-      // Keep Post-Repair Report and Post-Repair Evaluation visible even before first report submission!
       steps.add(_TimelineStep(
         title: 'Post-Repair Report',
         subtitle: isPreInspApproved
@@ -1344,8 +1411,16 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
       ));
 
       steps.add(_TimelineStep(
-        title: 'Post-Repair Evaluation',
+        title: 'Requestor Evaluation',
         subtitle: 'Pending post-repair report submission.',
+        time: null,
+        isCompleted: false,
+        isActive: false,
+      ));
+
+      steps.add(_TimelineStep(
+        title: 'Campus Admin Final Decision',
+        subtitle: 'Pending requestor evaluation.',
         time: null,
         isCompleted: false,
         isActive: false,
@@ -1535,16 +1610,21 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   }
 
   Widget _buildDeptHeadEvaluationCard() {
-    final hasDeptHead = (_request!.deptHeadStatus != null && _request!.deptHeadStatus != 'not_applicable') || _request!.deptHeadId != null;
+    final hasDeptHead = (_request!.deptHeadStatus.isNotEmpty && _request!.deptHeadStatus != 'not_applicable') || _request!.deptHeadId != null;
     if (!hasDeptHead) return const SizedBox.shrink();
 
     final isApproved = _request!.isDeptHeadApproved;
+    final isAcknowledged = _request!.isAcknowledged;
     final isDeclined = _request!.isDeptHeadDeclined;
-    final badgeColor = isApproved ? AdminStyles.success : (isDeclined ? AdminStyles.error : AdminStyles.warning);
-    final badgeText = isApproved ? 'Endorsed' : (isDeclined ? 'Declined' : 'Pending Review');
+    final badgeColor = isApproved
+        ? AdminStyles.success
+        : (isAcknowledged ? const Color(0xFF6366F1) : (isDeclined ? AdminStyles.error : AdminStyles.warning));
+    final badgeText = isApproved
+        ? 'Approved'
+        : (isAcknowledged ? 'Acknowledged (Internal)' : (isDeclined ? 'Declined' : 'Pending Review'));
 
     final deptHeadSig = _signatures.cast<ESignature?>().firstWhere(
-      (s) => s?.signatureType == 'dept_head_approval',
+      (s) => s?.signatureType == 'dept_head_approval' || s?.signatureType == 'dept_head_acknowledgement',
       orElse: () => null,
     );
 
@@ -1570,7 +1650,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('DEPARTMENT HEAD ENDORSEMENT', style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1)),
+                    Text('DEPARTMENT HEAD APPROVAL', style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1)),
                     const SizedBox(height: 2),
                     Text(
                       _request!.deptHeadName ?? 'Department Head',
@@ -1621,30 +1701,32 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           if (deptHeadSig != null && deptHeadSig.signatureData.isNotEmpty) ...[
             Text('Digital Signature', style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
             const SizedBox(height: 8),
-            Container(
-              height: 70,
-              width: 180,
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Builder(
-                builder: (context) {
-                  try {
-                    final cleanBase64 = deptHeadSig.signatureData.contains(',')
-                        ? deptHeadSig.signatureData.split(',').last
-                        : deptHeadSig.signatureData;
-                    return Image.memory(
-                      base64Decode(cleanBase64.trim()),
-                      fit: BoxFit.contain,
-                    );
-                  } catch (_) {
-                    return const Center(child: Icon(Icons.broken_image, size: 20));
-                  }
-                },
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.verified_rounded, size: 18, color: Color(0xFF0F766E)),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      deptHeadSig.signerName.isNotEmpty ? deptHeadSig.signerName : 'Department Head',
+                      style: AdminStyles.headingStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'dept_head_approval • ${DateFormat('MMM dd, yyyy · HH:mm').format(deptHeadSig.signedAt)}',
+                      style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textMuted),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ],
         ],
@@ -2163,7 +2245,85 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
         children: [
           Text('Available Actions', style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textSecondary)),
           const SizedBox(height: 20),
-          if (status == 'Pending') ...[
+          if (_request!.isPendingDeptHead) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_clock_rounded, color: Color(0xFFD97706), size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Awaiting Department Head Review. Centralized actions are locked until Department Head approval.',
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 12,
+                        color: const Color(0xFFB45309),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (_request!.isAcknowledged) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_outline_rounded, color: Color(0xFF6366F1), size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Acknowledged by Department Head. Handled internally by department. Centralized maintenance workflow has ended.',
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 12,
+                        color: const Color(0xFF4338CA),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (_request!.isCancelled || status == 'Cancelled') ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: AdminStyles.error.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AdminStyles.error.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.cancel_outlined, color: AdminStyles.error, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'This work request was cancelled by the requestor. Record is read-only.',
+                      style: AdminStyles.bodyStyle(
+                        fontSize: 12,
+                        color: AdminStyles.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (status == 'Pending' || status == 'Pending Campus Admin') ...[
             _buildActionButton('Approve with Signature', Icons.draw_rounded, AdminStyles.primary, () {
               setState(() => _activeSubView = 'approval');
             }),

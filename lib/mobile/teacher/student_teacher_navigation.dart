@@ -63,7 +63,7 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
         isActive: _selectedIndex == 2,
       ),
       StudentReportsPage(scaffoldKey: _scaffoldKey),
-      StudentProfilePage(scaffoldKey: _scaffoldKey),
+      StudentProfilePage(scaffoldKey: _scaffoldKey, isActive: _selectedIndex == 4),
       TeacherChatPage(
         scaffoldKey: _scaffoldKey,
         initialRoom: widget.initialChatRoom,

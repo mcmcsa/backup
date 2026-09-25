@@ -79,7 +79,13 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
   }
 
   List<WorkRequest> get _allRequests {
-    return Provider.of<WorkRequestProvider>(context).requests;
+    return Provider.of<WorkRequestProvider>(context)
+        .requests
+        .where((r) =>
+            !r.isPendingDeptHead &&
+            !r.isAcknowledged &&
+            !r.status.toLowerCase().contains('acknowledged'))
+        .toList();
   }
   
   bool get _isLoading {
@@ -92,6 +98,16 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
 
   int _getCountByStatus(String status) {
     final target = status.trim().toLowerCase();
+    if (target == 'pending') {
+      return _allRequests.where((r) {
+        if (r.isPendingDeptHead) return false;
+        final s = r.status.trim().toLowerCase();
+        return s == 'pending' ||
+            s == 'pending campus admin' ||
+            s == 'pending assignment' ||
+            s == 'pending review';
+      }).length;
+    }
     return _allRequests
         .where((r) => r.status.trim().toLowerCase() == target)
         .length;
@@ -107,7 +123,13 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
   int _getCountByActiveStatuses() {
     return _allRequests.where((r) {
       final s = r.status.trim().toLowerCase();
-      return s != 'pending' &&
+      final isPending = s == 'pending' ||
+          s == 'pending campus admin' ||
+          s == 'pending assignment' ||
+          s == 'pending review' ||
+          s == 'pending dept head' ||
+          s == 'pending department head';
+      return !isPending &&
           s != 'completed' &&
           s != 'declined' &&
           s != 'cancelled' &&
@@ -585,7 +607,7 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
                     ),
                   ),
                   SizedBox(
-                    width: 130,
+                    width: 160,
                     child: Text(
                       'STATUS',
                       textAlign: TextAlign.center,
@@ -1006,7 +1028,7 @@ class _RequestTableRowState extends State<_RequestTableRow> {
               ),
             ),
             SizedBox(
-              width: 130,
+              width: 160,
               child: Center(
                 child: _StatusBadge(status: widget.request.status),
               ),
@@ -1027,15 +1049,20 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final config = _getConfig();
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: AdminStyles.pillDecoration(color: config.textColor, isSecondary: true),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: config.textColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: config.textColor.withValues(alpha: 0.25)),
+      ),
       child: Text(
         config.label.toUpperCase(),
+        textAlign: TextAlign.center,
         style: AdminStyles.headingStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
           color: config.textColor,
-          letterSpacing: 0.5,
+          letterSpacing: 0.3,
         ),
       ),
     );
@@ -1049,6 +1076,17 @@ class _StatusBadge extends StatelessWidget {
         return _StatusConfig(
           'PENDING',
           const Color(0xFF6B7280),
+        );
+      case 'pending campus admin':
+        return _StatusConfig(
+          'PENDING CAMPUS ADMIN',
+          const Color(0xFFD97706),
+        );
+      case 'pending dept head':
+      case 'pending department head':
+        return _StatusConfig(
+          'PENDING DEPT HEAD',
+          const Color(0xFF8B5CF6),
         );
       case 'in progress':
       case 'assigned':

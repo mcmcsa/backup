@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import '../../../shared/widgets/app_date_range_dialog.dart';
 
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/login_activity_service.dart';
@@ -1218,15 +1219,12 @@ Ticket ID: ${log.workRequestId ?? 'N/A'}
           onChanged: (val) async {
             if (val == null) return;
             if (val == 'Custom') {
-              final range = await showDateRangePicker(
+              final range = await showAppDateRangePicker(
                 context: context,
                 firstDate: DateTime(2023),
                 lastDate: DateTime.now().add(const Duration(days: 1)),
-                initialDateRange: _customDateRange ??
-                    DateTimeRange(
-                      start: DateTime.now().subtract(const Duration(days: 7)),
-                      end: DateTime.now(),
-                    ),
+                initialStartDate: _customDateRange?.start ?? DateTime.now().subtract(const Duration(days: 7)),
+                initialEndDate: _customDateRange?.end ?? DateTime.now(),
               );
               if (range != null) {
                 setState(() {

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../../../shared/widgets/app_date_range_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -26,6 +28,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All';
   String _selectedTimeFilter = 'All';
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
   List<NotificationItem> _notifications = [];
   bool _isLoading = true;
   bool _notificationsEnabled = true;
@@ -135,6 +139,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final weekStart = today.subtract(Duration(days: now.weekday - 1));
+    final monthStart = DateTime(now.year, now.month, 1);
+    final yearStart = DateTime(now.year, 1, 1);
 
     if (_selectedTimeFilter == 'Today') {
       filtered = filtered
@@ -144,10 +150,26 @@ class _NotificationsPageState extends State<NotificationsPage> {
       filtered = filtered
           .where((n) => n.date.isAfter(weekStart) || n.date.isAtSameMomentAs(weekStart))
           .toList();
-    } else if (_selectedTimeFilter == 'Earlier') {
+    } else if (_selectedTimeFilter == 'This Month') {
       filtered = filtered
-          .where((n) => n.date.isBefore(weekStart))
+          .where((n) => n.date.isAfter(monthStart) || n.date.isAtSameMomentAs(monthStart))
           .toList();
+    } else if (_selectedTimeFilter == 'This Year') {
+      filtered = filtered
+          .where((n) => n.date.isAfter(yearStart) || n.date.isAtSameMomentAs(yearStart))
+          .toList();
+    } else if (_selectedTimeFilter == 'Custom Range') {
+      if (_customStartDate != null && _customEndDate != null) {
+        final start = DateTime(_customStartDate!.year, _customStartDate!.month, _customStartDate!.day);
+        final end = DateTime(_customEndDate!.year, _customEndDate!.month, _customEndDate!.day, 23, 59, 59, 999);
+        filtered = filtered.where((n) => !n.date.isBefore(start) && !n.date.isAfter(end)).toList();
+      } else if (_customStartDate != null) {
+        final start = DateTime(_customStartDate!.year, _customStartDate!.month, _customStartDate!.day);
+        filtered = filtered.where((n) => !n.date.isBefore(start)).toList();
+      } else if (_customEndDate != null) {
+        final end = DateTime(_customEndDate!.year, _customEndDate!.month, _customEndDate!.day, 23, 59, 59, 999);
+        filtered = filtered.where((n) => !n.date.isAfter(end)).toList();
+      }
     }
 
     // Filter by search query
@@ -423,10 +445,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       const SizedBox(width: 8),
                       _buildTimeFilterChip('This Week', isDark, themeProvider),
                       const SizedBox(width: 8),
-                      _buildTimeFilterChip('Earlier', isDark, themeProvider),
+                      _buildTimeFilterChip('This Month', isDark, themeProvider),
+                      const SizedBox(width: 8),
+                      _buildTimeFilterChip('This Year', isDark, themeProvider),
+                      const SizedBox(width: 8),
+                      _buildTimeFilterChip('Custom Range', isDark, themeProvider),
                     ],
                   ),
                 ),
+                if (_selectedTimeFilter == 'Custom Range') ...[
+                  const SizedBox(height: 8),
+                  _buildCustomDateRangeBar(isDark, themeProvider),
+                ],
               ],
             ),
           ),
@@ -571,14 +601,24 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final isSelected = _selectedTimeFilter == label;
 
     return ChoiceChip(
+      avatar: label == 'Custom Range'
+          ? Icon(
+              Icons.date_range_rounded,
+              size: 13,
+              color: isSelected ? Colors.white : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+            )
+          : null,
       label: Text(label),
       selected: isSelected,
       showCheckmark: false,
-      onSelected: (selected) {
+      onSelected: (selected) async {
         if (selected) {
           setState(() {
             _selectedTimeFilter = label;
           });
+          if (label == 'Custom Range' && (_customStartDate == null || _customEndDate == null)) {
+            await _pickCustomDateRange(context);
+          }
         }
       },
       labelStyle: TextStyle(
@@ -598,6 +638,147 @@ class _NotificationsPageState extends State<NotificationsPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     );
+  }
+
+  Widget _buildCustomDateRangeBar(bool isDark, ThemeProvider themeProvider) {
+    final startStr = _customStartDate != null
+        ? DateFormat('MMM dd, yyyy').format(_customStartDate!)
+        : 'Select';
+    final endStr = _customEndDate != null
+        ? DateFormat('MMM dd, yyyy').format(_customEndDate!)
+        : 'Select';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF222222) : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade300),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () => _pickFromDate(context),
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_rounded, size: 12, color: Color(0xFF00BFA5)),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'From: $startStr',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: InkWell(
+              onTap: () => _pickToDate(context),
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_rounded, size: 12, color: Color(0xFF00BFA5)),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'To: $endStr',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickFromDate(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _customStartDate ?? now.subtract(const Duration(days: 7)),
+      firstDate: DateTime(2020),
+      lastDate: _customEndDate ?? DateTime(2035),
+      helpText: 'Select From Date',
+    );
+    if (picked != null) {
+      setState(() {
+        _customStartDate = picked;
+        if (_customEndDate != null && _customEndDate!.isBefore(picked)) {
+          _customEndDate = picked;
+        }
+        _selectedTimeFilter = 'Custom Range';
+      });
+    }
+  }
+
+  Future<void> _pickToDate(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _customEndDate ?? now,
+      firstDate: _customStartDate ?? DateTime(2020),
+      lastDate: DateTime(2035),
+      helpText: 'Select To Date',
+    );
+    if (picked != null) {
+      setState(() {
+        _customEndDate = picked;
+        if (_customStartDate != null && _customStartDate!.isAfter(picked)) {
+          _customStartDate = picked;
+        }
+        _selectedTimeFilter = 'Custom Range';
+      });
+    }
+  }
+
+  Future<void> _pickCustomDateRange(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showAppDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      initialStartDate: _customStartDate ?? now.subtract(const Duration(days: 7)),
+      initialEndDate: _customEndDate ?? now,
+    );
+    if (picked != null) {
+      setState(() {
+        _customStartDate = picked.start;
+        _customEndDate = picked.end;
+        _selectedTimeFilter = 'Custom Range';
+      });
+    }
   }
 
   Future<void> _handleNotificationClick(NotificationItem notification) async {

@@ -10,6 +10,7 @@ import '../../../shared/services/post_repair_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/inspection_pdf_service.dart';
 import '../../../shared/widgets/attachment_image_widget.dart';
+import 'package:intl/intl.dart';
 import '../shared/admin_styles.dart';
 
 class AdminPostRepairEvaluationWeb extends StatefulWidget {
@@ -76,6 +77,11 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     final user = authService.currentUser;
     if (user == null) return;
 
+    if (!targetReport.isRequestorEvaluated) {
+      _showWarning('Action Blocked: Requestor must evaluate the repair before Campus Admin can finalize.');
+      return;
+    }
+
     setState(() => _isProcessing = true);
     try {
       await PostRepairService.markSatisfied(targetReport.id, user.id);
@@ -129,6 +135,10 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
   Future<void> _markRework() async {
     if (_history.isEmpty) return;
     final targetReport = _history[_selectedAttemptIndex];
+    if (!targetReport.isRequestorEvaluated) {
+      _showWarning('Action Blocked: Requestor must evaluate the repair before Campus Admin can send for rework.');
+      return;
+    }
     final notes = _reworkNotesController.text.trim();
     if (notes.isEmpty) {
       _showWarning('Please provide rework notes');
@@ -421,7 +431,8 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     final report = _history[_selectedAttemptIndex];
     final isLatest = _selectedAttemptIndex == _history.length - 1;
     final isEvaluated = report.adminEvaluation != null;
-    final canEvaluate = isLatest && !isEvaluated;
+    final isRequestorEvaluated = report.isRequestorEvaluated;
+    final canEvaluate = isLatest && !isEvaluated && isRequestorEvaluated;
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Column(
@@ -447,12 +458,13 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                 _buildPhotoPreview(report.photoAfter!),
                 const SizedBox(height: 32),
               ],
+              _buildRequestorEvaluationSection(report),
               const Divider(),
               const SizedBox(height: 32),
               Text('Evaluation Action', style: AdminStyles.headingStyle(fontSize: 18)),
               const SizedBox(height: 24),
               if (canEvaluate) ...[
-                Text('If the work is satisfactory, click "Work Completed". If issues remain, provide notes below and send for rework.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
+                Text('The requestor has evaluated this repair (${report.isRequestorSatisfied ? "SATISFY" : "NOT SATISFY"}). Please make the final administrative decision below.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
                 const SizedBox(height: 24),
                 _buildWebTextField(_reworkNotesController, 'Rework Instructions (Required only for rework)', 'Describe what is still missing or incorrect...', maxLines: 3),
                 const SizedBox(height: 32),
@@ -498,6 +510,37 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                       ),
                     ],
                   ),
+              ] else if (!isEvaluated && !isRequestorEvaluated) ...[
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AdminStyles.border),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lock_outline_rounded, color: AdminStyles.textMuted, size: 28),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Decision Locked: Awaiting Requestor Review',
+                              style: AdminStyles.headingStyle(fontSize: 15, color: AdminStyles.textPrimary),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'The buttons [ WORK COMPLETED ] and [ SEND FOR REWORK ] will become available once the original requestor submits their Satisfy / Not Satisfy evaluation.',
+                              style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ] else ...[
                 Container(
                   padding: const EdgeInsets.all(24),
@@ -529,6 +572,146 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                 ),
               ],
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRequestorEvaluationSection(PostRepairReport report) {
+    final isEvaluated = report.isRequestorEvaluated;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 16),
+        const Divider(),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            const Icon(Icons.rate_review_rounded, size: 20, color: AdminStyles.primary),
+            const SizedBox(width: 10),
+            Text('Requestor Evaluation', style: AdminStyles.headingStyle(fontSize: 18)),
+            const Spacer(),
+            if (isEvaluated)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: report.isRequestorSatisfied
+                      ? AdminStyles.success.withValues(alpha: 0.12)
+                      : AdminStyles.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: report.isRequestorSatisfied
+                        ? AdminStyles.success.withValues(alpha: 0.3)
+                        : AdminStyles.warning.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      report.isRequestorSatisfied
+                          ? Icons.thumb_up_alt_rounded
+                          : Icons.thumb_down_alt_rounded,
+                      size: 14,
+                      color: report.isRequestorSatisfied
+                          ? AdminStyles.success
+                          : const Color(0xFFB45309),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      report.isRequestorSatisfied ? 'SATISFY' : 'NOT SATISFY',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: report.isRequestorSatisfied
+                            ? AdminStyles.success
+                            : const Color(0xFFB45309),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        if (!isEvaluated)
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AdminStyles.warning.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AdminStyles.warning.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.hourglass_top_rounded, color: AdminStyles.warning, size: 28),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Awaiting Requestor Evaluation',
+                        style: AdminStyles.headingStyle(fontSize: 15, color: const Color(0xFFB45309)),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'The original requestor (${widget.request.requestorName.isNotEmpty ? widget.request.requestorName : "Requestor"}) has not evaluated this repair yet. Campus Admin final decision is locked until the Requestor submits their review.',
+                        style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AdminStyles.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildSummaryLine('Decision', report.isRequestorSatisfied ? 'SATISFY (Satisfied with repair)' : 'NOT SATISFY (Unsatisfied with repair)'),
+                const SizedBox(height: 12),
+                _buildSummaryLine('Rating', report.requestorRating != null ? '${report.requestorRating} / 5 Stars' : 'Not rated'),
+                const SizedBox(height: 12),
+                _buildSummaryLine('Comment', report.requestorComment?.isNotEmpty == true ? report.requestorComment! : 'No comment provided'),
+                const SizedBox(height: 12),
+                _buildSummaryLine('Evaluated By', widget.request.requestorName.isNotEmpty ? widget.request.requestorName : 'Original Requestor'),
+                if (report.requestorEvaluatedDate != null) ...[
+                  const SizedBox(height: 12),
+                  _buildSummaryLine('Evaluated Date', DateFormat('MMM dd, yyyy • hh:mm a').format(report.requestorEvaluatedDate!)),
+                ],
+              ],
+            ),
+          ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildSummaryLine(String label, String value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 140,
+          child: Text(
+            label,
+            style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textMuted),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AdminStyles.textPrimary),
           ),
         ),
       ],

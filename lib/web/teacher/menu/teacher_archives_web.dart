@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -20,27 +21,35 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
   List<WorkRequest> _archivedRequests = [];
   bool _isLoading = true;
   String _selectedFilter = 'All';
+  StreamSubscription<void>? _streamSub;
 
   @override
   void initState() {
     super.initState();
     _loadArchives();
+    _streamSub = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      if (mounted) _loadArchives(silent: true);
+    });
   }
 
   @override
   void dispose() {
+    _streamSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadArchives() async {
+  Future<void> _loadArchives({bool silent = false}) async {
     try {
       final user = context.read<AuthService>().currentUser;
       if (user == null) return;
-      final data = await WorkRequestService.fetchByRequestor(user.id);
+      if (!silent && mounted && _archivedRequests.isEmpty) {
+        setState(() => _isLoading = true);
+      }
+      final data = await WorkRequestService.fetchHistoryForUser(user.id);
       if (mounted) {
         setState(() {
-          _archivedRequests = data.where((r) => ['completed', 'cancelled', 'declined'].contains(r.status.toLowerCase())).toList();
+          _archivedRequests = data;
           _isLoading = false;
         });
       }
@@ -51,11 +60,31 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
 
   List<WorkRequest> get _filteredArchives {
     return _archivedRequests.where((r) {
-      final matchesFilter = _selectedFilter == 'All' ||
-          (r.status.toLowerCase() == _selectedFilter.toLowerCase()) ||
-          (_selectedFilter == 'Declined' && (r.status.toLowerCase() == 'cancelled' || r.status.toLowerCase() == 'declined'));
-      final query = _searchController.text.toLowerCase();
-      final matchesSearch = r.title.toLowerCase().contains(query) || (r.roomName?.toLowerCase().contains(query) ?? false) || r.id.toLowerCase().contains(query);
+      final s = r.status.toLowerCase();
+      final dhs = r.deptHeadStatus.toLowerCase();
+
+      bool matchesFilter = false;
+      if (_selectedFilter == 'All') {
+        matchesFilter = true;
+      } else if (_selectedFilter == 'Approved') {
+        matchesFilter = dhs == 'approved' || s.contains('approved');
+      } else if (_selectedFilter == 'Acknowledged') {
+        matchesFilter = dhs == 'acknowledged' || s == 'acknowledged' || r.isAcknowledged;
+      } else if (_selectedFilter == 'Completed') {
+        matchesFilter = s == 'completed';
+      } else if (_selectedFilter == 'Declined') {
+        matchesFilter = s == 'cancelled' || s == 'declined' || dhs == 'declined';
+      }
+
+      final query = _searchController.text.toLowerCase().trim();
+      if (query.isEmpty) return matchesFilter;
+
+      final matchesSearch = r.title.toLowerCase().contains(query) ||
+          (r.roomName?.toLowerCase().contains(query) ?? false) ||
+          r.id.toLowerCase().contains(query) ||
+          r.formattedId.toLowerCase().contains(query) ||
+          r.requestorName.toLowerCase().contains(query);
+
       return matchesFilter && matchesSearch;
     }).toList();
   }
@@ -93,7 +122,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
           Text('History', style: AdminStyles.headingStyle(fontSize: isNarrow ? 24 : 32)),
           const SizedBox(height: 8),
           Text(
-            'Review your historical work requests and declined requests.',
+            'Review your historical work requests, evaluations, approvals, and acknowledged requests.',
             style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: isNarrow ? 14 : 16),
           ),
           SizedBox(height: isNarrow ? 20 : 32),
@@ -118,9 +147,13 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                   child: Row(
                     children: [
                       _buildFilterChip('All'),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Approved'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Acknowledged'),
+                      const SizedBox(width: 8),
                       _buildFilterChip('Completed'),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       _buildFilterChip('Declined'),
                     ],
                   ),
@@ -142,9 +175,13 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                 ),
                 const SizedBox(width: 24),
                 _buildFilterChip('All'),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
+                _buildFilterChip('Approved'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Acknowledged'),
+                const SizedBox(width: 8),
                 _buildFilterChip('Completed'),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 _buildFilterChip('Declined'),
               ],
             ),
@@ -206,10 +243,13 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
   }
 
   Widget _buildArchiveItem(WorkRequest request) {
+    final user = context.read<AuthService>().currentUser;
+    final currentUserId = user?.id;
     final width = MediaQuery.of(context).size.width;
     final isNarrow = width < 650;
-    final isCompleted = request.status.toLowerCase() == 'completed';
-    final color = isCompleted ? AdminStyles.success : AdminStyles.error;
+    final color = _getItemColor(request);
+    final icon = _getItemIcon(request);
+    final isHeadEvaluated = currentUserId != null && request.deptHeadId == currentUserId;
 
     if (isNarrow) {
       return GestureDetector(
@@ -225,22 +265,43 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AdminStyles.primary.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      request.id.length > 8 ? '#${request.id.substring(0, 8)}' : '#${request.id}',
-                      style: AdminStyles.bodyStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AdminStyles.primary,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AdminStyles.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          request.formattedId.isNotEmpty
+                              ? '#${request.formattedId}'
+                              : (request.id.length > 8 ? '#${request.id.substring(0, 8)}' : '#${request.id}'),
+                          style: AdminStyles.bodyStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AdminStyles.primary,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (isHeadEvaluated) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'DEPT HEAD EVAL',
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: Color(0xFF0F766E)),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  _buildStatusPill(request.status),
+                  _buildStatusPill(request, currentUserId),
                 ],
               ),
               const SizedBox(height: 12),
@@ -255,7 +316,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      isCompleted ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                      icon,
                       color: color,
                       size: 20,
                     ),
@@ -272,24 +333,43 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 6),
-                        Row(
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 4,
                           children: [
-                            Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textSecondary),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                request.roomName ?? 'N/A',
-                                style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.location_on_outlined, size: 14, color: AdminStyles.textSecondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  request.roomName ?? 'N/A',
+                                  style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Icon(Icons.calendar_today_outlined, size: 13, color: AdminStyles.textSecondary),
-                            const SizedBox(width: 4),
-                            Text(
-                              DateFormat('MMM dd, yyyy').format(request.dateSubmitted),
-                              style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                            if (request.requestorName.isNotEmpty && isHeadEvaluated)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.person_outline_rounded, size: 14, color: AdminStyles.textSecondary),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    request.requestorName,
+                                    style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                                  ),
+                                ],
+                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.calendar_today_outlined, size: 13, color: AdminStyles.textSecondary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  DateFormat('MMM dd, yyyy').format(request.deptHeadApprovedDate ?? request.dateSubmitted),
+                                  style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textSecondary),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -366,13 +446,41 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                child: Icon(isCompleted ? Icons.check_circle_rounded : Icons.cancel_rounded, color: color, size: 28),
+                child: Icon(icon, color: color, size: 28),
               ),
               const SizedBox(width: 24),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      children: [
+                        Text(
+                          request.formattedId.isNotEmpty ? '#${request.formattedId}' : '',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AdminStyles.primary,
+                          ),
+                        ),
+                        if (isHeadEvaluated) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.2)),
+                            ),
+                            child: const Text(
+                              'EVALUATED AS DEPT HEAD',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF0F766E)),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Text(
                       request.title,
                       style: AdminStyles.headingStyle(fontSize: 16),
@@ -401,13 +509,25 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                             ),
                           ],
                         ),
+                        if (request.requestorName.isNotEmpty && isHeadEvaluated)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.person_outline_rounded, size: 14, color: AdminStyles.textSecondary),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Requestor: ${request.requestorName}',
+                                style: AdminStyles.bodyStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.calendar_today_outlined, size: 14, color: AdminStyles.textSecondary),
                             const SizedBox(width: 4),
                             Text(
-                              DateFormat('MMM dd, yyyy').format(request.dateSubmitted),
+                              DateFormat('MMM dd, yyyy').format(request.deptHeadApprovedDate ?? request.dateSubmitted),
                               style: AdminStyles.bodyStyle(fontSize: 12),
                             ),
                           ],
@@ -418,7 +538,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                 ),
               ),
               const SizedBox(width: 12),
-              _buildStatusPill(request.status),
+              _buildStatusPill(request, currentUserId),
               const SizedBox(width: 12),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -505,10 +625,67 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
     );
   }
 
-  Widget _buildStatusPill(String status) {
-    final isCompleted = status.toLowerCase() == 'completed';
-    final color = isCompleted ? AdminStyles.success : AdminStyles.error;
-    final displayStatus = (status.toLowerCase() == 'cancelled' || status.toLowerCase() == 'declined') ? 'DECLINED' : status.toUpperCase();
+  Color _getItemColor(WorkRequest request) {
+    final s = request.status.toLowerCase();
+    final dhs = request.deptHeadStatus.toLowerCase();
+    if (dhs == 'acknowledged' || s == 'acknowledged' || request.isAcknowledged) {
+      return const Color(0xFF0F766E);
+    }
+    if (s == 'completed') {
+      return AdminStyles.success;
+    }
+    if (dhs == 'approved') {
+      return const Color(0xFF0284C7);
+    }
+    if (s == 'declined' || s == 'cancelled' || dhs == 'declined') {
+      return AdminStyles.error;
+    }
+    return AdminStyles.primary;
+  }
+
+  IconData _getItemIcon(WorkRequest request) {
+    final s = request.status.toLowerCase();
+    final dhs = request.deptHeadStatus.toLowerCase();
+    if (dhs == 'acknowledged' || s == 'acknowledged' || request.isAcknowledged) {
+      return Icons.handshake_rounded;
+    }
+    if (s == 'completed') {
+      return Icons.check_circle_rounded;
+    }
+    if (dhs == 'approved') {
+      return Icons.approval_rounded;
+    }
+    if (s == 'declined' || s == 'cancelled' || dhs == 'declined') {
+      return Icons.cancel_rounded;
+    }
+    return Icons.history_rounded;
+  }
+
+  Widget _buildStatusPill(WorkRequest request, String? currentUserId) {
+    final s = request.status.toLowerCase();
+    final dhs = request.deptHeadStatus.toLowerCase();
+    final isHeadEvaluated = currentUserId != null && request.deptHeadId == currentUserId;
+
+    Color color;
+    String displayStatus;
+
+    if (dhs == 'acknowledged' || s == 'acknowledged' || request.isAcknowledged) {
+      color = const Color(0xFF0F766E);
+      displayStatus = isHeadEvaluated ? 'ACKNOWLEDGED BY YOU' : 'ACKNOWLEDGED';
+    } else if (s == 'completed') {
+      color = AdminStyles.success;
+      displayStatus = 'COMPLETED';
+    } else if (dhs == 'approved') {
+      color = const Color(0xFF0284C7);
+      displayStatus = isHeadEvaluated ? 'APPROVED BY YOU' : 'HEAD APPROVED';
+    } else if (s == 'declined' || s == 'cancelled' || dhs == 'declined') {
+      color = AdminStyles.error;
+      displayStatus = 'DECLINED';
+    } else {
+      color = AdminStyles.primary;
+      displayStatus = request.status.toUpperCase();
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: AdminStyles.pillDecoration(color: color, isSecondary: true),

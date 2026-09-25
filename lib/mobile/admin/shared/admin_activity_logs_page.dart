@@ -242,15 +242,6 @@ class _AdminLogsPageState extends State<AdminLogsPage> {
                       color: Color(0xFF475569),
                     ),
                   ),
-                if (log.workRequestId != null && log.workRequestId!.trim().isNotEmpty)
-                  Text(
-                    'Request: ${log.workRequestId}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF475569),
-                    ),
-                  ),
               ],
             ),
           ),

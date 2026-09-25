@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/room_model.dart';
 import '../../../shared/services/room_service.dart';
+import '../../../shared/widgets/app_date_range_dialog.dart';
 import 'dart:math' as math;
 import '../shared/admin_styles.dart';
 
@@ -18,6 +20,8 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
   List<Room> _rooms = [];
   bool _isLoading = true;
   String _selectedPeriod = 'This Month';
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
 
   // Professional color palette mapping
   static const Color _primaryBlue = AdminStyles.primary;
@@ -34,12 +38,21 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _customStartDate = now.subtract(const Duration(days: 7));
+    _customEndDate = now;
     _loadData();
   }
 
   Future<void> _loadData() async {
     try {
-      final requests = await WorkRequestService.fetchAll();
+      final rawRequests = await WorkRequestService.fetchAll();
+      final requests = rawRequests
+          .where((r) =>
+              !r.isPendingDeptHead &&
+              !r.isAcknowledged &&
+              !r.status.toLowerCase().contains('acknowledged'))
+          .toList();
       final rooms = await RoomService.fetchAll();
       if (mounted) {
         setState(() {
@@ -55,14 +68,27 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
     }
   }
 
-  int get _totalRequests => _requests.length;
+  List<WorkRequest> get _periodRequests {
+    final now = DateTime.now();
+    final start = _periodStart(now);
+    final end = _currentPeriodEnd(now);
+    return _requests.where((r) {
+      final s = r.dateSubmitted;
+      return !s.isBefore(start) && !s.isAfter(end);
+    }).toList();
+  }
+
+  int get _totalRequests => _periodRequests.length;
   int get _completedRequests =>
-      _requests.where((r) => r.status.toLowerCase() == 'completed').length;
-  int get _pendingRequests => _requests.where((r) {
-        final s = r.status.toLowerCase();
-        return s == 'pending' || s == 'pending assignment';
+      _periodRequests.where((r) => r.status.toLowerCase() == 'completed').length;
+  int get _pendingRequests => _periodRequests.where((r) {
+        final s = r.status.toLowerCase().trim();
+        return s == 'pending' ||
+            s == 'pending campus admin' ||
+            s == 'pending assignment' ||
+            s == 'pending review';
       }).length;
-  int get _inProgressRequests => _requests.where((r) {
+  int get _inProgressRequests => _periodRequests.where((r) {
         final s = r.status.toLowerCase();
         return s == 'in progress' ||
             s == 'in_progress' ||
@@ -70,7 +96,7 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
             s == 'accepted by maintenance' ||
             s == 'pre-inspection submitted';
       }).length;
-  int get _confirmedRequests => _requests.where((r) {
+  int get _confirmedRequests => _periodRequests.where((r) {
         final s = r.status.toLowerCase();
         return s == 'confirmed' ||
             s == 'pre-inspection approved' ||
@@ -78,24 +104,20 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
             s == 'in progress (post-repair)' ||
             s == 'under_maintenance';
       }).length;
-  int get _reworkRequests => _requests.where((r) {
+  int get _reworkRequests => _periodRequests.where((r) {
         final s = r.status.toLowerCase();
         return s == 'rework' ||
             s == 'for rework' ||
             s == 'rework needed' ||
             s == 'under evaluation';
       }).length;
-  int get _declinedRequests => _requests.where((r) {
+  int get _declinedRequests => _periodRequests.where((r) {
         final s = r.status.toLowerCase();
         return s == 'declined' ||
             s == 'cancelled' ||
             s == 'declined/cancelled' ||
             s == 'pre-inspection declined';
       }).length;
-  int get _highPriority =>
-      _requests.where((r) => r.priority.toLowerCase() == 'high').length;
-  double get _completionRate =>
-      _totalRequests > 0 ? (_completedRequests / _totalRequests * 100) : 0;
 
   DateTime _periodStart(DateTime now) {
     switch (_selectedPeriod) {
@@ -106,6 +128,11 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
             .subtract(Duration(days: now.weekday - 1));
       case 'This Year':
         return DateTime(now.year, 1, 1);
+      case 'Custom Range':
+        if (_customStartDate != null) {
+          return DateTime(_customStartDate!.year, _customStartDate!.month, _customStartDate!.day);
+        }
+        return DateTime(now.year, now.month, 1);
       case 'This Month':
       default:
         return DateTime(now.year, now.month, 1);
@@ -114,17 +141,9 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
 
   DateTime _previousPeriodStart(DateTime now) {
     final start = _periodStart(now);
-    switch (_selectedPeriod) {
-      case 'Today':
-        return start.subtract(const Duration(days: 1));
-      case 'This Week':
-        return start.subtract(const Duration(days: 7));
-      case 'This Year':
-        return DateTime(start.year - 1, 1, 1);
-      case 'This Month':
-      default:
-        return DateTime(start.year, start.month - 1, 1);
-    }
+    final end = _currentPeriodEnd(now);
+    final duration = end.difference(start);
+    return start.subtract(duration).subtract(const Duration(seconds: 1));
   }
 
   DateTime _previousPeriodEnd(DateTime now) {
@@ -141,6 +160,12 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
             .subtract(const Duration(milliseconds: 1));
       case 'This Year':
         return DateTime(now.year + 1, 1, 1)
+            .subtract(const Duration(milliseconds: 1));
+      case 'Custom Range':
+        if (_customEndDate != null) {
+          return DateTime(_customEndDate!.year, _customEndDate!.month, _customEndDate!.day, 23, 59, 59, 999);
+        }
+        return DateTime(now.year, now.month + 1, 1)
             .subtract(const Duration(milliseconds: 1));
       case 'This Month':
       default:
@@ -169,18 +194,74 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
 
   List<double> _buildDailySubmissionSeries() {
     final now = DateTime.now();
-    final days = List<DateTime>.generate(7, (index) {
-      final day = now.subtract(Duration(days: 6 - index));
-      return DateTime(day.year, day.month, day.day);
-    });
+    final start = _periodStart(now);
+    final end = _currentPeriodEnd(now);
+    final diffDays = end.difference(start).inDays;
 
-    return days.map((day) {
-      final nextDay = day.add(const Duration(days: 1));
-      return _requests.where((request) {
-        return !request.dateSubmitted.isBefore(day) &&
-            request.dateSubmitted.isBefore(nextDay);
-      }).length.toDouble();
-    }).toList();
+    if (diffDays <= 7) {
+      final count = math.max(1, diffDays + 1);
+      final days = List<DateTime>.generate(count, (index) {
+        return DateTime(start.year, start.month, start.day + index);
+      });
+
+      return days.map((day) {
+        final nextDay = day.add(const Duration(days: 1));
+        return _requests.where((request) {
+          return !request.dateSubmitted.isBefore(day) &&
+              request.dateSubmitted.isBefore(nextDay);
+        }).length.toDouble();
+      }).toList();
+    } else {
+      const pointsCount = 7;
+      final totalMs = end.difference(start).inMilliseconds;
+      final stepMs = totalMs / (pointsCount - 1);
+
+      return List.generate(pointsCount, (i) {
+        final bucketStart = start.add(Duration(milliseconds: (stepMs * i).round()));
+        final bucketEnd = i == pointsCount - 1
+            ? end
+            : start.add(Duration(milliseconds: (stepMs * (i + 1)).round()));
+
+        return _requests.where((request) {
+          final s = request.dateSubmitted;
+          if (i == pointsCount - 1) {
+            return !s.isBefore(bucketStart) && !s.isAfter(bucketEnd);
+          }
+          return !s.isBefore(bucketStart) && s.isBefore(bucketEnd);
+        }).length.toDouble();
+      });
+    }
+  }
+
+  List<String> _buildDailySubmissionLabels() {
+    final now = DateTime.now();
+    final start = _periodStart(now);
+    final end = _currentPeriodEnd(now);
+    final diffDays = end.difference(start).inDays;
+
+    if (diffDays <= 7) {
+      final count = math.max(1, diffDays + 1);
+      final days = List<DateTime>.generate(count, (index) {
+        return DateTime(start.year, start.month, start.day + index);
+      });
+      return days.map((day) => DateFormat('E').format(day)).toList();
+    } else if (diffDays <= 60) {
+      const pointsCount = 7;
+      final totalMs = end.difference(start).inMilliseconds;
+      final stepMs = totalMs / (pointsCount - 1);
+      return List.generate(pointsCount, (i) {
+        final date = start.add(Duration(milliseconds: (stepMs * i).round()));
+        return DateFormat('MMM d').format(date);
+      });
+    } else {
+      const pointsCount = 7;
+      final totalMs = end.difference(start).inMilliseconds;
+      final stepMs = totalMs / (pointsCount - 1);
+      return List.generate(pointsCount, (i) {
+        final date = start.add(Duration(milliseconds: (stepMs * i).round()));
+        return DateFormat('MMM yy').format(date);
+      });
+    }
   }
 
   @override
@@ -321,34 +402,256 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
   }
 
   Widget _buildPeriodSelector() {
+    final periods = ['Today', 'This Week', 'This Month', 'This Year'];
+    final isCustom = _selectedPeriod == 'Custom Range';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AdminStyles.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              ...periods.map((p) {
+                final isSelected = _selectedPeriod == p;
+                return InkWell(
+                  onTap: () => setState(() => _selectedPeriod = p),
+                  borderRadius: BorderRadius.circular(8),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? _primaryBlue : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: _primaryBlue.withValues(alpha: 0.25),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Text(
+                      p,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                        color: isSelected ? Colors.white : _darkText,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              InkWell(
+                onTap: () async {
+                  await _pickCustomDateRange(context);
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isCustom ? _primaryBlue : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: isCustom
+                        ? [
+                            BoxShadow(
+                              color: _primaryBlue.withValues(alpha: 0.25),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.date_range_rounded,
+                        size: 15,
+                        color: isCustom ? Colors.white : _subtleText,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Custom Range',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isCustom ? FontWeight.w700 : FontWeight.w600,
+                          color: isCustom ? Colors.white : _darkText,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isCustom) ...[
+          const SizedBox(height: 8),
+          _buildCustomDateRangeBar(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCustomDateRangeBar() {
+    final startStr = _customStartDate != null
+        ? DateFormat('MMM dd, yyyy').format(_customStartDate!)
+        : 'Select';
+    final endStr = _customEndDate != null
+        ? DateFormat('MMM dd, yyyy').format(_customEndDate!)
+        : 'Select';
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AdminStyles.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          InkWell(
+            onTap: () => _pickFromDate(context),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF94A3B8)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'From: ',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                  ),
+                  Text(
+                    startStr,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _primaryBlue),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.calendar_today_rounded, size: 13, color: _primaryBlue),
+                ],
+              ),
+            ),
+          ),
+          const Text(
+            '–',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+          ),
+          InkWell(
+            onTap: () => _pickToDate(context),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF94A3B8)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'To: ',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                  ),
+                  Text(
+                    endStr,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _primaryBlue),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.calendar_today_rounded, size: 13, color: _primaryBlue),
+                ],
+              ),
+            ),
           ),
         ],
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _selectedPeriod,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: _subtleText),
-          items: ['Today', 'This Week', 'This Month', 'This Year']
-              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-              .toList(),
-          onChanged: (value) {
-            if (value != null) setState(() => _selectedPeriod = value);
-          },
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _darkText),
-        ),
-      ),
     );
+  }
+
+  Future<void> _pickFromDate(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _customStartDate ?? now.subtract(const Duration(days: 7)),
+      firstDate: DateTime(2020),
+      lastDate: _customEndDate ?? DateTime(2035),
+      helpText: 'Select From Date',
+    );
+    if (picked != null) {
+      setState(() {
+        _customStartDate = picked;
+        if (_customEndDate != null && _customEndDate!.isBefore(picked)) {
+          _customEndDate = picked;
+        }
+        _selectedPeriod = 'Custom Range';
+      });
+    }
+  }
+
+  Future<void> _pickToDate(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _customEndDate ?? now,
+      firstDate: _customStartDate ?? DateTime(2020),
+      lastDate: DateTime(2035),
+      helpText: 'Select To Date',
+    );
+    if (picked != null) {
+      setState(() {
+        _customEndDate = picked;
+        if (_customStartDate != null && _customStartDate!.isAfter(picked)) {
+          _customStartDate = picked;
+        }
+        _selectedPeriod = 'Custom Range';
+      });
+    }
+  }
+
+  Future<void> _pickCustomDateRange(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showAppDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      initialStartDate: _customStartDate ?? now.subtract(const Duration(days: 7)),
+      initialEndDate: _customEndDate ?? now,
+    );
+    if (picked != null) {
+      setState(() {
+        _customStartDate = picked.start;
+        _customEndDate = picked.end;
+        _selectedPeriod = 'Custom Range';
+      });
+    }
   }
 
   Widget _buildStatsRow(bool isMobile) {
@@ -396,14 +699,14 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
       previousEnd,
       (request) => request.status.toLowerCase() == 'completed',
     );
-    final currentCompletionRate = currentTotal == 0 ? 0 : (currentCompleted / currentTotal) * 100;
-    final previousCompletionRate = previousTotal == 0 ? 0 : (previousCompleted / previousTotal) * 100;
+    final currentCompletionRate = currentTotal == 0 ? 0.0 : (currentCompleted / currentTotal) * 100;
+    final previousCompletionRate = previousTotal == 0 ? 0.0 : (previousCompleted / previousTotal) * 100;
     final completionRateTrend = currentCompletionRate - previousCompletionRate;
 
     final cards = [
       _StatCard(
         title: 'Total Requests',
-        value: '$_totalRequests',
+        value: '$currentTotal',
         icon: Icons.description_rounded,
         iconColor: _primaryBlue,
         trend: '${totalTrend >= 0 ? '+' : ''}${totalTrend.toStringAsFixed(1)}%',
@@ -411,7 +714,7 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
       ),
       _StatCard(
         title: 'Completion Rate',
-        value: '${_completionRate.toStringAsFixed(1)}%',
+        value: '${currentCompletionRate.toStringAsFixed(1)}%',
         icon: Icons.check_circle_rounded,
         iconColor: _successGreen,
         trend: '${completionRateTrend >= 0 ? '+' : ''}${completionRateTrend.toStringAsFixed(1)}%',
@@ -419,7 +722,7 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
       ),
       _StatCard(
         title: 'Pending',
-        value: '$_pendingRequests',
+        value: '$currentPending',
         icon: Icons.hourglass_empty_rounded,
         iconColor: _warningYellow,
         trend: '${pendingTrend >= 0 ? '+' : ''}${pendingTrend.toStringAsFixed(1)}%',
@@ -427,7 +730,7 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
       ),
       _StatCard(
         title: 'High Priority',
-        value: '$_highPriority',
+        value: '$currentHighPriority',
         icon: Icons.priority_high_rounded,
         iconColor: _dangerRed,
         trend: '${highPriorityTrend >= 0 ? '+' : ''}${highPriorityTrend.toStringAsFixed(1)}%',
@@ -448,6 +751,7 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
 
   Widget _buildPerformanceCard() {
     final chartData = _buildDailySubmissionSeries();
+    final labels = _buildDailySubmissionLabels();
 
     return _Card(
       title: 'Performance Overview',
@@ -458,6 +762,7 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
           size: const Size(double.infinity, 200),
           painter: _LineChartPainter(
             data: chartData,
+            labels: labels,
             color: _primaryBlue,
           ),
         ),
@@ -562,9 +867,10 @@ class _AnalyticsPageWebState extends State<AnalyticsPageWeb> {
   }
 
   Widget _buildPriorityCard() {
-    final high = _requests.where((r) => r.priority.toLowerCase() == 'high').length;
-    final medium = _requests.where((r) => r.priority.toLowerCase() == 'medium').length;
-    final low = _requests.where((r) => r.priority.toLowerCase() == 'low').length;
+    final reqs = _periodRequests;
+    final high = reqs.where((r) => r.priority.toLowerCase() == 'high').length;
+    final medium = reqs.where((r) => r.priority.toLowerCase() == 'medium').length;
+    final low = reqs.where((r) => r.priority.toLowerCase() == 'low').length;
     final total = high + medium + low;
 
     return _Card(
@@ -874,13 +1180,24 @@ class _RoomStatRow extends StatelessWidget {
 
 class _LineChartPainter extends CustomPainter {
   final List<double> data;
+  final List<String> labels;
   final Color color;
 
-  _LineChartPainter({required this.data, required this.color});
+  _LineChartPainter({
+    required this.data,
+    required this.color,
+    this.labels = const [],
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (data.isEmpty) return;
+
+    final bottomPadding = labels.isNotEmpty ? 26.0 : 0.0;
+    final topPadding = 12.0;
+    final horizontalPadding = 16.0;
+    final chartHeight = size.height - bottomPadding - topPadding;
+    final usableWidth = size.width - (horizontalPadding * 2);
 
     final paint = Paint()
       ..color = color
@@ -893,23 +1210,23 @@ class _LineChartPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [color.withValues(alpha: 0.3), color.withValues(alpha: 0.0)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+      ).createShader(Rect.fromLTWH(0, 0, size.width, topPadding + chartHeight));
 
     final maxVal = data.reduce(math.max);
     final minVal = data.reduce(math.min);
     final range = maxVal - minVal;
     final normalizedRange = range == 0 ? 1.0 : range;
-    final stepX = size.width / (data.length - 1);
+    final stepX = data.length > 1 ? usableWidth / (data.length - 1) : 0.0;
 
     final path = Path();
     final fillPath = Path();
 
     for (int i = 0; i < data.length; i++) {
-      final x = i * stepX;
-      final y = size.height - ((data[i] - minVal) / normalizedRange * size.height * 0.8 + size.height * 0.1);
+      final x = horizontalPadding + i * stepX;
+      final y = topPadding + chartHeight - ((data[i] - minVal) / normalizedRange * chartHeight * 0.8 + chartHeight * 0.1);
       if (i == 0) {
         path.moveTo(x, y);
-        fillPath.moveTo(x, size.height);
+        fillPath.moveTo(x, topPadding + chartHeight);
         fillPath.lineTo(x, y);
       } else {
         path.lineTo(x, y);
@@ -917,7 +1234,7 @@ class _LineChartPainter extends CustomPainter {
       }
     }
 
-    fillPath.lineTo(size.width, size.height);
+    fillPath.lineTo(horizontalPadding + (data.length - 1) * stepX, topPadding + chartHeight);
     fillPath.close();
 
     canvas.drawPath(fillPath, fillPaint);
@@ -926,10 +1243,35 @@ class _LineChartPainter extends CustomPainter {
     // Draw dots
     final dotPaint = Paint()..color = color;
     for (int i = 0; i < data.length; i++) {
-      final x = i * stepX;
-      final y = size.height - ((data[i] - minVal) / normalizedRange * size.height * 0.8 + size.height * 0.1);
+      final x = horizontalPadding + i * stepX;
+      final y = topPadding + chartHeight - ((data[i] - minVal) / normalizedRange * chartHeight * 0.8 + chartHeight * 0.1);
       canvas.drawCircle(Offset(x, y), 4, dotPaint);
       canvas.drawCircle(Offset(x, y), 2, Paint()..color = Colors.white);
+    }
+
+    // Draw day labels beneath dots
+    if (labels.length == data.length) {
+      for (int i = 0; i < labels.length; i++) {
+        final x = horizontalPadding + i * stepX;
+        final tp = TextPainter(
+          text: TextSpan(
+            text: labels[i],
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.ltr,
+        )..layout();
+
+        double labelX = x - (tp.width / 2);
+        if (labelX < 0) labelX = 0;
+        if (labelX + tp.width > size.width) labelX = size.width - tp.width;
+
+        tp.paint(canvas, Offset(labelX, size.height - 18));
+      }
     }
   }
 

@@ -52,6 +52,10 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
         statusColor = const Color(0xFF6B7280);
         statusBgColor = const Color(0xFFF3F4F6);
         break;
+      case 'Pending Campus Admin':
+        statusColor = const Color(0xFFD97706);
+        statusBgColor = const Color(0xFFFEF3C7);
+        break;
       case 'In Progress':
         statusColor = const Color(0xFF2563EB);
         statusBgColor = const Color(0xFFDBEAFE);

@@ -116,7 +116,7 @@ class _MyAppState extends State<MyApp> {
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {
           return MaterialApp.router(
-            title: 'PSU E-ayos',
+            title: 'PSU E-Ayos',
             debugShowCheckedModeBanner: false,
             scrollBehavior: const AppScrollBehavior(),
             theme: themeProvider.themeData,

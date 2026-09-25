@@ -203,6 +203,7 @@ class BuildingService {
     required String name,
     String code = '',
     List<String>? departmentIds,
+    String? departmentId,
     int numberOfFloors = 1,
   }) async {
     try {
@@ -222,8 +223,9 @@ class BuildingService {
       }).select('id').single();
 
       final bldgId = inserted['id']?.toString() ?? '';
-      if (bldgId.isNotEmpty && departmentIds != null && departmentIds.isNotEmpty) {
-        await updateBuildingDepartments(bldgId, departmentIds);
+      final resolvedDeptIds = departmentIds ?? (departmentId != null && departmentId.isNotEmpty ? [departmentId] : null);
+      if (bldgId.isNotEmpty && resolvedDeptIds != null && resolvedDeptIds.isNotEmpty) {
+        await updateBuildingDepartments(bldgId, resolvedDeptIds);
       }
 
       await AdminAuditLogService.logAction(

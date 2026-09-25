@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import '../utils/signature_image_helper.dart';
 
 /// A reusable signature pad widget that captures hand-drawn signatures
@@ -483,9 +484,18 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(7),
-            child: Listener(
+            child: RawGestureDetector(
+              gestures: <Type, GestureRecognizerFactory>{
+                EagerGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+                  () => EagerGestureRecognizer(),
+                  (EagerGestureRecognizer instance) {},
+                ),
+              },
               behavior: HitTestBehavior.opaque,
-              onPointerDown: (event) {
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (event) {
                 if (_isConfirmed) return;
                 final clamped = _clamp(
                   event.localPosition,
@@ -531,7 +541,8 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
               ),
             ),
           ),
-        );
+        ),
+      );
       },
     );
   }

@@ -30,6 +30,8 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
   Timer? _refreshTimer;
   NotificationTypeFilter _selectedType = NotificationTypeFilter.all;
   NotificationDateFilter _selectedDate = NotificationDateFilter.all;
+  DateTime? _customStartDate;
+  DateTime? _customEndDate;
 
   static const Color _primaryTeal = Color(0xFF00BFA5);
   static const Color _darkText = Color(0xFF0F172A);
@@ -220,6 +222,8 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
       _notifications,
       typeFilter: _selectedType,
       dateFilter: _selectedDate,
+      customStartDate: _customStartDate,
+      customEndDate: _customEndDate,
     );
   }
 
@@ -246,6 +250,15 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
               onTypeChanged: (type) => setState(() => _selectedType = type),
               selectedDate: _selectedDate,
               onDateChanged: (date) => setState(() => _selectedDate = date),
+              customStartDate: _customStartDate,
+              customEndDate: _customEndDate,
+              onCustomRangeChanged: (start, end) {
+                setState(() {
+                  _customStartDate = start;
+                  _customEndDate = end;
+                  _selectedDate = NotificationDateFilter.custom;
+                });
+              },
               primaryColor: _primaryTeal,
               unreadCount: _unreadCount,
               onMarkAllAsRead: _markAllAsRead,

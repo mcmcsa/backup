@@ -49,7 +49,12 @@ class _AdminApprovalSignaturePageState
   @override
   void initState() {
     super.initState();
-    _isApproved = widget.request.status.toLowerCase() != 'pending';
+    final s = widget.request.status.toLowerCase().trim();
+    _isApproved = s != 'pending' &&
+        s != 'pending campus admin' &&
+        s != 'pending assignment' &&
+        s != 'pending dept head' &&
+        s != 'pending department head';
     if (_isApproved) {
       if (widget.request.priority.isNotEmpty) {
         _selectedPriority = widget.request.priority.toLowerCase();
@@ -1112,10 +1117,10 @@ class _AdminApprovalSignaturePageState
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: const Color(0xFF4169E1).withValues(alpha: 0.1),
+              color: const Color(0xFF0F766E).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.verified, size: 14, color: Color(0xFF4169E1)),
+            child: const Icon(Icons.verified, size: 14, color: Color(0xFF0F766E)),
           ),
           const SizedBox(width: 10),
           Expanded(

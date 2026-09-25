@@ -248,7 +248,7 @@ class MaintenanceWorkflowWeb extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Comprehensive 8-step operational flow for PSU E-ayos requests — from initial submission to post-repair verification and formal closure.',
+            'Comprehensive 8-step operational flow for PSU E-Ayos requests — from initial submission to post-repair verification and formal closure.',
             style: TextStyle(
               fontSize: isMobile ? 13 : 14,
               color: const Color(0xFF94A3B8),

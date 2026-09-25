@@ -56,6 +56,7 @@ class _AdminPostRepairEvaluationPageState
       final userIds = <String>{};
       for (final r in history) {
         if (r.adminEvaluatedBy != null && r.adminEvaluatedBy!.isNotEmpty) userIds.add(r.adminEvaluatedBy!);
+        if (r.requestorEvaluatedBy != null && r.requestorEvaluatedBy!.isNotEmpty) userIds.add(r.requestorEvaluatedBy!);
         if (r.technicianId.isNotEmpty) userIds.add(r.technicianId);
       }
       final missing = userIds.where((id) => !_userNames.containsKey(id)).toList();
@@ -79,6 +80,15 @@ class _AdminPostRepairEvaluationPageState
   void dispose() { _reworkNotesController.dispose(); super.dispose(); }
 
   void _openCompletionSignatureDialog(PostRepairReport report) {
+    if (!report.isRequestorEvaluated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Action Blocked: Requestor must evaluate the repair before Campus Admin can finalize.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     showDialog<String>(context: context, barrierDismissible: false, builder: (ctx) => Dialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), child: Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, children: [SignaturePadWidget(title: 'E-Signature Required', subtitle: 'Sign to confirm work completion approval', onSignatureComplete: (base64) { Navigator.pop(ctx, base64); }), TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancel', style: TextStyle(color: Color(0xFF6B7280))))]))))
         .then((signature) { if (signature != null && signature.isNotEmpty) { _markCompletedWithSignature(report, signature); } });
   }
@@ -87,6 +97,15 @@ class _AdminPostRepairEvaluationPageState
     final authService = Provider.of<AuthService>(context, listen: false);
     final user = authService.currentUser;
     if (user == null) return;
+    if (!report.isRequestorEvaluated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Action Blocked: Requestor must evaluate the repair first.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     setState(() => _isProcessing = true);
     try {
       await ESignatureService.insert(ESignature(id: '', workRequestId: widget.request.id, signerId: user.id, signerName: user.name, signerRole: 'campadmin', signatureType: 'completion', signatureData: signatureData, signedAt: DateTime.now()));
@@ -100,6 +119,15 @@ class _AdminPostRepairEvaluationPageState
   }
 
   Future<void> _markRework(PostRepairReport report) async {
+    if (!report.isRequestorEvaluated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Action Blocked: Requestor must evaluate the repair before sending for rework.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
     final notes = _reworkNotesController.text.trim();
     if (notes.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please provide rework notes'), backgroundColor: Colors.orange)); return; }
     final authService = Provider.of<AuthService>(context, listen: false);
@@ -110,9 +138,9 @@ class _AdminPostRepairEvaluationPageState
       await PostRepairService.markRework(report.id, user.id, notes);
       await WorkRequestService.setRework(widget.request.id, notes);
       await AppNotificationService.notifyPostRepairRework(workRequestId: widget.request.id, maintenanceId: widget.request.assignedToId ?? report.technicianId, adminName: user.name);
-      await LoginActivityService.recordAdminAction(user: user, title: 'Post-Repair Rework', details: 'Returned request to rework for ', workRequestId: widget.request.id);
+      await LoginActivityService.recordAdminAction(user: user, title: 'Post-Repair Rework', details: 'Returned request to rework for ${widget.request.officeRoom}', workRequestId: widget.request.id);
       if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Work request sent back for rework'), backgroundColor: Color(0xFFDC2626))); Navigator.pop(context, 'rework'); }
-    } catch (e) { if (mounted) { setState(() => _isProcessing = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: '), backgroundColor: Colors.red)); } }
+    } catch (e) { if (mounted) { setState(() => _isProcessing = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)); } }
   }
 
   @override
@@ -328,7 +356,8 @@ class _AdminPostRepairEvaluationPageState
     final isPendingEval = report.adminEvaluation == null ||
         report.status.toLowerCase() == 'pending' ||
         report.status.toLowerCase() == 'submitted';
-    final showActions = isLatestAttempt && isAdmin && isPendingEval;
+    final showActions = isLatestAttempt && isAdmin && isPendingEval && report.isRequestorEvaluated;
+    final isAwaitingRequestor = isLatestAttempt && isAdmin && isPendingEval && !report.isRequestorEvaluated;
     final adminSig = _signatures.firstWhere(
       (sig) => sig.signatureType == 'completion' && sig.signerId == report.adminEvaluatedBy,
       orElse: () => ESignature(
@@ -469,6 +498,32 @@ class _AdminPostRepairEvaluationPageState
           ],
           if (evidenceUrls.isNotEmpty) ...[
             _buildWorkEvidenceSection(evidenceUrls, themeProvider),
+            const SizedBox(height: 12),
+          ],
+          _buildRequestorEvaluationMobileSection(report, themeProvider),
+          const SizedBox(height: 12),
+          if (isAwaitingRequestor) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_clock_rounded, size: 20, color: Color(0xFF2563EB)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Action Locked: Campus Admin final decision ([Work Completed] / [Rework]) is enabled once Requestor submits evaluation.',
+                      style: TextStyle(fontSize: 12, color: themeProvider.textColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 12),
           ],
           if (showActions) ...[
@@ -874,6 +929,165 @@ class _AdminPostRepairEvaluationPageState
               },
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequestorEvaluationMobileSection(PostRepairReport report, ThemeProvider themeProvider) {
+    final hasEval = report.isRequestorEvaluated;
+    final isSatisfied = report.isRequestorSatisfied;
+    final evaluatorName = report.requestorEvaluatedBy != null
+        ? (_userNames[report.requestorEvaluatedBy] ?? (widget.request.requestorName.isNotEmpty ? widget.request.requestorName : 'Requestor'))
+        : (widget.request.requestorName.isNotEmpty ? widget.request.requestorName : 'Requestor');
+
+    if (!hasEval) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.amber.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.hourglass_top_rounded, color: Colors.amber, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'WAITING FOR REQUESTOR EVALUATION',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.amber,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'The original requestor (${widget.request.requestorName.isNotEmpty ? widget.request.requestorName : "Requestor"}) must review and evaluate this maintenance work before Campus Admin can finalize.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: themeProvider.subtitleColor,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isSatisfied
+            ? (themeProvider.isDarkMode ? Colors.green.shade900.withValues(alpha: 0.15) : Colors.green.shade50)
+            : (themeProvider.isDarkMode ? Colors.red.shade900.withValues(alpha: 0.15) : Colors.red.shade50),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isSatisfied ? Colors.green.withValues(alpha: 0.4) : Colors.red.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isSatisfied ? Icons.thumb_up_rounded : Icons.thumb_down_rounded,
+                size: 16,
+                color: isSatisfied ? const Color(0xFF059669) : const Color(0xFFDC2626),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'REQUESTOR EVALUATION',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: isSatisfied ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isSatisfied ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  report.requestorEvaluationLabel,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _buildInfoRow('Decision', report.requestorEvaluationLabel, themeProvider),
+          if (report.requestorRating != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 160,
+                    child: Text('Rating', style: TextStyle(fontSize: 12, color: themeProvider.subtitleColor)),
+                  ),
+                  Row(
+                    children: List.generate(
+                      5,
+                      (idx) => Icon(
+                        idx < report.requestorRating! ? Icons.star_rounded : Icons.star_border_rounded,
+                        size: 16,
+                        color: Colors.amber,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${report.requestorRating}/5',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: themeProvider.textColor),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (report.requestorComment != null && report.requestorComment!.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 160,
+                    child: Text('Comment', style: TextStyle(fontSize: 12, color: themeProvider.subtitleColor)),
+                  ),
+                  Expanded(
+                    child: Text(
+                      report.requestorComment!,
+                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: themeProvider.textColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          _buildInfoRow('Evaluated By', evaluatorName, themeProvider),
+          _buildInfoRow('Evaluated Date', _formatDate(report.requestorEvaluatedDate), themeProvider),
         ],
       ),
     );

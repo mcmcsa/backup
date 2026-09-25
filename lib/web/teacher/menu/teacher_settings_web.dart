@@ -104,10 +104,8 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
 
   void _showChangePasswordDialog() {
     final formKey = GlobalKey<FormState>();
-    final oldPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
-    bool obscureOld = true;
     bool obscureNew = true;
     bool obscureConfirm = true;
     bool isSaving = false;
@@ -128,9 +126,6 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
       }
       if (!RegExp(r'[^A-Za-z0-9]').hasMatch(password)) {
         return 'Password must include at least 1 special character';
-      }
-      if (password == oldPasswordController.text) {
-        return 'New password must be different from old password';
       }
       return null;
     }
@@ -179,26 +174,6 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
                           ),
                           const SizedBox(height: 12),
                         ],
-                        TextFormField(
-                          controller: oldPasswordController,
-                          obscureText: obscureOld,
-                          decoration: InputDecoration(
-                            labelText: 'Old Password',
-                            labelStyle: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 13),
-                            filled: true,
-                            fillColor: AdminStyles.bg,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.border)),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.border)),
-                            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AdminStyles.primary, width: 1.5)),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            suffixIcon: IconButton(
-                              icon: Icon(obscureOld ? Icons.visibility_off : Icons.visibility),
-                              onPressed: () => setDialogState(() => obscureOld = !obscureOld),
-                            ),
-                          ),
-                          validator: (value) => (value == null || value.isEmpty) ? 'Required' : null,
-                        ),
-                        const SizedBox(height: 16),
                         TextFormField(
                           controller: newPasswordController,
                           obscureText: obscureNew,
@@ -268,7 +243,6 @@ class _TeacherSettingsWebState extends State<TeacherSettingsWeb> {
 
                           final authService = context.read<AuthService>();
                           final error = await authService.changePassword(
-                            oldPassword: oldPasswordController.text,
                             newPassword: newPasswordController.text,
                           );
 

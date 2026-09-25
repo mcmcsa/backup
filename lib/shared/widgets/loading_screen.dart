@@ -79,7 +79,7 @@ class _LoadingScreenState extends State<LoadingScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // PSU E-ayos Logo - displayed immediately without fade
+              // PSU E-Ayos Logo - displayed immediately without fade
               SizedBox(
                 height: 220,
                 width: 220,
@@ -112,7 +112,7 @@ class _LoadingScreenState extends State<LoadingScreen>
                             ),
                           ),
                           TextSpan(
-                            text: 'E-ayos',
+                            text: 'E-Ayos',
                             style: TextStyle(
                               color: Color(0xFF4169E1),
                               fontSize: 35,

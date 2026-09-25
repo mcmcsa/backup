@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'app_date_range_dialog.dart';
 import '../models/app_notification_model.dart';
 
 enum NotificationTypeFilter {
@@ -11,7 +13,9 @@ enum NotificationDateFilter {
   all,
   today,
   thisWeek,
-  earlier,
+  thisMonth,
+  thisYear,
+  custom,
 }
 
 class NotificationFilterHelper {
@@ -48,10 +52,17 @@ class NotificationFilterHelper {
     }
   }
 
-  static bool matchesDate(DateTime dt, NotificationDateFilter filter) {
+  static bool matchesDate(
+    DateTime dt,
+    NotificationDateFilter filter, {
+    DateTime? customStartDate,
+    DateTime? customEndDate,
+  }) {
     final now = DateTime.now();
     final startOfToday = DateTime(now.year, now.month, now.day);
     final startOfWeek = startOfToday.subtract(Duration(days: now.weekday - 1));
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final startOfYear = DateTime(now.year, 1, 1);
 
     switch (filter) {
       case NotificationDateFilter.all:
@@ -60,8 +71,23 @@ class NotificationFilterHelper {
         return dt.isAfter(startOfToday) || dt.isAtSameMomentAs(startOfToday);
       case NotificationDateFilter.thisWeek:
         return dt.isAfter(startOfWeek) || dt.isAtSameMomentAs(startOfWeek);
-      case NotificationDateFilter.earlier:
-        return dt.isBefore(startOfWeek);
+      case NotificationDateFilter.thisMonth:
+        return dt.isAfter(startOfMonth) || dt.isAtSameMomentAs(startOfMonth);
+      case NotificationDateFilter.thisYear:
+        return dt.isAfter(startOfYear) || dt.isAtSameMomentAs(startOfYear);
+      case NotificationDateFilter.custom:
+        if (customStartDate != null && customEndDate != null) {
+          final start = DateTime(customStartDate.year, customStartDate.month, customStartDate.day);
+          final end = DateTime(customEndDate.year, customEndDate.month, customEndDate.day, 23, 59, 59, 999);
+          return !dt.isBefore(start) && !dt.isAfter(end);
+        } else if (customStartDate != null) {
+          final start = DateTime(customStartDate.year, customStartDate.month, customStartDate.day);
+          return !dt.isBefore(start);
+        } else if (customEndDate != null) {
+          final end = DateTime(customEndDate.year, customEndDate.month, customEndDate.day, 23, 59, 59, 999);
+          return !dt.isAfter(end);
+        }
+        return true;
     }
   }
 
@@ -69,11 +95,13 @@ class NotificationFilterHelper {
     List<AppNotification> list, {
     required NotificationTypeFilter typeFilter,
     required NotificationDateFilter dateFilter,
+    DateTime? customStartDate,
+    DateTime? customEndDate,
     String? searchQuery,
   }) {
     return list.where((n) {
       if (!matchesType(n, typeFilter)) return false;
-      if (!matchesDate(n.createdAt, dateFilter)) return false;
+      if (!matchesDate(n.createdAt, dateFilter, customStartDate: customStartDate, customEndDate: customEndDate)) return false;
       if (searchQuery != null && searchQuery.trim().isNotEmpty) {
         final q = searchQuery.toLowerCase();
         final matchTitle = n.title.toLowerCase().contains(q);
@@ -90,6 +118,9 @@ class NotificationFilterBar extends StatelessWidget {
   final ValueChanged<NotificationTypeFilter> onTypeChanged;
   final NotificationDateFilter selectedDate;
   final ValueChanged<NotificationDateFilter> onDateChanged;
+  final DateTime? customStartDate;
+  final DateTime? customEndDate;
+  final void Function(DateTime? start, DateTime? end)? onCustomRangeChanged;
   final Color? primaryColor;
   final EdgeInsetsGeometry padding;
   final int? unreadCount;
@@ -101,6 +132,9 @@ class NotificationFilterBar extends StatelessWidget {
     required this.onTypeChanged,
     required this.selectedDate,
     required this.onDateChanged,
+    this.customStartDate,
+    this.customEndDate,
+    this.onCustomRangeChanged,
     this.primaryColor,
     this.padding = EdgeInsets.zero,
     this.unreadCount,
@@ -315,18 +349,174 @@ class NotificationFilterBar extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   _buildDateChip(
-                    label: 'Earlier',
-                    isSelected: selectedDate == NotificationDateFilter.earlier,
-                    onTap: () => onDateChanged(NotificationDateFilter.earlier),
+                    label: 'This Month',
+                    isSelected: selectedDate == NotificationDateFilter.thisMonth,
+                    onTap: () => onDateChanged(NotificationDateFilter.thisMonth),
+                    activeColor: activeColor,
+                  ),
+                  const SizedBox(width: 6),
+                  _buildDateChip(
+                    label: 'This Year',
+                    isSelected: selectedDate == NotificationDateFilter.thisYear,
+                    onTap: () => onDateChanged(NotificationDateFilter.thisYear),
+                    activeColor: activeColor,
+                  ),
+                  const SizedBox(width: 6),
+                  _buildDateChip(
+                    label: 'Custom Range',
+                    isSelected: selectedDate == NotificationDateFilter.custom,
+                    icon: Icons.date_range_rounded,
+                    onTap: () async {
+                      onDateChanged(NotificationDateFilter.custom);
+                      if (customStartDate == null || customEndDate == null) {
+                        await _pickCustomDateRange(context);
+                      }
+                    },
                     activeColor: activeColor,
                   ),
                 ],
               ),
             ),
+
+            if (selectedDate == NotificationDateFilter.custom) ...[
+              const SizedBox(height: 10),
+              _buildCustomDateRangeBar(context, activeColor),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildCustomDateRangeBar(BuildContext context, Color activeColor) {
+    final startStr = customStartDate != null
+        ? DateFormat('MMM dd, yyyy').format(customStartDate!)
+        : 'Select';
+    final endStr = customEndDate != null
+        ? DateFormat('MMM dd, yyyy').format(customEndDate!)
+        : 'Select';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          InkWell(
+            onTap: () => _pickFromDate(context),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF94A3B8)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'From: ',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                  ),
+                  Text(
+                    startStr,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: activeColor),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.calendar_today_rounded, size: 13, color: activeColor),
+                ],
+              ),
+            ),
+          ),
+          const Text(
+            '–',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+          ),
+          InkWell(
+            onTap: () => _pickToDate(context),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFF94A3B8)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'To: ',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                  ),
+                  Text(
+                    endStr,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: activeColor),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.calendar_today_rounded, size: 13, color: activeColor),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickFromDate(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: customStartDate ?? now.subtract(const Duration(days: 7)),
+      firstDate: DateTime(2020),
+      lastDate: customEndDate ?? DateTime(2035),
+      helpText: 'Select From Date',
+    );
+    if (picked != null) {
+      final newEnd = (customEndDate != null && customEndDate!.isBefore(picked))
+          ? picked
+          : (customEndDate ?? now);
+      onCustomRangeChanged?.call(picked, newEnd);
+    }
+  }
+
+  Future<void> _pickToDate(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: customEndDate ?? now,
+      firstDate: customStartDate ?? DateTime(2020),
+      lastDate: DateTime(2035),
+      helpText: 'Select To Date',
+    );
+    if (picked != null) {
+      final newStart = (customStartDate != null && customStartDate!.isAfter(picked))
+          ? picked
+          : (customStartDate ?? now.subtract(const Duration(days: 7)));
+      onCustomRangeChanged?.call(newStart, picked);
+    }
+  }
+
+  Future<void> _pickCustomDateRange(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await showAppDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      initialStartDate: customStartDate ?? now.subtract(const Duration(days: 7)),
+      initialEndDate: customEndDate ?? now,
+    );
+    if (picked != null) {
+      onCustomRangeChanged?.call(picked.start, picked.end);
+    }
   }
 
   Widget _buildTypeChip({
@@ -391,6 +581,7 @@ class NotificationFilterBar extends StatelessWidget {
     required bool isSelected,
     required VoidCallback onTap,
     required Color activeColor,
+    IconData? icon,
   }) {
     return Material(
       color: Colors.transparent,
@@ -412,14 +603,27 @@ class NotificationFilterBar extends StatelessWidget {
               width: 1,
             ),
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? activeColor : const Color(0xFF64748B),
-              letterSpacing: -0.1,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: 13,
+                  color: isSelected ? activeColor : const Color(0xFF64748B),
+                ),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? activeColor : const Color(0xFF64748B),
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ],
           ),
         ),
       ),

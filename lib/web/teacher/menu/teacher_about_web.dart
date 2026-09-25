@@ -42,7 +42,7 @@ class TeacherAboutWeb extends StatelessWidget {
         const SizedBox(height: 24),
         Text('About the System', style: AdminStyles.headingStyle(fontSize: 32)),
         const SizedBox(height: 12),
-        Text('PSU E-ayos v2.0', style: AdminStyles.bodyStyle(fontSize: 16, color: AdminStyles.textSecondary)),
+        Text('PSU E-Ayos v2.0', style: AdminStyles.bodyStyle(fontSize: 16, color: AdminStyles.textSecondary)),
       ],
     );
   }
@@ -54,7 +54,7 @@ class TeacherAboutWeb extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            'The PSU E-ayos is designed to streamline the reporting and tracking of facility issues across the university campus. Our goal is to provide a seamless experience for faculty members to ensure a safe and well-maintained learning environment.',
+            'The PSU E-Ayos is designed to streamline the reporting and tracking of facility issues across the university campus. Our goal is to provide a seamless experience for faculty members to ensure a safe and well-maintained learning environment.',
             textAlign: TextAlign.center,
             style: AdminStyles.bodyStyle(fontSize: 16, height: 1.8),
           ),

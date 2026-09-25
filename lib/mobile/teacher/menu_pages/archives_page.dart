@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -23,11 +24,15 @@ class _ArchivesPageState extends State<ArchivesPage> {
   String _selectedFilter = 'All';
   List<WorkRequest> _archivedRequests = [];
   bool _isLoading = true;
+  StreamSubscription<void>? _streamSub;
 
   @override
   void initState() {
     super.initState();
     _loadArchives();
+    _streamSub = WorkRequestService.onWorkRequestsChanged.listen((_) {
+      if (mounted) _loadArchives();
+    });
   }
 
   Future<void> _loadArchives() async {
@@ -36,15 +41,10 @@ class _ArchivesPageState extends State<ArchivesPage> {
       final user = authService.currentUser;
       List<WorkRequest> data;
       if (user != null && user.id.isNotEmpty) {
-        data = await WorkRequestService.fetchByRequestor(user.id);
+        data = await WorkRequestService.fetchHistoryForUser(user.id);
       } else {
         data = [];
       }
-      // Archives = completed + declined/cancelled
-      data = data.where((r) {
-        final s = r.status.toLowerCase();
-        return s.contains('completed') || s.contains('declined') || s.contains('cancelled');
-      }).toList();
       if (mounted) setState(() { _archivedRequests = data; _isLoading = false; });
     } catch (_) {
       if (mounted) setState(() { _isLoading = false; });
@@ -53,21 +53,37 @@ class _ArchivesPageState extends State<ArchivesPage> {
 
   List<WorkRequest> get _filteredArchives {
     List<WorkRequest> filtered = _archivedRequests;
-    if (_selectedFilter == 'Completed') {
+    if (_selectedFilter == 'Approved') {
+      filtered = filtered.where((r) {
+        final s = r.status.toLowerCase();
+        final dhs = r.deptHeadStatus.toLowerCase();
+        return dhs == 'approved' || s.contains('approved');
+      }).toList();
+    } else if (_selectedFilter == 'Acknowledged') {
+      filtered = filtered.where((r) {
+        final s = r.status.toLowerCase();
+        final dhs = r.deptHeadStatus.toLowerCase();
+        return dhs == 'acknowledged' || s == 'acknowledged' || r.isAcknowledged;
+      }).toList();
+    } else if (_selectedFilter == 'Completed') {
       filtered = filtered.where((r) => r.status.toLowerCase().contains('completed')).toList();
     } else if (_selectedFilter == 'Declined') {
       filtered = filtered.where((r) {
         final s = r.status.toLowerCase();
-        return s.contains('declined') || s.contains('cancelled');
+        final dhs = r.deptHeadStatus.toLowerCase();
+        return s.contains('declined') || s.contains('cancelled') || dhs == 'declined';
       }).toList();
     }
-    final query = _searchController.text.toLowerCase();
+    final query = _searchController.text.toLowerCase().trim();
     if (query.isNotEmpty) {
       filtered = filtered.where((r) =>
         r.id.toLowerCase().contains(query) ||
+        r.formattedId.toLowerCase().contains(query) ||
         (r.officeRoom?.toLowerCase().contains(query) ?? false) ||
+        (r.roomName?.toLowerCase().contains(query) ?? false) ||
         (r.buildingName?.toLowerCase().contains(query) ?? false) ||
-        r.title.toLowerCase().contains(query)
+        r.title.toLowerCase().contains(query) ||
+        r.requestorName.toLowerCase().contains(query)
       ).toList();
     }
     return filtered;
@@ -75,6 +91,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
 
   @override
   void dispose() {
+    _streamSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -167,6 +184,10 @@ class _ArchivesPageState extends State<ArchivesPage> {
               children: [
                 _buildFilterChip('All', themeProvider),
                 const SizedBox(width: 8),
+                _buildFilterChip('Approved', themeProvider),
+                const SizedBox(width: 8),
+                _buildFilterChip('Acknowledged', themeProvider),
+                const SizedBox(width: 8),
                 _buildFilterChip('Completed', themeProvider),
                 const SizedBox(width: 8),
                 _buildFilterChip('Declined', themeProvider),
@@ -196,14 +217,39 @@ class _ArchivesPageState extends State<ArchivesPage> {
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       final r = _filteredArchives[index];
-                       final statusLabel = r.status.toLowerCase() == 'completed' ? 'COMPLETED' : 'DECLINED';
-                       final statusColor = r.status.toLowerCase() == 'completed' ? const Color(0xFF4CAF50) : Colors.red;
+                      final user = context.read<AuthService>().currentUser;
+                      final s = r.status.toLowerCase();
+                      final dhs = r.deptHeadStatus.toLowerCase();
+                      final isHeadEval = user != null && r.deptHeadId == user.id;
+
+                      String statusLabel;
+                      Color statusColor;
+
+                      if (dhs == 'acknowledged' || s == 'acknowledged' || r.isAcknowledged) {
+                        statusLabel = isHeadEval ? 'ACKNOWLEDGED BY YOU' : 'ACKNOWLEDGED';
+                        statusColor = const Color(0xFF0F766E);
+                      } else if (s == 'completed') {
+                        statusLabel = 'COMPLETED';
+                        statusColor = const Color(0xFF4CAF50);
+                      } else if (dhs == 'approved') {
+                        statusLabel = isHeadEval ? 'APPROVED BY YOU' : 'HEAD APPROVED';
+                        statusColor = const Color(0xFF0284C7);
+                      } else if (s == 'declined' || s == 'cancelled' || dhs == 'declined') {
+                        statusLabel = 'DECLINED';
+                        statusColor = Colors.red;
+                      } else {
+                        statusLabel = r.status.toUpperCase();
+                        statusColor = const Color(0xFF0F766E);
+                      }
+
+                      final loc = '${r.roomName ?? r.officeRoom ?? "N/A"}${r.buildingName != null && r.buildingName!.isNotEmpty ? ", ${r.buildingName}" : ""}';
+
                       return _buildArchiveCard(
                         request: r,
-                        trackingNumber: r.id,
+                        trackingNumber: r.formattedId.isNotEmpty ? r.formattedId : r.id,
                         title: r.title,
-                        location: '${r.officeRoom}, ${r.buildingName}',
-                        date: DateFormat('MMM dd, yyyy').format(r.dateSubmitted),
+                        location: loc,
+                        date: DateFormat('MMM dd, yyyy').format(r.deptHeadApprovedDate ?? r.dateSubmitted),
                         status: statusLabel,
                         statusColor: statusColor,
                         themeProvider: themeProvider,

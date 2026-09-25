@@ -373,7 +373,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'PSU E-ayos',
+                        'PSU E-Ayos',
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _textWhite, letterSpacing: -0.3),
                       ),
                       Text(
@@ -645,7 +645,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'PSU E-ayos',
+              'PSU E-Ayos',
               style: AdminStyles.headingStyle(
                 fontSize: isCompact ? 16 : 18,
                 fontWeight: FontWeight.bold,

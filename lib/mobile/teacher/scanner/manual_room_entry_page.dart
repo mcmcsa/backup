@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/room_service.dart';
+import '../../../shared/widgets/department_mismatch_dialog.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override
@@ -68,13 +70,25 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
       if (!mounted) return;
 
       if (room != null) {
-        context.push(
-          '/room-verification',
-          extra: {
-            'roomId': room.code.isNotEmpty ? room.code : room.id,
-            'room': room,
-          },
-        );
+        final user = context.read<AuthService>().currentUser;
+        if (isRoomOfOtherDepartment(user: user, room: room)) {
+          await showDepartmentMismatchDialog(
+            context: context,
+            roomCode: room.code,
+            roomName: room.name,
+            roomDepartment: room.department,
+            userDepartment: user?.department,
+          );
+          _roomIdController.clear();
+        } else {
+          context.push(
+            '/room-verification',
+            extra: {
+              'roomId': room.code.isNotEmpty ? room.code : room.id,
+              'room': room,
+            },
+          );
+        }
       } else {
         setState(() {
           _errorMessage = 'Room not found. Please enter a valid room code.';

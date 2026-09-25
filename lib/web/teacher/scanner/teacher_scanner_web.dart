@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
+import '../../../shared/widgets/department_mismatch_dialog.dart';
 import '../teacher_nav_controller.dart';
 import '../../../shared/services/room_service.dart';
 import '../../admin/shared/admin_styles.dart';
@@ -54,6 +57,23 @@ class _TeacherScannerWebState extends State<TeacherScannerWeb> {
       final room = await RoomService.findRoomByScannedCode(code);
       if (room != null) {
         if (mounted) {
+          final user = context.read<AuthService>().currentUser;
+          if (isRoomOfOtherDepartment(user: user, room: room)) {
+            setState(() {
+              _isVerifying = false;
+              _isScanning = false;
+            });
+            await showDepartmentMismatchDialog(
+              context: context,
+              roomCode: room.code,
+              roomName: room.name,
+              roomDepartment: room.department,
+              userDepartment: user?.department,
+            );
+            _codeController.clear();
+            return;
+          }
+
           setState(() {
             _isScanning = false;
           });

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/room_model.dart';
 import '../../../shared/providers/theme_provider.dart';
+import '../../../shared/widgets/department_mismatch_dialog.dart';
 
 class RoomVerificationPage extends StatelessWidget {
   final String roomId;
@@ -204,7 +206,19 @@ class RoomVerificationPage extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
+                    final user = context.read<AuthService>().currentUser;
+                    if (isRoomOfOtherDepartment(user: user, room: room)) {
+                      await showDepartmentMismatchDialog(
+                        context: context,
+                        roomCode: room!.code,
+                        roomName: room!.name,
+                        roomDepartment: room!.department,
+                        userDepartment: user?.department,
+                      );
+                      return;
+                    }
+
                     context.push(
                       '/work-request-form',
                       extra: {

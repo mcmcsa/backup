@@ -125,7 +125,7 @@ class _LandingPageWebState extends State<LandingPageWeb> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'PSU E-ayos',
+                        'PSU E-Ayos',
                         style: TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: width < 600 ? 16 : 22,
@@ -1503,7 +1503,7 @@ class _HowItWorksOnboardingDialogState extends State<_HowItWorksOnboardingDialog
                               const Row(
                                 children: [
                                   Text(
-                                    'PSU E-ayos',
+                                    'PSU E-Ayos',
                                     style: TextStyle(
                                       fontFamily: 'Outfit',
                                       fontSize: 14,

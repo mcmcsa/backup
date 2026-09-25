@@ -7,6 +7,7 @@ import '../../../shared/services/work_request_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/room_comparison_dialog.dart';
+import '../../../shared/widgets/app_date_range_dialog.dart';
 
 class MaintenanceStaffHistoryPage extends StatefulWidget {
   final VoidCallback? openDrawer;
@@ -138,34 +139,12 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
 
 
   Future<void> _showDateRangePicker(bool isDark) async {
-    final DateTimeRange? picked = await showDateRangePicker(
+    final DateTimeRange? picked = await showAppDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      initialDateRange: _startDate != null && _endDate != null
-          ? DateTimeRange(start: _startDate!, end: _endDate!)
-          : null,
-      builder: (context, child) {
-        return Theme(
-          data: isDark
-              ? ThemeData.dark().copyWith(
-                  colorScheme: const ColorScheme.dark(
-                    primary: Color(0xFF4169E1),
-                    onPrimary: Colors.white,
-                    surface: Color(0xFF1E1E2E),
-                    onSurface: Colors.white,
-                  ),
-                )
-              : Theme.of(context).copyWith(
-                  colorScheme: const ColorScheme.light(
-                    primary: Color(0xFF4169E1),
-                    onPrimary: Colors.white,
-                    onSurface: Colors.black87,
-                  ),
-                ),
-          child: child!,
-        );
-      },
+      initialStartDate: _startDate,
+      initialEndDate: _endDate,
     );
 
     if (picked != null) {

@@ -41,7 +41,7 @@ class _ApprovalQueuePageWebState extends State<ApprovalQueuePageWeb> {
 
   Future<void> _loadRequests() async {
     try {
-      final data = await WorkRequestService.fetchByStatus('Pending');
+      final data = await WorkRequestService.fetchPendingForCampusAdmin();
       if (!mounted) return;
       setState(() {
         _pendingRequests = data;

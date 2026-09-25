@@ -279,7 +279,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
           initialRoom: _selectedChatRoom,
         ),
         const TeacherArchivesWeb(),
-        const TeacherProfileWeb(),
+        TeacherProfileWeb(isActive: _selectedIndex == 6),
         const TeacherAboutWeb(),
         const TeacherSystemWorkflowWeb(),
         const TeacherSettingsWeb(),
@@ -426,7 +426,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'PSU E-ayos',
+                        'PSU E-Ayos',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -616,7 +616,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'PSU E-ayos',
+              'PSU E-Ayos',
               style: AdminStyles.headingStyle(
                 fontSize: isCompact ? 16 : 18,
                 fontWeight: FontWeight.bold,

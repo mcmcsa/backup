@@ -124,7 +124,7 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // PSU E-ayos App Logo (scaled +40%)
+                      // PSU E-Ayos App Logo (scaled +40%)
                       Container(
                         width: isMobile ? 120 : 154,
                         height: isMobile ? 120 : 154,

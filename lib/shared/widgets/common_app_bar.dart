@@ -85,7 +85,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  titleText ?? 'PSU E-ayos',
+                  titleText ?? 'PSU E-Ayos',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -107,7 +107,7 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
               ],
             )
           : Text(
-              titleText ?? 'PSU E-ayos',
+              titleText ?? 'PSU E-Ayos',
               style: TextStyle(
                 fontSize: titleText != null ? 17 : 16,
                 fontWeight: FontWeight.bold,

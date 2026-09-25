@@ -74,7 +74,13 @@ class _AdminWorkRequestsWebState extends State<AdminWorkRequestsWeb> {
   }
 
   List<WorkRequest> get _filteredRequests {
-    List<WorkRequest> filtered = _requests.where((r) => !_isHistorical(r.status)).toList();
+    List<WorkRequest> filtered = _requests
+        .where((r) =>
+            !_isHistorical(r.status) &&
+            !r.isPendingDeptHead &&
+            !r.isAcknowledged &&
+            !r.status.toLowerCase().contains('acknowledged'))
+        .toList();
     final f = _selectedFilter.toLowerCase();
     if (f == 'pending') {
       filtered = filtered.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').toList();

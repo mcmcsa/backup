@@ -315,19 +315,21 @@ class AppNotificationService {
       'id': notifId,
     };
 
-    try {
-      await _db.functions.invoke('push-notifications', body: {'record': fcmRecord});
-    } catch (_) {}
+    unawaited(() async {
+      try {
+        await _db.functions.invoke('push-notifications', body: {'record': fcmRecord});
+      } catch (_) {}
 
-    try {
-      await EmailNotificationService.sendRoleNotificationEmails(
-        targetRoles: [targetRole],
-        title: title,
-        message: message,
-        workRequestId: workRequestId,
-        type: type,
-      );
-    } catch (_) {}
+      try {
+        await EmailNotificationService.sendRoleNotificationEmails(
+          targetRoles: [targetRole],
+          title: title,
+          message: message,
+          workRequestId: workRequestId,
+          type: type,
+        );
+      } catch (_) {}
+    }());
   }
 
   static String _truncate(String? s, {int max = 490}) {
@@ -371,27 +373,29 @@ class AppNotificationService {
       'id': notifId,
     };
 
-    // Push notification check: if (enableNotifications === true && pushNotifications === true) -> push
-    try {
-      final canPush = await AppSettingsService.canReceivePush(userId: targetUserId);
-      if (canPush) {
-        await _db.functions.invoke('push-notifications', body: {'record': fcmRecord});
-      }
-    } catch (_) {}
+    unawaited(() async {
+      // Push notification check: if (enableNotifications === true && pushNotifications === true) -> push
+      try {
+        final canPush = await AppSettingsService.canReceivePush(userId: targetUserId);
+        if (canPush) {
+          await _db.functions.invoke('push-notifications', body: {'record': fcmRecord});
+        }
+      } catch (_) {}
 
-    // Email notification check: if (enableNotifications === true && emailNotifications === true) -> email
-    try {
-      final canEmail = await AppSettingsService.canReceiveEmail(userId: targetUserId);
-      if (canEmail) {
-        await EmailNotificationService.sendNotificationEmail(
-          targetUserId: targetUserId,
-          title: title,
-          message: message,
-          workRequestId: workRequestId,
-          type: type,
-        );
-      }
-    } catch (_) {}
+      // Email notification check: if (enableNotifications === true && emailNotifications === true) -> email
+      try {
+        final canEmail = await AppSettingsService.canReceiveEmail(userId: targetUserId);
+        if (canEmail) {
+          await EmailNotificationService.sendNotificationEmail(
+            targetUserId: targetUserId,
+            title: title,
+            message: message,
+            workRequestId: workRequestId,
+            type: type,
+          );
+        }
+      } catch (_) {}
+    }());
   }
 
   static Future<void> createForRoles({
@@ -434,26 +438,28 @@ class AppNotificationService {
       if (r != null && id != null) idMap[r] = id;
     }
 
-    try {
-      for (final p in payload) {
-        final r = p['target_role']?.toString();
-        final fcmRecord = {
-          ...p,
-          if (r != null && idMap.containsKey(r)) 'id': idMap[r],
-        };
-        await _db.functions.invoke('push-notifications', body: {'record': fcmRecord});
-      }
-    } catch (_) {}
+    unawaited(() async {
+      try {
+        for (final p in payload) {
+          final r = p['target_role']?.toString();
+          final fcmRecord = {
+            ...p,
+            if (r != null && idMap.containsKey(r)) 'id': idMap[r],
+          };
+          await _db.functions.invoke('push-notifications', body: {'record': fcmRecord});
+        }
+      } catch (_) {}
 
-    try {
-      await EmailNotificationService.sendRoleNotificationEmails(
-        targetRoles: targetRoles,
-        title: title,
-        message: message,
-        workRequestId: workRequestId,
-        type: type,
-      );
-    } catch (_) {}
+      try {
+        await EmailNotificationService.sendRoleNotificationEmails(
+          targetRoles: targetRoles,
+          title: title,
+          message: message,
+          workRequestId: workRequestId,
+          type: type,
+        );
+      } catch (_) {}
+    }());
   }
 
   /// Notify Campus Admins and the Requestor when a new work request is submitted.
@@ -720,10 +726,10 @@ class AppNotificationService {
       futures.add(
         createForUser(
           targetUserId: normalizedRequestorId,
-          title: 'Work Request Ready for Your Confirmation',
+          title: 'Work Request Completed',
           message:
-              '$adminName signed completion confirmation for $roomStr. You can now review and sign the confirm work request form.',
-          type: 'work_request_completion_ready_for_requestor',
+              '$adminName has approved the evaluation and marked the work request for $roomStr as Completed.',
+          type: 'work_request_completed',
           workRequestId: workRequestId,
           targetPage: '/reports',
         ),
@@ -732,10 +738,10 @@ class AppNotificationService {
       futures.add(
         createForRole(
           targetRole: 'teacher',
-          title: 'Work Request Ready for Your Confirmation',
+          title: 'Work Request Completed',
           message:
-              '$adminName signed completion confirmation for $roomStr. Please review and sign the confirm work request form.',
-          type: 'work_request_completion_ready_for_requestor',
+              '$adminName has approved the evaluation and marked the work request for $roomStr as Completed.',
+          type: 'work_request_completed',
           workRequestId: workRequestId,
           targetPage: '/reports',
         ),
@@ -1110,14 +1116,14 @@ class AppNotificationService {
         normalizedAdminId == normalizedRequestorId);
     final futures = <Future<void>>[];
 
-    // 1. Notify Campus Admin ONCE
+    // 1. Notify Campus Admin ONCE (informative: report filed, waiting for requestor evaluation)
     if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
       if (actorId == null || normalizedAdminId != actorId) {
         futures.add(
           createForUser(
             targetUserId: normalizedAdminId,
-            title: 'Post-Repair Evaluation Submitted',
-            message: '$maintenanceName has submitted a post-repair evaluation for $roomStr.',
+            title: 'Post-Repair Report Filed',
+            message: '$maintenanceName submitted a post-repair report for $roomStr. Awaiting requestor evaluation.',
             type: 'post_repair_submitted',
             workRequestId: workRequestId,
             targetPage: '/tickets',
@@ -1129,8 +1135,8 @@ class AppNotificationService {
       futures.add(
         createForRole(
           targetRole: 'campadmin',
-          title: 'Post-Repair Evaluation Submitted',
-          message: '$maintenanceName has submitted a post-repair evaluation for $roomStr.',
+          title: 'Post-Repair Report Filed',
+          message: '$maintenanceName submitted a post-repair report for $roomStr. Awaiting requestor evaluation.',
           type: 'post_repair_submitted',
           workRequestId: workRequestId,
           targetPage: '/tickets',
@@ -1138,7 +1144,7 @@ class AppNotificationService {
       );
     }
 
-    // 2. Notify Requestor ONCE (only if requestor is not the same user as admin)
+    // 2. Notify Requestor ONCE (action required: review & evaluate completed maintenance)
     if (!isAdminSameAsRequestor &&
         normalizedRequestorId != null &&
         normalizedRequestorId.isNotEmpty) {
@@ -1146,8 +1152,8 @@ class AppNotificationService {
         futures.add(
           createForUser(
             targetUserId: normalizedRequestorId,
-            title: 'Post-Repair Submitted',
-            message: 'A post-repair evaluation for $roomStr has been submitted by $maintenanceName and is awaiting admin evaluation.',
+            title: 'Repair Completed - Evaluation Required',
+            message: '$maintenanceName has completed the repair for $roomStr. Please review the work and submit your evaluation.',
             type: 'post_repair_submitted',
             workRequestId: workRequestId,
             targetPage: '/reports',
@@ -1159,6 +1165,54 @@ class AppNotificationService {
 
     if (futures.isNotEmpty) {
       await Future.wait(futures);
+    }
+  }
+
+  /// Notify Campus Admin when the Requestor submits Satisfy or Not Satisfy evaluation
+  static Future<void> notifyRequestorEvaluationSubmittedToAdmin({
+    required String workRequestId,
+    required String requestorName,
+    required String evaluation, // 'satisfy' or 'not_satisfy'
+    String? adminId,
+    String? requestorUserId,
+    int? rating,
+    String? comment,
+  }) async {
+    final roomStr = await _getRoomStr(workRequestId);
+    final isSatisfied = evaluation.toLowerCase() == 'satisfy';
+    final evalText = isSatisfied ? 'SATISFIED' : 'NOT SATISFIED';
+    final actorId = requestorUserId?.trim() ?? _db.auth.currentUser?.id;
+    final normalizedAdminId = adminId?.trim();
+
+    final title = 'Requestor Evaluation: $evalText';
+    var message = '$requestorName evaluated the maintenance work for $roomStr as $evalText.';
+    if (rating != null) {
+      message += ' Rating: $rating/5.';
+    }
+    if (comment != null && comment.trim().isNotEmpty) {
+      message += ' Comment: "${comment.trim()}"';
+    }
+    message += ' Campus Admin final decision is required.';
+
+    if (normalizedAdminId != null && normalizedAdminId.isNotEmpty) {
+      await createForUser(
+        targetUserId: normalizedAdminId,
+        title: title,
+        message: message,
+        type: 'requestor_evaluation_submitted',
+        workRequestId: workRequestId,
+        targetPage: '/tickets',
+        actorUserId: actorId,
+      );
+    } else {
+      await createForRole(
+        targetRole: 'campadmin',
+        title: title,
+        message: message,
+        type: 'requestor_evaluation_submitted',
+        workRequestId: workRequestId,
+        targetPage: '/tickets',
+      );
     }
   }
 
@@ -1247,8 +1301,45 @@ class AppNotificationService {
       message: 'Your work request "$requestTitle" was $statusText by Department Head $deptHeadName.$notesText',
       type: isApproved ? 'dept_head_approved' : 'dept_head_declined',
       workRequestId: workRequestId,
-      targetPage: '/status',
+      targetPage: '/reports',
     );
+  }
+
+  /// Notify Requestor that Department Head has acknowledged the request to handle internally
+  static Future<void> notifyRequestorDeptHeadAcknowledged({
+    required String requestorId,
+    required String workRequestId,
+    required String requestTitle,
+    required String deptHeadName,
+    String? notes,
+  }) async {
+    final notesText = (notes != null && notes.trim().isNotEmpty) ? ' Note: $notes' : '';
+    await createForUser(
+      targetUserId: requestorId,
+      title: 'Request Acknowledged by Department Head',
+      message: 'Your work request "$requestTitle" was acknowledged by Department Head $deptHeadName and will be handled internally.$notesText',
+      type: 'dept_head_acknowledged',
+      workRequestId: workRequestId,
+      targetPage: '/reports',
+    );
+  }
+
+  /// Notify Department Head if a requestor cancels a pending request
+  static Future<void> notifyRequestorCancelled({
+    required String workRequestId,
+    required String requestTitle,
+    String? deptHeadId,
+  }) async {
+    if (deptHeadId != null && deptHeadId.isNotEmpty) {
+      await createForUser(
+        targetUserId: deptHeadId,
+        title: 'Work Request Cancelled',
+        message: 'Work request "$requestTitle" was cancelled by the requestor.',
+        type: 'work_request_cancelled',
+        workRequestId: workRequestId,
+        targetPage: '/approvals',
+      );
+    }
   }
 
   /// Notify appropriate reviewer (Dept Head or Campus Admin) about a Follow-Up inquiry

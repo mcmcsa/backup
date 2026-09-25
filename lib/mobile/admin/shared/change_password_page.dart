@@ -12,11 +12,9 @@ class ChangePasswordPage extends StatefulWidget {
 
 class _ChangePasswordPageState extends State<ChangePasswordPage> {
   final _formKey = GlobalKey<FormState>();
-  final _oldPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  bool _obscureOld = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
   bool _isSaving = false;
@@ -37,15 +35,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     if (!RegExp(r'[^A-Za-z0-9]').hasMatch(password)) {
       return 'Password must include at least 1 special character';
     }
-    if (password == _oldPasswordController.text) {
-      return 'New password must be different from old password';
-    }
     return null;
   }
 
   @override
   void dispose() {
-    _oldPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -58,7 +52,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     final authService = context.read<AuthService>();
 
     final error = await authService.changePassword(
-      oldPassword: _oldPasswordController.text,
       newPassword: _newPasswordController.text,
     );
 
@@ -165,15 +158,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           key: _formKey,
           child: Column(
             children: [
-              _buildPasswordField(
-                controller: _oldPasswordController,
-                label: 'Old Password',
-                obscure: _obscureOld,
-                onToggle: () => setState(() => _obscureOld = !_obscureOld),
-                themeProvider: themeProvider,
-                isDark: isDark,
-              ),
-              const SizedBox(height: 12),
               _buildPasswordField(
                 controller: _newPasswordController,
                 label: 'New Password',

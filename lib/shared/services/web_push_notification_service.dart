@@ -122,7 +122,7 @@ class WebPushNotificationService {
               return;
             }
 
-            final title = newRecord['title']?.toString() ?? 'PSU E-ayos Notification';
+            final title = newRecord['title']?.toString() ?? 'PSU E-Ayos Notification';
             final body = newRecord['message']?.toString() ?? '';
             final targetPage = newRecord['target_page']?.toString();
 
