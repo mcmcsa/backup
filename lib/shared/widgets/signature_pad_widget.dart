@@ -440,7 +440,7 @@ class _SignaturePadWidgetState extends State<SignaturePadWidget> {
                 onPressed: (_canConfirm && !_isConfirmed) ? _handleConfirm : null,
                 icon: Icon(_isConfirmed ? Icons.check_circle : Icons.check_circle_outline, size: 18),
                 label: Text(
-                  _isConfirmed ? 'Signature Confirmed' : 'Confirm Signature',
+                  _isConfirmed ? 'Successfully Signed' : 'Confirm Signature',
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(

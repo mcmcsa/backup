@@ -520,7 +520,7 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: latestRequests.length,
-              separatorBuilder: (_, _) => const Divider(height: 1, color: _border),
+              separatorBuilder: (context, index) => const Divider(height: 1, color: _border),
               itemBuilder: (context, index) => _RequestTableRow(
                 request: latestRequests[index],
               ),
@@ -652,7 +652,7 @@ class _SectionCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                ?action,
+                if (action != null) action!,
               ],
             ),
           ),

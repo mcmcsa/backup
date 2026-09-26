@@ -982,7 +982,7 @@ class _AdminApprovalSignaturePageState
                                   Icon(Icons.verified, color: Color(0xFF059669), size: 18),
                                   SizedBox(width: 4),
                                   Text(
-                                    'Signature Confirmed',
+                                    'Successfully Signed',
                                     style: TextStyle(color: Color(0xFF059669), fontWeight: FontWeight.bold, fontSize: 12),
                                   ),
                                 ],

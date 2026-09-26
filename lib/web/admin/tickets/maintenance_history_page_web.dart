@@ -66,13 +66,15 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
       filtered = filtered.where((item) => item.status.toLowerCase() == 'completed').toList();
     } else if (_selectedFilter == 'Declined') {
       filtered = filtered.where((item) {
+        if (item.isCancelled) return false;
         final s = item.status.toLowerCase();
-        return s == 'declined' || s == 'declined/cancelled';
+        return s == 'declined';
       }).toList();
     } else if (_selectedFilter == 'Canceled') {
       filtered = filtered.where((item) {
+        if (item.isCancelled) return true;
         final s = item.status.toLowerCase();
-        return s == 'canceled' || s == 'cancelled';
+        return s == 'canceled' || s == 'cancelled' || s == 'declined/cancelled';
       }).toList();
     }
 
@@ -112,12 +114,14 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
     final filtered = _filteredItems;
     final completedCount = _historyItems.where((item) => item.status.toLowerCase() == 'completed').length;
     final declinedCount = _historyItems.where((item) {
+      if (item.isCancelled) return false;
       final s = item.status.toLowerCase();
-      return s == 'declined' || s == 'declined/cancelled';
+      return s == 'declined';
     }).length;
     final canceledCount = _historyItems.where((item) {
+      if (item.isCancelled) return true;
       final s = item.status.toLowerCase();
-      return s == 'canceled' || s == 'cancelled';
+      return s == 'canceled' || s == 'cancelled' || s == 'declined/cancelled';
     }).length;
 
     final screenWidth = MediaQuery.of(context).size.width;
@@ -404,11 +408,21 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
     final formatter = DateFormat('MMM d, yyyy');
     final shortId = request.id.length > 8 ? request.id.substring(0, 8) : request.id;
     final isCompleted = request.status.toLowerCase() == 'completed';
+    final isCancelled = request.isCancelled ||
+        request.status.toLowerCase() == 'cancelled' ||
+        request.status.toLowerCase() == 'canceled' ||
+        request.status.toLowerCase() == 'declined/cancelled';
+    final isDeclined = !isCancelled && request.status.toLowerCase() == 'declined';
     final sColor = isCompleted
         ? AdminStyles.success
-        : (request.status.toLowerCase() == 'declined' || request.status.toLowerCase() == 'cancelled'
-            ? AdminStyles.error
-            : AdminStyles.warning);
+        : (isCancelled
+            ? const Color(0xFF64748B)
+            : (isDeclined ? AdminStyles.error : AdminStyles.warning));
+    final sLabel = isCompleted
+        ? 'COMPLETED'
+        : (isCancelled
+            ? 'CANCELED'
+            : (isDeclined ? 'DECLINED' : request.status.toUpperCase()));
 
     void openDetails() {
       final controller = AdminNavController.of(context);
@@ -481,7 +495,7 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: AdminStyles.pillDecoration(color: sColor, isSecondary: true),
                   child: Text(
-                    request.status.toUpperCase(),
+                    sLabel,
                     style: AdminStyles.headingStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w900,
@@ -594,12 +608,15 @@ class _HistoryTableRowState extends State<_HistoryTableRow> {
   }
 
   Color _statusColor(String status) {
+    if (widget.request.isCancelled) return const Color(0xFF64748B);
     switch (status.toLowerCase()) {
       case 'completed':
         return AdminStyles.success;
       case 'cancelled':
-      case 'declined':
+      case 'canceled':
       case 'declined/cancelled':
+        return const Color(0xFF64748B);
+      case 'declined':
         return AdminStyles.error;
       default:
         return AdminStyles.textSecondary;
@@ -607,12 +624,15 @@ class _HistoryTableRowState extends State<_HistoryTableRow> {
   }
 
   String _statusLabel(String status) {
+    if (widget.request.isCancelled) return 'CANCELED';
     switch (status.toLowerCase()) {
       case 'completed':
         return 'COMPLETED';
       case 'cancelled':
-      case 'declined':
+      case 'canceled':
       case 'declined/cancelled':
+        return 'CANCELED';
+      case 'declined':
         return 'DECLINED';
       default:
         return status.toUpperCase();

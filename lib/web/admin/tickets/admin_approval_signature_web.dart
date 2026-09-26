@@ -959,7 +959,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                           children: [
                             const Icon(Icons.verified_rounded, color: AdminStyles.success, size: 18),
                             const SizedBox(width: 8),
-                            Text('Signature Confirmed', style: AdminStyles.headingStyle(fontSize: 13, color: AdminStyles.success)),
+                            Text('Successfully Signed', style: AdminStyles.headingStyle(fontSize: 13, color: AdminStyles.success)),
                           ],
                         ),
                       ),
@@ -1229,7 +1229,7 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
                               _signatureError = null;
                             });
                             Navigator.pop(ctx);
-                            _showSuccess('Signature confirmed! Click "Work Request Approve" below to finalize.');
+                            _showSuccess('Successfully signed! Click "Work Request Approve" below to finalize.');
                           }
                         },
                       ),
