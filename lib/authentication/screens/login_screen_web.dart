@@ -194,8 +194,10 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
     final size = MediaQuery.of(context).size;
     final isDesktop = size.width >= 1024;
     final isTablet = size.width >= 768 && size.width < 1024;
+    final isMobile = !isDesktop && !isTablet;
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFFF3F8FF),
       body: Stack(
         children: [
@@ -239,64 +241,85 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
               ),
             ),
           ),
-          Center(
-            child: Container(
-              margin: const EdgeInsets.all(24),
-              constraints: BoxConstraints(
-                maxWidth: isDesktop ? 958 : 375, // Reduced by 10% (1116 -> 1004, 468 -> 421)
-                maxHeight: isDesktop ? 670 : size.height - 48,
-              ),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(34),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 42,
-                    offset: const Offset(0, 20),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile ? 16 : 24,
+                  vertical: isMobile ? 12 : 24,
+                ),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: isDesktop ? 958 : 400,
+                    maxHeight: isDesktop ? 670 : double.infinity,
                   ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(34),
-                child: Stack(
-                  children: [
-                    // Base Layer: Row of Content
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(34),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.8)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 42,
+                        offset: const Offset(0, 20),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(34),
+                    child: Stack(
                       children: [
-                        // Left Column (Login Form)
-                        Expanded(
-                          flex: 1,
-                          child: Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: isDesktop ? 64 : (isTablet ? 44 : 24),
-                                  vertical: 22,
+                        // Content Layer
+                        if (isDesktop)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              // Left Column (Login Form)
+                              Expanded(
+                                flex: 1,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 64, vertical: 22),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _buildBrandHeader(),
+                                      const SizedBox(height: 24),
+                                      _buildFormBody(size),
+                                      const SizedBox(height: 18),
+                                      _buildFooter(),
+                                    ],
+                                  ),
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    _buildBrandHeader(),
-                                    const SizedBox(height: 24),
-                                    _buildFormBody(size),
-                                    const SizedBox(height: 18),
-                                    _buildFooter(),
-                                  ],
-                                ),
+                              ),
+                              // Right Column (Value Panel)
+                              Expanded(
+                                flex: 1,
+                                child: _buildValuePanel(),
+                              ),
+                            ],
+                          )
+                        else
+                          Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: isTablet ? 36 : 20,
+                              vertical: 24,
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const SizedBox(height: 20),
+                                _buildBrandHeader(isMobile: true),
+                                const SizedBox(height: 18),
+                                _buildFormBody(size),
+                                const SizedBox(height: 16),
+                                _buildFooter(),
+                              ],
                             ),
                           ),
-                        
-                        // Right Column (Value Panel)
-                        if (isDesktop)
-                          Expanded(
-                            flex: 1,
-                            child: _buildValuePanel(),
-                          ),
-                      ],
-                    ),
-                    // Floating Back Button
+                        // Floating Back Button
                     Positioned(
                       top: 20,
                       left: 20,
@@ -342,12 +365,15 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
               ),
             ),
           ),
-        ],
+        ),
       ),
-    );
+    ],
+  ),
+);
   }
 
-  Widget _buildBrandHeader() {
+  Widget _buildBrandHeader({bool isMobile = false}) {
+    final logoSize = isMobile ? 80.0 : 120.0;
     return FadeTransition(
       opacity: _fadeHeader,
       child: Column(
@@ -355,27 +381,28 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
         Center(
           child: Image.asset(
             'assets/images/psu_logo_v3.png',
-            width: 120, // Increased size for prominence
-            height: 120,
+            width: logoSize,
+            height: logoSize,
             fit: BoxFit.contain,
           ),
         ),
-        const SizedBox(height: 16),
-        const Text(
+        SizedBox(height: isMobile ? 12 : 16),
+        Text(
           'PANGASINAN STATE UNIVERSITY',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: isMobile ? 14 : 16,
             fontWeight: FontWeight.w800,
             color: _brandNavy,
-            letterSpacing: 1.2,
+            letterSpacing: isMobile ? 0.8 : 1.2,
           ),
         ),
-        const Text(
+        const SizedBox(height: 2),
+        Text(
           'MAINTENANCE MANAGEMENT SYSTEM',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: isMobile ? 11 : 12,
             fontWeight: FontWeight.w600,
             color: _brandBlue,
             letterSpacing: 0.5,

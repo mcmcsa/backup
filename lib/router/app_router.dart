@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -406,6 +407,7 @@ GoRouter buildAppRouter(AuthService authService) {
           return RoomVerificationPage(
             roomId: args?['roomId'] ?? '',
             room: args?['room'],
+            qrImageBytes: args?['qrImageBytes'] as Uint8List?,
           );
         },
       ),

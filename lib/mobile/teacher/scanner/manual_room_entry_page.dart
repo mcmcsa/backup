@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/room_service.dart';
+import '../../../shared/utils/qr_decoder_helper.dart';
+import '../../../shared/widgets/already_reported_dialog.dart';
 import '../../../shared/widgets/department_mismatch_dialog.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
@@ -31,6 +33,7 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
   final TextEditingController _roomIdController = TextEditingController();
   bool _isVerifying = false;
   String? _errorMessage;
+  Uint8List? _uploadedQrBytes;
 
   @override
   void initState() {
@@ -81,11 +84,27 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
           );
           _roomIdController.clear();
         } else {
+          final s = room.status.toLowerCase().trim();
+          final isReported = s != 'available' && s != 'reserved';
+          if (isReported) {
+            final proceed = await showAlreadyReportedDialog(
+              context: context,
+              room: room,
+            );
+            if (!proceed || !mounted) {
+              setState(() {
+                _isVerifying = false;
+              });
+              return;
+            }
+          }
+
           context.push(
             '/room-verification',
             extra: {
               'roomId': room.code.isNotEmpty ? room.code : room.id,
               'room': room,
+              'qrImageBytes': _uploadedQrBytes,
             },
           );
         }
@@ -98,6 +117,45 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
       if (mounted) {
         setState(() {
           _errorMessage = 'Error verifying room. Please check your connection and try again.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isVerifying = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _uploadAndVerify() async {
+    setState(() {
+      _isVerifying = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final result = await QrDecoderHelper.pickAndDecodeQr();
+      if (!mounted) return;
+
+      if (result == null || !result.hasCode) {
+        setState(() {
+          _errorMessage = 'No QR code detected in the selected image.';
+          _uploadedQrBytes = result?.imageBytes;
+        });
+        return;
+      }
+
+      setState(() {
+        _uploadedQrBytes = result.imageBytes;
+      });
+
+      _roomIdController.text = result.code!.toUpperCase();
+      _verifyRoom();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Error decoding QR code. Please try another image.';
         });
       }
     } finally {
@@ -211,6 +269,54 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
                       height: 1.45,
                     ),
                   ),
+                  if (_uploadedQrBytes != null) ...[
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF2D2D2D) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF00BFA5).withValues(alpha: 0.3)),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.qr_code_2_rounded, size: 18, color: Color(0xFF00BFA5)),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Uploaded QR Code',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: themeProvider.textColor),
+                                  ),
+                                ],
+                              ),
+                              InkWell(
+                                onTap: () => setState(() => _uploadedQrBytes = null),
+                                borderRadius: BorderRadius.circular(8),
+                                child: const Padding(
+                                  padding: EdgeInsets.all(4),
+                                  child: Icon(Icons.close_rounded, size: 16, color: Colors.grey),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              _uploadedQrBytes!,
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 28),
 
                   // Room Code Input (Auto-capslock + 'ex. CLR 1' hint)
@@ -309,6 +415,35 @@ class _ManualRoomEntryPageState extends State<ManualRoomEntryPage> {
                                 Icon(Icons.check_circle_rounded, size: 18),
                               ],
                             ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Upload Room QR Code Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: _isVerifying ? null : _uploadAndVerify,
+                      icon: const Icon(
+                        Icons.upload_file_rounded,
+                        size: 18,
+                        color: Color(0xFF00BFA5),
+                      ),
+                      label: const Text(
+                        'Upload Room QR Code',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF00BFA5),
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF00BFA5)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),

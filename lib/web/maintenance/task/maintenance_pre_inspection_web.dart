@@ -317,9 +317,12 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
             },
           ),
           const SizedBox(width: 16),
-          Text(
-            _existingReport != null ? 'Pre-Inspection Report Details' : 'Submit Pre-Inspection Report',
-            style: AdminStyles.headingStyle(fontSize: 20),
+          Expanded(
+            child: Text(
+              _existingReport != null ? 'Pre-Inspection Report Details' : 'Submit Pre-Inspection Report',
+              style: AdminStyles.headingStyle(fontSize: 20),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -595,12 +598,18 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
             Text('Submission Status', style: AdminStyles.headingStyle(fontSize: 16)),
             const SizedBox(height: 16),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.check_circle_rounded, color: AdminStyles.success, size: 20),
+                const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Icon(Icons.check_circle_rounded, color: AdminStyles.success, size: 20),
+                ),
                 const SizedBox(width: 8),
-                Text(
-                  'Report filed by ${_existingReport!.inspectorName} on ${DateFormat('MMM dd, yyyy').format(_existingReport!.inspectionDate)}',
-                  style: AdminStyles.bodyStyle(fontWeight: FontWeight.w500),
+                Expanded(
+                  child: Text(
+                    'Report filed by ${_existingReport!.inspectorName} on ${DateFormat('MMM dd, yyyy').format(_existingReport!.inspectionDate)}',
+                    style: AdminStyles.bodyStyle(fontWeight: FontWeight.w500),
+                  ),
                 ),
               ],
             ),

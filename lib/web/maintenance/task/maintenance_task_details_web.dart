@@ -416,9 +416,16 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                             children: [
                               isCompact
                                   ? Column(children: [
+                                      // Top Priority: Maintenance Workflow Actions and Status on compact screen
+                                      if (_isAssignedToMe || _preInspectionReport != null || _postRepairReports.isNotEmpty) ...[
+                                        _buildMaintenanceActionsCard(),
+                                        const SizedBox(height: 20),
+                                      ],
+                                      _buildStatusHero(),
+                                      const SizedBox(height: 20),
                                       Container(key: _timelineKey, child: _buildTimelineCard()),
-                                      const SizedBox(height: 24),
-                                      _buildInfoPanel(),
+                                      const SizedBox(height: 20),
+                                      _buildInfoPanel(excludeHeroAndActions: true),
                                     ])
                                   : Row(
                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,9 +453,11 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     final trackId = _currentTask!.id.length > 8
         ? _currentTask!.id.substring(0, 8).toUpperCase()
         : _currentTask!.id.toUpperCase();
+    final width = MediaQuery.of(context).size.width;
+    final isNarrow = width < 768;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0),
+      padding: EdgeInsets.symmetric(horizontal: isNarrow ? 12 : 24, vertical: 0),
       height: 68,
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -461,7 +470,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
             onTap: widget.onBack,
             borderRadius: BorderRadius.circular(10),
             child: Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(10),
@@ -469,21 +478,28 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
               child: const Icon(Icons.arrow_back_rounded, size: 20, color: AdminStyles.textPrimary),
             ),
           ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('Request Progress', style: AdminStyles.headingStyle(fontSize: 20)),
-              Text(
-                'Tracking ID: #$trackId',
-                style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted),
-              ),
-            ],
-          ),
-          const SizedBox(width: 32),
+          const SizedBox(width: 12),
           Expanded(
-            child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Request Progress',
+                  style: AdminStyles.headingStyle(fontSize: isNarrow ? 16 : 20),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'Tracking ID: #$trackId',
+                  style: AdminStyles.bodyStyle(fontSize: isNarrow ? 11 : 12, color: AdminStyles.textMuted),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          if (!isNarrow) ...[
+            const SizedBox(width: 16),
+            SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
@@ -494,17 +510,17 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                 ],
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          _buildStatusBadge(),
+          ],
+          const SizedBox(width: 12),
+          _buildStatusBadge(isNarrow: isNarrow),
         ],
       ),
     );
   }
 
-  Widget _buildStatusBadge() {
+  Widget _buildStatusBadge({bool isNarrow = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: isNarrow ? 10 : 16, vertical: isNarrow ? 6 : 8),
       decoration: BoxDecoration(
         color: _statusColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(30),
@@ -514,8 +530,8 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(width: 7, height: 7, decoration: BoxDecoration(color: _statusColor, shape: BoxShape.circle)),
-          const SizedBox(width: 8),
-          Text(_statusLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _statusColor, letterSpacing: 0.5)),
+          SizedBox(width: isNarrow ? 6 : 8),
+          Text(_statusLabel, style: TextStyle(fontSize: isNarrow ? 11 : 12, fontWeight: FontWeight.w700, color: _statusColor, letterSpacing: 0.5)),
         ],
       ),
     );
@@ -779,58 +795,60 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
   }
 
   // ─── Info/Action Panel ───────────────────────────────────────────────────────
-  Widget _buildInfoPanel() {
+  Widget _buildInfoPanel({bool excludeHeroAndActions = false}) {
     return Column(
       children: [
-        _buildStatusHero(),
-        const SizedBox(height: 24),
-        if (!_isAssignedToMe && widget.task.status.toLowerCase() != 'pending') ...[
-          Container(
-            padding: const EdgeInsets.all(20),
-            margin: const EdgeInsets.only(bottom: 24),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFEF3C7),
-              border: Border.all(color: const Color(0xFFFCD34D)),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'View-Only Access',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF92400E),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'This task is assigned to another maintenance technician. You cannot accept or complete it.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: const Color(0xFF92400E).withValues(alpha: 0.9),
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        
-        // Dynamic maintenance actions
-        if (_isAssignedToMe || _preInspectionReport != null || _postRepairReports.isNotEmpty) ...[
-          _buildMaintenanceActionsCard(),
+        if (!excludeHeroAndActions) ...[
+          _buildStatusHero(),
           const SizedBox(height: 24),
+          if (!_isAssignedToMe && widget.task.status.toLowerCase() != 'pending') ...[
+            Container(
+              padding: const EdgeInsets.all(20),
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF3C7),
+                border: Border.all(color: const Color(0xFFFCD34D)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'View-Only Access',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF92400E),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'This task is assigned to another maintenance technician. You cannot accept or complete it.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: const Color(0xFF92400E).withValues(alpha: 0.9),
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          
+          // Dynamic maintenance actions
+          if (_isAssignedToMe || _preInspectionReport != null || _postRepairReports.isNotEmpty) ...[
+            _buildMaintenanceActionsCard(),
+            const SizedBox(height: 24),
+          ],
         ],
         
         Container(key: _detailsKey, child: _buildRequestInfoCard()),

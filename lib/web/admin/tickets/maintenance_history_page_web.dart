@@ -43,6 +43,7 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
           final status = item.status.toLowerCase();
           return status == 'completed' ||
               status == 'cancelled' ||
+              status == 'canceled' ||
               status == 'declined' ||
               status == 'declined/cancelled';
         }).toList()
@@ -66,7 +67,12 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
     } else if (_selectedFilter == 'Declined') {
       filtered = filtered.where((item) {
         final s = item.status.toLowerCase();
-        return s == 'cancelled' || s == 'declined' || s == 'declined/cancelled';
+        return s == 'declined' || s == 'declined/cancelled';
+      }).toList();
+    } else if (_selectedFilter == 'Canceled') {
+      filtered = filtered.where((item) {
+        final s = item.status.toLowerCase();
+        return s == 'canceled' || s == 'cancelled';
       }).toList();
     }
 
@@ -107,7 +113,11 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
     final completedCount = _historyItems.where((item) => item.status.toLowerCase() == 'completed').length;
     final declinedCount = _historyItems.where((item) {
       final s = item.status.toLowerCase();
-      return s == 'cancelled' || s == 'declined' || s == 'declined/cancelled';
+      return s == 'declined' || s == 'declined/cancelled';
+    }).length;
+    final canceledCount = _historyItems.where((item) {
+      final s = item.status.toLowerCase();
+      return s == 'canceled' || s == 'cancelled';
     }).length;
 
     final screenWidth = MediaQuery.of(context).size.width;
@@ -135,7 +145,7 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
                     isCompact: isMobile,
                   ),
                 ),
-                SizedBox(width: isMobile ? 8 : 12),
+                SizedBox(width: isMobile ? 6 : 12),
                 Expanded(
                   child: _TopStat(
                     title: 'Completed',
@@ -144,12 +154,21 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
                     isCompact: isMobile,
                   ),
                 ),
-                SizedBox(width: isMobile ? 8 : 12),
+                SizedBox(width: isMobile ? 6 : 12),
                 Expanded(
                   child: _TopStat(
                     title: 'Declined',
                     value: declinedCount.toString(),
                     color: AdminStyles.error,
+                    isCompact: isMobile,
+                  ),
+                ),
+                SizedBox(width: isMobile ? 6 : 12),
+                Expanded(
+                  child: _TopStat(
+                    title: 'Canceled',
+                    value: canceledCount.toString(),
+                    color: const Color(0xFFE11D48),
                     isCompact: isMobile,
                   ),
                 ),
@@ -211,6 +230,12 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
                           isSelected: _selectedFilter == 'Declined',
                           onTap: () => setState(() => _selectedFilter = 'Declined'),
                         ),
+                        const SizedBox(width: 8),
+                        _FilterChip(
+                          label: 'Canceled',
+                          isSelected: _selectedFilter == 'Canceled',
+                          onTap: () => setState(() => _selectedFilter = 'Canceled'),
+                        ),
                       ],
                     ),
                   ),
@@ -270,6 +295,12 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
                     label: 'Declined',
                     isSelected: _selectedFilter == 'Declined',
                     onTap: () => setState(() => _selectedFilter = 'Declined'),
+                  ),
+                  const SizedBox(width: 8),
+                  _FilterChip(
+                    label: 'Canceled',
+                    isSelected: _selectedFilter == 'Canceled',
+                    onTap: () => setState(() => _selectedFilter = 'Canceled'),
                   ),
                 ],
               ),

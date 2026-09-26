@@ -12,9 +12,11 @@ class ChangePasswordPage extends StatefulWidget {
 
 class _ChangePasswordPageState extends State<ChangePasswordPage> {
   final _formKey = GlobalKey<FormState>();
+  final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
   bool _isSaving = false;
@@ -40,6 +42,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   @override
   void dispose() {
+    _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -52,6 +55,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     final authService = context.read<AuthService>();
 
     final error = await authService.changePassword(
+      oldPassword: _currentPasswordController.text,
       newPassword: _newPasswordController.text,
     );
 
@@ -158,6 +162,21 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           key: _formKey,
           child: Column(
             children: [
+              _buildPasswordField(
+                controller: _currentPasswordController,
+                label: 'Current Password',
+                obscure: _obscureCurrent,
+                onToggle: () => setState(() => _obscureCurrent = !_obscureCurrent),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Current password is required';
+                  }
+                  return null;
+                },
+                themeProvider: themeProvider,
+                isDark: isDark,
+              ),
+              const SizedBox(height: 12),
               _buildPasswordField(
                 controller: _newPasswordController,
                 label: 'New Password',

@@ -54,6 +54,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   ChatRoom? _selectedChatRoom;
 
   int _unreadNotificationCount = 0;
+  int _previousIndex = 0;
   bool _isDeptHead = false;
   int _pendingDeptHeadCount = 0;
   RealtimeChannel? _notificationsChannel;
@@ -462,6 +463,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                   _buildNavItem(index: 2, icon: Icons.qr_code_2_rounded, title: 'Scanner', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 3, icon: Icons.assessment_rounded, title: 'Reports', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 4, icon: Icons.message_rounded, title: 'Messages', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 12, icon: Icons.notifications_rounded, title: 'Notifications', badge: _unreadNotificationCount, closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 5, icon: Icons.history_rounded, title: 'History', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 6, icon: Icons.person_rounded, title: 'Profile', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 9, icon: Icons.settings_rounded, title: 'Settings', closeDrawerOnTap: closeDrawerOnTap),
@@ -606,11 +608,18 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
       child: Row(
         children: [
           if (isCompact) ...[
-            IconButton(
-              onPressed: onMenuTap,
-              icon: const Icon(Icons.menu_rounded, color: AdminStyles.textPrimary),
-              tooltip: 'Open menu',
-            ),
+            if (_selectedIndex == 12)
+              IconButton(
+                onPressed: () => setState(() => _selectedIndex = _previousIndex),
+                icon: const Icon(Icons.arrow_back_rounded, color: AdminStyles.textPrimary),
+                tooltip: 'Back',
+              )
+            else
+              IconButton(
+                onPressed: onMenuTap,
+                icon: const Icon(Icons.menu_rounded, color: AdminStyles.textPrimary),
+                tooltip: 'Open menu',
+              ),
             const SizedBox(width: 4),
           ],
           const SizedBox(width: 10),
@@ -640,7 +649,12 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
           // Notification button — shows label on wide, icon-only on compact
           _NotificationButton(
             showLabel: !isCompact,
-            onTap: () => setState(() => _selectedIndex = 12),
+            onTap: () => setState(() {
+              if (_selectedIndex != 12) {
+                _previousIndex = _selectedIndex;
+              }
+              _selectedIndex = 12;
+            }),
             badge: _unreadNotificationCount,
           ),
           const SizedBox(width: 12),

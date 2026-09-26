@@ -54,47 +54,47 @@ class _SmartSplashScreenState extends State<SmartSplashScreen>
       duration: const Duration(seconds: 10),
     )..repeat();
 
-    // Choreography controller
+    // Choreography controller (snappy 1200ms)
     _masterController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 4000),
+      duration: const Duration(milliseconds: 1200),
     );
 
-    // 1. Logo Fade In & Scale (0ms - 600ms)
+    // 1. Logo Fade In & Scale (0ms - 400ms)
     _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _masterController,
-        curve: const Interval(0.0, 0.15, curve: Curves.easeOut),
+        curve: const Interval(0.0, 0.35, curve: Curves.easeOut),
       ),
     );
     _logoScale = Tween<double>(begin: 0.8, end: 1.0).animate(
       CurvedAnimation(
         parent: _masterController,
-        curve: const Interval(0.0, 0.15, curve: Curves.easeOutBack),
+        curve: const Interval(0.0, 0.35, curve: Curves.easeOutBack),
       ),
     );
 
-    // 2. System Name Slide Up (600ms - 1200ms)
+    // 2. System Name Slide Up (350ms - 750ms)
     _systemNameSlide = Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
       CurvedAnimation(
         parent: _masterController,
-        curve: const Interval(0.15, 0.3, curve: Curves.easeOutCubic),
+        curve: const Interval(0.3, 0.65, curve: Curves.easeOutCubic),
       ),
     );
 
-    // 3. Subtitle & QR Fade In (1200ms - 1800ms)
+    // 3. Subtitle & QR Fade In (650ms - 1000ms)
     _subtitleFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _masterController,
-        curve: const Interval(0.3, 0.45, curve: Curves.easeIn),
+        curve: const Interval(0.55, 0.9, curve: Curves.easeIn),
       ),
     );
 
     // Start Choreography
     _masterController.forward();
 
-    // Rotating messages every 1.5 seconds
-    _messageTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
+    // Fast, crisp loading messages (400ms each)
+    _messageTimer = Timer.periodic(const Duration(milliseconds: 400), (timer) {
       if (!mounted) return;
       setState(() {
         if (_currentMessageIndex < _loadingMessages.length - 1) {
@@ -102,10 +102,10 @@ class _SmartSplashScreenState extends State<SmartSplashScreen>
         }
       });
       
-      // When we hit the last message, wait a bit and navigate
+      // When we hit the last message, proceed quickly
       if (_currentMessageIndex == _loadingMessages.length - 1) {
         timer.cancel();
-        Future.delayed(const Duration(milliseconds: 800), _navigateToDestination);
+        Future.delayed(const Duration(milliseconds: 250), _navigateToDestination);
       }
     });
   }
@@ -114,7 +114,8 @@ class _SmartSplashScreenState extends State<SmartSplashScreen>
     if (_isNavigating || !mounted) return;
     _isNavigating = true;
     
-    // Final fade out transition before route
+    // Quick fade out transition before route
+    _masterController.duration = const Duration(milliseconds: 300);
     _masterController.reverse().then((_) {
       if (mounted) {
         widget.onCompleted?.call();

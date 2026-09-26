@@ -39,6 +39,7 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
                   return status == 'completed' ||
                       status == 'declined' ||
                       status == 'cancelled' ||
+                      status == 'canceled' ||
                       status == 'declined/cancelled';
                 },
               )
@@ -71,7 +72,12 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
       } else if (statusFilter == 'declined') {
         filtered = filtered.where((item) {
           final s = item.status.toLowerCase();
-          return s == 'cancelled' || s == 'declined' || s == 'declined/cancelled';
+          return s == 'declined';
+        }).toList();
+      } else if (statusFilter == 'canceled') {
+        filtered = filtered.where((item) {
+          final s = item.status.toLowerCase();
+          return s == 'cancelled' || s == 'canceled' || s == 'declined/cancelled';
         }).toList();
       }
     }
@@ -129,9 +135,11 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
       case 'completed':
         return const Color(0xFF10B981); // Green
       case 'declined':
-      case 'cancelled':
-      case 'declined/cancelled':
         return const Color(0xFFEF4444); // Red
+      case 'cancelled':
+      case 'canceled':
+      case 'declined/cancelled':
+        return const Color(0xFF64748B); // Slate/Grey
       default:
         return Colors.grey;
     }
@@ -142,9 +150,11 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
       case 'completed':
         return 'COMPLETED';
       case 'declined':
-      case 'cancelled':
-      case 'declined/cancelled':
         return 'DECLINED';
+      case 'cancelled':
+      case 'canceled':
+      case 'declined/cancelled':
+        return 'CANCELED';
       default:
         return status.toUpperCase();
     }
@@ -252,6 +262,8 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
                       _buildFilterChip('Completed'),
                       const SizedBox(width: 8),
                       _buildFilterChip('Declined'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Canceled'),
                     ],
                   ),
                 ),

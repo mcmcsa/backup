@@ -236,6 +236,12 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb>
   }
 
   Widget _buildRequestsSection(bool isCompact) {
+    // Canceled requests should not appear on the home page
+    final visibleRequests = _requests.where((r) {
+      final s = r.status.toLowerCase();
+      return s != 'canceled' && s != 'cancelled';
+    }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -260,7 +266,7 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb>
           ],
         ),
         const SizedBox(height: 24),
-        if (_requests.isEmpty)
+        if (visibleRequests.isEmpty)
           _buildEmptyState()
         else
           GridView.builder(
@@ -272,8 +278,8 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb>
               mainAxisSpacing: 16,
               mainAxisExtent: isCompact ? (MediaQuery.of(context).size.width < 450 ? 148 : 130) : 140,
             ),
-            itemCount: _requests.take(4).length,
-            itemBuilder: (context, index) => _buildRequestCard(_requests[index], isCompact),
+            itemCount: visibleRequests.take(4).length,
+            itemBuilder: (context, index) => _buildRequestCard(visibleRequests[index], isCompact),
           ),
       ],
     );

@@ -231,20 +231,20 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
   Widget build(BuildContext context) {
     final filtered = _filteredNotifications;
     final screenWidth = MediaQuery.of(context).size.width;
-    final bool isNarrow = screenWidth < 500;
+    final bool isNarrow = screenWidth < 650;
 
     return Container(
       color: _pageBg,
       child: SingleChildScrollView(
         padding: EdgeInsets.symmetric(
-          horizontal: isNarrow ? 14 : 32,
-          vertical: isNarrow ? 20 : 32,
+          horizontal: isNarrow ? 12 : 32,
+          vertical: isNarrow ? 16 : 32,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildPageHeader(isNarrow),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             NotificationFilterBar(
               selectedType: _selectedType,
               onTypeChanged: (type) => setState(() => _selectedType = type),
@@ -264,15 +264,18 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
               onMarkAllAsRead: _markAllAsRead,
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             if (_isLoading)
-              const Center(child: CircularProgressIndicator(color: _primaryTeal))
+              const Center(child: Padding(
+                padding: EdgeInsets.all(40),
+                child: CircularProgressIndicator(color: _primaryTeal),
+              ))
             else if (!_notificationsEnabled)
               Center(
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 540),
-                  margin: const EdgeInsets.symmetric(vertical: 32),
-                  padding: const EdgeInsets.all(36),
+                  margin: EdgeInsets.symmetric(vertical: isNarrow ? 16 : 32),
+                  padding: EdgeInsets.all(isNarrow ? 24 : 36),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
@@ -289,38 +292,39 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
-                        width: 72,
-                        height: 72,
+                        width: isNarrow ? 56 : 72,
+                        height: isNarrow ? 56 : 72,
                         decoration: const BoxDecoration(
                           color: Color(0xFFF1F5F9),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.notifications_off_outlined,
-                          color: Color(0xFF64748B),
-                          size: 36,
+                          color: const Color(0xFF64748B),
+                          size: isNarrow ? 28 : 36,
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      const Text(
+                      const SizedBox(height: 16),
+                      Text(
                         'Notifications are Disabled',
+                        textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 20,
+                          fontSize: isNarrow ? 18 : 20,
                           fontWeight: FontWeight.bold,
                           color: _darkText,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'You have turned off notifications in your account settings. Turn on "Enable Notifications" in Settings to receive updates about requests and activity.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: isNarrow ? 13 : 14,
                           color: _subtleText,
                           height: 1.5,
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                       ElevatedButton.icon(
                         onPressed: () {
                           TeacherNavController.of(context)?.navigateTo(9);
@@ -341,17 +345,17 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
             else if (_notifications.isEmpty)
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 60),
+                  padding: EdgeInsets.symmetric(vertical: isNarrow ? 36 : 60),
                   child: Column(
                     children: [
                       Container(
-                        width: 80,
-                        height: 80,
+                        width: isNarrow ? 64 : 80,
+                        height: isNarrow ? 64 : 80,
                         decoration: BoxDecoration(
                           color: _primaryTeal.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: const Icon(Icons.notifications_none_rounded, color: _primaryTeal, size: 40),
+                        child: Icon(Icons.notifications_none_rounded, color: _primaryTeal, size: isNarrow ? 32 : 40),
                       ),
                       const SizedBox(height: 16),
                       const Text(
@@ -362,7 +366,7 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
                           color: _darkText,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text(
                         "You're all caught up!",
                         style: TextStyle(fontSize: 13, color: _subtleText),
@@ -374,19 +378,19 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
             else if (filtered.isEmpty)
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 48),
+                  padding: EdgeInsets.symmetric(vertical: isNarrow ? 32 : 48),
                   child: Column(
                     children: [
                       Container(
-                        width: 64,
-                        height: 64,
+                        width: 56,
+                        height: 56,
                         decoration: BoxDecoration(
                           color: Colors.grey.shade100,
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Icon(Icons.filter_list_off_rounded, color: Colors.grey.shade500, size: 32),
+                        child: Icon(Icons.filter_list_off_rounded, color: Colors.grey.shade500, size: 28),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       const Text(
                         'No matching notifications',
                         style: TextStyle(
@@ -400,7 +404,7 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
                         'Try changing your filter selection above.',
                         style: TextStyle(fontSize: 13, color: _subtleText),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       OutlinedButton(
                         onPressed: () {
                           setState(() {
@@ -419,7 +423,7 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
                 ),
               )
             else
-              _buildNotificationsList(),
+              _buildNotificationsList(isNarrow),
           ],
         ),
       ),
@@ -430,20 +434,84 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Notifications',
-          style: TextStyle(
-            fontSize: isNarrow ? 22 : 28,
-            fontWeight: FontWeight.w800,
-            color: _darkText,
-            letterSpacing: -0.5,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  if (isNarrow) ...[
+                    InkWell(
+                      onTap: () {
+                        TeacherNavController.of(context)?.navigateTo(0);
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: _borderColor),
+                        ),
+                        child: const Icon(Icons.arrow_back_rounded, size: 18, color: _darkText),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Flexible(
+                    child: Text(
+                      'Notifications',
+                      style: TextStyle(
+                        fontSize: isNarrow ? 20 : 28,
+                        fontWeight: FontWeight.w800,
+                        color: _darkText,
+                        letterSpacing: -0.5,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_unreadCount > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _primaryTeal.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _primaryTeal.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: _primaryTeal,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '$_unreadCount new',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F766E),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
           'Stay updated on your maintenance requests and activity.',
           style: TextStyle(
-            fontSize: isNarrow ? 13 : 15,
+            fontSize: isNarrow ? 12.5 : 15,
             color: _subtleText.withValues(alpha: 0.8),
             fontWeight: FontWeight.w500,
           ),
@@ -452,7 +520,7 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
     );
   }
 
-  Widget _buildNotificationsList() {
+  Widget _buildNotificationsList(bool isNarrow) {
     final list = _filteredNotifications;
     final hasMoreThan20 = list.length > 20;
     final displayCount = _showAll ? list.length : (hasMoreThan20 ? 20 : list.length);
@@ -463,7 +531,7 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: displayCount,
-          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          separatorBuilder: (_, _) => const SizedBox(height: 10),
           itemBuilder: (context, index) {
             final notification = list[index];
             final color = _colorForType(notification.type);
@@ -539,54 +607,122 @@ class _TeacherNotificationsWebState extends State<TeacherNotificationsWeb> {
                     color: notification.isRead ? _cardBg : const Color(0xFFF0FDF4),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: notification.isRead ? _borderColor : color.withValues(alpha: 0.2),
+                      color: notification.isRead ? _borderColor : color.withValues(alpha: 0.25),
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(isNarrow ? 12 : 16),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        width: 44,
-                        height: 44,
+                        width: isNarrow ? 38 : 44,
+                        height: isNarrow ? 38 : 44,
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(isNarrow ? 8 : 10),
                         ),
-                        child: Icon(_iconForType(notification.type), color: color, size: 22),
+                        child: Icon(
+                          _iconForType(notification.type),
+                          color: color,
+                          size: isNarrow ? 19 : 22,
+                        ),
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: isNarrow ? 10 : 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              notification.title,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: _darkText,
-                              ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    notification.title,
+                                    style: TextStyle(
+                                      fontSize: isNarrow ? 13.5 : 14.5,
+                                      fontWeight: notification.isRead ? FontWeight.w600 : FontWeight.w800,
+                                      color: _darkText,
+                                    ),
+                                  ),
+                                ),
+                                if (!notification.isRead) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: _primaryTeal.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'NEW',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF0F766E),
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 4),
                             Text(
                               notification.message,
-                              style: const TextStyle(fontSize: 13, color: _subtleText),
-                              maxLines: 2,
+                              style: TextStyle(
+                                fontSize: isNarrow ? 12.5 : 13,
+                                color: _subtleText,
+                                height: 1.4,
+                              ),
+                              maxLines: 3,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _relativeTimestamp(notification.createdAt),
-                              style: TextStyle(fontSize: 12, color: _subtleText.withValues(alpha: 0.7)),
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _relativeTimestamp(notification.createdAt),
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: _subtleText.withValues(alpha: 0.75),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                if (!notification.isRead)
+                                  InkWell(
+                                    onTap: () => _markOneAsRead(notification),
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.done_rounded, size: 14, color: _primaryTeal),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Mark read',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: _primaryTeal,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      if (!notification.isRead)
-                        TextButton(
-                          onPressed: () => _markOneAsRead(notification),
-                          child: const Text('Mark read'),
-                        ),
                     ],
                   ),
                 ),

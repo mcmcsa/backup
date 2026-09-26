@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -9,29 +10,50 @@ import '../../../shared/widgets/department_mismatch_dialog.dart';
 class RoomVerificationPage extends StatelessWidget {
   final String roomId;
   final Room? room;
+  final Uint8List? qrImageBytes;
 
   const RoomVerificationPage({
     super.key,
     required this.roomId,
     this.room,
+    this.qrImageBytes,
   });
 
   Color _statusColor(String status) {
-    switch (status) {
-      case 'available': return const Color(0xFF4CAF50);
-      case 'reserved': return const Color(0xFFF59E0B);
-      case 'maintenance': return Colors.red;
-      default: return Colors.grey;
+    switch (status.toLowerCase().trim()) {
+      case 'available':
+        return const Color(0xFF4CAF50);
+      case 'reserved':
+        return const Color(0xFFF59E0B);
+      case 'pending':
+      case 'submitted':
+      case 'under review':
+        return const Color(0xFFF59E0B);
+      case 'approved':
+      case 'confirmed':
+      case 'assigned':
+      case 'accepted':
+        return const Color(0xFF2196F3);
+      case 'in progress':
+      case 'in_progress':
+        return const Color(0xFF8B5CF6);
+      case 'inspection':
+      case 'pre-inspection':
+      case 'post repair':
+      case 'post-repair':
+        return const Color(0xFF00BCD4);
+      case 'rework':
+      case 'maintenance':
+        return Colors.red;
+      default:
+        return const Color(0xFFF59E0B);
     }
   }
 
   String _statusLabel(String status) {
-    switch (status) {
-      case 'available': return 'AVAILABLE';
-      case 'reserved': return 'RESERVED';
-      case 'maintenance': return 'UNAVAILABLE';
-      default: return status.toUpperCase();
-    }
+    final s = status.trim().toUpperCase();
+    if (s.isEmpty) return 'AVAILABLE';
+    return s;
   }
 
   @override
@@ -197,6 +219,40 @@ class RoomVerificationPage extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (qrImageBytes != null) ...[
+                    const SizedBox(height: 18),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: themeProvider.borderColor),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.memory(
+                              qrImageBytes!,
+                              width: 110,
+                              height: 110,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Uploaded QR Code',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: themeProvider.subtitleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -543,7 +543,10 @@ class WorkRequest {
   bool get isAcknowledged =>
       deptHeadStatus.toLowerCase() == 'acknowledged' ||
       status.toLowerCase() == 'acknowledged';
-  bool get isCancelled => status.toLowerCase() == 'cancelled';
+  bool get isCancelled =>
+      status.toLowerCase() == 'cancelled' ||
+      status.toLowerCase() == 'canceled' ||
+      (cancelledById != null && cancelledById!.isNotEmpty && status.toLowerCase() != 'completed');
   bool get isPendingCampusAdmin =>
       status == 'Pending Campus Admin' ||
       (status == 'Pending' && (isDeptHeadApproved || isDeptHeadBypassed) && !isCancelled);

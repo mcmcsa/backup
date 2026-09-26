@@ -181,7 +181,60 @@
     </div>
   </div>
   <script src="flutter_bootstrap.js" async></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script>
+    window.decodeQrCodeFromDataUrl = function(dataUrl) {
+      return new Promise(function(resolve) {
+        var img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = function() {
+          try {
+            if ('BarcodeDetector' in window) {
+              new BarcodeDetector({ formats: ['qr_code'] }).detect(img)
+                .then(function(barcodes) {
+                  if (barcodes && barcodes.length > 0 && barcodes[0].rawValue) {
+                    resolve(barcodes[0].rawValue);
+                  } else {
+                    decodeWithJsQR(img, resolve);
+                  }
+                }).catch(function() {
+                  decodeWithJsQR(img, resolve);
+                });
+              return;
+            }
+            decodeWithJsQR(img, resolve);
+          } catch(e) {
+            decodeWithJsQR(img, resolve);
+          }
+        };
+        img.onerror = function() { resolve(null); };
+        img.src = dataUrl;
+      });
+    };
+
+    function decodeWithJsQR(img, resolve) {
+      try {
+        if (window.jsQR) {
+          var canvas = document.createElement('canvas');
+          var w = img.naturalWidth || img.width || 300;
+          var h = img.naturalHeight || img.height || 300;
+          canvas.width = w;
+          canvas.height = h;
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          var imgData = ctx.getImageData(0, 0, w, h);
+          var code = jsQR(imgData.data, imgData.width, imgData.height);
+          if (code && code.data) {
+            resolve(code.data);
+            return;
+          }
+        }
+        resolve(null);
+      } catch(e) {
+        resolve(null);
+      }
+    }
+
     window.addEventListener('load', function() {
       var observer = new MutationObserver(function(mutations) {
         for (var mutation of mutations) {

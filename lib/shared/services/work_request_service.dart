@@ -257,31 +257,60 @@ class WorkRequestService {
     return (data as List).map((e) => WorkRequest.fromMap(e)).toList();
   }
 
-  /// Returns true when a room already has an active report.
-  /// Active means not yet completed.
-  static Future<bool> hasActiveRequestForRoom(String roomId) async {
-    final normalizedRoomId = roomId.trim();
-    if (normalizedRoomId.isEmpty) return false;
+  /// Returns the latest active work request for a room by ID, code, or name.
+  /// If no active request exists, returns null.
+  static Future<WorkRequest?> getActiveRequestForRoom({
+    required String roomId,
+    String? roomCode,
+    String? roomName,
+  }) async {
+    final cleanId = roomId.trim();
+    if (cleanId.isEmpty) return null;
 
-    final requests = await fetchByRoom(normalizedRoomId);
-    return requests.any((request) {
-      final status = request.status.toLowerCase();
-      return status != 'completed' &&
-          status != 'declined' &&
-          status != 'cancelled' &&
-          status != 'declined/cancelled' &&
-          status != 'acknowledged';
-    });
+    try {
+      List<WorkRequest> requests = await fetchByRoom(cleanId);
+      if (requests.isEmpty && roomName != null && roomName.trim().isNotEmpty) {
+        final data = await _db
+            .from(_table)
+            .select(_selectWithRelations)
+            .ilike('office_room', '%${roomName.trim()}%')
+            .order('date_submitted', ascending: false);
+        requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+      }
+
+      for (final req in requests) {
+        final status = req.status.toLowerCase().trim();
+        final isFinished = status == 'completed' ||
+            status == 'complete' ||
+            status == 'declined' ||
+            status == 'cancelled' ||
+            status == 'canceled' ||
+            req.isCancelled ||
+            status == 'declined/cancelled' ||
+            status == 'acknowledged';
+        if (!isFinished) {
+          return req;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
-  static Future<void> updateRoomStatusFromRequests(String roomId) async {
+  /// Returns true when a room already has an active report.
+  /// Active means not yet completed, cancelled, or declined.
+  static Future<bool> hasActiveRequestForRoom(String roomId, {String? roomName}) async {
+    final activeRequest = await getActiveRequestForRoom(roomId: roomId, roomName: roomName);
+    return activeRequest != null;
+  }
+
+  static Future<void> updateRoomStatusFromRequests(String roomId, {String? roomName}) async {
     final normalizedRoomId = roomId.trim();
     if (normalizedRoomId.isEmpty) return;
 
     try {
-      final hasActive = await hasActiveRequestForRoom(normalizedRoomId);
-      if (hasActive) {
-        await RoomService.updateStatus(normalizedRoomId, 'maintenance');
+      final activeRequest = await getActiveRequestForRoom(roomId: normalizedRoomId, roomName: roomName);
+      if (activeRequest != null) {
+        await RoomService.updateStatus(normalizedRoomId, activeRequest.status.toLowerCase());
       } else {
         await RoomService.updateStatus(normalizedRoomId, 'available');
       }
@@ -324,6 +353,8 @@ class WorkRequestService {
             s == 'complete' ||
             s == 'declined' ||
             s == 'cancelled' ||
+            s == 'canceled' ||
+            r.isCancelled ||
             s == 'declined/cancelled' ||
             s == 'pre-inspection declined' ||
             s == 'acknowledged' ||

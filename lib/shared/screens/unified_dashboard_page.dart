@@ -115,9 +115,15 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
 
   int _getCountByPriority(String priority) {
     final target = priority.trim().toLowerCase();
-    return _allRequests
-        .where((r) => r.priority.trim().toLowerCase() == target)
-        .length;
+    return _allRequests.where((r) {
+      if (r.priority.trim().toLowerCase() != target) return false;
+      final s = r.status.trim().toLowerCase();
+      return s != 'completed' &&
+          s != 'declined' &&
+          s != 'canceled' &&
+          s != 'cancelled' &&
+          s != 'declined/cancelled';
+    }).length;
   }
 
   int _getCountByActiveStatuses() {
@@ -138,7 +144,15 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
   }
 
   List<WorkRequest> _getLatestRequests({int limit = 6}) {
-    final sorted = List<WorkRequest>.from(_allRequests)
+    // Canceled and declined requests belong strictly in History, not on the Home dashboard
+    final active = _allRequests.where((r) {
+      final s = r.status.trim().toLowerCase();
+      return s != 'canceled' &&
+          s != 'cancelled' &&
+          s != 'declined' &&
+          s != 'declined/cancelled';
+    }).toList();
+    final sorted = List<WorkRequest>.from(active)
       ..sort((left, right) => right.dateSubmitted.compareTo(left.dateSubmitted));
     return sorted.take(limit).toList();
   }
@@ -146,10 +160,15 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
   List<WorkRequest> _getAgingTickets() {
     final now = DateTime.now();
     return _allRequests
-        .where((r) =>
-            r.status != 'Completed' &&
-            r.status != 'Declined' &&
-            now.difference(r.dateSubmitted).inDays > 3)
+        .where((r) {
+          final s = r.status.trim().toLowerCase();
+          return s != 'completed' &&
+              s != 'declined' &&
+              s != 'canceled' &&
+              s != 'cancelled' &&
+              s != 'declined/cancelled' &&
+              now.difference(r.dateSubmitted).inDays > 3;
+        })
         .take(4)
         .toList();
   }
@@ -455,8 +474,19 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
   }
 
   Widget _buildQuickInsightsCard() {
-    final total = _allRequests.length;
-    final completed = _getCountByStatus('completed');
+    // Canceled and declined requests are archived in History, so exclude from active operational pool
+    final operationalPool = _allRequests.where((r) {
+      final s = r.status.trim().toLowerCase();
+      return s != 'canceled' &&
+          s != 'cancelled' &&
+          s != 'declined' &&
+          s != 'declined/cancelled';
+    }).toList();
+
+    final total = operationalPool.length;
+    final completed = operationalPool
+        .where((r) => r.status.trim().toLowerCase() == 'completed')
+        .length;
     final highPriority = _getCountByPriority('high');
     final active = _getCountByActiveStatuses();
 

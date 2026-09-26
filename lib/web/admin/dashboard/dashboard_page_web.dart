@@ -62,9 +62,16 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
   }
 
   int _getCountByPriority(String priority) {
-    return _allRequests
-        .where((r) => r.priority.toLowerCase() == priority.toLowerCase())
-        .length;
+    final target = priority.toLowerCase();
+    return _allRequests.where((r) {
+      if (r.priority.toLowerCase() != target) return false;
+      final s = r.status.toLowerCase();
+      return s != 'completed' &&
+          s != 'declined' &&
+          s != 'canceled' &&
+          s != 'cancelled' &&
+          s != 'declined/cancelled';
+    }).length;
   }
 
   int _getCountByActiveStatuses() {
@@ -83,7 +90,15 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
   }
 
   List<WorkRequest> _getLatestRequests({int limit = 6}) {
-    final sorted = List<WorkRequest>.from(_allRequests)
+    // Canceled and declined requests belong strictly in History, not on the home page
+    final active = _allRequests.where((r) {
+      final s = r.status.toLowerCase();
+      return s != 'canceled' &&
+          s != 'cancelled' &&
+          s != 'declined' &&
+          s != 'declined/cancelled';
+    }).toList();
+    final sorted = List<WorkRequest>.from(active)
       ..sort((left, right) => right.dateSubmitted.compareTo(left.dateSubmitted));
     return sorted.take(limit).toList();
   }
@@ -94,6 +109,9 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
         .where((r) =>
             r.status.toLowerCase() != 'completed' &&
             r.status.toLowerCase() != 'declined' &&
+            r.status.toLowerCase() != 'canceled' &&
+            r.status.toLowerCase() != 'cancelled' &&
+            r.status.toLowerCase() != 'declined/cancelled' &&
             now.difference(r.dateSubmitted).inDays > 3)
         .take(4)
         .toList();
@@ -336,8 +354,19 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
   }
 
   Widget _buildQuickInsightsCard() {
-    final total = _allRequests.length;
-    final completed = _getCountByStatus('completed');
+    // Canceled and declined requests are archived in History, so exclude from active operational pool
+    final operationalPool = _allRequests.where((r) {
+      final s = r.status.toLowerCase();
+      return s != 'canceled' &&
+          s != 'cancelled' &&
+          s != 'declined' &&
+          s != 'declined/cancelled';
+    }).toList();
+
+    final total = operationalPool.length;
+    final completed = operationalPool
+        .where((r) => r.status.toLowerCase() == 'completed')
+        .length;
     final highPriority = _getCountByPriority('high');
     final active = _getCountByActiveStatuses();
 

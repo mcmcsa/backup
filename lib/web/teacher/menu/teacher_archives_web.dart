@@ -73,7 +73,9 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
       } else if (_selectedFilter == 'Completed') {
         matchesFilter = s == 'completed';
       } else if (_selectedFilter == 'Declined') {
-        matchesFilter = s == 'cancelled' || s == 'declined' || dhs == 'declined';
+        matchesFilter = (s == 'declined' || dhs == 'declined') && !r.isCancelled;
+      } else if (_selectedFilter == 'Canceled') {
+        matchesFilter = r.isCancelled || s == 'cancelled' || s == 'canceled';
       }
 
       final query = _searchController.text.toLowerCase().trim();
@@ -155,6 +157,8 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                       _buildFilterChip('Completed'),
                       const SizedBox(width: 8),
                       _buildFilterChip('Declined'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Canceled'),
                     ],
                   ),
                 ),
@@ -183,6 +187,8 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                 _buildFilterChip('Completed'),
                 const SizedBox(width: 8),
                 _buildFilterChip('Declined'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Canceled'),
               ],
             ),
         ],
@@ -628,6 +634,9 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
   Color _getItemColor(WorkRequest request) {
     final s = request.status.toLowerCase();
     final dhs = request.deptHeadStatus.toLowerCase();
+    if (request.isCancelled || s == 'cancelled' || s == 'canceled') {
+      return const Color(0xFFEF4444);
+    }
     if (dhs == 'acknowledged' || s == 'acknowledged' || request.isAcknowledged) {
       return const Color(0xFF0F766E);
     }
@@ -637,7 +646,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
     if (dhs == 'approved') {
       return const Color(0xFF0284C7);
     }
-    if (s == 'declined' || s == 'cancelled' || dhs == 'declined') {
+    if (s == 'declined' || dhs == 'declined') {
       return AdminStyles.error;
     }
     return AdminStyles.primary;
@@ -646,6 +655,9 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
   IconData _getItemIcon(WorkRequest request) {
     final s = request.status.toLowerCase();
     final dhs = request.deptHeadStatus.toLowerCase();
+    if (request.isCancelled || s == 'cancelled' || s == 'canceled') {
+      return Icons.cancel_outlined;
+    }
     if (dhs == 'acknowledged' || s == 'acknowledged' || request.isAcknowledged) {
       return Icons.handshake_rounded;
     }
@@ -655,7 +667,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
     if (dhs == 'approved') {
       return Icons.approval_rounded;
     }
-    if (s == 'declined' || s == 'cancelled' || dhs == 'declined') {
+    if (s == 'declined' || dhs == 'declined') {
       return Icons.cancel_rounded;
     }
     return Icons.history_rounded;
@@ -669,7 +681,10 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
     Color color;
     String displayStatus;
 
-    if (dhs == 'acknowledged' || s == 'acknowledged' || request.isAcknowledged) {
+    if (request.isCancelled || s == 'cancelled' || s == 'canceled') {
+      color = const Color(0xFFEF4444);
+      displayStatus = 'CANCELED';
+    } else if (dhs == 'acknowledged' || s == 'acknowledged' || request.isAcknowledged) {
       color = const Color(0xFF0F766E);
       displayStatus = isHeadEvaluated ? 'ACKNOWLEDGED BY YOU' : 'ACKNOWLEDGED';
     } else if (s == 'completed') {
@@ -678,7 +693,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
     } else if (dhs == 'approved') {
       color = const Color(0xFF0284C7);
       displayStatus = isHeadEvaluated ? 'APPROVED BY YOU' : 'HEAD APPROVED';
-    } else if (s == 'declined' || s == 'cancelled' || dhs == 'declined') {
+    } else if (s == 'declined' || dhs == 'declined') {
       color = AdminStyles.error;
       displayStatus = 'DECLINED';
     } else {

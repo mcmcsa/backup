@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -5,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/services/room_service.dart';
+import '../../../shared/utils/qr_decoder_helper.dart';
+import '../../../shared/widgets/already_reported_dialog.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/widgets/department_mismatch_dialog.dart';
 import '../../admin/shared/notifications_page.dart';
@@ -136,7 +139,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     _validateAndNavigate(code);
   }
 
-  Future<void> _validateAndNavigate(String code) async {
+  Future<void> _validateAndNavigate(String code, {Uint8List? qrBytes}) async {
     setState(() => _isValidating = true);
     await _stopScanner();
 
@@ -155,11 +158,29 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
             userDepartment: user?.department,
           );
         } else {
+          final s = room.status.toLowerCase().trim();
+          final isReported = s != 'available' && s != 'reserved';
+          if (isReported) {
+            final proceed = await showAlreadyReportedDialog(
+              context: context,
+              room: room,
+            );
+            if (!proceed || !mounted) {
+              setState(() {
+                _scannedCode = null;
+                _isValidating = false;
+              });
+              await _syncScannerState();
+              return;
+            }
+          }
+
           await context.push(
             '/room-verification',
             extra: {
               'roomId': room.code.isNotEmpty ? room.code : room.id,
               'room': room,
+              'qrImageBytes': qrBytes,
             },
           );
         }
@@ -248,6 +269,94 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
 
   void _enterManually() {
     context.push('/manual-room-entry');
+  }
+
+  Future<void> _uploadQRCode() async {
+    setState(() => _isValidating = true);
+    await _stopScanner();
+
+    try {
+      final result = await QrDecoderHelper.pickAndDecodeQr();
+      if (!mounted) return;
+
+      if (result == null || !result.hasCode) {
+        _showNoQRDetectedDialog();
+      } else {
+        await _validateAndNavigate(result.code!, qrBytes: result.imageBytes);
+      }
+    } catch (_) {
+      if (mounted) _showInvalidQRCodeDialog();
+    } finally {
+      if (mounted) {
+        setState(() => _isValidating = false);
+        await _syncScannerState();
+      }
+    }
+  }
+
+  void _showNoQRDetectedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.image_not_supported_outlined,
+                  color: Colors.amber.shade700,
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'No QR Code Detected',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Could not detect any QR code in the uploaded image. Please make sure the image clearly shows the room QR code.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4169E1),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text('OK', style: TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -395,28 +504,53 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _enterManually,
-                          icon: const Icon(Icons.edit_outlined, size: 20),
-                          label: const Text(
-                            'Enter Manually',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _enterManually,
+                              icon: const Icon(Icons.edit_outlined, size: 18),
+                              label: const Text(
+                                'Enter Manually',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: themeProvider.primaryColor,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 15),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 0,
+                              ),
                             ),
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: themeProvider.primaryColor,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _uploadQRCode,
+                              icon: const Icon(Icons.upload_file_rounded, size: 18),
+                              label: const Text(
+                                'Upload QR',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: themeProvider.primaryColor,
+                                side: BorderSide(color: themeProvider.primaryColor),
+                                padding: const EdgeInsets.symmetric(vertical: 15),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
                             ),
-                            elevation: 0,
                           ),
-                        ),
+                        ],
                       ),
                       const SizedBox(height: 16),
                       InkWell(

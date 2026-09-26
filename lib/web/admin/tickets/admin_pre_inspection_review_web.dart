@@ -285,50 +285,52 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
               ? const Center(child: CircularProgressIndicator(color: AdminStyles.primary))
               : _isProcessing 
                 ? const Center(child: CircularProgressIndicator(color: AdminStyles.primary))
-                : SingleChildScrollView(
-                    child: Padding(
-                      padding: const EdgeInsets.all(40),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 1400),
-                           child: LayoutBuilder(
-                             builder: (context, constraints) {
-                               final isMobile = constraints.maxWidth < 900;
-                               if (isMobile) {
-                                 return Column(
-                                   children: [
-                                     _buildContextColumn(),
-                                     const SizedBox(height: 24),
-                                     _report == null ? _buildSubmissionForm() : _buildReviewForm(),
-                                     const SizedBox(height: 60),
-                                   ],
-                                 );
-                               }
-                               return Row(
-                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                 children: [
-                                   // Left Column: Sticky Context
-                                   SizedBox(
-                                     width: 320,
-                                     child: _buildContextColumn(),
-                                   ),
-                                   const SizedBox(width: 28),
-                                   // Right Column: Professional Flow
-                                   Expanded(
-                                     child: Column(
-                                       children: [
-                                         _report == null ? _buildSubmissionForm() : _buildReviewForm(),
-                                         const SizedBox(height: 100), // Spacing at bottom
-                                       ],
-                                     ),
-                                   ),
-                                 ],
-                               );
-                             },
-                           ),
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isMobile = constraints.maxWidth < 900;
+                      return SingleChildScrollView(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 16 : 40,
+                            vertical: isMobile ? 18 : 40,
+                          ),
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1400),
+                              child: isMobile
+                                  ? Column(
+                                      children: [
+                                        _buildContextColumn(),
+                                        const SizedBox(height: 20),
+                                        _report == null ? _buildSubmissionForm() : _buildReviewForm(),
+                                        const SizedBox(height: 40),
+                                      ],
+                                    )
+                                  : Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Left Column: Sticky Context
+                                        SizedBox(
+                                          width: 320,
+                                          child: _buildContextColumn(),
+                                        ),
+                                        const SizedBox(width: 28),
+                                        // Right Column: Professional Flow
+                                        Expanded(
+                                          child: Column(
+                                            children: [
+                                              _report == null ? _buildSubmissionForm() : _buildReviewForm(),
+                                              const SizedBox(height: 100), // Spacing at bottom
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
           ),
         ],
@@ -337,8 +339,11 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
   }
 
   Widget _buildTopBar() {
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 768;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32, vertical: isMobile ? 12 : 20),
       decoration: AdminStyles.glassDecoration(
         color: Colors.white,
         opacity: 1.0,
@@ -370,41 +375,59 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
               ),
             ),
           ),
-          const SizedBox(width: 24),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Workflow Phase',
-                style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'PRE-INSPECTION REVIEW',
-                style: AdminStyles.headingStyle(fontSize: 20, fontWeight: FontWeight.w900),
-              ),
-            ],
-          ),
-          const Spacer(),
-          if (_report != null && (_report!.status == 'Approved' || _report!.adminApproved)) ...[
-            ElevatedButton.icon(
-              onPressed: () {
-                InspectionPdfService.printPreInspection(
-                  context: context,
-                  request: widget.request,
-                  report: _report!,
-                );
-              },
-              icon: const Icon(Icons.print_rounded, size: 16),
-              label: const Text('Print Report'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AdminStyles.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
+          SizedBox(width: isMobile ? 12 : 24),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Workflow Phase',
+                  style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'PRE-INSPECTION REVIEW',
+                  style: AdminStyles.headingStyle(fontSize: isMobile ? 15 : 20, fontWeight: FontWeight.w900),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ],
             ),
-            const SizedBox(width: 14),
+          ),
+          const SizedBox(width: 8),
+          if (_report != null && (_report!.status == 'Approved' || _report!.adminApproved)) ...[
+            if (isMobile)
+              IconButton(
+                onPressed: () {
+                  InspectionPdfService.printPreInspection(
+                    context: context,
+                    request: widget.request,
+                    report: _report!,
+                  );
+                },
+                icon: const Icon(Icons.print_rounded, size: 20, color: AdminStyles.primary),
+                tooltip: 'Print Report',
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: () {
+                  InspectionPdfService.printPreInspection(
+                    context: context,
+                    request: widget.request,
+                    report: _report!,
+                  );
+                },
+                icon: const Icon(Icons.print_rounded, size: 16),
+                label: const Text('Print Report'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminStyles.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            const SizedBox(width: 8),
           ],
           _buildStatusBadge(),
         ],
@@ -436,9 +459,10 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
   }
 
   Widget _buildInfoCard(String title, List<Widget> children, {IconData? icon}) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
     return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: AdminStyles.cardDecoration(borderRadius: 24),
+      padding: EdgeInsets.all(isMobile ? 18 : 28),
+      decoration: AdminStyles.cardDecoration(borderRadius: isMobile ? 16 : 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -476,17 +500,17 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
   }
 
   Widget _buildSubmissionForm() {
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 768;
     return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: AdminStyles.cardDecoration(),
+      padding: EdgeInsets.all(isMobile ? 18 : 32),
+      decoration: AdminStyles.cardDecoration(borderRadius: isMobile ? 16 : 24),
       child: Form(
         key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('New Pre-Inspection Report', style: AdminStyles.headingStyle(fontSize: 18)),
-            const SizedBox(height: 32),
+            Text('New Pre-Inspection Report', style: AdminStyles.headingStyle(fontSize: isMobile ? 16 : 18)),
+            SizedBox(height: isMobile ? 20 : 32),
             _buildWebTextField(_conditionFoundController, 'Condition Found *', 'Describe clinical findings...', maxLines: 3, validator: (v) => v?.isEmpty ?? true ? 'Required' : null),
             const SizedBox(height: 20),
             if (isMobile) ...[
@@ -502,12 +526,12 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
                 ],
               ),
             const SizedBox(height: 20),
-            _buildWebTextField(_rootCauseController, 'Possible Root Cause', 'What caused this issue?', maxLines: 2),
+            _buildRootCauseSection(),
             const SizedBox(height: 20),
             _buildWebTextField(_materialsNeededController, 'Materials Needed', 'List required parts...', maxLines: 2),
             const SizedBox(height: 20),
             _buildPhotoUploadSection(),
-            const SizedBox(height: 40),
+            SizedBox(height: isMobile ? 24 : 40),
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -523,21 +547,25 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
     );
   }
 
+  Widget _buildRootCauseSection() {
+    return _buildWebTextField(_rootCauseController, 'Possible Root Cause', 'What caused this issue?', maxLines: 2);
+  }
+
   Widget _buildReviewForm() {
     final report = _report!;
     final isActioned = report.status.toLowerCase() != 'pending' && report.status.toLowerCase() != 'submitted';
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 768;
     
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(32),
-          decoration: AdminStyles.cardDecoration(),
+          padding: EdgeInsets.all(isMobile ? 18 : 32),
+          decoration: AdminStyles.cardDecoration(borderRadius: isMobile ? 16 : 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Inspection Findings', style: AdminStyles.headingStyle(fontSize: 18)),
-              const SizedBox(height: 32),
+              Text('Inspection Findings', style: AdminStyles.headingStyle(fontSize: isMobile ? 16 : 18)),
+              SizedBox(height: isMobile ? 20 : 32),
               _buildReadOnlyBlock('Condition Found', report.conditionFound),
               const SizedBox(height: 20),
               if (isMobile) ...[
@@ -577,34 +605,34 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
                 _buildPhotoPreview(report.photoEvidence!),
               ],
               if (widget.isAdminView) ...[
-                const SizedBox(height: 32),
+                SizedBox(height: isMobile ? 20 : 32),
                 const Divider(),
-                const SizedBox(height: 32),
-                Text('Review Actions', style: AdminStyles.headingStyle(fontSize: 18)),
-                const SizedBox(height: 24),
+                SizedBox(height: isMobile ? 20 : 32),
+                Text('Review Actions', style: AdminStyles.headingStyle(fontSize: isMobile ? 16 : 18)),
+                const SizedBox(height: 20),
                 _buildWebTextField(_reviewNotesController, 'Internal Review Notes', 'Keep track of administrative decisions...', maxLines: 3, enabled: !isActioned),
                 if (!isActioned) ...[
-                  const SizedBox(height: 32),
+                  SizedBox(height: isMobile ? 20 : 32),
                   SignaturePadWidget(
                     title: 'Admin Signature',
                     onSignatureComplete: (v) => setState(() => _adminSignatureBase64 = v),
                   ),
-                  const SizedBox(height: 32),
+                  SizedBox(height: isMobile ? 20 : 32),
                   if (isMobile) ...[
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
                         onPressed: _showRejectionDialog,
-                        style: OutlinedButton.styleFrom(foregroundColor: AdminStyles.error, side: const BorderSide(color: AdminStyles.error), padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        style: OutlinedButton.styleFrom(foregroundColor: AdminStyles.error, side: const BorderSide(color: AdminStyles.error), padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                         child: const Text('Decline Report'),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: _approvePreInspection,
-                        style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.success, foregroundColor: Colors.white, padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.success, foregroundColor: Colors.white, padding: const EdgeInsets.all(16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                         child: const Text('Confirm Work Request'),
                       ),
                     ),
@@ -937,13 +965,14 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
 
   Widget _buildStatusBadge() {
     final status = _report?.status ?? 'Pending Inspection';
+    final isMobile = MediaQuery.of(context).size.width < 768;
     Color color = Colors.grey;
     if (status == 'submitted') color = AdminStyles.warning;
     if (status == 'approved') color = AdminStyles.success;
     if (status == 'rejected') color = AdminStyles.error;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 14, vertical: isMobile ? 5 : 8),
       decoration: AdminStyles.pillDecoration(color: color, isSecondary: true),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -953,7 +982,7 @@ class _AdminPreInspectionReviewWebState extends State<AdminPreInspectionReviewWe
             height: 6,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: isMobile ? 5 : 8),
           Text(
             status.toUpperCase(),
             style: AdminStyles.headingStyle(fontSize: 10, color: color, fontWeight: FontWeight.w900, letterSpacing: 0.5),

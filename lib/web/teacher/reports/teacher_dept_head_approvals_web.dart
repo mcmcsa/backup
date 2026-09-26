@@ -127,40 +127,42 @@ class _TeacherDeptHeadApprovalsWebState
   }
 
   Widget _buildHeader() {
+    final isMobile = MediaQuery.of(context).size.width < 768;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 24, 32, 0),
+      padding: EdgeInsets.fromLTRB(isMobile ? 16 : 32, isMobile ? 16 : 24, isMobile ? 16 : 32, 0),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: EdgeInsets.all(isMobile ? 8 : 10),
             decoration: BoxDecoration(
               color: const Color(0xFF0F766E).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.approval_rounded,
-              color: Color(0xFF0F766E),
-              size: 26,
+              color: const Color(0xFF0F766E),
+              size: isMobile ? 22 : 26,
             ),
           ),
-          const SizedBox(width: 16),
+          SizedBox(width: isMobile ? 10 : 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Department Approvals',
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: isMobile ? 18 : 22,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
+                    color: const Color(0xFF0F172A),
                     letterSpacing: -0.5,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Review, Approve, or Acknowledge faculty work requests before Campus Admin Evaluation.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: isMobile ? 11 : 13, color: Colors.grey.shade600),
                 ),
               ],
             ),
@@ -182,89 +184,122 @@ class _TeacherDeptHeadApprovalsWebState
     final approveCount =
         _evaluatedRequests.where((r) => r.deptHeadStatus == 'approved').length;
 
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    final chips = [
+      _buildFilterChip(
+        label: 'Pending Request',
+        count: pendingCount,
+        filter: 'pending',
+        activeColor: const Color(0xFFF59E0B),
+      ),
+      const SizedBox(width: 8),
+      _buildFilterChip(
+        label: 'Acknowledge',
+        count: acknowledgeCount,
+        filter: 'acknowledge',
+        activeColor: const Color(0xFF0F766E),
+      ),
+      const SizedBox(width: 8),
+      _buildFilterChip(
+        label: 'Approve',
+        count: approveCount,
+        filter: 'approve',
+        activeColor: const Color(0xFF10B981),
+      ),
+    ];
+
+    final viewToggle = Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      padding: const EdgeInsets.all(3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildViewToggle(
+            icon: Icons.view_list_rounded,
+            label: 'List',
+            isActive: !_isGridView,
+            onTap: () => setState(() => _isGridView = false),
+          ),
+          _buildViewToggle(
+            icon: Icons.grid_view_rounded,
+            label: 'Grid',
+            isActive: _isGridView,
+            onTap: () => setState(() => _isGridView = true),
+          ),
+        ],
+      ),
+    );
+
+    final searchField = TextField(
+      decoration: InputDecoration(
+        hintText: 'Search requests, room, teacher...',
+        hintStyle: const TextStyle(fontSize: 13),
+        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 10,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Color(0xFF0F766E)),
+        ),
+        filled: true,
+        fillColor: Colors.white,
+      ),
+      onChanged: (v) => setState(() => _searchQuery = v),
+    );
+
+    if (isMobile) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(child: searchField),
+                const SizedBox(width: 8),
+                viewToggle,
+              ],
+            ),
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: chips,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(32, 16, 32, 12),
       child: Row(
         children: [
-          // ── Filter Chips ────────────────────────────────────
-          _buildFilterChip(
-            label: 'Pending Request',
-            count: pendingCount,
-            filter: 'pending',
-            activeColor: const Color(0xFFF59E0B),
-          ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            label: 'Acknowledge',
-            count: acknowledgeCount,
-            filter: 'acknowledge',
-            activeColor: const Color(0xFF0F766E),
-          ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            label: 'Approve',
-            count: approveCount,
-            filter: 'approve',
-            activeColor: const Color(0xFF10B981),
-          ),
+          ...chips,
           const Spacer(),
-          // ── Search ──────────────────────────────────────────
           SizedBox(
             width: 260,
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search requests, room, teacher...',
-                hintStyle: const TextStyle(fontSize: 13),
-                prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: Color(0xFF0F766E)),
-                ),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-              onChanged: (v) => setState(() => _searchQuery = v),
-            ),
+            child: searchField,
           ),
           const SizedBox(width: 10),
-          // ── List / Grid toggle ───────────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-            ),
-            padding: const EdgeInsets.all(3),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildViewToggle(
-                  icon: Icons.view_list_rounded,
-                  label: 'List',
-                  isActive: !_isGridView,
-                  onTap: () => setState(() => _isGridView = false),
-                ),
-                _buildViewToggle(
-                  icon: Icons.grid_view_rounded,
-                  label: 'Grid',
-                  isActive: _isGridView,
-                  onTap: () => setState(() => _isGridView = true),
-                ),
-              ],
-            ),
-          ),
+          viewToggle,
         ],
       ),
     );
@@ -410,6 +445,9 @@ class _TeacherDeptHeadApprovalsWebState
       );
     }
 
+    final isMobile = MediaQuery.of(context).size.width < 768;
+    final listPadding = EdgeInsets.fromLTRB(isMobile ? 16 : 32, 8, isMobile ? 16 : 32, 32);
+
     if (_isGridView) {
       return LayoutBuilder(
         builder: (context, constraints) {
@@ -417,7 +455,7 @@ class _TeacherDeptHeadApprovalsWebState
               ? 3
               : (constraints.maxWidth > 750 ? 2 : 1);
           return GridView.builder(
-            padding: const EdgeInsets.fromLTRB(32, 8, 32, 32),
+            padding: listPadding,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: crossAxisCount,
               crossAxisSpacing: 16,
@@ -435,7 +473,7 @@ class _TeacherDeptHeadApprovalsWebState
 
     // Default: Compact List View
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(32, 8, 32, 32),
+      padding: listPadding,
       itemCount: list.length,
       separatorBuilder: (context, index) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
@@ -507,7 +545,6 @@ class _TeacherDeptHeadApprovalsWebState
         },
       ),
       if (isPending) ...[
-        const SizedBox(width: 8),
         OutlinedButton.icon(
           icon: const Icon(Icons.handshake_outlined, size: 14),
           label: const Text('Acknowledge'),
@@ -526,7 +563,6 @@ class _TeacherDeptHeadApprovalsWebState
           ),
           onPressed: () => _showAcknowledgeDialog(req),
         ),
-        const SizedBox(width: 8),
         ElevatedButton.icon(
           icon: const Icon(Icons.check_rounded, size: 15),
           label: const Text('Approve'),
@@ -631,9 +667,14 @@ class _TeacherDeptHeadApprovalsWebState
                     ],
                   ),
                   const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: _buildActionButtons(req, isPending, compact: true),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.end,
+                      children: _buildActionButtons(req, isPending, compact: true),
+                    ),
                   ),
                 ],
               );
@@ -734,8 +775,10 @@ class _TeacherDeptHeadApprovalsWebState
                 const SizedBox(width: 14),
 
                 // 5. Action Buttons
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.end,
                   children: _buildActionButtons(req, isPending, compact: true),
                 ),
               ],
@@ -863,8 +906,10 @@ class _TeacherDeptHeadApprovalsWebState
             const SizedBox(height: 10),
 
             // Action Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.end,
               children: _buildActionButtons(req, isPending, compact: true),
             ),
           ],
@@ -931,8 +976,11 @@ class _TeacherDeptHeadApprovalsWebState
               Text('Approve Work Request', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
             ],
           ),
-          content: SizedBox(
+          content: Container(
             width: 500,
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.9,
+            ),
             child: SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
               child: Column(
@@ -1080,8 +1128,11 @@ class _TeacherDeptHeadApprovalsWebState
               Text('Acknowledge Work Request', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
             ],
           ),
-          content: SizedBox(
+          content: Container(
             width: 500,
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.9,
+            ),
             child: SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
               child: Column(

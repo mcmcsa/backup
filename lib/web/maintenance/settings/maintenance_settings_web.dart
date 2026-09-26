@@ -103,8 +103,10 @@ class _MaintenanceSettingsWebState extends State<MaintenanceSettingsWeb> {
 
   void _showChangePasswordDialog() {
     final formKey = GlobalKey<FormState>();
+    final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
+    bool obscureCurrent = true;
     bool obscureNew = true;
     bool obscureConfirm = true;
     bool isSaving = false;
@@ -171,6 +173,24 @@ class _MaintenanceSettingsWebState extends State<MaintenanceSettingsWeb> {
                           const SizedBox(height: 12),
                         ],
                         TextFormField(
+                          controller: currentPasswordController,
+                          obscureText: obscureCurrent,
+                          decoration: InputDecoration(
+                            labelText: 'Current Password',
+                            suffixIcon: IconButton(
+                              icon: Icon(obscureCurrent ? Icons.visibility_off : Icons.visibility),
+                              onPressed: () => setDialogState(() => obscureCurrent = !obscureCurrent),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Current password is required';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
                           controller: newPasswordController,
                           obscureText: obscureNew,
                           decoration: InputDecoration(
@@ -224,6 +244,7 @@ class _MaintenanceSettingsWebState extends State<MaintenanceSettingsWeb> {
 
                           final authService = context.read<AuthService>();
                           final error = await authService.changePassword(
+                            oldPassword: currentPasswordController.text,
                             newPassword: newPasswordController.text,
                           );
 

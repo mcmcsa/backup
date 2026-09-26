@@ -74,9 +74,13 @@ class _StudentTeacherDashboardState extends State<StudentTeacherDashboard>
   }
 
   List<WorkRequest> get _filteredRequests {
+    final active = _requests.where((r) {
+      final s = r.status.toLowerCase();
+      return s != 'canceled' && s != 'cancelled';
+    });
     final query = _searchController.text.toLowerCase();
-    if (query.isEmpty) return _requests;
-    return _requests.where((r) {
+    if (query.isEmpty) return active.toList();
+    return active.where((r) {
       return r.id.toLowerCase().contains(query) ||
              (r.officeRoom?.toLowerCase().contains(query) ?? false) ||
              r.title.toLowerCase().contains(query) ||

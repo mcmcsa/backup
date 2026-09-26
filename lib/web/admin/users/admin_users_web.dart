@@ -374,19 +374,22 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
   Widget _buildPageHeader(bool isCompact) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Users', style: AdminStyles.pageTitleStyle(fontSize: 26)),
-            const SizedBox(height: 4),
-            Text(
-              'Manage and view faculty accounts and departmental assignments',
-              style: AdminStyles.pageSubtitleStyle(fontSize: 13),
-            ),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Users', style: AdminStyles.pageTitleStyle(fontSize: isCompact ? 22 : 26)),
+              const SizedBox(height: 4),
+              Text(
+                'Manage and view faculty accounts and departmental assignments',
+                style: AdminStyles.pageSubtitleStyle(fontSize: isCompact ? 12 : 13),
+              ),
+            ],
+          ),
         ),
+        const SizedBox(width: 12),
         OutlinedButton.icon(
           onPressed: _loadData,
           icon: const Icon(Icons.refresh_rounded, size: 18),

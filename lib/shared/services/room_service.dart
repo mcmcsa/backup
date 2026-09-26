@@ -230,25 +230,46 @@ class RoomService {
     return _mapRooms(list);
   }
 
+  static Future<Room> _enrichRoomStatus(Room room) async {
+    try {
+      final activeRequest = await WorkRequestService.getActiveRequestForRoom(
+        roomId: room.id,
+        roomCode: room.code,
+        roomName: room.name,
+      );
+      if (activeRequest != null) {
+        return room.copyWith(status: activeRequest.status);
+      } else {
+        if (room.status.toLowerCase() != 'reserved') {
+          return room.copyWith(status: 'available');
+        }
+      }
+    } catch (_) {}
+    return room;
+  }
+
   static Future<Room?> fetchById(String id) async {
     final list = await _safeSelectRooms(filterColumn: 'id', filterValue: id);
     if (list.isEmpty) return null;
     final mapped = await _mapRooms(list);
-    return mapped.isNotEmpty ? mapped.first : null;
+    if (mapped.isEmpty) return null;
+    return await _enrichRoomStatus(mapped.first);
   }
 
   static Future<Room?> fetchByCode(String code) async {
     final list = await _safeSelectRooms(filterColumn: 'code', filterValue: code);
     if (list.isEmpty) return null;
     final mapped = await _mapRooms(list);
-    return mapped.isNotEmpty ? mapped.first : null;
+    if (mapped.isEmpty) return null;
+    return await _enrichRoomStatus(mapped.first);
   }
 
   static Future<Room?> fetchByQrCode(String qrCodeData) async {
     final list = await _safeSelectRooms(filterColumn: 'qr_code_data', filterValue: qrCodeData);
     if (list.isEmpty) return null;
     final mapped = await _mapRooms(list);
-    return mapped.isNotEmpty ? mapped.first : null;
+    if (mapped.isEmpty) return null;
+    return await _enrichRoomStatus(mapped.first);
   }
 
   /// Find a room by scanned QR code data, room code, or room ID (case-insensitive).
@@ -327,6 +348,8 @@ class RoomService {
     if (foundRoom != null) {
       // Record scan in qr_code_history
       QRCodeHistoryService.recordScanForRoom(foundRoom.id);
+
+      foundRoom = await _enrichRoomStatus(foundRoom);
     }
 
     return foundRoom;

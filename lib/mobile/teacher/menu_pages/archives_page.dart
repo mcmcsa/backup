@@ -71,7 +71,12 @@ class _ArchivesPageState extends State<ArchivesPage> {
       filtered = filtered.where((r) {
         final s = r.status.toLowerCase();
         final dhs = r.deptHeadStatus.toLowerCase();
-        return s.contains('declined') || s.contains('cancelled') || dhs == 'declined';
+        return (s.contains('declined') || dhs == 'declined') && !r.isCancelled;
+      }).toList();
+    } else if (_selectedFilter == 'Canceled') {
+      filtered = filtered.where((r) {
+        final s = r.status.toLowerCase();
+        return r.isCancelled || s.contains('cancelled') || s.contains('canceled');
       }).toList();
     }
     final query = _searchController.text.toLowerCase().trim();
@@ -191,6 +196,8 @@ class _ArchivesPageState extends State<ArchivesPage> {
                 _buildFilterChip('Completed', themeProvider),
                 const SizedBox(width: 8),
                 _buildFilterChip('Declined', themeProvider),
+                const SizedBox(width: 8),
+                _buildFilterChip('Canceled', themeProvider),
               ],
             ),
           ),
@@ -225,7 +232,10 @@ class _ArchivesPageState extends State<ArchivesPage> {
                       String statusLabel;
                       Color statusColor;
 
-                      if (dhs == 'acknowledged' || s == 'acknowledged' || r.isAcknowledged) {
+                      if (r.isCancelled || s == 'cancelled' || s == 'canceled') {
+                        statusLabel = 'CANCELED';
+                        statusColor = const Color(0xFFEF4444);
+                      } else if (dhs == 'acknowledged' || s == 'acknowledged' || r.isAcknowledged) {
                         statusLabel = isHeadEval ? 'ACKNOWLEDGED BY YOU' : 'ACKNOWLEDGED';
                         statusColor = const Color(0xFF0F766E);
                       } else if (s == 'completed') {
@@ -234,7 +244,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
                       } else if (dhs == 'approved') {
                         statusLabel = isHeadEval ? 'APPROVED BY YOU' : 'HEAD APPROVED';
                         statusColor = const Color(0xFF0284C7);
-                      } else if (s == 'declined' || s == 'cancelled' || dhs == 'declined') {
+                      } else if (s == 'declined' || dhs == 'declined') {
                         statusLabel = 'DECLINED';
                         statusColor = Colors.red;
                       } else {

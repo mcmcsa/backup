@@ -747,6 +747,22 @@ class AuthService extends ChangeNotifier {
     }
 
     try {
+      if (oldPassword != null && oldPassword.isNotEmpty) {
+        try {
+          await _auth.auth.signInWithPassword(
+            email: email,
+            password: oldPassword,
+          );
+        } on AuthException catch (e) {
+          debugPrint('Change password current password check failed: ${e.message}');
+          return 'Current password is incorrect. Please check and try again.';
+        }
+      }
+
+      if (oldPassword != null && oldPassword.trim().isNotEmpty && oldPassword.trim() == newPassword.trim()) {
+        return 'Your new password cannot be the same as your current password.';
+      }
+
       await _auth.auth.updateUser(UserAttributes(password: newPassword.trim()));
 
       if (_currentUser != null) {
@@ -760,6 +776,12 @@ class AuthService extends ChangeNotifier {
       return null;
     } on AuthException catch (e) {
       debugPrint('Change password auth error: ${e.message}');
+      final msg = e.message.toLowerCase();
+      if (msg.contains('different from the old password') ||
+          msg.contains('same as old password') ||
+          msg.contains('same as the old')) {
+        return 'Your new password cannot be the same as your old password. Please choose a different password.';
+      }
       return e.message;
     } catch (e) {
       debugPrint('Change password error: $e');

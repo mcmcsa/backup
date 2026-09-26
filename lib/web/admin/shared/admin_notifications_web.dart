@@ -220,11 +220,16 @@ class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredNotifications;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 700;
 
     return Container(
       color: _pageBg,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+        padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 16 : 32,
+          vertical: isCompact ? 18 : 32,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -404,7 +409,7 @@ class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
                 ),
               )
             else
-              _buildNotificationsList(),
+              _buildNotificationsList(isCompact: isCompact),
           ],
         ),
       ),
@@ -428,7 +433,7 @@ class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
     );
   }
 
-  Widget _buildNotificationsList() {
+  Widget _buildNotificationsList({bool isCompact = false}) {
     final list = _filteredNotifications;
     final hasMoreThan20 = list.length > 20;
     final displayCount = _showAll ? list.length : (hasMoreThan20 ? 20 : list.length);
@@ -539,51 +544,83 @@ class _AdminNotificationsWebState extends State<AdminNotificationsWeb> {
                       color: notification.isRead ? _borderColor : color.withValues(alpha: 0.2),
                     ),
                   ),
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(isCompact ? 12 : 16),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        width: 44,
-                        height: 44,
+                        width: isCompact ? 38 : 44,
+                        height: isCompact ? 38 : 44,
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Icon(_iconForType(notification.type), color: color, size: 22),
+                        child: Icon(_iconForType(notification.type), color: color, size: isCompact ? 18 : 22),
                       ),
-                      const SizedBox(width: 16),
+                      SizedBox(width: isCompact ? 10 : 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              notification.title,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: _darkText,
-                              ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    notification.title,
+                                    style: TextStyle(
+                                      fontSize: isCompact ? 13 : 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: _darkText,
+                                    ),
+                                  ),
+                                ),
+                                if (!notification.isRead && !isCompact) ...[
+                                  TextButton(
+                                    onPressed: () => _markOneAsRead(notification),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      minimumSize: const Size(50, 28),
+                                    ),
+                                    child: const Text('Mark read', style: TextStyle(fontSize: 12)),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(height: 4),
                             Text(
                               notification.message,
-                              style: const TextStyle(fontSize: 13, color: _subtleText),
-                              maxLines: 2,
+                              style: TextStyle(fontSize: isCompact ? 12 : 13, color: _subtleText),
+                              maxLines: isCompact ? 3 : 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 6),
-                            Text(
-                              _relativeTimestamp(notification.createdAt),
-                              style: TextStyle(fontSize: 12, color: _subtleText.withValues(alpha: 0.7)),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _relativeTimestamp(notification.createdAt),
+                                  style: TextStyle(fontSize: 11, color: _subtleText.withValues(alpha: 0.7)),
+                                ),
+                                if (!notification.isRead && isCompact)
+                                  InkWell(
+                                    onTap: () => _markOneAsRead(notification),
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      child: Text(
+                                        'Mark read',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: _primaryBlue,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                      if (!notification.isRead)
-                        TextButton(
-                          onPressed: () => _markOneAsRead(notification),
-                          child: const Text('Mark read'),
-                        ),
                     ],
                   ),
                 ),
