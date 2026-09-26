@@ -142,7 +142,7 @@ class MaintenanceWorkflowWeb extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     const Text(
-                      'Request Lifecycle Steps',
+                      'Request Flow Steps',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -238,7 +238,7 @@ class MaintenanceWorkflowWeb extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Work Request Lifecycle',
+            'Work Request Flow',
             style: TextStyle(
               fontSize: isMobile ? 22 : 28,
               fontWeight: FontWeight.w900,

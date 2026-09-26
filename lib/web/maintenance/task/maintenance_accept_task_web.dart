@@ -88,10 +88,11 @@ class _MaintenanceAcceptTaskWebState extends State<MaintenanceAcceptTaskWeb> {
         requestorId: widget.task.requestorId,
       );
 
+      final shortId = widget.task.id.length > 8 ? widget.task.id.substring(0, 8).toUpperCase() : widget.task.id.toUpperCase();
       await LoginActivityService.recordMaintenanceAction(
         user: user,
         title: 'Accepted Work Request',
-        details: 'Accepted work request #${widget.task.id} (${widget.task.title})',
+        details: 'Accepted work request #$shortId (${widget.task.title})',
         workRequestId: widget.task.id,
       );
 

@@ -179,10 +179,11 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
         debugPrint('Pre-inspection notification dispatch error: $notifErr');
       }
 
+      final shortId = widget.request.id.length > 8 ? widget.request.id.substring(0, 8).toUpperCase() : widget.request.id.toUpperCase();
       await LoginActivityService.recordMaintenanceAction(
         user: user,
         title: 'Submitted Pre-Inspection',
-        details: 'Submitted pre-inspection for #${widget.request.id} (${widget.request.title}) - Severity: $_severityLevel',
+        details: 'Submitted pre-inspection for #$shortId (${widget.request.title}) - Severity: $_severityLevel',
         workRequestId: widget.request.id,
       );
 
@@ -212,9 +213,9 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
       final rawExt = file.name.contains('.')
           ? file.name.split('.').last.toLowerCase()
           : 'jpg';
-      final extension = rawExt == 'jpg' ? 'jpeg' : rawExt;
-      final mimeType = 'image/$extension';
-      final fileName = 'pre_${DateTime.now().millisecondsSinceEpoch}_$i.$rawExt';
+      final mimeType = _normalizeMimeType(rawExt);
+      final extension = mimeType == 'image/jpeg' ? 'jpg' : rawExt;
+      final fileName = 'pre_${DateTime.now().millisecondsSinceEpoch}_$i.$extension';
       final path = 'work-evidence/$requestId/$fileName';
 
       String? url;
@@ -237,6 +238,26 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
       urls.add(url);
     }
     return jsonEncode(urls);
+  }
+
+  String _normalizeMimeType(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      case 'svg':
+        return 'image/svg+xml';
+      case 'jpg':
+      case 'jpeg':
+      case 'jfif':
+      case 'pjpeg':
+      case 'pjp':
+      default:
+        return 'image/jpeg';
+    }
   }
 
   void _pickImages() async {

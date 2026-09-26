@@ -235,9 +235,11 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                                         return Column(
                                           crossAxisAlignment: CrossAxisAlignment.stretch,
                                           children: [
+                                            _buildActionCard(),
+                                            const SizedBox(height: 24),
                                             Container(key: _timelineKey, child: _buildTimelineSection()),
                                             const SizedBox(height: 24),
-                                            Container(key: _detailsKey, child: _buildDetailsColumn()),
+                                            Container(key: _detailsKey, child: _buildDetailsColumn(showActions: false)),
                                           ],
                                         );
                                       }
@@ -251,7 +253,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                                             ],
                                           )),
                                           const SizedBox(width: 24),
-                                          Expanded(flex: 4, child: Container(key: _detailsKey, child: _buildDetailsColumn())),
+                                          Expanded(flex: 4, child: Container(key: _detailsKey, child: _buildDetailsColumn(showActions: true))),
                                         ],
                                       );
                                     },
@@ -865,8 +867,9 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
               child: Row(
                 children: [
                   _buildHeaderTabItem('Overview', 0, _overviewKey),
-                  _buildHeaderTabItem('Timeline', 1, _timelineKey),
-                  _buildHeaderTabItem('Details', 2, _detailsKey),
+                  _buildHeaderTabItem('Actions', 1, _actionsKey),
+                  _buildHeaderTabItem('Timeline', 2, _timelineKey),
+                  _buildHeaderTabItem('Details', 3, _detailsKey),
                 ],
               ),
             ),
@@ -1970,7 +1973,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     );
   }
 
-  Widget _buildDetailsColumn() {
+  Widget _buildDetailsColumn({bool showActions = true}) {
     final requestor = _request!.requestorName.isNotEmpty
         ? _request!.requestorName
         : (_request!.reportedByName ?? 'N/A');
@@ -1980,6 +1983,10 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
 
     return Column(
       children: [
+        if (showActions) ...[
+          _buildActionCard(),
+          const SizedBox(height: 20),
+        ],
         _buildInfoCard('Information', [
           _buildSummaryRow('Tracking #', _request!.id.substring(0, 8).toUpperCase()),
           _buildSummaryRow('Type', _request!.typeWithSpecify),
@@ -2010,8 +2017,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
         ],
         _buildDeptHeadEvaluationCard(),
         _buildFollowUpsCard(),
-        const SizedBox(height: 20),
-        _buildActionCard(),
       ],
     );
   }
@@ -2239,11 +2244,39 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     return Container(
       key: _actionsKey,
       padding: const EdgeInsets.all(24),
-      decoration: AdminStyles.cardDecoration(),
+      decoration: AdminStyles.cardDecoration(borderRadius: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Available Actions', style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textSecondary)),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AdminStyles.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.bolt_rounded, size: 18, color: AdminStyles.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'QUICK ACTIONS',
+                      style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Available Actions',
+                      style: AdminStyles.headingStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
           if (_request!.isPendingDeptHead) ...[
             Container(

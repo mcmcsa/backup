@@ -668,12 +668,12 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
+                  shape: BoxShape.circle,
                   gradient: const LinearGradient(
                     colors: [Color(0xFF00BFA5), Color(0xFF0F766E)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(10),
                   image: userAvatarUrl != null && userAvatarUrl.isNotEmpty
                       ? DecorationImage(
                           image: NetworkImage(userAvatarUrl),

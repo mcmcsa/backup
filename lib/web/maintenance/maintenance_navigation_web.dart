@@ -469,10 +469,10 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
+                          shape: BoxShape.circle,
                           gradient: const LinearGradient(
                             colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
                           ),
-                          borderRadius: BorderRadius.circular(10),
                           image: userAvatarUrl != null && userAvatarUrl.isNotEmpty
                               ? DecorationImage(
                                   image: NetworkImage(userAvatarUrl),
@@ -685,12 +685,12 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
+                  shape: BoxShape.circle,
                   gradient: const LinearGradient(
                     colors: [Color(0xFF0EA5E9), Color(0xFF2563EB)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(10),
                   image: userAvatarUrl != null && userAvatarUrl.isNotEmpty
                       ? DecorationImage(
                           image: NetworkImage(userAvatarUrl),

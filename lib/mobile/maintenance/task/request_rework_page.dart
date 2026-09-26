@@ -412,10 +412,11 @@ class _RequestReworkPageState extends State<RequestReworkPage> {
                       final user = context.read<AuthService>().currentUser;
                       if (user != null) {
                         await WorkRequestService.updateStatus(widget.request.id, 'Rework');
+                        final shortId = widget.request.id.length > 8 ? widget.request.id.substring(0, 8).toUpperCase() : widget.request.id.toUpperCase();
                         await LoginActivityService.recordMaintenanceAction(
                           user: user,
                           title: 'Requested Rework',
-                          details: 'Requested rework for #${widget.request.id} (${widget.request.title})',
+                          details: 'Requested rework for #$shortId (${widget.request.title})',
                           workRequestId: widget.request.id,
                         );
                       }

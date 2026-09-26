@@ -92,7 +92,19 @@ class _TeacherDashboardWebState extends State<TeacherDashboardWeb>
         return;
       }
 
-      final data = await WorkRequestService.fetchByRequestor(user.id);
+      final results = await Future.wait([
+        WorkRequestService.fetchByRequestor(user.id),
+        WorkRequestService.fetchEvaluatedByDeptHead(user.id),
+      ]);
+      final map = <String, WorkRequest>{};
+      for (final r in results[1]) {
+        map[r.id] = r;
+      }
+      for (final r in results[0]) {
+        map[r.id] = r;
+      }
+      final data = map.values.toList()
+        ..sort((a, b) => b.dateSubmitted.compareTo(a.dateSubmitted));
       if (mounted) {
         setState(() {
           _requests = data;

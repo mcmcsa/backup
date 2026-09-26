@@ -2506,9 +2506,13 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
       await _loadRequest();
     } catch (e) {
       if (mounted) {
+        String errorMsg = e.toString();
+        if (errorMsg.contains('requestor_comment') || errorMsg.contains('PGRST204')) {
+          errorMsg = 'Database schema update needed: please run the post-repair SQL migration in Supabase SQL Editor.';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text('Error: $errorMsg'),
             backgroundColor: Colors.red,
           ),
         );

@@ -449,6 +449,7 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
+          isExpanded: true,
           value: _selectedDepartmentFilter,
           icon: const Icon(Icons.arrow_drop_down_rounded, color: AdminStyles.primary),
           style: AdminStyles.bodyStyle(
@@ -602,23 +603,52 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
             user.department != '-';
 
         return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: AdminStyles.cardDecoration(borderRadius: 16),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AdminStyles.border.withValues(alpha: 0.8)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Top Row: Avatar + Name & Email + Status Badge
               Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: AdminStyles.primary.withValues(alpha: 0.12),
-                    child: Text(
-                      _getInitials(user.fullName),
-                      style: const TextStyle(
-                        color: AdminStyles.primary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AdminStyles.primary.withValues(alpha: 0.16),
+                          AdminStyles.primary.withValues(alpha: 0.06),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AdminStyles.primary.withValues(alpha: 0.22),
+                        width: 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _getInitials(user.fullName),
+                        style: const TextStyle(
+                          color: AdminStyles.primary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ),
@@ -631,7 +661,7 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
                           user.fullName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AdminStyles.bodyStyle(
+                          style: AdminStyles.headingStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: AdminStyles.textPrimary,
@@ -647,6 +677,17 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
                             color: AdminStyles.textSecondary,
                           ),
                         ),
+                        if ((user.employeeId ?? '').trim().isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'ID: ${user.employeeId}',
+                            style: AdminStyles.bodyStyle(
+                              fontSize: 11,
+                              color: const Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -654,37 +695,92 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
                   _buildStatusBadge(user.isActive),
                 ],
               ),
-              const SizedBox(height: 12),
-              // Department pill
+              const SizedBox(height: 10),
+
+              // Department info chip
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: hasDept
+                      ? AdminStyles.primary.withValues(alpha: 0.05)
+                      : const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(9),
+                  border: Border.all(
+                    color: hasDept
+                        ? AdminStyles.primary.withValues(alpha: 0.15)
+                        : const Color(0xFFFDE68A),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      hasDept ? Icons.school_outlined : Icons.help_outline_rounded,
+                      size: 14,
+                      color: hasDept ? AdminStyles.primary : const Color(0xFFD97706),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        hasDept ? user.department! : 'No Department (Unassigned)',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: hasDept ? AdminStyles.primary : const Color(0xFFB45309),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // Action buttons row: View Details & Message
               Row(
                 children: [
                   Expanded(
-                    child: _buildDepartmentBadge(user.department, hasDept),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Divider(height: 1, color: AdminStyles.border),
-              const SizedBox(height: 10),
-              // Actions
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _ActionButton(
-                    tooltip: 'Send Message',
-                    icon: Icons.chat_bubble_outline_rounded,
-                    color: AdminStyles.primary,
-                    hoverBg: AdminStyles.primary.withValues(alpha: 0.1),
-                    isLoading: _startingChatUserId == user.userId,
-                    onTap: () => _startChat(user),
+                    child: OutlinedButton.icon(
+                      onPressed: () => _showFacultyDetails(user),
+                      icon: const Icon(Icons.visibility_outlined, size: 15),
+                      label: const Text(
+                        'View Details',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF334155),
+                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        backgroundColor: const Color(0xFFF8FAFC),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  _ActionButton(
-                    tooltip: 'View Details',
-                    icon: Icons.visibility_outlined,
-                    color: const Color(0xFF64748B),
-                    hoverBg: const Color(0xFFF1F5F9),
-                    onTap: () => _showFacultyDetails(user),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _startingChatUserId == user.userId ? null : () => _startChat(user),
+                      icon: _startingChatUserId == user.userId
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.chat_bubble_outline_rounded, size: 15),
+                      label: const Text(
+                        'Message',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminStyles.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -744,17 +840,36 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
   }
 
   static Widget _buildStatusBadge(bool isActive) {
-    final color = isActive ? AdminStyles.success : AdminStyles.textMuted;
+    final color = isActive ? AdminStyles.success : const Color(0xFF94A3B8);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: AdminStyles.pillDecoration(color: color, isSecondary: true),
-      child: Text(
-        isActive ? 'ACTIVE' : 'INACTIVE',
-        style: AdminStyles.headingStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w900,
-          color: color,
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.25), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            isActive ? 'Active' : 'Inactive',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }

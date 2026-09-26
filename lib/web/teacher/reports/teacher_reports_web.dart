@@ -139,7 +139,6 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
   }
 
   void _applyFilters() {
-    final user = context.read<AuthService>().currentUser;
     setState(() {
       _filteredRequests = _requests.where((r) {
         final matchesSearch =
@@ -151,9 +150,9 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
                 r.formattedId.toLowerCase().contains(_searchQuery.toLowerCase());
         bool matchesStatus = false;
         if (_selectedStatus == 'All') {
-          matchesStatus = !_isHistorical(r.status) && (r.requestorId == user?.id);
+          matchesStatus = !_isHistorical(r.status);
         } else if (_selectedStatus == 'History') {
-          matchesStatus = _isHistorical(r.status) || (r.deptHeadId == user?.id && (r.deptHeadStatus == 'approved' || r.deptHeadStatus == 'acknowledged'));
+          matchesStatus = _isHistorical(r.status);
         } else {
           final sel = _selectedStatus.toLowerCase();
           final status = r.status.toLowerCase();
@@ -161,7 +160,8 @@ class _TeacherReportsWebState extends State<TeacherReportsWeb>
             matchesStatus = (status == 'pending' ||
                     status == 'pending assignment' ||
                     status == 'pending department head' ||
-                    status == 'pending campus admin') &&
+                    status == 'pending campus admin' ||
+                    status.contains('pending')) &&
                 !_isHistorical(r.status);
           } else if (sel == 'in progress') {
             matchesStatus = (status == 'in progress' ||

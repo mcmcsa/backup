@@ -604,8 +604,16 @@ class _DashboardPageMobileState extends State<DashboardPageMobile>
   }
 
   Widget _buildLatestRequestsTable() {
-    final latest = List<WorkRequest>.from(_requests.where((r) => !r.isPendingDeptHead))
-      ..sort((a, b) => b.dateSubmitted.compareTo(a.dateSubmitted));
+    final latest = List<WorkRequest>.from(_requests.where((r) {
+      if (r.isPendingDeptHead) return false;
+      final s = r.status.trim().toLowerCase();
+      return s != 'completed' &&
+          s != 'canceled' &&
+          s != 'cancelled' &&
+          s != 'declined' &&
+          s != 'declined/cancelled' &&
+          s != 'acknowledged';
+    }))..sort((a, b) => b.dateSubmitted.compareTo(a.dateSubmitted));
     final top = latest.take(5).toList();
 
     if (top.isEmpty) {
@@ -616,7 +624,7 @@ class _DashboardPageMobileState extends State<DashboardPageMobile>
           borderRadius: BorderRadius.circular(12),
         ),
         child: Center(
-          child: Text('No requests yet', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+          child: Text('No active requests', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
         ),
       );
     }

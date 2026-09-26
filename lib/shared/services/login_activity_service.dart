@@ -124,7 +124,15 @@ class LoginActivity {
         cleanDetails = cleanDetails
             .replaceAll(RegExp(r'\s*\([0-9a-fA-F\-]{36}\)'), '')
             .replaceAll(RegExp(r'\s*\(ID:\s*[^\)]+\)'), '')
-            .replaceAll(RegExp(r'\s*ID:\s*[0-9a-fA-F\-]{36}'), '');
+            .replaceAll(RegExp(r'\s*ID:\s*[0-9a-fA-F\-]{36}'), '')
+            .replaceAllMapped(
+              RegExp(r'#([0-9a-fA-F]{8})-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'),
+              (m) => '#${m[1]!.toUpperCase()}',
+            )
+            .replaceAllMapped(
+              RegExp(r'\b([0-9a-fA-F]{8})-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'),
+              (m) => m[1]!.toUpperCase(),
+            );
 
         if (cleanDetails.contains('PostgresException') ||
             cleanDetails.contains('PGRST') ||
@@ -318,13 +326,26 @@ class LoginActivityService {
     _lastActionKey = actionKey;
     _lastActionTime = now;
 
+    String? cleanDetails = details;
+    if (cleanDetails != null && cleanDetails.isNotEmpty) {
+      cleanDetails = cleanDetails
+          .replaceAllMapped(
+            RegExp(r'#([0-9a-fA-F]{8})-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'),
+            (m) => '#${m[1]!.toUpperCase()}',
+          )
+          .replaceAllMapped(
+            RegExp(r'\b([0-9a-fA-F]{8})-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'),
+            (m) => m[1]!.toUpperCase(),
+          );
+    }
+
     await _append({
       'user_id': user.id,
       'user_name': user.name,
       'role': user.role.name,
       'event_type': 'action',
       'title': title,
-      'details': details,
+      'details': cleanDetails,
       'work_request_id': workRequestId,
     });
   }

@@ -408,7 +408,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                 : FadeTransition(
                     opacity: _fadeAnim,
                     child: SingleChildScrollView(
-                      padding: EdgeInsets.all(isCompact ? 20 : 40),
+                      padding: EdgeInsets.all(isCompact ? 16 : 40),
                       child: Center(
                         child: ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 1400),
@@ -418,7 +418,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                                   ? Column(children: [
                                       // Top Priority: Maintenance Workflow Actions and Status on compact screen
                                       if (_isAssignedToMe || _preInspectionReport != null || _postRepairReports.isNotEmpty) ...[
-                                        _buildMaintenanceActionsCard(),
+                                        _buildMaintenanceActionsCard(isCompact: true),
                                         const SizedBox(height: 20),
                                       ],
                                       _buildStatusHero(),
@@ -928,7 +928,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     );
   }
 
-  Widget _buildMaintenanceActionsCard() {
+  Widget _buildMaintenanceActionsCard({bool isCompact = false}) {
     final task = _currentTask!;
     
     // Step 1: Acceptance Status
@@ -952,7 +952,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     final isPendingEvaluation = latestReport != null && latestReport.adminEvaluation == null && !isLastCompleted;
 
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(isCompact ? 16 : 28),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -978,6 +978,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                 ? 'Accepted on ${DateFormat('MMM dd, yyyy • hh:mm a').format(task.acceptedDate!)}'
                 : 'Acknowledge assignment to unlock inspection.',
             isCompleted: isAccepted,
+            isCompact: isCompact,
             action: !isAccepted
                 ? (_isAssignedToMe
                     ? ElevatedButton.icon(
@@ -1013,6 +1014,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                         ? 'Report submitted. Awaiting Admin review.'
                         : 'Submit site inspection findings.')),
             isCompleted: hasPreInsp && !isPreInspDeclined,
+            isCompact: isCompact,
             action: !hasPreInsp
                 ? (_isAssignedToMe
                     ? ElevatedButton.icon(
@@ -1088,6 +1090,7 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
                           ? 'Report submitted. Awaiting Admin evaluation.'
                           : 'Perform repair and submit completion report.')),
               isCompleted: isLastCompleted,
+              isCompact: isCompact,
               action: (!hasPostRepair || isLastRework)
                   ? (_isAssignedToMe
                       ? ElevatedButton.icon(
@@ -1139,7 +1142,51 @@ class _MaintenanceTaskDetailsWebState extends State<MaintenanceTaskDetailsWeb>
     required String subtitle,
     required bool isCompleted,
     required Widget action,
+    bool isCompact = false,
   }) {
+    final isSimpleIcon = action is Icon || (action is SizedBox && action.width == 0);
+
+    if (isCompact && !isSimpleIcon) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: isCompleted ? AdminStyles.success.withValues(alpha: 0.1) : Colors.grey.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isCompleted ? Icons.check_rounded : Icons.pending_actions_rounded,
+                  color: isCompleted ? AdminStyles.success : Colors.grey.shade400,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: AdminStyles.bodyStyle(fontSize: 11, color: AdminStyles.textSecondary)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 44, top: 10),
+            child: action,
+          ),
+        ],
+      );
+    }
+
     return Row(
       children: [
         Container(

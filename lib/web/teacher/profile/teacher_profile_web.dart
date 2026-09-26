@@ -121,13 +121,16 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
       setState(() => _isUploadingImage = true);
 
       final bytes = await file.readAsBytes();
-      final ext = file.name.split('.').last;
+      final rawExt = file.name.split('.').last.toLowerCase();
+      final mimeType = _normalizeMimeType(rawExt);
+      final ext = mimeType.split('/').last == 'jpeg' ? 'jpg' : rawExt;
       final path = 'profiles/${user.id}_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
       // Upload binary to Supabase storage
       await Supabase.instance.client.storage
           .from('profile-images')
-          .uploadBinary(path, bytes, fileOptions: const FileOptions(upsert: true));
+          .uploadBinary(path, bytes,
+              fileOptions: FileOptions(upsert: true, contentType: mimeType));
 
       // Get public URL
       final publicUrl = Supabase.instance.client.storage
@@ -175,6 +178,21 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
       if (mounted) {
         setState(() => _isUploadingImage = false);
       }
+    }
+  }
+
+  String _normalizeMimeType(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
     }
   }
 

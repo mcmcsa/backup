@@ -90,13 +90,15 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
   }
 
   List<WorkRequest> _getLatestRequests({int limit = 6}) {
-    // Canceled and declined requests belong strictly in History, not on the home page
+    // Completed, canceled, declined, and acknowledged requests belong in History, not on the home dashboard
     final active = _allRequests.where((r) {
-      final s = r.status.toLowerCase();
-      return s != 'canceled' &&
+      final s = r.status.trim().toLowerCase();
+      return s != 'completed' &&
+          s != 'canceled' &&
           s != 'cancelled' &&
           s != 'declined' &&
-          s != 'declined/cancelled';
+          s != 'declined/cancelled' &&
+          s != 'acknowledged';
     }).toList();
     final sorted = List<WorkRequest>.from(active)
       ..sort((left, right) => right.dateSubmitted.compareTo(left.dateSubmitted));
@@ -513,7 +515,7 @@ class _DashboardPageWebState extends State<DashboardPageWeb> {
           if (latestRequests.isEmpty)
             const Padding(
               padding: EdgeInsets.all(36),
-              child: _EmptyState(message: 'No requests yet'),
+              child: _EmptyState(message: 'No active requests'),
             )
           else
             ListView.separated(

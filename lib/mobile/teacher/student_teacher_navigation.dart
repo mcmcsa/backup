@@ -86,7 +86,10 @@ class _StudentTeacherNavigationState extends State<StudentTeacherNavigation> {
             index: _selectedIndex,
             children: pages,
           ),
-          drawer: StudentDrawer(onSelectTab: _onNavItemTapped),
+          drawer: StudentDrawer(
+            onSelectTab: _onNavItemTapped,
+            currentTab: _selectedIndex,
+          ),
           bottomNavigationBar: _buildBottomNavBar(themeProvider),
         ),
       ),

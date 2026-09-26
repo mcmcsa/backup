@@ -431,7 +431,7 @@ class _MaintenanceLogsWebState extends State<MaintenanceLogsWeb> {
                       if (log.details != null && log.details!.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
-                          log.details!,
+                          _formatLogDetails(log.details!),
                           style: AdminStyles.bodyStyle(
                             fontSize: 13,
                             color: _subtleText,
@@ -459,5 +459,17 @@ class _MaintenanceLogsWebState extends State<MaintenanceLogsWeb> {
         },
       ),
     );
+  }
+
+  String _formatLogDetails(String text) {
+    return text
+        .replaceAllMapped(
+          RegExp(r'#([0-9a-fA-F]{8})-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'),
+          (m) => '#${m[1]!.toUpperCase()}',
+        )
+        .replaceAllMapped(
+          RegExp(r'\b([0-9a-fA-F]{8})-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b'),
+          (m) => m[1]!.toUpperCase(),
+        );
   }
 }

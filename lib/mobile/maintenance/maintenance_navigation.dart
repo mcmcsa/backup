@@ -181,6 +181,59 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   children: [
                     _buildDrawerMenuItem(
+                      icon: Icons.home_rounded,
+                      title: 'Home',
+                      isSelected: _selectedIndex == 0,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _onNavItemTapped(0);
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    _buildDrawerMenuItem(
+                      icon: Icons.work_rounded,
+                      title: 'Tasks',
+                      isSelected: _selectedIndex == 1,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _onNavItemTapped(1);
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    _buildDrawerMenuItem(
+                      icon: Icons.chat_bubble_rounded,
+                      title: 'Chat',
+                      isSelected: _selectedIndex == 2,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _onNavItemTapped(2);
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    _buildDrawerMenuItem(
+                      icon: Icons.history_rounded,
+                      title: 'History',
+                      isSelected: _selectedIndex == 3,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _onNavItemTapped(3);
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    _buildDrawerMenuItem(
+                      icon: Icons.person_rounded,
+                      title: 'Profile',
+                      isSelected: _selectedIndex == 4,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _onNavItemTapped(4);
+                      },
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 6),
+                      child: Divider(color: Colors.white24, height: 1),
+                    ),
+                    _buildDrawerMenuItem(
                       icon: Icons.history_edu_outlined,
                       title: 'Activity Logs',
                       onTap: () {
@@ -191,7 +244,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                         );
                       },
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     _buildDrawerMenuItem(
                       icon: Icons.settings_outlined,
                       title: 'Settings',
@@ -203,7 +256,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                         );
                       },
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     _buildDrawerMenuItem(
                       icon: Icons.account_tree_outlined,
                       title: 'System Workflow',
@@ -215,7 +268,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                         );
                       },
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     _buildDrawerMenuItem(
                       icon: Icons.info_outlined,
                       title: 'About Us',
@@ -227,7 +280,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                         );
                       },
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     _buildDrawerMenuItem(
                       icon: Icons.phone_outlined,
                       title: 'Contact Us',
@@ -439,9 +492,10 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    bool isSelected = false,
   }) {
     return Material(
-      color: Colors.transparent,
+      color: isSelected ? Colors.white.withValues(alpha: 0.2) : Colors.transparent,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onTap,
@@ -455,21 +509,30 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
             children: [
               Icon(
                 icon,
-                color: Colors.white.withValues(alpha: 0.9),
+                color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.9),
                 size: 22,
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 14.5,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                     letterSpacing: 0.2,
                   ),
                 ),
               ),
+              if (isSelected)
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                ),
             ],
           ),
         ),

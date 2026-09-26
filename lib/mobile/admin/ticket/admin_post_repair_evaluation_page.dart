@@ -79,7 +79,7 @@ class _AdminPostRepairEvaluationPageState
   @override
   void dispose() { _reworkNotesController.dispose(); super.dispose(); }
 
-  void _openCompletionSignatureDialog(PostRepairReport report) {
+  Future<void> _openCompletionSignatureDialog(PostRepairReport report) async {
     if (!report.isRequestorEvaluated) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -89,8 +89,67 @@ class _AdminPostRepairEvaluationPageState
       );
       return;
     }
-    showDialog<String>(context: context, barrierDismissible: false, builder: (ctx) => Dialog(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)), child: Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, children: [SignaturePadWidget(title: 'E-Signature Required', subtitle: 'Sign to confirm work completion approval', onSignatureComplete: (base64) { Navigator.pop(ctx, base64); }), TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancel', style: TextStyle(color: Color(0xFF6B7280))))]))))
-        .then((signature) { if (signature != null && signature.isNotEmpty) { _markCompletedWithSignature(report, signature); } });
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirm Completion', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Do you want to mark this work request as Completed?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Yes', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (!mounted) return;
+
+    final signature = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SignaturePadWidget(
+                title: 'E-Signature Required',
+                subtitle: 'Sign to confirm work completion approval',
+                onSignatureComplete: (base64) {
+                  Navigator.pop(ctx, base64);
+                },
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('Cancel', style: TextStyle(color: Color(0xFF6B7280))),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (signature != null && signature.isNotEmpty) {
+      await _markCompletedWithSignature(report, signature);
+    }
   }
 
   Future<void> _markCompletedWithSignature(PostRepairReport report, String signatureData) async {
@@ -108,14 +167,80 @@ class _AdminPostRepairEvaluationPageState
     }
     setState(() => _isProcessing = true);
     try {
-      await ESignatureService.insert(ESignature(id: '', workRequestId: widget.request.id, signerId: user.id, signerName: user.name, signerRole: 'campadmin', signatureType: 'completion', signatureData: signatureData, signedAt: DateTime.now()));
+      await ESignatureService.insert(ESignature(
+        id: '',
+        workRequestId: widget.request.id,
+        signerId: user.id,
+        signerName: user.name,
+        signerRole: 'campadmin',
+        signatureType: 'completion',
+        signatureData: signatureData,
+        signedAt: DateTime.now(),
+      ));
       await PostRepairService.markSatisfied(report.id, user.id);
       await WorkRequestService.completeRequest(widget.request.id);
-      await AppNotificationService.notifyAdminCompletionSubmittedToRequestor(workRequestId: widget.request.id, adminName: user.name, requestorId: widget.request.requestorId);
-      await AppNotificationService.notifyPostRepairCompleted(workRequestId: widget.request.id, maintenanceId: widget.request.assignedToId ?? report.technicianId, adminName: user.name);
-      await LoginActivityService.recordAdminAction(user: user, title: 'Post-Repair Completed', details: 'Marked request as completed with signature for ${widget.request.officeRoom}', workRequestId: widget.request.id);
-      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Post-repair approved. Work request completed successfully.'), backgroundColor: Color(0xFF059669))); Navigator.pop(context, 'completed'); }
-    } catch (e) { if (mounted) { setState(() => _isProcessing = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)); } }
+      await AppNotificationService.notifyAdminCompletionSubmittedToRequestor(
+        workRequestId: widget.request.id,
+        adminName: user.name,
+        requestorId: widget.request.requestorId,
+      );
+      await AppNotificationService.notifyPostRepairCompleted(
+        workRequestId: widget.request.id,
+        maintenanceId: widget.request.assignedToId ?? report.technicianId,
+        adminName: user.name,
+      );
+      await LoginActivityService.recordAdminAction(
+        user: user,
+        title: 'Post-Repair Completed',
+        details: 'Marked request as completed with signature for ${widget.request.officeRoom}',
+        workRequestId: widget.request.id,
+      );
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF059669).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 24),
+                ),
+                const SizedBox(width: 10),
+                const Text('Success', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: const Text('Work Request Successfully Completed'),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+        if (mounted) {
+          Navigator.pop(context, 'completed');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      }
+    }
   }
 
   Future<void> _markRework(PostRepairReport report) async {

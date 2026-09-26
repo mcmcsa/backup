@@ -33,15 +33,12 @@ class MaintenanceStatusService {
   /// Returns true if a work request status represents an ongoing/active assignment for a technician
   static bool isOngoingWorkRequestStatus(String status) {
     final s = status.toLowerCase().trim();
-    return s == 'assigned' ||
-        s == 'in progress' ||
-        s == 'in_progress' ||
-        s == 'accepted' ||
-        s == 'accepted by maintenance' ||
-        s == 'under_maintenance' ||
-        s == 'rework' ||
-        s == 'for rework' ||
-        s == 'rework needed';
+    if (s.isEmpty) return false;
+    return s != 'completed' &&
+        s != 'cancelled' &&
+        s != 'declined' &&
+        s != 'rejected' &&
+        s != 'declined/cancelled';
   }
 
   /// Unified binary status detection:
@@ -144,13 +141,11 @@ class MaintenanceStatusService {
 
   /// Manually override availability status for a user
   static Future<void> updateStatus(String userId, String status) async {
+    final normalized = status.toLowerCase().trim() == 'busy' ? 'busy' : 'available';
     final Map<String, dynamic> data = {
-      'availability_status': status,
+      'availability_status': normalized,
       'status_updated_at': DateTime.now().toUtc().toIso8601String(),
     };
-    if (status.toLowerCase() == 'offline') {
-      data['last_active_at'] = null;
-    }
     await _db.from(_table).update(data).eq('user_id', userId);
   }
 
@@ -166,14 +161,9 @@ class MaintenanceStatusService {
   /// Called right before successful logout
   static Future<void> setOfflineOnLogout(String userId) async {
     try {
-      await _db.from(_table).update({
-        'availability_status': 'offline',
-        'current_assignment_id': null,
-        'last_active_at': null,
-        'status_updated_at': DateTime.now().toUtc().toIso8601String(),
-      }).eq('user_id', userId);
+      await syncStatusForUser(userId);
     } catch (e) {
-      debugPrint('Failed to set offline status: $e');
+      debugPrint('Failed to sync status on logout: $e');
     }
   }
 

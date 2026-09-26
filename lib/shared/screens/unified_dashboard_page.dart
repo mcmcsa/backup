@@ -9,6 +9,9 @@ import '../services/work_request_service.dart';
 import '../../web/admin/shared/admin_styles.dart';
 import '../../mobile/admin/shared/admin_app_bar.dart';
 
+import '../../web/admin/admin_nav_controller.dart';
+import '../../mobile/admin/ticket/request_details_page.dart';
+
 // Mapping local colors to AdminStyles for compatibility and modularity
 const Color _border = AdminStyles.border;
 const Color _textPrimary = AdminStyles.textPrimary;
@@ -20,9 +23,15 @@ const Color _accentRed = AdminStyles.error;
 
 class UnifiedDashboardPage extends StatefulWidget {
   final VoidCallback? onViewAllWorkRequests;
+  final ValueChanged<WorkRequest>? onSelectRequest;
   final VoidCallback? openDrawer;
 
-  const UnifiedDashboardPage({super.key, this.onViewAllWorkRequests, this.openDrawer});
+  const UnifiedDashboardPage({
+    super.key,
+    this.onViewAllWorkRequests,
+    this.onSelectRequest,
+    this.openDrawer,
+  });
 
   @override
   State<UnifiedDashboardPage> createState() => _UnifiedDashboardPageState();
@@ -77,6 +86,25 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
+
+  void _openRequest(WorkRequest request) {
+    if (widget.onSelectRequest != null) {
+      widget.onSelectRequest!(request);
+      return;
+    }
+    final controller = AdminNavController.of(context);
+    if (controller != null) {
+      controller.openWorkProcess(request);
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RequestDetailsPage(request: request),
+      ),
+    );
+  }
+
 
   List<WorkRequest> get _allRequests {
     return Provider.of<WorkRequestProvider>(context)
@@ -144,13 +172,15 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
   }
 
   List<WorkRequest> _getLatestRequests({int limit = 6}) {
-    // Canceled and declined requests belong strictly in History, not on the Home dashboard
+    // Completed, canceled, declined, and acknowledged requests belong strictly in History, not on the Home dashboard
     final active = _allRequests.where((r) {
       final s = r.status.trim().toLowerCase();
-      return s != 'canceled' &&
+      return s != 'completed' &&
+          s != 'canceled' &&
           s != 'cancelled' &&
           s != 'declined' &&
-          s != 'declined/cancelled';
+          s != 'declined/cancelled' &&
+          s != 'acknowledged';
     }).toList();
     final sorted = List<WorkRequest>.from(active)
       ..sort((left, right) => right.dateSubmitted.compareTo(left.dateSubmitted));
@@ -575,7 +605,10 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
           ? const _EmptyState(message: 'No aging tickets')
           : Column(
               children: agingTickets
-                  .map((ticket) => _AgingTicketItem(ticket: ticket))
+                  .map((ticket) => _AgingTicketItem(
+                        ticket: ticket,
+                        onTap: () => _openRequest(ticket),
+                      ))
                   .toList(),
             ),
     );
@@ -653,7 +686,7 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
           if (latestRequests.isEmpty)
             const Padding(
               padding: EdgeInsets.all(36),
-              child: _EmptyState(message: 'No requests yet'),
+              child: _EmptyState(message: 'No active requests'),
             )
           else
             ListView.separated(
@@ -663,6 +696,7 @@ class _UnifiedDashboardPageState extends State<UnifiedDashboardPage>
               separatorBuilder: (_, _) => const Divider(height: 1, color: _border),
               itemBuilder: (context, index) => _RequestTableRow(
                 request: latestRequests[index],
+                onTap: () => _openRequest(latestRequests[index]),
               ),
             ),
         ],
@@ -919,8 +953,9 @@ class _EmptyState extends StatelessWidget {
 
 class _RequestTableRow extends StatefulWidget {
   final WorkRequest request;
+  final VoidCallback? onTap;
 
-  const _RequestTableRow({required this.request});
+  const _RequestTableRow({required this.request, this.onTap});
 
   @override
   State<_RequestTableRow> createState() => _RequestTableRowState();
@@ -937,133 +972,140 @@ class _RequestTableRowState extends State<_RequestTableRow> {
     final ticketCode = '#${widget.request.id.substring(0, widget.request.id.length < 8 ? widget.request.id.length : 8).toUpperCase()}';
 
     if (isMobile) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: themeProvider.cardColor,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F766E).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    ticketCode,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0F766E),
-                      letterSpacing: 0.5,
+      return InkWell(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: themeProvider.cardColor,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      ticketCode,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F766E),
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
-                ),
-                _StatusBadge(status: widget.request.status),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              widget.request.title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: themeProvider.textColor,
+                  _StatusBadge(status: widget.request.status),
+                ],
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Icon(
-                  Icons.location_on_outlined,
-                  size: 14,
-                  color: themeProvider.subtitleColor,
+              const SizedBox(height: 10),
+              Text(
+                widget.request.title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: themeProvider.textColor,
                 ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    '${widget.request.officeRoom} • ${widget.request.buildingName}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: themeProvider.subtitleColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on_outlined,
+                    size: 14,
+                    color: themeProvider.subtitleColor,
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      '${widget.request.officeRoom} • ${widget.request.buildingName}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: themeProvider.subtitleColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        decoration: BoxDecoration(
-          color: _isHovered
-              ? (isDark ? const Color(0xFF262626) : AdminStyles.bg)
-              : themeProvider.cardColor,
-          border: Border(
-            bottom: BorderSide(color: themeProvider.borderColor),
+      child: InkWell(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? (isDark ? const Color(0xFF262626) : AdminStyles.bg)
+                : themeProvider.cardColor,
+            border: Border(
+              bottom: BorderSide(color: themeProvider.borderColor),
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 130,
-              child: Text(
-                ticketCode,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: themeProvider.textColor,
-                  fontFamily: 'monospace',
+          child: Row(
+            children: [
+              SizedBox(
+                width: 130,
+                child: Text(
+                  ticketCode,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: themeProvider.textColor,
+                    fontFamily: 'monospace',
+                  ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.request.title,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: themeProvider.textColor,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.request.title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: themeProvider.textColor,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${widget.request.officeRoom} • ${widget.request.buildingName}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: themeProvider.subtitleColor,
+                    const SizedBox(height: 4),
+                    Text(
+                      '${widget.request.officeRoom} • ${widget.request.buildingName}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: themeProvider.subtitleColor,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            SizedBox(
-              width: 160,
-              child: Center(
-                child: _StatusBadge(status: widget.request.status),
+              SizedBox(
+                width: 160,
+                child: Center(
+                  child: _StatusBadge(status: widget.request.status),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1172,8 +1214,9 @@ class _StatusConfig {
 
 class _AgingTicketItem extends StatefulWidget {
   final WorkRequest ticket;
+  final VoidCallback? onTap;
 
-  const _AgingTicketItem({required this.ticket});
+  const _AgingTicketItem({required this.ticket, this.onTap});
 
   @override
   State<_AgingTicketItem> createState() => _AgingTicketItemState();
@@ -1189,70 +1232,75 @@ class _AgingTicketItemState extends State<_AgingTicketItem> {
     final days = DateTime.now().difference(widget.ticket.dateSubmitted).inDays;
     
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _isHovered
-              ? (isDark ? const Color(0xFF262626) : AdminStyles.bg.withValues(alpha: 0.5))
-              : themeProvider.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
             color: _isHovered
-                ? AdminStyles.error.withValues(alpha: 0.4)
-                : themeProvider.borderColor,
+                ? (isDark ? const Color(0xFF262626) : AdminStyles.bg.withValues(alpha: 0.5))
+                : themeProvider.cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: _isHovered
+                  ? AdminStyles.error.withValues(alpha: 0.4)
+                  : themeProvider.borderColor,
+            ),
+            boxShadow: [
+              if (_isHovered)
+                BoxShadow(
+                  color: AdminStyles.error.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+            ],
           ),
-          boxShadow: [
-            if (_isHovered)
-              BoxShadow(
-                color: AdminStyles.error.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+          child: Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEF4444),
+                  shape: BoxShape.circle,
+                ),
               ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 10,
-              height: 10,
-              decoration: const BoxDecoration(
-                color: Color(0xFFEF4444),
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.ticket.title,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: themeProvider.textColor,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.ticket.title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: themeProvider.textColor,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${widget.ticket.buildingName} • $days days ago',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: themeProvider.subtitleColor,
+                    const SizedBox(height: 2),
+                    Text(
+                      '${widget.ticket.buildingName} • $days days ago',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: themeProvider.subtitleColor,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: themeProvider.subtitleColor, size: 18),
-          ],
+              Icon(Icons.chevron_right_rounded, color: themeProvider.subtitleColor, size: 18),
+            ],
+          ),
         ),
       ),
     );

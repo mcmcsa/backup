@@ -351,6 +351,13 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
               _selectedIndex = _ticketsIndex; // Switch to Tickets tab
             });
           },
+          onSelectRequest: (request) {
+            setState(() {
+              _selectedIndex = _ticketsIndex;
+              _selectedTicket = request;
+              _ticketsSubview = _ticketsSubviewProcess;
+            });
+          },
         );
       case _analyticsIndex:
         return const UnifiedAnalyticsPage();
@@ -868,51 +875,6 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
     );
   }
 
-  Widget _buildDropdownHeader({
-    required String title,
-    required bool isExpanded,
-    required VoidCallback onTap,
-    double inset = 0,
-  }) {
-    return Padding(
-      padding: EdgeInsets.only(left: inset, bottom: 6),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-            decoration: BoxDecoration(
-              color: _sidebarBorder.withValues(alpha: 0.22),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _sidebarBorder.withValues(alpha: 0.65)),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                  color: _textMuted,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: AdminStyles.bodyStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: _textMuted,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildLogoutButton() {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -946,6 +908,10 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   }
 
   Widget _buildHeader({bool isCompact = false, VoidCallback? onMenuTap}) {
+    final currentUser = context.watch<AuthService>().currentUser;
+    final profileImage = currentUser?.profileImage;
+    final displayName = currentUser?.name ?? _userName;
+
     return Container(
       height: 72,
       decoration: BoxDecoration(
@@ -1020,7 +986,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
+                  shape: BoxShape.circle,
                   border: Border.all(
                     color: _isUserMenuHovered ? _sidebarSelected : Colors.transparent,
                     width: 2,
@@ -1039,23 +1005,31 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
+                    shape: BoxShape.circle,
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [_sidebarSelected, _sidebarSelected.withValues(alpha: 0.8)],
                     ),
-                    borderRadius: BorderRadius.circular(10),
+                    image: (profileImage != null && profileImage.isNotEmpty)
+                        ? DecorationImage(
+                            image: NetworkImage(profileImage),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
-                  child: Center(
-                    child: Text(
-                      _userName.isNotEmpty ? _userName[0].toUpperCase() : 'A',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
+                  child: (profileImage == null || profileImage.isEmpty)
+                      ? Center(
+                          child: Text(
+                            displayName.isNotEmpty ? displayName[0].toUpperCase() : 'A',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        )
+                      : null,
                 ),
               ),
             ),
@@ -1130,76 +1104,6 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
   //     ),
   //   );
   // }
-}
-
-/// Header icon button with professional styling and badge support
-class _HeaderIconButton extends StatefulWidget {
-  final IconData icon;
-  final int badge;
-  final VoidCallback onTap;
-
-  const _HeaderIconButton({
-    required this.icon,
-    this.badge = 0,
-    required this.onTap,
-  });
-
-  @override
-  State<_HeaderIconButton> createState() => _HeaderIconButtonState();
-}
-
-class _HeaderIconButtonState extends State<_HeaderIconButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: 44,
-          height: 44,
-          decoration: _isHovered
-              ? AdminStyles.glassDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  opacity: 1.0,
-                  borderRadius: 12,
-                )
-              : BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.transparent),
-                ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Icon(
-                widget.icon,
-                color: _isHovered ? AdminStyles.primary : const Color(0xFF94A3B8),
-                size: 22,
-              ),
-              if (widget.badge > 0)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: const BoxDecoration(
-                      color: AdminStyles.error,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 class _NotificationButton extends StatefulWidget {

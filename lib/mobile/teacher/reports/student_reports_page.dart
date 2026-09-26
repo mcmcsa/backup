@@ -72,7 +72,19 @@ class _StudentReportsPageState extends State<StudentReportsPage>
       final user = authService.currentUser;
       List<WorkRequest> data;
       if (user != null && user.id.isNotEmpty) {
-        data = await WorkRequestService.fetchByRequestor(user.id);
+        final results = await Future.wait([
+          WorkRequestService.fetchByRequestor(user.id),
+          WorkRequestService.fetchEvaluatedByDeptHead(user.id),
+        ]);
+        final map = <String, WorkRequest>{};
+        for (final r in results[1]) {
+          map[r.id] = r;
+        }
+        for (final r in results[0]) {
+          map[r.id] = r;
+        }
+        data = map.values.toList()
+          ..sort((a, b) => b.dateSubmitted.compareTo(a.dateSubmitted));
         _setupRealtimeListener(user.id);
       } else {
         data = [];
@@ -99,7 +111,8 @@ class _StudentReportsPageState extends State<StudentReportsPage>
         s == 'declined' ||
         s == 'cancelled' ||
         s == 'declined/cancelled' ||
-        s == 'pre-inspection declined';
+        s == 'pre-inspection declined' ||
+        s == 'acknowledged';
   }
 
   List<WorkRequest> get _filteredRequests {

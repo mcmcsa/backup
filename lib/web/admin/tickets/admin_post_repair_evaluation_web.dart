@@ -11,6 +11,7 @@ import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/inspection_pdf_service.dart';
 import '../../../shared/widgets/attachment_image_widget.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../shared/admin_styles.dart';
 
 class AdminPostRepairEvaluationWeb extends StatefulWidget {
@@ -82,6 +83,43 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
       return;
     }
 
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Confirm Completion',
+          style: AdminStyles.headingStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Do you want to mark this work request as Completed?',
+          style: AdminStyles.bodyStyle(fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'No',
+              style: AdminStyles.bodyStyle(color: AdminStyles.textMuted, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminStyles.success,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Yes', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     setState(() => _isProcessing = true);
     try {
       await PostRepairService.markSatisfied(targetReport.id, user.id);
@@ -107,15 +145,43 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
       );
 
       if (mounted) {
+        setState(() => _isProcessing = false);
         await showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Success'),
-            content: const Text('Work Request Successfully Completed'),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.success.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.check_circle_rounded, color: AdminStyles.success, size: 24),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Success',
+                  style: AdminStyles.headingStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            content: Text(
+              'Work Request Successfully Completed',
+              style: AdminStyles.bodyStyle(fontSize: 14),
+            ),
             actions: [
-              TextButton(
+              ElevatedButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminStyles.success,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -209,50 +275,50 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                 ? const Center(child: CircularProgressIndicator(color: AdminStyles.primary))
                 : _report == null
                   ? _buildEmptyState()
-                  : SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.all(40),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1400),
-                           child: LayoutBuilder(
-                             builder: (context, constraints) {
-                               final isMobile = constraints.maxWidth < 900;
-                               if (isMobile) {
-                                 return Column(
-                                   children: [
-                                     _buildContextColumn(),
-                                     const SizedBox(height: 24),
-                                     _buildEvaluationForm(),
-                                     const SizedBox(height: 60),
-                                   ],
-                                 );
-                               }
-                               return Row(
-                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                 children: [
-                                   // Left Column: Sticky Context
-                                   SizedBox(
-                                     width: 320,
-                                     child: _buildContextColumn(),
-                                   ),
-                                   const SizedBox(width: 28),
-                                   // Right Column: Professional flow
-                                   Expanded(
-                                     child: Column(
-                                       children: [
-                                         _buildEvaluationForm(),
-                                         const SizedBox(height: 100),
-                                       ],
-                                     ),
-                                   ),
-                                 ],
-                               );
-                             },
-                           ),
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isMobile = constraints.maxWidth < 900;
+                        return SingleChildScrollView(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 16 : 32,
+                            vertical: isMobile ? 16 : 28,
                           ),
-                        ),
-                      ),
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 1400),
+                              child: isMobile
+                                  ? Column(
+                                      children: [
+                                        _buildContextColumn(isMobile),
+                                        const SizedBox(height: 18),
+                                        _buildEvaluationForm(isMobile),
+                                        const SizedBox(height: 40),
+                                      ],
+                                    )
+                                  : Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Left Column: Sticky Context
+                                        SizedBox(
+                                          width: 320,
+                                          child: _buildContextColumn(isMobile),
+                                        ),
+                                        const SizedBox(width: 24),
+                                        // Right Column: Professional flow
+                                        Expanded(
+                                          child: Column(
+                                            children: [
+                                              _buildEvaluationForm(isMobile),
+                                              const SizedBox(height: 60),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
           ),
         ],
@@ -261,8 +327,14 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
   }
 
   Widget _buildTopBar() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 768;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 16 : 32,
+        vertical: isCompact ? 12 : 18,
+      ),
       decoration: AdminStyles.glassDecoration(
         color: Colors.white,
         opacity: 1.0,
@@ -283,33 +355,41 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                   Navigator.pop(context);
                 }
               },
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   border: Border.all(color: AdminStyles.border),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: AdminStyles.textPrimary),
+                child: const Icon(Icons.arrow_back_ios_new_rounded, size: 15, color: AdminStyles.textPrimary),
               ),
             ),
           ),
-          const SizedBox(width: 24),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Workflow Phase',
-                style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'POST-REPAIR EVALUATION',
-                style: AdminStyles.headingStyle(fontSize: 20, fontWeight: FontWeight.w900),
-              ),
-            ],
+          SizedBox(width: isCompact ? 10 : 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Workflow Phase',
+                  style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 0.8),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'POST-REPAIR EVALUATION',
+                  style: AdminStyles.headingStyle(
+                    fontSize: isCompact ? 14 : 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           if (_report != null && (_report!.adminEvaluation != null || _report!.status == 'Completed')) ...[
             ElevatedButton.icon(
               onPressed: () {
@@ -319,16 +399,16 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                   report: _report!,
                 );
               },
-              icon: const Icon(Icons.print_rounded, size: 16),
-              label: const Text('Print Report'),
+              icon: const Icon(Icons.print_rounded, size: 14),
+              label: isCompact ? const SizedBox.shrink() : const Text('Print Report'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AdminStyles.success,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: EdgeInsets.symmetric(horizontal: isCompact ? 10 : 16, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 8),
           ],
           _buildStatusBadge(),
         ],
@@ -351,33 +431,77 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     );
   }
 
-  Widget _buildContextColumn() {
+  Widget _buildContextColumn(bool isMobile) {
     if (_history.isEmpty) return const SizedBox.shrink();
     final report = _history[_selectedAttemptIndex];
     return Column(
       children: [
-        _buildInfoCard('Work Request', [
-          _buildSummaryRow('ID', widget.request.id.substring(0, 8).toUpperCase()),
-          _buildSummaryRow('Title', widget.request.title),
-          _buildSummaryRow('Room', widget.request.officeRoom ?? 'N/A'),
-          _buildSummaryRow('Category', widget.request.typeDisplay),
-        ]),
-        const SizedBox(height: 24),
-        _buildInfoCard('Technician Info', [
-          _buildSummaryRow('Name', report.technicianName),
-          _buildSummaryRow('Date', _formatDate(report.repairDate)),
-          _buildSummaryRow('Duration', report.repairDuration ?? 'N/A'),
-        ]),
+        _buildInfoCard(
+          title: 'Work Request',
+          icon: Icons.assignment_outlined,
+          isMobile: isMobile,
+          children: [
+            _buildDetailTile(
+              label: 'Request ID',
+              value: widget.request.id.length >= 8 ? widget.request.id.substring(0, 8).toUpperCase() : widget.request.id,
+              isCode: true,
+            ),
+            _buildDetailTile(
+              label: 'Title',
+              value: widget.request.title,
+            ),
+            _buildDetailTile(
+              label: 'Room / Location',
+              value: widget.request.officeRoom ?? 'N/A',
+              icon: Icons.meeting_room_outlined,
+            ),
+            _buildDetailTile(
+              label: 'Category',
+              value: widget.request.typeDisplay,
+              icon: Icons.category_outlined,
+            ),
+          ],
+        ),
+        SizedBox(height: isMobile ? 14 : 20),
+        _buildInfoCard(
+          title: 'Technician Info',
+          icon: Icons.engineering_outlined,
+          isMobile: isMobile,
+          children: [
+            _buildDetailTile(
+              label: 'Technician Name',
+              value: report.technicianName,
+              icon: Icons.person_outline_rounded,
+            ),
+            _buildDetailTile(
+              label: 'Repair Date',
+              value: _formatDate(report.repairDate),
+              icon: Icons.calendar_today_outlined,
+            ),
+            _buildDetailTile(
+              label: 'Duration',
+              value: report.repairDuration ?? 'N/A',
+              icon: Icons.timer_outlined,
+            ),
+          ],
+        ),
         if (widget.request.reworkCount > 0) ...[
-          const SizedBox(height: 24),
+          SizedBox(height: isMobile ? 14 : 20),
           Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AdminStyles.warning.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: AdminStyles.warning.withValues(alpha: 0.3))),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AdminStyles.warning.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AdminStyles.warning.withValues(alpha: 0.3)),
+            ),
             child: Row(
               children: [
-                const Icon(Icons.refresh_rounded, color: AdminStyles.warning),
-                const SizedBox(width: 12),
-                Text('Rework Count: ${widget.request.reworkCount}', style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.warning)),
+                const Icon(Icons.refresh_rounded, color: AdminStyles.warning, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  'Rework Count: ${widget.request.reworkCount}',
+                  style: AdminStyles.headingStyle(fontSize: 13, color: AdminStyles.warning),
+                ),
               ],
             ),
           ),
@@ -386,88 +510,204 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     );
   }
 
-  Widget _buildInfoCard(String title, List<Widget> children, {IconData? icon}) {
+  Widget _buildInfoCard({
+    required String title,
+    required List<Widget> children,
+    required bool isMobile,
+    IconData? icon,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(28),
-      decoration: AdminStyles.cardDecoration(borderRadius: 24),
+      padding: EdgeInsets.all(isMobile ? 16 : 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 16, color: AdminStyles.primary),
-                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AdminStyles.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, size: 16, color: AdminStyles.primary),
+                ),
+                const SizedBox(width: 10),
               ],
               Text(
                 title.toUpperCase(),
-                style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 0.5),
+                style: AdminStyles.headingStyle(fontSize: 11, color: const Color(0xFF475569), letterSpacing: 0.8),
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 14),
           ...children,
         ],
       ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value) {
+  Widget _buildDetailTile({
+    required String label,
+    required String value,
+    IconData? icon,
+    bool isCode = false,
+  }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted)),
-          const SizedBox(height: 4),
-          Text(value, style: AdminStyles.dataStyle(fontSize: 13, color: AdminStyles.textPrimary)),
+          if (icon != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(icon, size: 14, color: const Color(0xFF64748B)),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AdminStyles.headingStyle(fontSize: 11, color: const Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 3),
+                isCode
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Text(
+                          value,
+                          style: GoogleFonts.firaCode(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                      )
+                    : Text(
+                        value,
+                        style: AdminStyles.bodyStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildEvaluationForm() {
+  Widget _buildEvaluationForm(bool isMobile) {
     if (_history.isEmpty) return _buildEmptyState();
     final report = _history[_selectedAttemptIndex];
     final isLatest = _selectedAttemptIndex == _history.length - 1;
     final isEvaluated = report.adminEvaluation != null;
     final isRequestorEvaluated = report.isRequestorEvaluated;
     final canEvaluate = isLatest && !isEvaluated && isRequestorEvaluated;
-    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Column(
       children: [
         _buildAttemptTabs(),
         Container(
-          padding: const EdgeInsets.all(32),
-          decoration: AdminStyles.cardDecoration(),
+          padding: EdgeInsets.all(isMobile ? 16 : 28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Repair Submission Details', style: AdminStyles.headingStyle(fontSize: 18)),
-              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AdminStyles.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.fact_check_outlined, size: 18, color: AdminStyles.primary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Repair Submission Details',
+                      style: AdminStyles.headingStyle(fontSize: isMobile ? 16 : 18),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
               _buildReadOnlyBlock('Work Performed', report.workPerformed),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
               _buildReadOnlyBlock('Materials Used', report.materialsUsed?.isNotEmpty == true ? report.materialsUsed! : 'No materials recorded'),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
               if (report.technicianNotes?.isNotEmpty == true) ...[
                 _buildReadOnlyBlock('Technician Notes', report.technicianNotes!),
-                const SizedBox(height: 32),
+                const SizedBox(height: 20),
               ],
               if (report.photoAfter?.isNotEmpty == true) ...[
                 _buildPhotoPreview(report.photoAfter!),
-                const SizedBox(height: 32),
+                const SizedBox(height: 20),
               ],
-              _buildRequestorEvaluationSection(report),
-              const Divider(),
-              const SizedBox(height: 32),
-              Text('Evaluation Action', style: AdminStyles.headingStyle(fontSize: 18)),
-              const SizedBox(height: 24),
+              _buildRequestorEvaluationSection(report, isMobile),
+              const SizedBox(height: 16),
+              const Divider(color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.gavel_rounded, size: 18, color: Color(0xFF0F766E)),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('Evaluation Action', style: AdminStyles.headingStyle(fontSize: isMobile ? 16 : 18)),
+                ],
+              ),
+              const SizedBox(height: 18),
               if (canEvaluate) ...[
-                Text('The requestor has evaluated this repair (${report.isRequestorSatisfied ? "SATISFY" : "NOT SATISFY"}). Please make the final administrative decision below.', style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary)),
-                const SizedBox(height: 24),
+                Text(
+                  'The requestor has evaluated this repair (${report.isRequestorSatisfied ? "SATISFY" : "NOT SATISFY"}). Please make the final administrative decision below.',
+                  style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary),
+                ),
+                const SizedBox(height: 18),
                 _buildWebTextField(_reworkNotesController, 'Rework Instructions (Required only for rework)', 'Describe what is still missing or incorrect...', maxLines: 3),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 if (isMobile) ...[
                   SizedBox(
                     width: double.infinity,
@@ -475,17 +715,27 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                       onPressed: _markRework,
                       icon: const Icon(Icons.refresh_rounded),
                       label: const Text('Send for Rework'),
-                      style: OutlinedButton.styleFrom(foregroundColor: AdminStyles.error, side: const BorderSide(color: AdminStyles.error), padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AdminStyles.error,
+                        side: const BorderSide(color: AdminStyles.error),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: _markCompleted,
                       icon: const Icon(Icons.check_circle_rounded),
                       label: const Text('Work Completed'),
-                      style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.success, foregroundColor: Colors.white, padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AdminStyles.success,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
                   ),
                 ] else
@@ -496,44 +746,55 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                           onPressed: _markRework,
                           icon: const Icon(Icons.refresh_rounded),
                           label: const Text('Send for Rework'),
-                          style: OutlinedButton.styleFrom(foregroundColor: AdminStyles.error, side: const BorderSide(color: AdminStyles.error), padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AdminStyles.error,
+                            side: const BorderSide(color: AdminStyles.error),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 20),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: _markCompleted,
                           icon: const Icon(Icons.check_circle_rounded),
                           label: const Text('Work Completed'),
-                          style: ElevatedButton.styleFrom(backgroundColor: AdminStyles.success, foregroundColor: Colors.white, padding: const EdgeInsets.all(20), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AdminStyles.success,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
                         ),
                       ),
                     ],
                   ),
               ] else if (!isEvaluated && !isRequestorEvaluated) ...[
                 Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: EdgeInsets.all(isMobile ? 16 : 20),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF1F5F9),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AdminStyles.border),
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.lock_outline_rounded, color: AdminStyles.textMuted, size: 28),
-                      const SizedBox(width: 16),
+                      const Icon(Icons.lock_outline_rounded, color: AdminStyles.textMuted, size: 24),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Decision Locked: Awaiting Requestor Review',
-                              style: AdminStyles.headingStyle(fontSize: 15, color: AdminStyles.textPrimary),
+                              style: AdminStyles.headingStyle(fontSize: 14, color: AdminStyles.textPrimary),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'The buttons [ WORK COMPLETED ] and [ SEND FOR REWORK ] will become available once the original requestor submits their Satisfy / Not Satisfy evaluation.',
-                              style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                              style: AdminStyles.bodyStyle(fontSize: 12.5, color: AdminStyles.textSecondary),
                             ),
                           ],
                         ),
@@ -543,26 +804,38 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                 ),
               ] else ...[
                 Container(
-                  padding: const EdgeInsets.all(24),
+                  padding: EdgeInsets.all(isMobile ? 16 : 20),
                   decoration: BoxDecoration(
-                    color: report.adminEvaluation == 'satisfied' ? AdminStyles.success.withValues(alpha: 0.1) : AdminStyles.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: report.adminEvaluation == 'satisfied' ? AdminStyles.success.withValues(alpha: 0.3) : AdminStyles.error.withValues(alpha: 0.3)),
+                    color: report.adminEvaluation == 'satisfied' ? AdminStyles.success.withValues(alpha: 0.08) : AdminStyles.error.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: report.adminEvaluation == 'satisfied' ? AdminStyles.success.withValues(alpha: 0.25) : AdminStyles.error.withValues(alpha: 0.25)),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(report.adminEvaluation == 'satisfied' ? Icons.verified_rounded : Icons.history_rounded, color: report.adminEvaluation == 'satisfied' ? AdminStyles.success : AdminStyles.error, size: 32),
-                      const SizedBox(width: 20),
+                      Icon(
+                        report.adminEvaluation == 'satisfied' ? Icons.check_circle_rounded : Icons.replay_rounded,
+                        color: report.adminEvaluation == 'satisfied' ? AdminStyles.success : AdminStyles.error,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(report.adminEvaluation == 'satisfied' ? 'Evaluation: Work Completed' : 'Evaluation: Rework Required', style: AdminStyles.headingStyle(fontSize: 16, color: report.adminEvaluation == 'satisfied' ? AdminStyles.success : AdminStyles.error)),
-                            const SizedBox(height: 4),
-                            Text(report.adminEvaluation == 'satisfied' ? 'Maintenance work was approved and marked as completed.' : 'Work was rejected and sent back for further repair.', style: AdminStyles.bodyStyle()),
-                            if (report.adminEvaluationNotes != null && report.adminEvaluationNotes!.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Text('Notes: ${report.adminEvaluationNotes}', style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
+                            Text(
+                              report.adminEvaluation == 'satisfied' ? 'Admin Decision: Work Approved & Completed' : 'Admin Decision: Rework Requested',
+                              style: AdminStyles.headingStyle(
+                                fontSize: 14,
+                                color: report.adminEvaluation == 'satisfied' ? AdminStyles.success : AdminStyles.error,
+                              ),
+                            ),
+                            if (report.adminEvaluationNotes?.isNotEmpty == true) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                'Notes: ${report.adminEvaluationNotes}',
+                                style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textPrimary),
+                              ),
                             ],
                           ],
                         ),
@@ -578,24 +851,24 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     );
   }
 
-  Widget _buildRequestorEvaluationSection(PostRepairReport report) {
+  Widget _buildRequestorEvaluationSection(PostRepairReport report, bool isMobile) {
     final isEvaluated = report.isRequestorEvaluated;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 16),
-        const Divider(),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
+        const Divider(color: Color(0xFFF1F5F9)),
+        const SizedBox(height: 18),
         Row(
           children: [
-            const Icon(Icons.rate_review_rounded, size: 20, color: AdminStyles.primary),
-            const SizedBox(width: 10),
-            Text('Requestor Evaluation', style: AdminStyles.headingStyle(fontSize: 18)),
+            const Icon(Icons.rate_review_outlined, size: 18, color: AdminStyles.primary),
+            const SizedBox(width: 8),
+            Text('Requestor Evaluation', style: AdminStyles.headingStyle(fontSize: isMobile ? 15 : 17)),
             const Spacer(),
             if (isEvaluated)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: report.isRequestorSatisfied
                       ? AdminStyles.success.withValues(alpha: 0.12)
@@ -614,16 +887,16 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                       report.isRequestorSatisfied
                           ? Icons.thumb_up_alt_rounded
                           : Icons.thumb_down_alt_rounded,
-                      size: 14,
+                      size: 13,
                       color: report.isRequestorSatisfied
                           ? AdminStyles.success
                           : const Color(0xFFB45309),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 5),
                     Text(
                       report.isRequestorSatisfied ? 'SATISFY' : 'NOT SATISFY',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: report.isRequestorSatisfied
                             ? AdminStyles.success
@@ -635,31 +908,32 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
               ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 14),
         if (!isEvaluated)
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(isMobile ? 14 : 18),
             decoration: BoxDecoration(
               color: AdminStyles.warning.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AdminStyles.warning.withValues(alpha: 0.3)),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.hourglass_top_rounded, color: AdminStyles.warning, size: 28),
-                const SizedBox(width: 16),
+                const Icon(Icons.hourglass_top_rounded, color: AdminStyles.warning, size: 24),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Awaiting Requestor Evaluation',
-                        style: AdminStyles.headingStyle(fontSize: 15, color: const Color(0xFFB45309)),
+                        style: AdminStyles.headingStyle(fontSize: 14, color: const Color(0xFFB45309)),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'The original requestor (${widget.request.requestorName.isNotEmpty ? widget.request.requestorName : "Requestor"}) has not evaluated this repair yet. Campus Admin final decision is locked until the Requestor submits their review.',
-                        style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary),
+                        style: AdminStyles.bodyStyle(fontSize: 12.5, color: AdminStyles.textSecondary),
                       ),
                     ],
                   ),
@@ -669,30 +943,29 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
           )
         else
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(isMobile ? 14 : 18),
             decoration: BoxDecoration(
               color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AdminStyles.border),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildSummaryLine('Decision', report.isRequestorSatisfied ? 'SATISFY (Satisfied with repair)' : 'NOT SATISFY (Unsatisfied with repair)'),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _buildSummaryLine('Rating', report.requestorRating != null ? '${report.requestorRating} / 5 Stars' : 'Not rated'),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _buildSummaryLine('Comment', report.requestorComment?.isNotEmpty == true ? report.requestorComment! : 'No comment provided'),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 _buildSummaryLine('Evaluated By', widget.request.requestorName.isNotEmpty ? widget.request.requestorName : 'Original Requestor'),
                 if (report.requestorEvaluatedDate != null) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   _buildSummaryLine('Evaluated Date', DateFormat('MMM dd, yyyy • hh:mm a').format(report.requestorEvaluatedDate!)),
                 ],
               ],
             ),
           ),
-        const SizedBox(height: 16),
       ],
     );
   }
@@ -702,16 +975,16 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          width: 140,
+          width: 120,
           child: Text(
             label,
-            style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textMuted),
+            style: AdminStyles.bodyStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: AdminStyles.textMuted),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AdminStyles.textPrimary),
+            style: AdminStyles.bodyStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AdminStyles.textPrimary),
           ),
         ),
       ],
@@ -722,8 +995,8 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     if (_history.isEmpty) return const SizedBox.shrink();
     
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
-      padding: const EdgeInsets.all(6),
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(12),
@@ -758,7 +1031,7 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                   },
                   borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                     decoration: BoxDecoration(
                       color: isSelected ? AdminStyles.primary : Colors.transparent,
                       borderRadius: BorderRadius.circular(8),
@@ -766,8 +1039,8 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                     child: Text(
                       statusText,
                       style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 12.5,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                         color: isSelected ? Colors.white : AdminStyles.textSecondary,
                       ),
                     ),
@@ -780,7 +1053,6 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
       ),
     );
   }
-
 
   Widget _buildPhotoPreview(String photoData) {
     List<String> urls = [];
@@ -842,11 +1114,11 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
         const SizedBox(height: 12),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AdminStyles.border),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: urls.length == 1
               ? Align(
@@ -858,13 +1130,13 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
                         constraints: const BoxConstraints(
-                          maxWidth: 360,
-                          maxHeight: 260,
+                          maxWidth: 340,
+                          maxHeight: 240,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AdminStyles.border),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.04),
@@ -881,7 +1153,7 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                                 url: urls.first,
                                 fit: BoxFit.contain,
                                 width: double.infinity,
-                                height: 240,
+                                height: 220,
                               ),
                             ),
                             Positioned(
@@ -909,56 +1181,73 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
                     ),
                   ),
                 )
-              : Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: urls.map((url) {
-                    return Tooltip(
-                      message: 'Click to enlarge photo',
-                      child: InkWell(
-                        onTap: () => showAttachmentZoomDialog(context, url),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: 130,
-                          height: 130,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final crossAxisCount = constraints.maxWidth < 420
+                        ? 2
+                        : constraints.maxWidth < 700
+                            ? 3
+                            : 4;
+                    return GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 1.0,
+                      ),
+                      itemCount: urls.length,
+                      itemBuilder: (context, index) {
+                        final url = urls[index];
+                        return Tooltip(
+                          message: 'Click to enlarge photo',
+                          child: InkWell(
+                            onTap: () => showAttachmentZoomDialog(context, url),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AdminStyles.border),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.04),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              AppAttachmentImage(
-                                url: url,
-                                fit: BoxFit.cover,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(12),
-                              ),
-                              Positioned(
-                                bottom: 6,
-                                right: 6,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.6),
-                                    borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.04),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
                                   ),
-                                  child: const Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    AppAttachmentImage(
+                                      url: url,
+                                      fit: BoxFit.cover,
+                                    ),
+                                    Positioned(
+                                      bottom: 6,
+                                      right: 6,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(5),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withValues(alpha: 0.65),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(Icons.zoom_in_rounded, size: 13, color: Colors.white),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ),
+                        );
+                      },
                     );
-                  }).toList(),
+                  },
                 ),
         ),
       ],
@@ -969,9 +1258,9 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: AdminStyles.bodyStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AdminStyles.textPrimary)),
-        const SizedBox(height: 8),
-        TextFormField(
+        Text(label, style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF475569))),
+        const SizedBox(height: 6),
+        TextField(
           controller: controller,
           maxLines: maxLines,
           enabled: enabled,
@@ -994,13 +1283,20 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AdminStyles.textMuted)),
+        Text(label, style: AdminStyles.bodyStyle(fontSize: 12, fontWeight: FontWeight.bold, color: const Color(0xFF64748B))),
         const SizedBox(height: 6),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: AdminStyles.bg, borderRadius: BorderRadius.circular(16), border: Border.all(color: AdminStyles.border)),
-          child: Text(value, style: AdminStyles.bodyStyle(fontSize: 14, color: AdminStyles.textPrimary, height: 1.6)),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Text(
+            value,
+            style: AdminStyles.bodyStyle(fontSize: 13.5, color: AdminStyles.textPrimary, height: 1.5),
+          ),
         ),
       ],
     );
@@ -1014,9 +1310,30 @@ class _AdminPostRepairEvaluationWebState extends State<AdminPostRepairEvaluation
     if (status == 'rework') color = AdminStyles.error;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(999), border: Border.all(color: color.withValues(alpha: 0.3))),
-      child: Text(status.toUpperCase(), style: AdminStyles.headingStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            status.toUpperCase(),
+            style: AdminStyles.headingStyle(fontSize: 10, color: color, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
     );
   }
 

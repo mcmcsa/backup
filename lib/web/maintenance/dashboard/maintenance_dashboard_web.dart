@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
-import '../../../shared/widgets/status_selector_widget.dart';
+import '../../../shared/services/maintenance_status_service.dart';
 import '../maintenance_nav_controller.dart';
 
 // ─── Design Tokens ─────────────────────────────────────────────────────────
@@ -32,7 +32,6 @@ class MaintenanceDashboardWeb extends StatefulWidget {
 class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb>
     with WidgetsBindingObserver {
   List<WorkRequest> _requests = [];
-  String _currentStatus = 'offline';
   bool _isLoading = true;
   RealtimeChannel? _realtimeChannel;
   Timer? _autoRefreshTimer;
@@ -87,6 +86,8 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb>
           setState(() {
             _requests = data;
           });
+          final isBusy = data.any((r) => MaintenanceStatusService.isOngoingWorkRequestStatus(r.status));
+          MaintenanceStatusService.updateStatus(user.id, isBusy ? 'busy' : 'available').catchError((_) {});
         }
       });
     } catch (_) {}
@@ -96,15 +97,9 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb>
     final user = context.read<AuthService>().currentUser;
     if (user != null) {
       try {
-        final res = await Supabase.instance.client
-            .from('maintenance_users')
-            .select('availability_status')
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-        if (res != null && mounted) {
-          setState(() => _currentStatus = res['availability_status'] ?? 'offline');
-        }
+        final isBusy = _requests.any((r) => MaintenanceStatusService.isOngoingWorkRequestStatus(r.status));
+        final autoStatus = isBusy ? 'busy' : 'available';
+        await MaintenanceStatusService.updateStatus(user.id, autoStatus);
       } catch (_) {}
     }
   }
@@ -129,6 +124,8 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb>
           _requests = data;
           _isLoading = false;
         });
+        final isBusy = data.any((r) => MaintenanceStatusService.isOngoingWorkRequestStatus(r.status));
+        MaintenanceStatusService.updateStatus(user.id, isBusy ? 'busy' : 'available').catchError((_) {});
       }
     } catch (_) {
       if (mounted && _requests.isEmpty) setState(() => _isLoading = false);
@@ -205,9 +202,23 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Welcome Banner ────────────────────────────────────────────
-            _buildWelcomeBanner(isMobile),
-            SizedBox(height: isMobile ? 20 : 28),
+            // ── Header / Live Status Row ──────────────────────────────────
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Dashboard Overview',
+                  style: TextStyle(
+                    fontSize: isMobile ? 18 : 22,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF0F172A),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                _buildAutoStatusBadge(),
+              ],
+            ),
+            SizedBox(height: isMobile ? 16 : 24),
 
             // ── Stat Cards ────────────────────────────────────────────────
             _buildStatRow(pending, inProgress, highPriority, completed, isMobile),
@@ -238,76 +249,44 @@ class _MaintenanceDashboardWebState extends State<MaintenanceDashboardWeb>
     );
   }
 
-  Widget _buildWelcomeBanner(bool isMobile) {
-    final user = context.read<AuthService>().currentUser;
-    final firstName = (user?.name ?? 'Maintenance').split(' ').first;
-    final now = DateTime.now();
-    final hour = now.hour;
-    final greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  bool get _hasActiveTask =>
+      _requests.any((r) => MaintenanceStatusService.isOngoingWorkRequestStatus(r.status));
 
+  Widget _buildAutoStatusBadge() {
+    final isBusy = _hasActiveTask;
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isMobile ? 20 : 28),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0F172A), Color(0xFF1E3A5F)],
-        ),
+        color: isBusy ? const Color(0xFFFEF3C7) : const Color(0xFFD1FAE5),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.25),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+        border: Border.all(
+          color: isBusy
+              ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
+              : const Color(0xFF10B981).withValues(alpha: 0.4),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: isBusy ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isBusy ? 'Busy' : 'Available',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: isBusy ? const Color(0xFFB45309) : const Color(0xFF047857),
+            ),
           ),
         ],
       ),
-      child: isMobile
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _bannerContent(greeting, firstName),
-                const SizedBox(height: 16),
-                StatusSelectorWidget(currentStatus: _currentStatus, onStatusChanged: (s) => setState(() => _currentStatus = s)),
-              ],
-            )
-          : Row(
-              children: [
-                Expanded(child: _bannerContent(greeting, firstName)),
-                StatusSelectorWidget(currentStatus: _currentStatus, onStatusChanged: (s) => setState(() => _currentStatus = s)),
-              ],
-            ),
-    );
-  }
-
-  Widget _bannerContent(String greeting, String firstName) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: _blue.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _blue.withValues(alpha: 0.4)),
-          ),
-          child: Text(
-            'PSU E-Ayos PORTAL',
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: _blue, letterSpacing: 1.2),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          '$greeting, $firstName 👋',
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          'Track and manage your assigned maintenance work requests.',
-          style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
-        ),
-      ],
     );
   }
 

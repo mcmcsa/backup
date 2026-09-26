@@ -156,23 +156,35 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
     for (int i = 0; i < imageFiles.length; i++) {
       final imageFile = imageFiles[i];
       final bytes = await imageFile.readAsBytes();
-      final extension = imageFile.name.contains('.')
+      final rawExt = imageFile.name.contains('.')
           ? imageFile.name.split('.').last.toLowerCase()
           : 'jpg';
-      // Normalize MIME type — Supabase rejects 'image/jpg', needs 'image/jpeg'
-      final mimeType = extension == 'jpg' ? 'image/jpeg' : 'image/$extension';
+      final mimeType = _normalizeMimeType(rawExt);
+      final extension = mimeType == 'image/jpeg' ? 'jpg' : rawExt;
       final path = 'work-evidence/$requestId/${DateTime.now().millisecondsSinceEpoch}_$i.$extension';
 
-      await client.storage.from('work-evidence').uploadBinary(
-        path,
-        bytes,
-        fileOptions: FileOptions(
-          contentType: mimeType,
-          upsert: true,
-        ),
-      );
+      String? url;
+      for (final bucket in ['work-evidence', 'work-request-attachments']) {
+        try {
+          await client.storage.from(bucket).uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: mimeType,
+              upsert: true,
+            ),
+          );
+          final candidateUrl = client.storage.from(bucket).getPublicUrl(path);
+          if (candidateUrl.isNotEmpty) {
+            url = candidateUrl;
+            break;
+          }
+        } catch (e) {
+          debugPrint('Upload to $bucket failed: $e');
+        }
+      }
 
-      final url = client.storage.from('work-evidence').getPublicUrl(path);
+      url ??= 'data:$mimeType;base64,${base64Encode(bytes)}';
       urls.add(url);
     }
 
@@ -180,6 +192,26 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
       'new': jsonEncode(urls),
       'single_url': urls.isNotEmpty ? urls.first : '',
     };
+  }
+
+  String _normalizeMimeType(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      case 'svg':
+        return 'image/svg+xml';
+      case 'jpg':
+      case 'jpeg':
+      case 'jfif':
+      case 'pjpeg':
+      case 'pjp':
+      default:
+        return 'image/jpeg';
+    }
   }
 
   Future<void> _submitReport() async {
@@ -249,10 +281,11 @@ class _MaintenancePostRepairWebState extends State<MaintenancePostRepairWeb> {
         debugPrint('Post-repair notification error: $e');
       }
 
+      final shortId = widget.request.id.length > 8 ? widget.request.id.substring(0, 8).toUpperCase() : widget.request.id.toUpperCase();
       await LoginActivityService.recordMaintenanceAction(
         user: user,
         title: 'Submitted Post-Repair Report',
-        details: 'Submitted post-repair report for #${widget.request.id} (${widget.request.title}) - Status: $_repairStatus',
+        details: 'Submitted post-repair report for #$shortId (${widget.request.title}) - Status: $_repairStatus',
         workRequestId: widget.request.id,
       );
 

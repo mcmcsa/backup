@@ -93,7 +93,6 @@ class PostRepairReport {
   Map<String, dynamic> toMap() {
     final map = <String, dynamic>{
       'work_request_id': workRequestId,
-      'attempt_number': attemptNumber,
       'technician_id': technicianId,
       'technician_name': technicianName,
       'repair_date': repairDate.toIso8601String(),
@@ -104,17 +103,22 @@ class PostRepairReport {
       'repair_duration': repairDuration,
       'repair_status': repairStatus,
       'technician_notes': technicianNotes,
-      'admin_evaluation': adminEvaluation,
-      'admin_evaluation_notes': adminEvaluationNotes,
-      'admin_evaluated_by': adminEvaluatedBy,
-      'admin_evaluated_date': adminEvaluatedDate?.toIso8601String(),
-      'requestor_evaluation': requestorEvaluation,
-      'requestor_rating': requestorRating,
-      'requestor_comment': requestorComment,
-      'requestor_evaluated_by': requestorEvaluatedBy,
-      'requestor_evaluated_date': requestorEvaluatedDate?.toIso8601String(),
       'status': status,
     };
+    if (attemptNumber > 0) map['attempt_number'] = attemptNumber;
+    if (adminEvaluation != null) map['admin_evaluation'] = adminEvaluation;
+    if (adminEvaluationNotes != null) map['admin_evaluation_notes'] = adminEvaluationNotes;
+    if (adminEvaluatedBy != null) map['admin_evaluated_by'] = adminEvaluatedBy;
+    if (adminEvaluatedDate != null) map['admin_evaluated_date'] = adminEvaluatedDate!.toIso8601String();
+    if (requestorEvaluation != null) map['requestor_evaluation'] = requestorEvaluation;
+    if (requestorRating != null) map['requestor_rating'] = requestorRating;
+    if (requestorComment != null && requestorComment!.trim().isNotEmpty) {
+      map['requestor_comment'] = requestorComment!.trim();
+    }
+    if (requestorEvaluatedBy != null) map['requestor_evaluated_by'] = requestorEvaluatedBy;
+    if (requestorEvaluatedDate != null) {
+      map['requestor_evaluated_date'] = requestorEvaluatedDate!.toIso8601String();
+    }
     // Only include 'id' when it's a real UUID (not empty) to allow DB auto-generation on insert
     if (id.isNotEmpty) map['id'] = id;
     return map;

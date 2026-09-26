@@ -76,10 +76,11 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
         requestorId: widget.request.requestorId,
       );
 
+      final shortId = widget.request.id.length > 8 ? widget.request.id.substring(0, 8).toUpperCase() : widget.request.id.toUpperCase();
       await LoginActivityService.recordMaintenanceAction(
         user: user,
         title: 'Accepted Work Request',
-        details: 'Accepted work request #${widget.request.id} (${widget.request.title})',
+        details: 'Accepted work request #$shortId (${widget.request.title})',
         workRequestId: widget.request.id,
       );
 

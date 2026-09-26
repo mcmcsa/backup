@@ -132,6 +132,59 @@ class MenuDrawer extends StatelessWidget {
                 ),
                 children: [
                   _buildMenuItem(
+                    icon: Icons.home_rounded,
+                    title: 'Home',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 0,
+                    onTap: () => _navigateToTab(context, 0),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.meeting_room_rounded,
+                    title: 'Rooms',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 1,
+                    onTap: () => _navigateToTab(context, 1),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.assignment_rounded,
+                    title: 'Tickets',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 2,
+                    onTap: () => _navigateToTab(context, 2),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.chat_bubble_rounded,
+                    title: 'Messages',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 3,
+                    onTap: () => _navigateToTab(context, 3),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.bar_chart_rounded,
+                    title: 'Stats',
+                    isCompact: isCompact,
+                    isSelected: currentTab == 4,
+                    onTap: () => _navigateToTab(context, 4),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Divider(color: Colors.white24, height: 1),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.pending_actions_rounded,
+                    title: 'Approvals',
+                    isCompact: isCompact,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ApprovalQueuePage(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildMenuItem(
                     icon: Icons.qr_code_2_rounded,
                     title: 'QR Management',
                     isCompact: isCompact,
@@ -174,20 +227,7 @@ class MenuDrawer extends StatelessWidget {
                       );
                     },
                   ),
-                  _buildMenuItem(
-                    icon: Icons.pending_actions_rounded,
-                    title: 'Approvals',
-                    isCompact: isCompact,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ApprovalQueuePage(),
-                        ),
-                      );
-                    },
-                  ),
+
                   _buildMenuItem(
                     icon: Icons.receipt_long_rounded,
                     title: 'Logs',

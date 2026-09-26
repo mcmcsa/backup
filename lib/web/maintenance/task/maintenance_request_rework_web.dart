@@ -442,10 +442,11 @@ class _MaintenanceRequestReworkWebState extends State<MaintenanceRequestReworkWe
     final user = context.read<AuthService>().currentUser;
     if (user != null) {
       await WorkRequestService.updateStatus(widget.taskId, 'Rework');
+      final shortId = widget.taskId.length > 8 ? widget.taskId.substring(0, 8).toUpperCase() : widget.taskId.toUpperCase();
       await LoginActivityService.recordMaintenanceAction(
         user: user,
         title: 'Requested Rework',
-        details: 'Requested rework for Task #${widget.taskId} (Priority: $_selectedPriority)',
+        details: 'Requested rework for Task #$shortId (Priority: $_selectedPriority)',
         workRequestId: widget.taskId,
       );
     }

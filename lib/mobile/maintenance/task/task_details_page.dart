@@ -306,10 +306,11 @@ class _TaskDetailsPageState extends State<TaskDetailsPage>
         requestorId: request.requestorId,
       );
 
+      final shortId = request.id.length > 8 ? request.id.substring(0, 8).toUpperCase() : request.id.toUpperCase();
       await LoginActivityService.recordMaintenanceAction(
         user: user,
         title: 'Started Work',
-        details: 'Started work on #${request.id} (${request.title})',
+        details: 'Started work on #$shortId (${request.title})',
         workRequestId: request.id,
       );
 

@@ -794,9 +794,13 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmittingEvaluation = false);
+        String errorMsg = e.toString();
+        if (errorMsg.contains('requestor_comment') || errorMsg.contains('PGRST204')) {
+          errorMsg = 'Database schema update needed: please run the post-repair SQL migration in Supabase SQL Editor.';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to submit evaluation: $e'),
+            content: Text('Failed to submit evaluation: $errorMsg'),
             backgroundColor: AdminStyles.error,
           ),
         );

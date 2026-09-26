@@ -1308,8 +1308,12 @@ class WorkRequestService {
     required Uint8List bytes,
   }) async {
     final rawExt = fileName.contains('.') ? fileName.split('.').last.toLowerCase() : 'jpg';
-    final ext = rawExt == 'jpg' ? 'jpeg' : rawExt;
-    final path = '$workRequestId/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+    final mimeType = _normalizeAttachmentMimeType(rawExt);
+    final ext = mimeType == 'image/jpeg' ? 'jpg' : rawExt;
+    final sanitizedFileName = fileName.contains('.')
+        ? '${fileName.substring(0, fileName.lastIndexOf('.'))}.$ext'
+        : '$fileName.$ext';
+    final path = '$workRequestId/${DateTime.now().millisecondsSinceEpoch}_$sanitizedFileName';
 
     // List of buckets to try in priority order
     final buckets = ['work-evidence', 'work-request-attachments', 'chat-attachments'];
@@ -1320,7 +1324,7 @@ class WorkRequestService {
           path,
           bytes,
           fileOptions: FileOptions(
-            contentType: 'image/$ext',
+            contentType: mimeType,
             upsert: true,
           ),
         );
@@ -1335,7 +1339,7 @@ class WorkRequestService {
     // Ultimate fallback if cloud storage buckets reject: data URI base64
     try {
       final base64String = base64Encode(bytes);
-      final dataUri = 'data:image/$ext;base64,$base64String';
+      final dataUri = 'data:$mimeType;base64,$base64String';
       debugPrint('Attachment saved as resilient data URI (fileName: $fileName)');
       return dataUri;
     } catch (e) {
@@ -1343,6 +1347,26 @@ class WorkRequestService {
     }
 
     return null;
+  }
+
+  static String _normalizeAttachmentMimeType(String ext) {
+    switch (ext.toLowerCase()) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      case 'svg':
+        return 'image/svg+xml';
+      case 'jpg':
+      case 'jpeg':
+      case 'jfif':
+      case 'pjpeg':
+      case 'pjp':
+      default:
+        return 'image/jpeg';
+    }
   }
 
   static Future<WorkRequest> insert(WorkRequest request) async {
