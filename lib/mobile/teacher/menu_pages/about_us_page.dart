@@ -26,11 +26,13 @@ class AboutUsPage extends StatelessWidget {
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: themeProvider.textColor, size: 24),
           onPressed: () {
-            final router = GoRouter.maybeOf(context);
-            if (router != null) {
-              router.go(teacherDashboardRoute);
-            } else {
+            if (Navigator.canPop(context)) {
               Navigator.pop(context);
+            } else {
+              final router = GoRouter.maybeOf(context);
+              if (router != null) {
+                router.go(teacherDashboardRoute);
+              }
             }
           },
         ),
@@ -56,28 +58,16 @@ class AboutUsPage extends StatelessWidget {
             ),
             child: Column(
               children: [
-                Container(
-                  width: 96,
-                  height: 96,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(12),
+                SizedBox(
+                  width: 125,
+                  height: 125,
                   child: Image.asset(
                     'assets/images/app_logo_v2.png',
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) => const Icon(
                       Icons.school,
                       color: Color(0xFF00BFA5),
-                      size: 50,
+                      size: 65,
                     ),
                   ),
                 ),

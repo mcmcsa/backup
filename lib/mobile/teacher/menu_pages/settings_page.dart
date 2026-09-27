@@ -147,6 +147,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final authService = context.watch<AuthService>();
     final isAdmin = authService.currentUser?.role == UserRole.admin ||
         authService.currentUser?.role == UserRole.campadmin;
+    final isMaintenance = authService.currentUser?.role == UserRole.maintenance;
     
     return Scaffold(
       backgroundColor: themeProvider.backgroundColor,
@@ -306,76 +307,78 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
-          // Other Section
-          _buildSectionHeader(isAdmin ? 'System' : 'Other', themeProvider),
-          const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(
-              color: themeProvider.cardColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: themeProvider.borderColor),
-            ),
-            child: Column(
-              children: [
-                _buildSettingsItem(
-                  icon: Icons.help_outline,
-                  iconColor: Colors.amber,
-                  title: 'Contact Us',
-                  subtitle: 'Get help and contact support',
-                  onTap: () {
-                    if (isAdmin) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ContactUsPage(),
-                        ),
-                      );
-                    } else {
-                      context.push(teacherContactRoute);
-                    }
-                  },
-                  themeProvider: themeProvider,
-                ),
-                _buildDivider(themeProvider),
-                _buildSettingsItem(
-                  icon: Icons.info_outline,
-                  iconColor: Colors.indigo,
-                  title: 'About Us',
-                  subtitle: 'App version and information',
-                  onTap: () {
-                    if (isAdmin) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AboutSystemPage(),
-                        ),
-                      );
-                    } else {
-                      context.push(teacherAboutRoute);
-                    }
-                  },
-                  themeProvider: themeProvider,
-                ),
-                if (isAdmin) _buildDivider(themeProvider),
-                if (isAdmin)
+          // Other Section - hidden for maintenance users (they access via drawer)
+          if (!isMaintenance) ...[
+            _buildSectionHeader(isAdmin ? 'System' : 'Other', themeProvider),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: themeProvider.cardColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: themeProvider.borderColor),
+              ),
+              child: Column(
+                children: [
                   _buildSettingsItem(
-                    icon: Icons.account_tree_outlined,
-                    iconColor: Colors.teal,
-                    title: 'System workflow',
-                    subtitle: 'View maintenance request flow',
+                    icon: Icons.help_outline,
+                    iconColor: Colors.amber,
+                    title: 'Contact Us',
+                    subtitle: 'Get help and contact support',
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SystemWorkflowPage(),
-                        ),
-                      );
+                      if (isAdmin) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ContactUsPage(),
+                          ),
+                        );
+                      } else {
+                        context.push(teacherContactRoute);
+                      }
                     },
                     themeProvider: themeProvider,
                   ),
-              ],
+                  _buildDivider(themeProvider),
+                  _buildSettingsItem(
+                    icon: Icons.info_outline,
+                    iconColor: Colors.indigo,
+                    title: 'About Us',
+                    subtitle: 'App version and information',
+                    onTap: () {
+                      if (isAdmin) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AboutSystemPage(),
+                          ),
+                        );
+                      } else {
+                        context.push(teacherAboutRoute);
+                      }
+                    },
+                    themeProvider: themeProvider,
+                  ),
+                  if (isAdmin) _buildDivider(themeProvider),
+                  if (isAdmin)
+                    _buildSettingsItem(
+                      icon: Icons.account_tree_outlined,
+                      iconColor: Colors.teal,
+                      title: 'System workflow',
+                      subtitle: 'View maintenance request flow',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SystemWorkflowPage(),
+                          ),
+                        );
+                      },
+                      themeProvider: themeProvider,
+                    ),
+                ],
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 100),
         ],
       ),

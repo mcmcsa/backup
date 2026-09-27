@@ -24,18 +24,24 @@ import '../../../web/teacher/reports/teacher_official_form_web.dart';
 import '../../../shared/widgets/attachment_image_widget.dart';
 
 import 'package:printing/printing.dart';
+import 'package:go_router/go_router.dart';
 import '../../../shared/services/iso_pdf_service.dart';
+import '../../../router/app_router.dart';
+import '../../../authentication/models/user_model.dart';
+import '../../admin/main_navigation.dart' as admin_nav;
 
 class RequestDetailsPage extends StatefulWidget {
   final String trackingNumber;
   final String status;
   final WorkRequest? initialRequest;
+  final bool fromSubmission;
 
   const RequestDetailsPage({
     super.key,
     required this.trackingNumber,
     required this.status,
     this.initialRequest,
+    this.fromSubmission = false,
   });
 
   @override
@@ -47,6 +53,41 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
   WorkRequest? _request;
   List<ESignature> _signatures = [];
   Timer? _autoRefreshTimer;
+
+  void _handleBack() {
+    if (widget.fromSubmission) {
+      _navigateToHome();
+      return;
+    }
+
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    } else {
+      _navigateToHome();
+    }
+  }
+
+  void _navigateToHome() {
+    final user = context.read<AuthService>().currentUser;
+    final isCampusAdmin = user?.role == UserRole.campadmin;
+
+    if (isCampusAdmin) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const admin_nav.MainNavigation(initialIndex: 0),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+
+    if (user != null) {
+      context.go(user.dashboardRoute);
+    } else {
+      context.go(teacherDashboardRoute);
+    }
+  }
 
   PreInspectionReport? _preInspectionReport;
   List<PostRepairReport> _postRepairReports = [];
@@ -1176,15 +1217,21 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
 
-    return Scaffold(
-      backgroundColor: themeProvider.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: themeProvider.appBarColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: themeProvider.appBarIconColor),
-          onPressed: () => Navigator.pop(context),
-        ),
+    return PopScope(
+      canPop: !widget.fromSubmission,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: themeProvider.backgroundColor,
+        appBar: AppBar(
+          backgroundColor: themeProvider.appBarColor,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: themeProvider.appBarIconColor),
+            onPressed: _handleBack,
+          ),
         title: Text(
           'Request Details',
           style: TextStyle(
@@ -1279,6 +1326,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                 ],
               ),
             ),
+      ),
     );
   }
 

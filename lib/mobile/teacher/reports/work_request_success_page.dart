@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../router/app_router.dart';
 import '../../../authentication/services/auth_service.dart';
+import '../../../authentication/models/user_model.dart';
+import '../../admin/main_navigation.dart' as admin_nav;
 
 class WorkRequestSuccessPage extends StatelessWidget {
   final String trackingNumber;
@@ -20,6 +22,32 @@ class WorkRequestSuccessPage extends StatelessWidget {
     required this.reportedDate,
   });
 
+  void _handleBack(BuildContext context) {
+    _handleBackToHome(context);
+  }
+
+  void _handleBackToHome(BuildContext context) {
+    final user = context.read<AuthService>().currentUser;
+    final isCampusAdmin = user?.role == UserRole.campadmin;
+
+    if (isCampusAdmin) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const admin_nav.MainNavigation(initialIndex: 0),
+        ),
+        (route) => false,
+      );
+      return;
+    }
+
+    if (user != null) {
+      context.go(user.dashboardRoute);
+    } else {
+      context.go(teacherDashboardRoute);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -32,17 +60,21 @@ class WorkRequestSuccessPage extends StatelessWidget {
         : 'N/A';
     final formattedTrackId = shortTrack.startsWith('#') ? shortTrack : '#$shortTrack';
 
-    return Scaffold(
-      backgroundColor: themeProvider.backgroundColor,
-      appBar: AppBar(
-        backgroundColor: themeProvider.appBarColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
-          onPressed: () {
-            context.go(teacherDashboardRoute);
-          },
-        ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBack(context);
+      },
+      child: Scaffold(
+        backgroundColor: themeProvider.backgroundColor,
+        appBar: AppBar(
+          backgroundColor: themeProvider.appBarColor,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: themeProvider.textColor),
+            onPressed: () => _handleBack(context),
+          ),
         title: Text(
           'Submitted!',
           style: TextStyle(
@@ -159,11 +191,12 @@ class WorkRequestSuccessPage extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () {
                     // Navigate to request tracking/status page
-                    context.push(
+                    context.pushReplacement(
                       '/request-details',
                       extra: {
                         'trackingNumber': trackingNumber,
                         'status': 'PENDING',
+                        'fromSubmission': true,
                       },
                     );
                   },
@@ -189,14 +222,7 @@ class WorkRequestSuccessPage extends StatelessWidget {
             const SizedBox(height: 16),
             // Back to Home Link
             TextButton(
-              onPressed: () {
-                final user = context.read<AuthService>().currentUser;
-                if (user != null) {
-                  context.go(user.dashboardRoute);
-                } else {
-                  context.go(teacherDashboardRoute);
-                }
-              },
+              onPressed: () => _handleBackToHome(context),
               child: Text(
                 'Back to Home',
                 style: TextStyle(
@@ -210,8 +236,9 @@ class WorkRequestSuccessPage extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDetailRow({
     required String label,

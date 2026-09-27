@@ -507,6 +507,7 @@ GoRouter buildAppRouter(AuthService authService) {
             trackingNumber: args?['trackingNumber'] ?? '',
             status: args?['status'] ?? 'PENDING',
             initialRequest: args?['request'] as WorkRequest?,
+            fromSubmission: args?['fromSubmission'] ?? false,
           );
         },
       ),

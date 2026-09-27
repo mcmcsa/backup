@@ -26,11 +26,13 @@ class SystemWorkflowPage extends StatelessWidget {
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: themeProvider.textColor, size: 24),
           onPressed: () {
-            final router = GoRouter.maybeOf(context);
-            if (router != null) {
-              router.go(teacherDashboardRoute);
-            } else {
+            if (Navigator.canPop(context)) {
               Navigator.pop(context);
+            } else {
+              final router = GoRouter.maybeOf(context);
+              if (router != null) {
+                router.go(teacherDashboardRoute);
+              }
             }
           },
         ),

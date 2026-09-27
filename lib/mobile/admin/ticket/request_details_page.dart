@@ -2190,32 +2190,31 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     );
 
     // 3. Acceptance
-    final acceptSig = _signatures.firstWhere(
-      (s) => s.signatureType == 'acceptance',
-      orElse: () => ESignature(
-        id: '',
-        workRequestId: '',
-        signerId: '',
-        signerName: '',
-        signerRole: '',
-        signatureType: '',
-        signatureData: '',
-        signedAt: DateTime.now(),
-      ),
+    final acceptSig = _signatures.cast<ESignature?>().firstWhere(
+      (s) => s != null && s.signatureType == 'acceptance' && s.signatureData.isNotEmpty,
+      orElse: () => null,
     );
+    final hasAcceptedDate = request.acceptedDate != null;
+    final hasAcceptanceSig = acceptSig != null;
+    final hasLaterProgress = _preInspectionReport != null ||
+        _postRepairReports.isNotEmpty ||
+        request.status.toLowerCase() == 'confirmed' ||
+        request.status.toLowerCase() == 'completed';
+
     final isAccepted = isAdminApproved &&
-        (acceptSig.signatureData.isNotEmpty ||
-            (request.status.toLowerCase() != 'pending' &&
-                request.status.toLowerCase() != 'pending assignment' &&
-                request.status.toLowerCase() != 'approved'));
+        (hasAcceptedDate || hasAcceptanceSig || hasLaterProgress);
+
+    final acceptedDate = request.acceptedDate ?? acceptSig?.signedAt;
+    final acceptedDateStr = acceptedDate != null ? ' on ${_formatDateTime(acceptedDate)}' : '';
+
     items.add(
       _buildTimelineItem(
         title: 'Technician Accepted Task',
         isDone: isAccepted,
         subtitle: isAccepted
-            ? 'Accepted by ${request.acceptedByName ?? _assignedMaintenanceName(request.assignedToId)} on ${_formatDateTime(request.acceptedDate ?? acceptSig.signedAt)}'
+            ? 'Accepted by ${request.acceptedByName ?? _assignedMaintenanceName(request.assignedToId)}$acceptedDateStr'
             : 'Awaiting technician acceptance',
-        signature: isAccepted && acceptSig.signatureData.isNotEmpty ? acceptSig : null,
+        signature: acceptSig,
         themeProvider: themeProvider,
       ),
     );

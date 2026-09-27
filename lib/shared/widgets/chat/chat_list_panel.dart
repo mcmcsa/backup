@@ -49,11 +49,6 @@ class _ChatListPanelState extends State<ChatListPanel> {
     _roomsChannel = ChatService.subscribeToRooms(widget.currentUserId, _load);
   }
 
-  @override
-  void deactivate() {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    super.deactivate();
-  }
 
   @override
   void dispose() {

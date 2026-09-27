@@ -20,7 +20,7 @@ class MaintenanceStaffHistoryPage extends StatefulWidget {
 
 class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPage> {
   final TextEditingController _searchController = TextEditingController();
-  String _selectedFilter = 'All';
+  String _selectedFilter = 'Completed';
   DateTime? _startDate;
   DateTime? _endDate;
   bool _sortAscending = false; // false = newest first, true = oldest first
@@ -94,16 +94,14 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
     List<WorkRequest> filtered = List.from(_requests);
 
     // Filter by status
-    if (_selectedFilter != 'All') {
-      String filter = _selectedFilter.toUpperCase();
-      filtered = filtered.where((item) {
-        String status = item.status.toUpperCase();
-        if (filter == 'CANCELLED') {
-          return status == 'CANCELLED' || status == 'DECLINED' || status == 'DECLINED/CANCELLED';
-        }
-        return status == filter;
-      }).toList();
-    }
+    String filter = _selectedFilter.toUpperCase();
+    filtered = filtered.where((item) {
+      String status = item.status.toUpperCase();
+      if (filter == 'CANCELLED') {
+        return status == 'CANCELLED' || status == 'DECLINED' || status == 'DECLINED/CANCELLED';
+      }
+      return status == filter;
+    }).toList();
 
     // Filter by search query
     String query = _searchController.text.toLowerCase();
@@ -241,18 +239,13 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
           // Filter Tabs
           Container(
             color: themeProvider.cardColor,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('All', themeProvider),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Completed', themeProvider),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Cancelled', themeProvider),
-                ],
-              ),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                Expanded(child: _buildFilterChip('Completed', themeProvider)),
+                const SizedBox(width: 8),
+                Expanded(child: _buildFilterChip('Cancelled', themeProvider)),
+              ],
             ),
           ),
 
@@ -384,25 +377,37 @@ class _MaintenanceStaffHistoryPageState extends State<MaintenanceStaffHistoryPag
 
   Widget _buildFilterChip(String label, ThemeProvider themeProvider) {
     final isSelected = _selectedFilter == label;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        setState(() {
-          _selectedFilter = label;
-        });
-      },
-      backgroundColor: themeProvider.cardColor,
-      selectedColor: const Color(0xFF4169E1),
-      labelStyle: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: isSelected ? Colors.white : themeProvider.textColor,
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFilter = label),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF4169E1) : themeProvider.cardColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF4169E1) : themeProvider.borderColor,
+          ),
+        ),
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isSelected) ...[
+                const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? Colors.white : themeProvider.textColor,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      side: BorderSide(
-        color: isSelected ? const Color(0xFF4169E1) : themeProvider.borderColor,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     );
   }
 

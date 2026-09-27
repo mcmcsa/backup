@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/building_model.dart';
 import '../models/department_model.dart';
 import '../models/room_type_model.dart';
+import '../providers/theme_provider.dart';
 import '../services/room_service.dart';
 import '../services/building_service.dart';
 import '../services/department_service.dart';
 import '../services/room_type_service.dart';
-import '../../web/admin/shared/admin_styles.dart';
 
 class RoomComparisonDialog extends StatefulWidget {
   final String roomId;
@@ -77,7 +78,6 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
       final list = List<Map<String, dynamic>>.from(response as List);
 
       if (list.isEmpty) {
-        // Fallback: If no versions exist yet, we can create a mock v1 version from the room's current state
         final currentRoom = await RoomService.fetchById(widget.roomId);
         if (currentRoom != null) {
           _versions = [
@@ -94,11 +94,9 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
 
       if (_versions.isNotEmpty) {
         if (_versions.length >= 2) {
-          // Compare last two versions by default (e.g. Previous v(N-1) vs Current vN)
           _selectedVersionA = _versions[_versions.length - 2];
           _selectedVersionB = _versions[_versions.length - 1];
         } else {
-          // Only one version exists
           _selectedVersionA = _versions[0];
           _selectedVersionB = _versions[0];
         }
@@ -132,10 +130,21 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 700;
 
+    final dialogBg = isDark ? const Color(0xFF1E1E2E) : Colors.white;
+    final headerBg = isDark ? const Color(0xFF252535) : const Color(0xFFF0FDFA);
+    final borderColor = isDark ? Colors.grey.shade700 : const Color(0xFFE2E8F0);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF134E4A);
+    final textSecondary = isDark ? Colors.grey.shade300 : const Color(0xFF475569);
+    final textMuted = isDark ? Colors.grey.shade500 : const Color(0xFF94A3B8);
+    const accentColor = Color(0xFF0F766E);
+
     return Dialog(
+      backgroundColor: dialogBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: EdgeInsets.symmetric(
         horizontal: isMobile ? 12 : 40,
@@ -147,10 +156,16 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
           maxHeight: MediaQuery.of(context).size.height * (isMobile ? 0.92 : 0.85),
         ),
         padding: EdgeInsets.all(isMobile ? 16 : 24),
+        decoration: BoxDecoration(
+          color: dialogBg,
+          borderRadius: BorderRadius.circular(16),
+        ),
         child: _isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 height: 300,
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(
+                  child: CircularProgressIndicator(color: accentColor),
+                ),
               )
             : _errorMessage != null
                 ? Container(
@@ -159,39 +174,44 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
                     child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
                   )
                 : _versions.isEmpty
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 200,
-                        child: Center(child: Text('No version history found for this room.')),
+                        child: Center(
+                          child: Text(
+                            'No version history found for this room.',
+                            style: TextStyle(color: textSecondary),
+                          ),
+                        ),
                       )
                     : Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildHeader(),
-                          const Divider(height: 24),
+                          _buildHeader(textPrimary, textSecondary, accentColor),
+                          Divider(height: 24, color: borderColor),
                           Flexible(
                             child: SingleChildScrollView(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (_showTimeline) ...[
-                                    _buildTimelineSelectors(isMobile),
+                                    _buildTimelineSelectors(isMobile, headerBg, borderColor, textPrimary, textSecondary),
                                     const SizedBox(height: 16),
                                   ],
-                                  _buildComparisonView(isMobile),
+                                  _buildComparisonView(isMobile, isDark, headerBg, borderColor, textPrimary, textSecondary, textMuted),
                                 ],
                               ),
                             ),
                           ),
-                          const Divider(height: 24),
-                          _buildFooter(isMobile),
+                          Divider(height: 24, color: borderColor),
+                          _buildFooter(isMobile, accentColor),
                         ],
                       ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(Color textPrimary, Color textSecondary, Color accentColor) {
     final roomName = _selectedVersionB?['room_data']?['name'] ?? 'Room';
     final roomCode = _selectedVersionB?['room_data']?['code'] ?? '';
 
@@ -204,39 +224,44 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
             children: [
               Text(
                 'Room Update Comparison',
-                style: AdminStyles.headingStyle(fontSize: 20),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: textPrimary,
+                  letterSpacing: -0.3,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 '$roomCode — $roomName',
-                style: AdminStyles.bodyStyle(color: AdminStyles.textSecondary, fontSize: 14),
+                style: TextStyle(color: textSecondary, fontSize: 14),
                 overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
         ),
         IconButton(
-          icon: const Icon(Icons.close_rounded),
+          icon: Icon(Icons.close_rounded, color: textSecondary),
           onPressed: () => Navigator.pop(context),
         ),
       ],
     );
   }
 
-  Widget _buildTimelineSelectors(bool isMobile) {
+  Widget _buildTimelineSelectors(bool isMobile, Color headerBg, Color borderColor, Color textPrimary, Color textSecondary) {
     return Container(
       padding: EdgeInsets.all(isMobile ? 10 : 14),
       decoration: BoxDecoration(
-        color: AdminStyles.bg,
+        color: headerBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AdminStyles.border),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Select Versions to Compare',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AdminStyles.textPrimary),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: textPrimary),
           ),
           const SizedBox(height: 10),
           if (isMobile)
@@ -247,20 +272,21 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
                   label: 'Compare Version',
                   value: _selectedVersionA,
                   onChanged: (val) => setState(() => _selectedVersionA = val),
+                  textPrimary: textPrimary,
+                  borderColor: borderColor,
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Center(
-                    child: Text(
-                      'vs',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: AdminStyles.textSecondary, fontSize: 12),
-                    ),
+                    child: Text('vs', style: TextStyle(fontWeight: FontWeight.bold, color: textSecondary, fontSize: 12)),
                   ),
                 ),
                 _buildDropdown(
                   label: 'With Version',
                   value: _selectedVersionB,
                   onChanged: (val) => setState(() => _selectedVersionB = val),
+                  textPrimary: textPrimary,
+                  borderColor: borderColor,
                 ),
               ],
             )
@@ -272,16 +298,20 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
                     label: 'Compare Version',
                     value: _selectedVersionA,
                     onChanged: (val) => setState(() => _selectedVersionA = val),
+                    textPrimary: textPrimary,
+                    borderColor: borderColor,
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text('vs', style: TextStyle(fontWeight: FontWeight.bold, color: AdminStyles.textSecondary)),
+                Text('vs', style: TextStyle(fontWeight: FontWeight.bold, color: textSecondary)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _buildDropdown(
                     label: 'With Version',
                     value: _selectedVersionB,
                     onChanged: (val) => setState(() => _selectedVersionB = val),
+                    textPrimary: textPrimary,
+                    borderColor: borderColor,
                   ),
                 ),
               ],
@@ -295,13 +325,16 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
     required String label,
     required Map<String, dynamic>? value,
     required ValueChanged<Map<String, dynamic>?> onChanged,
+    required Color textPrimary,
+    required Color borderColor,
   }) {
     return InputDecorator(
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(fontSize: 12),
+        labelStyle: TextStyle(fontSize: 12, color: textPrimary.withValues(alpha: 0.7)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        border: const OutlineInputBorder(),
+        border: OutlineInputBorder(borderSide: BorderSide(color: borderColor)),
+        enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: borderColor)),
         isDense: true,
       ),
       child: DropdownButtonHideUnderline(
@@ -310,6 +343,7 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
           isExpanded: true,
           isDense: true,
           onChanged: onChanged,
+          style: TextStyle(fontSize: 12, color: textPrimary),
           items: _versions.map((v) {
             final verNum = v['version'];
             final dateStr = _formatDate(v['created_at']);
@@ -317,7 +351,7 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
               value: v,
               child: Text(
                 'Version $verNum ($dateStr)',
-                style: const TextStyle(fontSize: 12),
+                style: TextStyle(fontSize: 12, color: textPrimary),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
               ),
@@ -328,7 +362,7 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
     );
   }
 
-  Widget _buildComparisonView(bool isMobile) {
+  Widget _buildComparisonView(bool isMobile, bool isDark, Color headerBg, Color borderColor, Color textPrimary, Color textSecondary, Color textMuted) {
     final dataA = _selectedVersionA?['room_data'] as Map<String, dynamic>? ?? {};
     final dataB = _selectedVersionB?['room_data'] as Map<String, dynamic>? ?? {};
 
@@ -338,8 +372,13 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
     final String editorB = _selectedVersionB?['edited_by_user']?['name']?.toString() ?? 'System Admin';
     final String dateB = _formatDate(_selectedVersionB?['created_at']);
 
+    final changedHighlight = isDark
+        ? Colors.blue.shade900.withValues(alpha: 0.35)
+        : Colors.blue.shade50.withValues(alpha: 0.5);
+    final changedValueColor = isDark ? Colors.blue.shade300 : Colors.blue.shade800;
+
     final table = Table(
-      border: TableBorder.symmetric(inside: BorderSide(color: Colors.grey.shade100)),
+      border: TableBorder.symmetric(inside: BorderSide(color: borderColor)),
       columnWidths: isMobile
           ? const {
               0: FixedColumnWidth(100),
@@ -353,21 +392,21 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
             },
       children: [
         TableRow(
-          decoration: const BoxDecoration(color: AdminStyles.bg),
+          decoration: BoxDecoration(color: headerBg),
           children: [
-            _buildTableCell('FIELD', isHeader: true, isMobile: isMobile),
-            _buildTableCell('VERSION $verNumA (PREVIOUS)', isHeader: true, isMobile: isMobile),
-            _buildTableCell('VERSION $verNumB (CURRENT)', isHeader: true, isMobile: isMobile),
+            _buildTableCell('FIELD', isHeader: true, isMobile: isMobile, textMuted: textMuted, textPrimary: textPrimary, textSecondary: textSecondary, changedValueColor: changedValueColor),
+            _buildTableCell('VERSION $verNumA (PREVIOUS)', isHeader: true, isMobile: isMobile, textMuted: textMuted, textPrimary: textPrimary, textSecondary: textSecondary, changedValueColor: changedValueColor),
+            _buildTableCell('VERSION $verNumB (CURRENT)', isHeader: true, isMobile: isMobile, textMuted: textMuted, textPrimary: textPrimary, textSecondary: textSecondary, changedValueColor: changedValueColor),
           ],
         ),
-        _buildCompareRow('Room Code', dataA['code']?.toString(), dataB['code']?.toString(), isMobile),
-        _buildCompareRow('Room Name', dataA['name']?.toString(), dataB['name']?.toString(), isMobile),
-        _buildCompareRow('Building', _resolveBuilding(dataA['building'] ?? dataA['building_id']), _resolveBuilding(dataB['building'] ?? dataB['building_id']), isMobile),
-        _buildCompareRow('Floor', dataA['floor']?.toString(), dataB['floor']?.toString(), isMobile),
-        _buildCompareRow('Department', _resolveDepartment(dataA['department'] ?? dataA['department_id']), _resolveDepartment(dataB['department'] ?? dataB['department_id']), isMobile),
-        _buildCompareRow('Room Type', _resolveRoomType(dataA['room_type'] ?? dataA['room_type_id']), _resolveRoomType(dataB['room_type'] ?? dataB['room_type_id']), isMobile),
-        _buildCompareRow('Seats', dataA['seats']?.toString(), dataB['seats']?.toString(), isMobile),
-        _buildCompareRow('Status', dataA['status']?.toString(), dataB['status']?.toString(), isMobile),
+        _buildCompareRow('Room Code', dataA['code']?.toString(), dataB['code']?.toString(), isMobile, changedHighlight, changedValueColor, textPrimary, textSecondary),
+        _buildCompareRow('Room Name', dataA['name']?.toString(), dataB['name']?.toString(), isMobile, changedHighlight, changedValueColor, textPrimary, textSecondary),
+        _buildCompareRow('Building', _resolveBuilding(dataA['building'] ?? dataA['building_id']), _resolveBuilding(dataB['building'] ?? dataB['building_id']), isMobile, changedHighlight, changedValueColor, textPrimary, textSecondary),
+        _buildCompareRow('Floor', dataA['floor']?.toString(), dataB['floor']?.toString(), isMobile, changedHighlight, changedValueColor, textPrimary, textSecondary),
+        _buildCompareRow('Department', _resolveDepartment(dataA['department'] ?? dataA['department_id']), _resolveDepartment(dataB['department'] ?? dataB['department_id']), isMobile, changedHighlight, changedValueColor, textPrimary, textSecondary),
+        _buildCompareRow('Room Type', _resolveRoomType(dataA['room_type'] ?? dataA['room_type_id']), _resolveRoomType(dataB['room_type'] ?? dataB['room_type_id']), isMobile, changedHighlight, changedValueColor, textPrimary, textSecondary),
+        _buildCompareRow('Seats', dataA['seats']?.toString(), dataB['seats']?.toString(), isMobile, changedHighlight, changedValueColor, textPrimary, textSecondary),
+        _buildCompareRow('Status', dataA['status']?.toString(), dataB['status']?.toString(), isMobile, changedHighlight, changedValueColor, textPrimary, textSecondary),
       ],
     );
 
@@ -382,7 +421,7 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
               style: TextStyle(
                 fontSize: isMobile ? 11 : 12,
                 fontStyle: FontStyle.italic,
-                color: AdminStyles.textSecondary,
+                color: textSecondary,
               ),
             ),
           ),
@@ -401,24 +440,22 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
     );
   }
 
-  TableRow _buildCompareRow(String fieldLabel, String? valA, String? valB, bool isMobile) {
+  TableRow _buildCompareRow(String fieldLabel, String? valA, String? valB, bool isMobile, Color changedHighlight, Color changedValueColor, Color textPrimary, Color textSecondary) {
     final vA = (valA ?? '-').trim();
     final vB = (valB ?? '-').trim();
     final isChanged = vA.toLowerCase() != vB.toLowerCase();
 
-    final highlightBg = isChanged ? Colors.blue.shade50.withValues(alpha: 0.5) : null;
-
     return TableRow(
-      decoration: highlightBg != null ? BoxDecoration(color: highlightBg) : null,
+      decoration: isChanged ? BoxDecoration(color: changedHighlight) : null,
       children: [
-        _buildTableCell(fieldLabel, isBold: isChanged, isFieldName: true, isMobile: isMobile),
-        _buildTableCell(vA, isBold: isChanged, isMobile: isMobile),
-        _buildTableCell(vB, isBold: isChanged, isValueCurrent: isChanged, isMobile: isMobile),
+        _buildTableCell(fieldLabel, isBold: isChanged, isFieldName: true, isMobile: isMobile, textMuted: textPrimary.withValues(alpha: 0.5), textPrimary: textPrimary, textSecondary: textSecondary, changedValueColor: changedValueColor),
+        _buildTableCell(vA, isBold: isChanged, isMobile: isMobile, textMuted: textPrimary.withValues(alpha: 0.5), textPrimary: textPrimary, textSecondary: textSecondary, changedValueColor: changedValueColor),
+        _buildTableCell(vB, isBold: isChanged, isValueCurrent: isChanged, isMobile: isMobile, textMuted: textPrimary.withValues(alpha: 0.5), textPrimary: textPrimary, textSecondary: textSecondary, changedValueColor: changedValueColor),
       ],
     );
   }
 
-  Widget _buildTableCell(String text, {bool isHeader = false, bool isBold = false, bool isFieldName = false, bool isValueCurrent = false, bool isMobile = false}) {
+  Widget _buildTableCell(String text, {bool isHeader = false, bool isBold = false, bool isFieldName = false, bool isValueCurrent = false, bool isMobile = false, required Color textMuted, required Color textPrimary, required Color textSecondary, required Color changedValueColor}) {
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: isMobile ? 8 : 12,
@@ -430,18 +467,18 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
           fontSize: isHeader ? (isMobile ? 10 : 11) : (isMobile ? 11 : 12),
           fontWeight: (isHeader || isBold) ? FontWeight.bold : FontWeight.normal,
           color: isHeader
-              ? AdminStyles.textMuted
+              ? textMuted
               : isFieldName
-                  ? AdminStyles.textPrimary
+                  ? textPrimary
                   : isValueCurrent
-                      ? Colors.blue.shade800
-                      : AdminStyles.textSecondary,
+                      ? changedValueColor
+                      : textSecondary,
         ),
       ),
     );
   }
 
-  Widget _buildFooter(bool isMobile) {
+  Widget _buildFooter(bool isMobile, Color accentColor) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -454,7 +491,7 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
               style: TextStyle(fontSize: isMobile ? 12 : 14),
             ),
             style: TextButton.styleFrom(
-              foregroundColor: AdminStyles.primary,
+              foregroundColor: accentColor,
               padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 12, vertical: 8),
             ),
           )
@@ -462,7 +499,7 @@ class _RoomComparisonDialogState extends State<RoomComparisonDialog> {
           const SizedBox.shrink(),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AdminStyles.primary,
+            backgroundColor: accentColor,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             padding: EdgeInsets.symmetric(horizontal: isMobile ? 14 : 20, vertical: isMobile ? 8 : 10),
           ),

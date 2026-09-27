@@ -381,6 +381,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           return;
         }
 
+        if (!mounted) return;
         final currentUser = context.read<AuthService>().currentUser;
         if (isRoomOfOtherDepartment(user: currentUser, room: selectedRoom)) {
           setState(() => _isSubmitting = false);
@@ -529,12 +530,12 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
 
         var insertedRequest = await WorkRequestService.insert(requestToInsert);
 
-        try {
-          context.read<WorkRequestProvider>().refreshRequests(silent: true);
-          context.read<RoomProvider>().refreshRooms();
-        } catch (_) {}
-
-
+        if (mounted) {
+          try {
+            context.read<WorkRequestProvider>().refreshRequests(silent: true);
+            context.read<RoomProvider>().refreshRooms();
+          } catch (_) {}
+        }
 
         if (authUser != null) {
           if (!mounted) return;
@@ -576,15 +577,17 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
 
         if (!mounted) return;
         final trackingNumber = insertedRequest.id;
-        if (!mounted) return;
-        context.replace(
+        final loc =
+            '$_selectedBuilding, ${_roomNumberController.text.trim()}';
+        final now = DateTime.now();
+
+        context.go(
           '/work-request-success',
           extra: {
             'trackingNumber': trackingNumber,
-            'location':
-                '$_selectedBuilding, ${_roomNumberController.text.trim()}',
+            'location': loc,
             'severity': typeLabel,
-            'reportedDate': DateTime.now(),
+            'reportedDate': now,
           },
         );
       } catch (e) {
