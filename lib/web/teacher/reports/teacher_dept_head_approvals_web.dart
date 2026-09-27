@@ -7,6 +7,8 @@ import '../../../shared/services/work_request_service.dart';
 import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../admin/shared/admin_styles.dart';
+import '../../../shared/providers/theme_provider.dart';
+import '../../../../mobile/teacher/reports/request_details_page.dart';
 import '../teacher_nav_controller.dart';
 
 class TeacherDeptHeadApprovalsWeb extends StatefulWidget {
@@ -105,16 +107,21 @@ class _TeacherDeptHeadApprovalsWebState
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return Container(
-      color: const Color(0xFFF8FAFC),
+      color: themeProvider.backgroundColor,
       child: Column(
         children: [
           _buildHeader(),
           _buildSearchAndFilters(),
           Expanded(
             child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF0F766E)),
+                ? Center(
+                    child: CircularProgressIndicator(
+                      color: isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E),
+                    ),
                   )
                 : _buildRequestsList(
                     _activeList,
@@ -127,25 +134,84 @@ class _TeacherDeptHeadApprovalsWebState
   }
 
   Widget _buildHeader() {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final isMobile = MediaQuery.of(context).size.width < 768;
+
+    if (isMobile) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: themeProvider.borderColor),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF00BFA5).withValues(alpha: 0.15)
+                      : const Color(0xFF0F766E).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.approval_rounded,
+                  color: isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Review or approve faculty work requests for your department.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: themeProvider.subtitleColor,
+                  ),
+                ),
+              ),
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: Icon(
+                  Icons.refresh_rounded,
+                  color: isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E),
+                  size: 20,
+                ),
+                tooltip: 'Refresh Requests',
+                onPressed: () => _loadRequests(showLoading: true),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
-      padding: EdgeInsets.fromLTRB(isMobile ? 16 : 32, isMobile ? 16 : 24, isMobile ? 16 : 32, 0),
+      padding: const EdgeInsets.fromLTRB(32, 24, 32, 0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            padding: EdgeInsets.all(isMobile ? 8 : 10),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+              color: isDark
+                  ? const Color(0xFF00BFA5).withValues(alpha: 0.15)
+                  : const Color(0xFF0F766E).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
               Icons.approval_rounded,
-              color: const Color(0xFF0F766E),
-              size: isMobile ? 22 : 26,
+              color: isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E),
+              size: 26,
             ),
           ),
-          SizedBox(width: isMobile ? 10 : 16),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,22 +219,22 @@ class _TeacherDeptHeadApprovalsWebState
                 Text(
                   'Department Approvals',
                   style: TextStyle(
-                    fontSize: isMobile ? 18 : 22,
+                    fontSize: 22,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0F172A),
+                    color: themeProvider.textColor,
                     letterSpacing: -0.5,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   'Review, Approve, or Acknowledge faculty work requests before Campus Admin Evaluation.',
-                  style: TextStyle(fontSize: isMobile ? 11 : 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: themeProvider.subtitleColor),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF0F766E)),
+            icon: Icon(Icons.refresh_rounded, color: isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E)),
             tooltip: 'Refresh Requests',
             onPressed: () => _loadRequests(showLoading: true),
           ),
@@ -178,6 +244,8 @@ class _TeacherDeptHeadApprovalsWebState
   }
 
   Widget _buildSearchAndFilters() {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final pendingCount = _pendingRequests.length;
     final acknowledgeCount =
         _evaluatedRequests.where((r) => r.deptHeadStatus == 'acknowledged').length;
@@ -198,7 +266,7 @@ class _TeacherDeptHeadApprovalsWebState
         label: 'Acknowledge',
         count: acknowledgeCount,
         filter: 'acknowledge',
-        activeColor: const Color(0xFF0F766E),
+        activeColor: isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E),
       ),
       const SizedBox(width: 8),
       _buildFilterChip(
@@ -211,9 +279,9 @@ class _TeacherDeptHeadApprovalsWebState
 
     final viewToggle = Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: themeProvider.borderColor),
       ),
       padding: const EdgeInsets.all(3),
       child: Row(
@@ -236,28 +304,29 @@ class _TeacherDeptHeadApprovalsWebState
     );
 
     final searchField = TextField(
+      style: TextStyle(fontSize: 13, color: themeProvider.textColor),
       decoration: InputDecoration(
         hintText: 'Search requests, room, teacher...',
-        hintStyle: const TextStyle(fontSize: 13),
-        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+        hintStyle: TextStyle(fontSize: 13, color: themeProvider.subtitleColor),
+        prefixIcon: Icon(Icons.search_rounded, size: 20, color: themeProvider.subtitleColor),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 10,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          borderSide: BorderSide(color: themeProvider.borderColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          borderSide: BorderSide(color: themeProvider.borderColor),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF0F766E)),
+          borderSide: BorderSide(color: isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E)),
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: themeProvider.cardColor,
       ),
       onChanged: (v) => setState(() => _searchQuery = v),
     );
@@ -311,6 +380,7 @@ class _TeacherDeptHeadApprovalsWebState
     required String filter,
     required Color activeColor,
   }) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
     final isActive = _activeFilter == filter;
     return GestureDetector(
       onTap: () => setState(() => _activeFilter = filter),
@@ -318,10 +388,10 @@ class _TeacherDeptHeadApprovalsWebState
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? activeColor : Colors.white,
+          color: isActive ? activeColor : themeProvider.cardColor,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isActive ? activeColor : const Color(0xFFE2E8F0),
+            color: isActive ? activeColor : themeProvider.borderColor,
             width: isActive ? 1.5 : 1,
           ),
           boxShadow: isActive
@@ -342,7 +412,7 @@ class _TeacherDeptHeadApprovalsWebState
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: isActive ? Colors.white : const Color(0xFF64748B),
+                color: isActive ? Colors.white : themeProvider.subtitleColor,
               ),
             ),
             if (count > 0 && filter == 'pending') ...[
@@ -377,6 +447,9 @@ class _TeacherDeptHeadApprovalsWebState
     required bool isActive,
     required VoidCallback onTap,
   }) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final highlightCol = isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E);
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(7),
@@ -384,7 +457,7 @@ class _TeacherDeptHeadApprovalsWebState
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
           color: isActive
-              ? const Color(0xFF0F766E).withValues(alpha: 0.12)
+              ? highlightCol.withValues(alpha: isDark ? 0.2 : 0.12)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(7),
         ),
@@ -394,7 +467,7 @@ class _TeacherDeptHeadApprovalsWebState
             Icon(
               icon,
               size: 18,
-              color: isActive ? const Color(0xFF0F766E) : const Color(0xFF94A3B8),
+              color: isActive ? highlightCol : themeProvider.subtitleColor,
             ),
             const SizedBox(width: 5),
             Text(
@@ -402,7 +475,7 @@ class _TeacherDeptHeadApprovalsWebState
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: isActive ? const Color(0xFF0F766E) : const Color(0xFF94A3B8),
+                color: isActive ? highlightCol : themeProvider.subtitleColor,
               ),
             ),
           ],
@@ -415,6 +488,8 @@ class _TeacherDeptHeadApprovalsWebState
     List<WorkRequest> list, {
     required bool isPending,
   }) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     if (list.isEmpty) {
       final emptyMsg = _activeFilter == 'pending'
           ? 'All caught up! No requests pending evaluation.'
@@ -430,14 +505,14 @@ class _TeacherDeptHeadApprovalsWebState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(emptyIcon, size: 56, color: const Color(0xFFCBD5E1)),
+            Icon(emptyIcon, size: 56, color: isDark ? Colors.grey.shade700 : const Color(0xFFCBD5E1)),
             const SizedBox(height: 16),
             Text(
               emptyMsg,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
+                color: themeProvider.subtitleColor,
               ),
             ),
           ],
@@ -483,18 +558,21 @@ class _TeacherDeptHeadApprovalsWebState
   }
 
   Widget _buildIdBadge(String formattedId) {
+    final isDark = Provider.of<ThemeProvider>(context).isDarkMode;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+        color: isDark
+            ? const Color(0xFF00BFA5).withValues(alpha: 0.2)
+            : const Color(0xFF0F766E).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         formattedId,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,
-          color: Color(0xFF0F766E),
+          color: isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0F766E),
         ),
       ),
     );
@@ -518,18 +596,34 @@ class _TeacherDeptHeadApprovalsWebState
     );
   }
 
+  void _openDetails(WorkRequest req) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RequestDetailsPage(
+          trackingNumber: req.id,
+          status: req.status,
+          initialRequest: req,
+        ),
+      ),
+    );
+  }
+
   List<Widget> _buildActionButtons(
     WorkRequest req,
     bool isPending, {
     bool compact = false,
   }) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final primaryCol = isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E);
     return [
       OutlinedButton.icon(
         icon: const Icon(Icons.open_in_new_rounded, size: 14),
         label: const Text('View Full Details'),
         style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF0F766E),
-          side: const BorderSide(color: Color(0xFF0F766E)),
+          foregroundColor: primaryCol,
+          side: BorderSide(color: primaryCol),
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 10 : 14,
             vertical: compact ? 8 : 12,
@@ -541,7 +635,13 @@ class _TeacherDeptHeadApprovalsWebState
           ),
         ),
         onPressed: () {
-          TeacherNavController.of(context)?.navigateTo(3, request: req);
+          final isMobile = MediaQuery.of(context).size.width < 768;
+          final navCtrl = TeacherNavController.of(context);
+          if (!isMobile && navCtrl != null) {
+            navCtrl.navigateTo(3, request: req);
+          } else {
+            _openDetails(req);
+          }
         },
       ),
       if (isPending) ...[
@@ -549,8 +649,8 @@ class _TeacherDeptHeadApprovalsWebState
           icon: const Icon(Icons.handshake_outlined, size: 14),
           label: const Text('Acknowledge'),
           style: OutlinedButton.styleFrom(
-            foregroundColor: const Color(0xFF0F766E),
-            side: const BorderSide(color: Color(0xFF0F766E)),
+            foregroundColor: const Color(0xFF6366F1),
+            side: const BorderSide(color: Color(0xFF6366F1)),
             padding: EdgeInsets.symmetric(
               horizontal: compact ? 10 : 14,
               vertical: compact ? 8 : 12,
@@ -567,7 +667,7 @@ class _TeacherDeptHeadApprovalsWebState
           icon: const Icon(Icons.check_rounded, size: 15),
           label: const Text('Approve'),
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0F766E),
+            backgroundColor: primaryCol,
             foregroundColor: Colors.white,
             elevation: 0,
             padding: EdgeInsets.symmetric(
@@ -588,6 +688,9 @@ class _TeacherDeptHeadApprovalsWebState
 
   /// Compact List View Row — clean, highly scannable, eliminates excessive vertical length
   Widget _buildRequestListRow(WorkRequest req, {required bool isPending}) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    final primaryCol = isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E);
     final statusColor = _statusColor(req.deptHeadStatus);
     final displayTitle = req.title.trim().isNotEmpty
         ? req.title
@@ -597,12 +700,12 @@ class _TeacherDeptHeadApprovalsWebState
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.02),
             blurRadius: 4,
             offset: const Offset(0, 1),
           ),
@@ -624,7 +727,7 @@ class _TeacherDeptHeadApprovalsWebState
                       const SizedBox(width: 8),
                       Text(
                         _formatDate(req.dateSubmitted),
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                        style: TextStyle(fontSize: 11, color: themeProvider.subtitleColor),
                       ),
                       const Spacer(),
                       _buildStatusPill(req.deptHeadStatus, statusColor),
@@ -633,12 +736,12 @@ class _TeacherDeptHeadApprovalsWebState
                   const SizedBox(height: 8),
                   Text(
                     displayTitle,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
+                      color: themeProvider.textColor,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -666,16 +769,75 @@ class _TeacherDeptHeadApprovalsWebState
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.end,
-                      children: _buildActionButtons(req, isPending, compact: true),
+                  const SizedBox(height: 12),
+                  if (isPending) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                            label: const Text('View Full Details'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryCol,
+                              side: BorderSide(color: primaryCol),
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                            onPressed: () => _openDetails(req),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.handshake_outlined, size: 14),
+                            label: const Text('Acknowledge'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF6366F1),
+                              side: const BorderSide(color: Color(0xFF6366F1)),
+                              padding: const EdgeInsets.symmetric(vertical: 9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                            onPressed: () => _showAcknowledgeDialog(req),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.check_rounded, size: 16),
+                        label: const Text('Approve Work Request'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryCol,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                        ),
+                        onPressed: () => _showApproveDialog(req),
+                      ),
+                    ),
+                  ] else ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                        label: const Text('View Full Details'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: primaryCol,
+                          side: BorderSide(color: primaryCol),
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        onPressed: () => _openDetails(req),
+                      ),
+                    ),
+                  ],
                 ],
               );
             }
@@ -694,9 +856,9 @@ class _TeacherDeptHeadApprovalsWebState
                       const SizedBox(height: 4),
                       Text(
                         _formatDate(req.dateSubmitted),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF94A3B8),
+                          color: themeProvider.subtitleColor,
                         ),
                       ),
                     ],
@@ -715,10 +877,10 @@ class _TeacherDeptHeadApprovalsWebState
                         displayTitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF0F172A),
+                          color: themeProvider.textColor,
                         ),
                       ),
                       if (req.description.isNotEmpty) ...[
@@ -727,9 +889,9 @@ class _TeacherDeptHeadApprovalsWebState
                           req.description,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF64748B),
+                            color: themeProvider.subtitleColor,
                           ),
                         ),
                       ],
@@ -791,6 +953,8 @@ class _TeacherDeptHeadApprovalsWebState
 
   /// Card representation for Grid View
   Widget _buildRequestGridCard(WorkRequest req, {required bool isPending}) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     final statusColor = _statusColor(req.deptHeadStatus);
     final displayTitle = req.title.trim().isNotEmpty
         ? req.title
@@ -800,12 +964,12 @@ class _TeacherDeptHeadApprovalsWebState
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: themeProvider.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: themeProvider.borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.02),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -823,7 +987,7 @@ class _TeacherDeptHeadApprovalsWebState
                 const SizedBox(width: 8),
                 Text(
                   _formatDate(req.dateSubmitted),
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                  style: TextStyle(fontSize: 11, color: themeProvider.subtitleColor),
                 ),
                 const Spacer(),
                 _buildStatusPill(req.deptHeadStatus, statusColor),
@@ -836,10 +1000,10 @@ class _TeacherDeptHeadApprovalsWebState
               displayTitle,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
+                color: themeProvider.textColor,
               ),
             ),
             if (req.description.isNotEmpty) ...[
@@ -848,9 +1012,9 @@ class _TeacherDeptHeadApprovalsWebState
                 req.description,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF64748B),
+                  color: themeProvider.subtitleColor,
                   height: 1.3,
                 ),
               ),
@@ -883,18 +1047,18 @@ class _TeacherDeptHeadApprovalsWebState
               const SizedBox(height: 8),
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.event_available_rounded,
                     size: 13,
-                    color: Color(0xFF0F766E),
+                    color: isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E),
                   ),
                   const SizedBox(width: 4),
                   Text(
                     'Evaluated: ${_formatDate(req.deptHeadApprovedDate!)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF0F766E),
+                      color: isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E),
                     ),
                   ),
                 ],
@@ -902,7 +1066,7 @@ class _TeacherDeptHeadApprovalsWebState
             ],
 
             const SizedBox(height: 12),
-            const Divider(color: Color(0xFFF1F5F9), height: 1),
+            Divider(color: themeProvider.dividerColor, height: 1),
             const SizedBox(height: 10),
 
             // Action Buttons
@@ -919,7 +1083,8 @@ class _TeacherDeptHeadApprovalsWebState
   }
 
   Widget _buildInfoChip(IconData icon, String text, {Color? color}) {
-    final c = color ?? const Color(0xFF64748B);
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final c = color ?? themeProvider.subtitleColor;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -967,71 +1132,188 @@ class _TeacherDeptHeadApprovalsWebState
       context: context,
       barrierDismissible: false,
       builder: (dContext) => StatefulBuilder(
-        builder: (context, setDState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: const [
-              Icon(Icons.check_circle_rounded, color: Color(0xFF0F766E), size: 24),
-              SizedBox(width: 10),
-              Text('Approve Work Request', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-            ],
-          ),
-          content: Container(
-            width: 500,
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.9,
+        builder: (context, setDState) {
+          final themeProvider = Provider.of<ThemeProvider>(context);
+          final isDark = themeProvider.isDarkMode;
+          final primaryCol = isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E);
+          final mediaQuery = MediaQuery.of(context);
+          final isMobile = mediaQuery.size.width < 650;
+
+          return AlertDialog(
+            backgroundColor: themeProvider.cardColor,
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 12 : 24,
+              vertical: isMobile ? 16 : 24,
             ),
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'You are approving "${req.title}" for centralized Campus Maintenance. The request will proceed directly to Campus Admin.',
-                    style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Department Head Evaluation Notes (Optional)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: notesController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: 'Add remarks, justifications, or special instructions...',
-                      hintStyle: const TextStyle(fontSize: 13),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            contentPadding: EdgeInsets.fromLTRB(
+              isMobile ? 14 : 22,
+              14,
+              isMobile ? 14 : 22,
+              6,
+            ),
+            titlePadding: EdgeInsets.fromLTRB(
+              isMobile ? 16 : 22,
+              16,
+              isMobile ? 10 : 16,
+              8,
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Approve Work Request',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                      color: themeProvider.textColor,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 16),
-                  const Text('Department Head E-Signature (Optional)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                  const SizedBox(height: 6),
-                  SignaturePadWidget(
-                    title: 'Department Head E-Signature',
-                    subtitle: 'Sign or upload your signature to approve',
-                    height: 160,
-                    onSignatureComplete: (sig) {
-                      signatureBase64 = sig;
-                    },
-                  ),
-                ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  color: themeProvider.subtitleColor,
+                  splashRadius: 18,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: isSubmitting ? null : () => Navigator.pop(dContext),
+                ),
+              ],
+            ),
+            content: Container(
+              width: isMobile ? double.maxFinite : 540,
+              constraints: BoxConstraints(
+                maxWidth: isMobile ? double.infinity : 540,
+                maxHeight: mediaQuery.size.height * 0.78,
+              ),
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.15 : 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF10B981).withValues(alpha: isDark ? 0.35 : 0.25),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Forward to Campus Admin',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    color: isDark ? const Color(0xFF34D399) : const Color(0xFF047857),
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Approving "${req.title}". This request will proceed directly to Campus Admin evaluation for technician assignment.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? Colors.grey.shade300 : const Color(0xFF334155),
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Department Head Evaluation Notes (Optional)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: themeProvider.textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: notesController,
+                      minLines: 2,
+                      maxLines: 3,
+                      style: TextStyle(color: themeProvider.textColor, fontSize: 13),
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        hintText: 'Add remarks, justifications, or special instructions...',
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                        ),
+                        filled: true,
+                        fillColor: themeProvider.inputFillColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: themeProvider.borderColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: themeProvider.borderColor),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SignaturePadWidget(
+                      title: 'Department Head E-Signature (Optional)',
+                      subtitle: 'Sign or upload your signature to approve',
+                      height: isMobile ? 210 : 230,
+                      showConfirmButton: false,
+                      enableFullscreen: true,
+                      onSignatureComplete: (sig) {
+                        signatureBase64 = sig;
+                      },
+                      onSignatureCleared: () {
+                        signatureBase64 = null;
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSubmitting ? null : () => Navigator.pop(dContext),
-              child: const Text('Cancel'),
+            actionsPadding: EdgeInsets.fromLTRB(
+              isMobile ? 14 : 22,
+              0,
+              isMobile ? 14 : 22,
+              isMobile ? 14 : 16,
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F766E),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(dContext),
+                style: TextButton.styleFrom(
+                  foregroundColor: themeProvider.subtitleColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+                child: const Text('Cancel'),
               ),
-              onPressed: isSubmitting
-                  ? null
-                  : () async {
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryCol,
+                  foregroundColor: Colors.white,
+                  minimumSize: Size(isMobile ? 140 : 160, 44),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
                       final user = context.read<AuthService>().currentUser;
                       if (user == null) return;
                       final messenger = ScaffoldMessenger.of(context);
@@ -1105,9 +1387,10 @@ class _TeacherDeptHeadApprovalsWebState
                   : const Text('Confirm Approve'),
             ),
           ],
-        ),
-      ),
-    );
+        );
+      },
+    ),
+  );
   }
 
   void _showAcknowledgeDialog(WorkRequest req) {
@@ -1119,88 +1402,187 @@ class _TeacherDeptHeadApprovalsWebState
       context: context,
       barrierDismissible: false,
       builder: (dContext) => StatefulBuilder(
-        builder: (context, setDState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Row(
-            children: const [
-              Icon(Icons.handshake_rounded, color: Color(0xFF0F766E), size: 24),
-              SizedBox(width: 10),
-              Text('Acknowledge Work Request', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
-            ],
-          ),
-          content: Container(
-            width: 500,
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.9,
+        builder: (context, setDState) {
+          final themeProvider = Provider.of<ThemeProvider>(context);
+          final isDark = themeProvider.isDarkMode;
+          final mediaQuery = MediaQuery.of(context);
+          final isMobile = mediaQuery.size.width < 650;
+
+          return AlertDialog(
+            backgroundColor: themeProvider.cardColor,
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 12 : 24,
+              vertical: isMobile ? 16 : 24,
             ),
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F766E).withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.2)),
+            contentPadding: EdgeInsets.fromLTRB(
+              isMobile ? 14 : 22,
+              14,
+              isMobile ? 14 : 22,
+              6,
+            ),
+            titlePadding: EdgeInsets.fromLTRB(
+              isMobile ? 16 : 22,
+              16,
+              isMobile ? 10 : 16,
+              8,
+            ),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                const Icon(Icons.handshake_rounded, color: Color(0xFF6366F1), size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Acknowledge Work Request',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 17,
+                      color: themeProvider.textColor,
                     ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.info_outline_rounded, color: Color(0xFF0F766E), size: 18),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Acknowledging means the Department Head has received the issue and the department will handle it internally. This stops the centralized maintenance process and will NOT forward this request to Campus Admin.',
-                            style: TextStyle(fontSize: 12, color: Color(0xFF0F766E), height: 1.4),
-                          ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                  color: themeProvider.subtitleColor,
+                  splashRadius: 18,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: isSubmitting ? null : () => Navigator.pop(dContext),
+                ),
+              ],
+            ),
+            content: Container(
+              width: isMobile ? double.maxFinite : 540,
+              constraints: BoxConstraints(
+                maxWidth: isMobile ? double.infinity : 540,
+                maxHeight: mediaQuery.size.height * 0.78,
+              ),
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6366F1).withValues(alpha: isDark ? 0.15 : 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF6366F1).withValues(alpha: isDark ? 0.35 : 0.25),
                         ),
-                      ],
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.info_outline_rounded, color: Color(0xFF818CF8), size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Internal Department Handling',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    color: isDark ? const Color(0xFFA5B4FC) : const Color(0xFF4338CA),
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Acknowledging means the department will resolve "${req.title}" internally. This halts centralized maintenance and will not forward to Campus Admin.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isDark ? Colors.grey.shade300 : const Color(0xFF334155),
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Internal Department Notes (Optional)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: notesController,
-                    maxLines: 3,
-                    decoration: InputDecoration(
-                      hintText: 'Add remarks, internal assignment, or resolution notes...',
-                      hintStyle: const TextStyle(fontSize: 13),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Internal Department Notes (Optional)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: themeProvider.textColor,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Department Head E-Signature (Optional)', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-                  const SizedBox(height: 6),
-                  SignaturePadWidget(
-                    title: 'Department Head E-Signature',
-                    subtitle: 'Sign or upload your signature to confirm acknowledgement',
-                    height: 160,
-                    onSignatureComplete: (sig) {
-                      signatureBase64 = sig;
-                    },
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: notesController,
+                      minLines: 2,
+                      maxLines: 3,
+                      style: TextStyle(color: themeProvider.textColor, fontSize: 13),
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        hintText: 'Add remarks, internal assignment, or resolution notes...',
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                        ),
+                        filled: true,
+                        fillColor: themeProvider.inputFillColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: themeProvider.borderColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: themeProvider.borderColor),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SignaturePadWidget(
+                      title: 'Department Head E-Signature (Optional)',
+                      subtitle: 'Sign or upload your signature to confirm acknowledgement',
+                      height: isMobile ? 210 : 230,
+                      showConfirmButton: false,
+                      enableFullscreen: true,
+                      onSignatureComplete: (sig) {
+                        signatureBase64 = sig;
+                      },
+                      onSignatureCleared: () {
+                        signatureBase64 = null;
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isSubmitting ? null : () => Navigator.pop(dContext),
-              child: const Text('Cancel'),
+            actionsPadding: EdgeInsets.fromLTRB(
+              isMobile ? 14 : 22,
+              0,
+              isMobile ? 14 : 22,
+              isMobile ? 14 : 16,
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F766E),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(dContext),
+                style: TextButton.styleFrom(
+                  foregroundColor: themeProvider.subtitleColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+                child: const Text('Cancel'),
               ),
-              onPressed: isSubmitting
-                  ? null
-                  : () async {
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  minimumSize: Size(isMobile ? 150 : 170, 44),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
                       final user = context.read<AuthService>().currentUser;
                       if (user == null) return;
                       final messenger = ScaffoldMessenger.of(context);
@@ -1271,11 +1653,12 @@ class _TeacherDeptHeadApprovalsWebState
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text('Confirm Acknowledge'),
+                  : const Text('Confirm Acknowledge', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
-        ),
-      ),
-    );
+        );
+      },
+    ),
+  );
   }
 }

@@ -230,6 +230,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
   }
 
   Future<void> _openAdminConfirmSignatureSheet() async {
+    FocusScope.of(context).unfocus();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -275,7 +276,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _buildInfoRow('Request ID', _request.id),
+                    _buildInfoRow('Request ID', _request.formattedId),
                     _buildInfoRow('Title', _request.title),
                     _buildInfoRow('Status', _request.statusLabel),
                     const SizedBox(height: 10),
@@ -760,7 +761,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                   final isCompact = constraints.maxWidth < 390;
 
                   final idText = Text(
-                    '#${request.id.split('-').last}',
+                    request.formattedId,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

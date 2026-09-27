@@ -18,6 +18,7 @@ import '../mobile/teacher/menu_pages/system_workflow_page.dart';
 import '../mobile/teacher/reports/request_details_page.dart';
 import '../mobile/teacher/reports/work_request_form_page.dart';
 import '../mobile/teacher/reports/work_request_success_page.dart';
+import '../shared/models/work_request_model.dart';
 import '../mobile/teacher/scanner/manual_room_entry_page.dart';
 import '../mobile/teacher/scanner/room_verification_page.dart';
 import '../mobile/maintenance/task/pre_inspection_page.dart';
@@ -37,6 +38,7 @@ import '../web/teacher/menu/teacher_workflow_web.dart';
 import 'package:psu_maintsystem/web/teacher/reports/teacher_create_request_web.dart';
 import 'package:psu_maintsystem/web/teacher/reports/teacher_work_process_web.dart';
 import 'package:psu_maintsystem/web/teacher/reports/teacher_request_success_web.dart';
+import 'package:psu_maintsystem/web/teacher/reports/teacher_dept_head_approvals_web.dart';
 import '../web/teacher/teacher_navigation_web.dart' as web_teacher;
 import '../web/system_admin/system_admin_main_navigation_web.dart' as web_sysadmin;
 import '../mobile/system_admin/system_admin_main_navigation.dart' as mobile_sysadmin;
@@ -58,6 +60,7 @@ const String teacherContactRoute = '/teacher/contact';
 const String teacherWorkflowRoute = '/teacher/workflow';
 const String teacherCreateRequestRoute = '/teacher/create-request';
 const String teacherChatRoute = '/teacher/chat';
+const String teacherDeptApprovalsRoute = '/teacher/dept-approvals';
 
 String? resolveAuthRedirect({
   required String location,
@@ -381,6 +384,27 @@ GoRouter buildAppRouter(AuthService authService) {
             : const SystemWorkflowPage(),
       ),
       GoRoute(
+        path: teacherDeptApprovalsRoute,
+        builder: (context, state) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          return kIsWeb
+              ? const web_teacher.TeacherNavigationWeb(initialIndex: 13)
+              : Scaffold(
+                  backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+                  appBar: AppBar(
+                    backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFF0F172A),
+                    foregroundColor: Colors.white,
+                    title: const Text(
+                      'Department Approvals',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    elevation: 0,
+                  ),
+                  body: const TeacherDeptHeadApprovalsWeb(),
+                );
+        },
+      ),
+      GoRoute(
         path: '/teacher-archives',
         redirect: (context, state) => teacherArchivesRoute,
       ),
@@ -482,6 +506,7 @@ GoRouter buildAppRouter(AuthService authService) {
           return RequestDetailsPage(
             trackingNumber: args?['trackingNumber'] ?? '',
             status: args?['status'] ?? 'PENDING',
+            initialRequest: args?['request'] as WorkRequest?,
           );
         },
       ),

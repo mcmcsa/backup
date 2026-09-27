@@ -50,6 +50,12 @@ class _ChatListPanelState extends State<ChatListPanel> {
   }
 
   @override
+  void deactivate() {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    super.deactivate();
+  }
+
+  @override
   void dispose() {
     _searchCtrl.dispose();
     _roomsChannel?.unsubscribe();
@@ -394,6 +400,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
       SnackBar(
         content: Text('Archived conversation with ${room.displayName(widget.currentUserId)}'),
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1500),
         action: SnackBarAction(
           label: 'UNDO',
           textColor: const Color(0xFF2DD4BF),
@@ -421,6 +428,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
       SnackBar(
         content: Text('Unarchived conversation with ${room.displayName(widget.currentUserId)}'),
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(milliseconds: 1500),
       ),
     );
   }

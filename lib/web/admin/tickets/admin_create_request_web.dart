@@ -376,6 +376,8 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
         requestorPosition: _positionController.text.trim(),
         reportedByName: _fullNameController.text.trim(),
         requestorId: user?.id,
+        deptHeadStatus: 'approved',
+        deptHeadApprovedDate: DateTime.now(),
       );
 
       if (!ConnectivityService().isConnected.value) {
@@ -1339,6 +1341,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
   }
 
   void _openSignaturePadDialog() {
+    FocusScope.of(context).unfocus();
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1349,7 +1352,7 @@ class _AdminCreateRequestWebState extends State<AdminCreateRequestWeb> {
           insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

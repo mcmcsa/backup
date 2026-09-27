@@ -37,8 +37,11 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
   bool _isHistorical(String status) {
     final s = status.toLowerCase();
     return s == 'completed' ||
+        s == 'acknowledged' ||
+        s == 'acknowledged by department head' ||
         s == 'declined' ||
         s == 'cancelled' ||
+        s == 'canceled' ||
         s == 'declined/cancelled' ||
         s == 'pre-inspection declined';
   }
@@ -142,19 +145,51 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
 
   List<WorkRequest> get _filteredRequests {
     final query = _searchController.text.toLowerCase();
-    var requests = _requests.where((r) => !_isHistorical(r.status)).toList();
+    var requests = _requests
+        .where((r) =>
+            !_isHistorical(r.status) &&
+            !r.isPendingDeptHead &&
+            !r.isAcknowledged &&
+            !r.isCancelled &&
+            !r.status.toLowerCase().contains('acknowledged'))
+        .toList();
 
     final filter = _selectedFilter < _filters.length ? _filters[_selectedFilter] : 'All';
 
     // Apply status filter
     if (filter == 'Pending') {
-      requests = requests.where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment').toList();
+      requests = requests
+          .where((r) =>
+              (r.status.toLowerCase() == 'pending' ||
+               r.status.toLowerCase() == 'pending assignment' ||
+               r.status.toLowerCase() == 'pending campus admin') &&
+              !r.isPendingDeptHead)
+          .toList();
     } else if (filter == 'In Progress') {
-      requests = requests.where((r) => r.status.toLowerCase() == 'in progress' || r.status.toLowerCase() == 'in_progress' || r.status.toLowerCase() == 'assigned' || r.status.toLowerCase() == 'accepted by maintenance').toList();
+      requests = requests
+          .where((r) =>
+              r.status.toLowerCase() == 'in progress' ||
+              r.status.toLowerCase() == 'in_progress' ||
+              r.status.toLowerCase() == 'assigned' ||
+              r.status.toLowerCase() == 'accepted by maintenance' ||
+              r.status.toLowerCase() == 'pre-inspection submitted')
+          .toList();
     } else if (filter == 'Confirmed') {
-      requests = requests.where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'under_maintenance').toList();
+      requests = requests
+          .where((r) =>
+              r.status.toLowerCase() == 'confirmed' ||
+              r.status.toLowerCase() == 'pre-inspection approved' ||
+              r.status.toLowerCase() == 'post-repair submitted' ||
+              r.status.toLowerCase() == 'in progress (post-repair)' ||
+              r.status.toLowerCase() == 'under_maintenance')
+          .toList();
     } else if (filter == 'Rework') {
-      requests = requests.where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'for rework').toList();
+      requests = requests
+          .where((r) =>
+              r.status.toLowerCase() == 'rework' ||
+              r.status.toLowerCase() == 'for rework' ||
+              r.status.toLowerCase() == 'under evaluation')
+          .toList();
     } else if (filter == 'Duplicates') {
       requests = requests.where((r) => r.duplicateOfId != null).toList();
     }
@@ -352,12 +387,48 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
 
           // Request List
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                ..._filteredRequests.map((request) => _buildRequestCard(request, themeProvider)),
-              ],
-            ),
+            child: _filteredRequests.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.inbox_outlined,
+                            size: 56,
+                            color: themeProvider.subtitleColor.withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No active work requests',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: themeProvider.textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _searchController.text.isNotEmpty
+                                ? 'No results matching "${_searchController.text}"'
+                                : 'There are no active requests in this category.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: themeProvider.subtitleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      ..._filteredRequests.map((request) => _buildRequestCard(request, themeProvider)),
+                    ],
+                  ),
           ),
         ],
       ),

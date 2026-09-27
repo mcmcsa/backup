@@ -854,6 +854,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
       final reqId = notification.workRequestId!;
       final userRoleStr = user.role.name.toLowerCase();
 
+      // Check if this notification is for department head approval
+      final notifTitle = notification.title.toLowerCase();
+      final rawType = notification.rawType.toLowerCase();
+      final isDeptApproval = rawType == 'dept_head_approval_required' ||
+          notifTitle.contains('department approval') ||
+          notifTitle.contains('dept approval');
+
+      if (isDeptApproval) {
+        context.push(teacherDeptApprovalsRoute);
+        return;
+      }
+
       if (userRoleStr == 'teacher') {
         context.push(
           '/request-details',

@@ -475,6 +475,8 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           selectedRequestTypeRecord = await helper.getRequestTypeByName('Other');
         }
 
+        final isAdmin = currentUser?.role == UserRole.campadmin || currentUser?.role == UserRole.admin;
+
         final request = WorkRequest(
           id: '',
           title: 'Work Request – $typeLabel',
@@ -494,6 +496,8 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
           requestorPosition: _positionController.text.trim(),
           reportedByName: _fullNameController.text.trim(),
           requestorId: authUser?.id,
+          deptHeadStatus: isAdmin ? 'approved' : 'pending',
+          deptHeadApprovedDate: isAdmin ? DateTime.now() : null,
         );
 
         final requestId = WorkRequestService.generateId();
@@ -1024,45 +1028,58 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          Wrap(
+                            alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 8,
+                            runSpacing: 6,
                             children: [
-                              const Icon(Icons.check_circle_rounded, size: 18, color: Color(0xFF00BFA5)),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Successfully Signed',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF0F766E),
-                                ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.check_circle_rounded, size: 18, color: Color(0xFF00BFA5)),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Successfully Signed',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: _isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0F766E),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const Spacer(),
-                              TextButton.icon(
-                                onPressed: _openSignaturePadDialog,
-                                icon: const Icon(Icons.edit_rounded, size: 15, color: Color(0xFF00BFA5)),
-                                label: const Text(
-                                  'Change',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF00BFA5)),
-                                ),
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              TextButton.icon(
-                                onPressed: () => setState(() => _requesterSignatureBase64 = null),
-                                icon: const Icon(Icons.delete_outline_rounded, size: 15, color: Colors.redAccent),
-                                label: const Text(
-                                  'Remove',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent),
-                                ),
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: _openSignaturePadDialog,
+                                    icon: const Icon(Icons.edit_rounded, size: 15, color: Color(0xFF00BFA5)),
+                                    label: const Text(
+                                      'Change',
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF00BFA5)),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  TextButton.icon(
+                                    onPressed: () => setState(() => _requesterSignatureBase64 = null),
+                                    icon: const Icon(Icons.delete_outline_rounded, size: 15, color: Colors.redAccent),
+                                    label: const Text(
+                                      'Remove',
+                                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -1166,6 +1183,7 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   }
 
   void _openSignaturePadDialog() {
+    FocusScope.of(context).unfocus();
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1173,10 +1191,10 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         return Dialog(
           backgroundColor: _isDark ? const Color(0xFF242424) : Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 550),
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,

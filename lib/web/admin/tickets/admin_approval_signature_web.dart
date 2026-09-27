@@ -210,32 +210,18 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
       _signatureError = null;
     });
 
-    try {
-      // Save e-signature
-      final signature = ESignature(
-        id: '',
-        workRequestId: widget.request.id,
-        signerId: user.id,
-        signerName: user.name,
-        signerRole: 'admin',
-        signatureType: 'approval',
-        signatureData: _pendingSignatureBase64!,
-        signedAt: DateTime.now(),
-      );
-      await ESignatureService.insert(signature);
+    final primaryId = _selectedMaintenanceIds.first;
 
-      // Update work request status to approved, save admin-set priority and estimated duration
-      await WorkRequestService.approveRequest(
-        widget.request.id,
-        user.id,
-        user.name,
+    try {
+      await WorkRequestService.approveAndAssign(
+        id: widget.request.id,
+        approvedById: user.id,
+        approvedByName: user.name,
+        primaryMaintenanceId: primaryId,
         priority: _selectedPriority,
         estimatedDuration: finalDuration,
+        signatureBase64: _pendingSignatureBase64,
       );
-
-      // Assign the work request to the primary maintenance staff
-      final primaryId = _selectedMaintenanceIds.first;
-      await WorkRequestService.assignTo(widget.request.id, primaryId);
       
       // Instantly switch to Approved state so the user doesn't wait on background tasks
       if (mounted) {

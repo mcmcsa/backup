@@ -143,10 +143,10 @@ class _LoginPageState extends State<LoginPage> {
 
                       // Title
                       Text(
-                        'Welcome',
+                        'Welcome to PSU E-Ayos',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: isMobile ? 24 : 28,
+                          fontSize: isMobile ? 22 : 28,
                           fontWeight: FontWeight.bold,
                           color: Colors.black87,
                           letterSpacing: 0.5,

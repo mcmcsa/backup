@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -163,6 +164,7 @@ class _AdminApprovalSignaturePageState
   }
 
   void _openSignatureDialog() {
+    FocusScope.of(context).unfocus();
     bool isEditing = _pendingSignatureBase64 == null || _pendingSignatureBase64!.isEmpty;
 
     showDialog(
@@ -188,6 +190,7 @@ class _AdminApprovalSignaturePageState
 
             return Dialog(
               backgroundColor: themeProvider.cardColor,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: SingleChildScrollView(
                 child: Container(
@@ -231,14 +234,18 @@ class _AdminApprovalSignaturePageState
                               signatureBytes,
                               fit: BoxFit.contain,
                               errorBuilder: (context, error, stackTrace) =>
-                                  const Text('Unable to preview signature', style: TextStyle(color: Colors.black54)),
+                                   const Text('Unable to preview signature', style: TextStyle(color: Colors.black54)),
                             ),
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Row(
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 10,
                           children: [
-                            if (!_isApproved) ...[
+                            if (!_isApproved)
                               TextButton.icon(
                                 onPressed: () {
                                   setState(() => _pendingSignatureBase64 = null);
@@ -246,28 +253,39 @@ class _AdminApprovalSignaturePageState
                                 },
                                 icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
                                 label: const Text('Remove', style: TextStyle(color: Colors.red, fontSize: 13)),
-                              ),
-                            ],
-                            const Spacer(),
-                            if (!_isApproved) ...[
-                              OutlinedButton.icon(
-                                onPressed: () => setDialogState(() => isEditing = true),
-                                icon: const Icon(Icons.edit, size: 16),
-                                label: const Text('Change'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: themeProvider.textColor,
-                                  side: BorderSide(color: themeProvider.borderColor),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                            ],
-                            ElevatedButton(
-                              onPressed: () => Navigator.pop(ctx),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4169E1),
-                                foregroundColor: Colors.white,
-                              ),
-                              child: Text(_isApproved ? 'Close' : 'Keep'),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!_isApproved) ...[
+                                  OutlinedButton.icon(
+                                    onPressed: () => setDialogState(() => isEditing = true),
+                                    icon: const Icon(Icons.edit, size: 14),
+                                    label: const Text('Change', style: TextStyle(fontSize: 13)),
+                                    style: OutlinedButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      foregroundColor: themeProvider.textColor,
+                                      side: BorderSide(color: themeProvider.borderColor),
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF4169E1),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: Text(_isApproved ? 'Close' : 'Keep', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -346,61 +364,21 @@ class _AdminApprovalSignaturePageState
             : '2 Hours')
         : _selectedDuration;
 
+    final primaryId = _selectedMaintenanceIds.first;
     setState(() => _isLoading = true);
 
     try {
-      final signature = ESignature(
-        id: '',
-        workRequestId: widget.request.id,
-        signerId: user.id,
-        signerName: user.name,
-        signerRole: 'admin',
-        signatureType: 'approval',
-        signatureData: _pendingSignatureBase64!,
-        signedAt: DateTime.now(),
-      );
-      await ESignatureService.insert(signature);
-
-      await WorkRequestService.approveRequest(
-        widget.request.id,
-        user.id,
-        user.name,
+      await WorkRequestService.approveAndAssign(
+        id: widget.request.id,
+        approvedById: user.id,
+        approvedByName: user.name,
+        primaryMaintenanceId: primaryId,
         priority: _selectedPriority!,
         estimatedDuration: durationToSave,
+        signatureBase64: _pendingSignatureBase64,
       );
 
-      final primaryId = _selectedMaintenanceIds.first;
-      await WorkRequestService.assignTo(widget.request.id, primaryId);
-
-      // Invite secondary collaborators
-      for (int i = 1; i < _selectedMaintenanceIds.length; i++) {
-        try {
-          await CollaborationService.inviteCollaborator(
-            widget.request.id,
-            _selectedMaintenanceIds[i],
-            'secondary',
-            user.id,
-          );
-        } catch (collabErr) {
-          debugPrint('Error inviting secondary collaborator ${_selectedMaintenanceIds[i]}: $collabErr');
-        }
-      }
-
-      await AppNotificationService.notifyApprovedToMaintenance(
-        workRequestId: widget.request.id,
-        adminName: user.name,
-        assignedMaintenanceId: primaryId,
-        assignedMaintenanceName: _assignedStaffName(),
-        requestorId: widget.request.requestorId ?? widget.request.reportedById,
-      );
-
-      await LoginActivityService.recordAdminAction(
-        user: user,
-        title: 'Approved Request',
-        details: 'Approved work request for ${widget.request.officeRoom} and assigned to ${_assignedStaffName()}',
-        workRequestId: widget.request.id,
-      );
-
+      // Instant UI response - do not make user wait on secondary network calls
       if (mounted) {
         setState(() {
           _isApproved = true;
@@ -412,8 +390,42 @@ class _AdminApprovalSignaturePageState
             backgroundColor: Color(0xFF059669),
           ),
         );
-        _loadData();
       }
+
+      // Background tasks (secondary collaborators, notifications, audit log)
+      unawaited(() async {
+        for (int i = 1; i < _selectedMaintenanceIds.length; i++) {
+          try {
+            await CollaborationService.inviteCollaborator(
+              widget.request.id,
+              _selectedMaintenanceIds[i],
+              'secondary',
+              user.id,
+            );
+          } catch (collabErr) {
+            debugPrint('Error inviting secondary collaborator ${_selectedMaintenanceIds[i]}: $collabErr');
+          }
+        }
+
+        await AppNotificationService.notifyApprovedToMaintenance(
+          workRequestId: widget.request.id,
+          adminName: user.name,
+          assignedMaintenanceId: primaryId,
+          assignedMaintenanceName: _assignedStaffName(),
+          requestorId: widget.request.requestorId ?? widget.request.reportedById,
+        ).catchError((e) => debugPrint('Error sending approval notification: $e'));
+
+        await LoginActivityService.recordAdminAction(
+          user: user,
+          title: 'Approved Request',
+          details: 'Approved work request for ${widget.request.officeRoom} and assigned to ${_assignedStaffName()}',
+          workRequestId: widget.request.id,
+        ).catchError((e) => debugPrint('Error recording admin action: $e'));
+
+        if (mounted) {
+          _loadData();
+        }
+      }());
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);

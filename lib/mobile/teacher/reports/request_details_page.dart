@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -30,11 +29,13 @@ import '../../../shared/services/iso_pdf_service.dart';
 class RequestDetailsPage extends StatefulWidget {
   final String trackingNumber;
   final String status;
+  final WorkRequest? initialRequest;
 
   const RequestDetailsPage({
     super.key,
     required this.trackingNumber,
     required this.status,
+    this.initialRequest,
   });
 
   @override
@@ -140,6 +141,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
   @override
   void initState() {
     super.initState();
+    if (widget.initialRequest != null) {
+      _request = widget.initialRequest;
+    }
     WidgetsBinding.instance.addObserver(this);
     _loadRequest();
     _startAutoRefresh();
@@ -191,6 +195,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
     try {
       final request = await WorkRequestService.fetchById(widget.trackingNumber);
       if (request == null) return;
+      if (mounted && _request == null) {
+        setState(() => _request = request);
+      }
       
       final results = await Future.wait([
         ESignatureService.fetchByWorkRequest(request.id),
@@ -1223,35 +1230,55 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Status Card (Web compact parity with 8-char tracking ID)
-            _buildCompactStatusCard(isDark, themeProvider),
-            const SizedBox(height: 16),
-            // Requestor Post-Repair Evaluation Card
-            _buildRequestorEvaluationCard(isDark, themeProvider),
-            // Segmented Filter Tabs
-            _buildFilterButtons(isDark, themeProvider),
-            const SizedBox(height: 16),
-            // Active Tab Content
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: KeyedSubtree(
-                key: ValueKey(_selectedFilter),
-                child: _selectedFilter == 'Timeline'
-                    ? _buildTimelineSection(isDark, themeProvider)
-                    : (_selectedFilter == 'Details'
-                        ? _buildDetailsSection(isDark, themeProvider)
-                        : _buildSignaturesCard(isDark, themeProvider)),
+      body: _request == null
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    color: isDark ? const Color(0xFF00BFA5) : const Color(0xFF0F766E),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Loading request details...',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: themeProvider.subtitleColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Status Card (Web compact parity with 8-char tracking ID)
+                  _buildCompactStatusCard(isDark, themeProvider),
+                  const SizedBox(height: 16),
+                  // Requestor Post-Repair Evaluation Card
+                  _buildRequestorEvaluationCard(isDark, themeProvider),
+                  // Segmented Filter Tabs
+                  _buildFilterButtons(isDark, themeProvider),
+                  const SizedBox(height: 16),
+                  // Active Tab Content
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: KeyedSubtree(
+                      key: ValueKey(_selectedFilter),
+                      child: _selectedFilter == 'Timeline'
+                          ? _buildTimelineSection(isDark, themeProvider)
+                          : (_selectedFilter == 'Details'
+                              ? _buildDetailsSection(isDark, themeProvider)
+                              : _buildSignaturesCard(isDark, themeProvider)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1825,7 +1852,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
       color: const Color(0xFF0F766E),
     ));
 
-    final isBypassed = task.deptHeadStatus.toLowerCase() == 'not_applicable';
+    final isBypassed = task.deptHeadStatus.toLowerCase() == 'not_applicable' || task.isRequestorAdmin;
     final isAcknowledged = task.isAcknowledged || task.deptHeadStatus.toLowerCase() == 'acknowledged';
     final isCancelled = task.isCancelled || task.status.toLowerCase() == 'cancelled';
     final isDeptHeadDeclined = task.deptHeadStatus.toLowerCase() == 'declined';

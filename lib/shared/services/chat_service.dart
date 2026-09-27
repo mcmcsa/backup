@@ -73,7 +73,7 @@ class ChatService {
       visibleRooms.add(r);
     }
 
-    return visibleRooms;
+    return await _enrichRoomsWithProfiles(visibleRooms);
   }
 
   // ──────────────────────────────────────────────────
@@ -235,7 +235,127 @@ class ChatService {
         .maybeSingle();
 
     if (response == null) return null;
-    return ChatRoom.fromJson(response);
+    final room = ChatRoom.fromJson(response);
+    final enriched = await _enrichRoomsWithProfiles([room]);
+    return enriched.first;
+  }
+
+  /// Resolve participant profile images and names from role tables (admin_users, maintenance_users, teacher_users)
+  /// if they were missing or not joined from the users table.
+  static Future<List<ChatRoom>> _enrichRoomsWithProfiles(List<ChatRoom> rooms) async {
+    final missingUserIds = <String>{};
+    for (final r in rooms) {
+      for (final p in r.participants) {
+        if (p.profileImage == null || p.profileImage!.trim().isEmpty) {
+          missingUserIds.add(p.userId);
+        }
+      }
+    }
+    if (missingUserIds.isEmpty) return rooms;
+
+    final profileImageMap = <String, String>{};
+    final userNameMap = <String, String>{};
+
+    // 1. Admin users (admin / campadmin profile photos)
+    try {
+      final List<dynamic> admins = await _db
+          .from('admin_users')
+          .select('user_id, profile_image, name')
+          .inFilter('user_id', missingUserIds.toList());
+      for (final a in admins) {
+        if (a is Map) {
+          final uid = a['user_id']?.toString();
+          final img = a['profile_image']?.toString();
+          final name = a['name']?.toString();
+          if (uid != null && img != null && img.trim().isNotEmpty) {
+            profileImageMap[uid] = img.trim();
+          }
+          if (uid != null && name != null && name.trim().isNotEmpty) {
+            userNameMap[uid] = name.trim();
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 2. Maintenance users
+    try {
+      final List<dynamic> maints = await _db
+          .from('maintenance_users')
+          .select('user_id, profile_image, name')
+          .inFilter('user_id', missingUserIds.toList());
+      for (final m in maints) {
+        if (m is Map) {
+          final uid = m['user_id']?.toString();
+          final img = m['profile_image']?.toString();
+          final name = m['name']?.toString();
+          if (uid != null && img != null && img.trim().isNotEmpty) {
+            profileImageMap[uid] = img.trim();
+          }
+          if (uid != null && name != null && name.trim().isNotEmpty) {
+            userNameMap[uid] = name.trim();
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 3. Teacher users
+    try {
+      final List<dynamic> teachers = await _db
+          .from('teacher_users')
+          .select('user_id, profile_image, name')
+          .inFilter('user_id', missingUserIds.toList());
+      for (final t in teachers) {
+        if (t is Map) {
+          final uid = t['user_id']?.toString();
+          final img = t['profile_image']?.toString();
+          final name = t['name']?.toString();
+          if (uid != null && img != null && img.trim().isNotEmpty) {
+            profileImageMap[uid] = img.trim();
+          }
+          if (uid != null && name != null && name.trim().isNotEmpty) {
+            userNameMap[uid] = name.trim();
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 4. Users table fallback
+    try {
+      final List<dynamic> users = await _db
+          .from('users')
+          .select('id, profile_image, name')
+          .inFilter('id', missingUserIds.toList());
+      for (final u in users) {
+        if (u is Map) {
+          final uid = u['id']?.toString();
+          final img = u['profile_image']?.toString();
+          final name = u['name']?.toString();
+          if (uid != null && img != null && img.trim().isNotEmpty && !profileImageMap.containsKey(uid)) {
+            profileImageMap[uid] = img.trim();
+          }
+          if (uid != null && name != null && name.trim().isNotEmpty && !userNameMap.containsKey(uid)) {
+            userNameMap[uid] = name.trim();
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (profileImageMap.isEmpty && userNameMap.isEmpty) return rooms;
+
+    return rooms.map((room) {
+      final updatedParticipants = room.participants.map((p) {
+        final newImg = profileImageMap[p.userId];
+        final newName = userNameMap[p.userId];
+        if (newImg != null || newName != null) {
+          return p.copyWith(
+            profileImage: (p.profileImage == null || p.profileImage!.trim().isEmpty) ? newImg : p.profileImage,
+            userName: (p.userName == null || p.userName!.trim().isEmpty) ? newName : p.userName,
+          );
+        }
+        return p;
+      }).toList();
+      return room.copyWith(participants: updatedParticipants);
+    }).toList();
   }
 
   /// Find or create a direct-message room between two users.

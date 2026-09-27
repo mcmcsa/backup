@@ -72,6 +72,32 @@ class ChatRoom {
         .map((p) => p.unreadCount)
         .fold(0, (a, b) => a + b);
   }
+
+  ChatRoom copyWith({
+    String? id,
+    String? name,
+    ChatRoomType? type,
+    String? workRequestId,
+    String? createdBy,
+    String? lastMessage,
+    DateTime? lastMessageAt,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    List<ChatParticipant>? participants,
+  }) {
+    return ChatRoom(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      workRequestId: workRequestId ?? this.workRequestId,
+      createdBy: createdBy ?? this.createdBy,
+      lastMessage: lastMessage ?? this.lastMessage,
+      lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      participants: participants ?? this.participants,
+    );
+  }
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -103,6 +129,32 @@ class ChatParticipant {
     this.userEmail,
     this.profileImage,
   });
+
+  ChatParticipant copyWith({
+    String? id,
+    String? roomId,
+    String? userId,
+    String? role,
+    DateTime? joinedAt,
+    DateTime? lastReadAt,
+    int? unreadCount,
+    String? userName,
+    String? userEmail,
+    String? profileImage,
+  }) {
+    return ChatParticipant(
+      id: id ?? this.id,
+      roomId: roomId ?? this.roomId,
+      userId: userId ?? this.userId,
+      role: role ?? this.role,
+      joinedAt: joinedAt ?? this.joinedAt,
+      lastReadAt: lastReadAt ?? this.lastReadAt,
+      unreadCount: unreadCount ?? this.unreadCount,
+      userName: userName ?? this.userName,
+      userEmail: userEmail ?? this.userEmail,
+      profileImage: profileImage ?? this.profileImage,
+    );
+  }
 
   factory ChatParticipant.fromJson(Map<String, dynamic> json) {
     Map<String, dynamic>? userMap;

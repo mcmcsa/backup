@@ -415,7 +415,7 @@ class _TeacherWorkProcessWebState extends State<TeacherWorkProcessWeb>
       color: AdminStyles.primary,
     ));
 
-    final isBypassed = task.deptHeadStatus.toLowerCase() == 'not_applicable';
+    final isBypassed = task.deptHeadStatus.toLowerCase() == 'not_applicable' || task.isRequestorAdmin;
     final isAcknowledged = task.isAcknowledged || task.deptHeadStatus.toLowerCase() == 'acknowledged';
     final isCancelled = task.isCancelled || task.status.toLowerCase() == 'cancelled';
     final isDeptHeadDeclined = task.deptHeadStatus.toLowerCase() == 'declined';

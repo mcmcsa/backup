@@ -484,6 +484,9 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
             backgroundImage: (other?.profileImage != null && other!.profileImage!.trim().isNotEmpty)
                 ? NetworkImage(other.profileImage!.trim())
                 : null,
+            onBackgroundImageError: (other?.profileImage != null && other!.profileImage!.trim().isNotEmpty)
+                ? (_, _) {}
+                : null,
             child: (other?.profileImage == null || other!.profileImage!.trim().isEmpty)
                 ? Text(
                     roomName.isNotEmpty ? roomName[0].toUpperCase() : '?',
@@ -771,25 +774,77 @@ class _ChatMessagesPanelState extends State<ChatMessagesPanel> {
         final idx = _isLoadingMore ? i - 1 : i;
         final msg = _messages[idx];
         final isMine = msg.senderId == widget.currentUserId;
+        final isLastInBlock = !isMine &&
+            (idx == _messages.length - 1 ||
+                _messages[idx + 1].senderId != msg.senderId);
         final showName = !isMine && (idx == 0 ||
             _messages[idx - 1].senderId != msg.senderId);
         final showDate = idx == 0 ||
             !_isSameDay(_messages[idx - 1].createdAt, msg.createdAt);
+        final other = widget.room.participants
+            .where((p) => p.userId != widget.currentUserId)
+            .firstOrNull;
+        final sender = widget.room.participants
+            .where((p) => p.userId == msg.senderId)
+            .firstOrNull;
+        final avatarUrl = (sender?.profileImage != null && sender!.profileImage!.trim().isNotEmpty)
+            ? sender.profileImage!.trim()
+            : (other?.profileImage != null && other!.profileImage!.trim().isNotEmpty ? other.profileImage!.trim() : null);
+        final hasAvatarImg = avatarUrl != null && avatarUrl.isNotEmpty;
 
         return Column(
           children: [
             if (showDate) _buildDateDivider(msg.createdAt),
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
-              child: ChatBubble(
-                message: msg,
-                isMine: isMine,
-                showSenderName: showName,
-                onReply: (m) => setState(() => _replyTo = m),
-                onForward: _handleForward,
-                onPin: _handlePin,
-                onDelete: _handleDelete,
-                onEdit: _handleEdit,
+              child: Row(
+                mainAxisAlignment:
+                    isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (!isMine) ...[
+                    if (isLastInBlock)
+                      CircleAvatar(
+                        radius: 13,
+                        backgroundColor: themeProvider.isDarkMode
+                            ? themeProvider.primaryColor.withValues(alpha: 0.25)
+                            : const Color(0xFF0F766E).withValues(alpha: 0.12),
+                        backgroundImage: hasAvatarImg
+                            ? NetworkImage(avatarUrl)
+                            : null,
+                        onBackgroundImageError: hasAvatarImg ? (_, _) {} : null,
+                        child: !hasAvatarImg
+                            ? Text(
+                                msg.senderName.isNotEmpty
+                                    ? msg.senderName[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: themeProvider.isDarkMode
+                                      ? Colors.tealAccent.shade200
+                                      : const Color(0xFF0F766E),
+                                ),
+                              )
+                            : null,
+                      )
+                    else
+                      const SizedBox(width: 26),
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: ChatBubble(
+                      message: msg,
+                      isMine: isMine,
+                      showSenderName: showName,
+                      onReply: (m) => setState(() => _replyTo = m),
+                      onForward: _handleForward,
+                      onPin: _handlePin,
+                      onDelete: _handleDelete,
+                      onEdit: _handleEdit,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

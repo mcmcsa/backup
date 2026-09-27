@@ -79,12 +79,14 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
   }
 
   void _openApprovalSignatureDialog() {
+    FocusScope.of(context).unfocus();
     showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -321,7 +323,7 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
               ),
               const SizedBox(height: 24),
               _buildSection('WORK REQUEST DETAILS', [
-                _buildInfoRow('Request ID', '#${widget.request.id.split('-').last}'),
+                _buildInfoRow('Request ID', widget.request.formattedId),
                 _buildInfoRow('Title', widget.request.title),
                 _buildInfoRow('Location', widget.request.officeRoom ?? 'N/A'),
                 _buildInfoRow('Status', widget.request.statusLabel),
@@ -393,7 +395,7 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '#${widget.request.id.split('-').last}',
+                              widget.request.formattedId,
                               style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: themeProvider.textColor),
                             ),
                             const SizedBox(height: 2),

@@ -7,7 +7,6 @@ import 'admin_logs_page.dart';
 import 'maintenance_management_page.dart';
 import '../users/users_page.dart';
 import '../../teacher/menu_pages/settings_page.dart';
-import '../ticket/approval_queue_page.dart';
 import '../rooms/qr_code_history_page.dart';
 import '../main_navigation.dart';
 
@@ -169,20 +168,6 @@ class MenuDrawer extends StatelessWidget {
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 4),
                     child: Divider(color: Colors.white24, height: 1),
-                  ),
-                  _buildMenuItem(
-                    icon: Icons.pending_actions_rounded,
-                    title: 'Approvals',
-                    isCompact: isCompact,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ApprovalQueuePage(),
-                        ),
-                      );
-                    },
                   ),
                   _buildMenuItem(
                     icon: Icons.qr_code_2_rounded,

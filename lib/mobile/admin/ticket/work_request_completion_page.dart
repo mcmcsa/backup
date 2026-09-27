@@ -73,7 +73,7 @@ class WorkRequestCompletionPage extends StatelessWidget {
 
                 // Completion Message
                 Text(
-                  'The task #${request.id.split('-').last} - ${request.title} has been officially done.',
+                  'The task ${request.formattedId} - ${request.title} has been officially done.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 16,

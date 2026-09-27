@@ -1206,7 +1206,7 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
     ));
 
     // Department Head Endorsement (if applicable)
-    final bool hasDeptHead = (task.deptHeadStatus.isNotEmpty && task.deptHeadStatus != 'not_applicable') || task.deptHeadId != null;
+    final bool hasDeptHead = !task.isRequestorAdmin && ((task.deptHeadStatus.isNotEmpty && task.deptHeadStatus != 'not_applicable') || task.deptHeadId != null);
     final bool isDeptHeadApproved = task.isDeptHeadApproved;
     final bool isDeptHeadAcknowledged = task.isAcknowledged;
     final bool isDeptHeadDeclined = task.isDeptHeadDeclined;

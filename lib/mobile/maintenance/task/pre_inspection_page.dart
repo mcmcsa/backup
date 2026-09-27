@@ -245,13 +245,15 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
 
   void _openSignatureDialog() {
     if (!_formKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
 
     showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,

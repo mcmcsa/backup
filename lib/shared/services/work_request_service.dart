@@ -58,6 +58,16 @@ class WorkRequestService {
       final results = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
       final enrichedResults = await enrichMissingRequestorNames(results);
       
+      // Auto-heal existing DB records where Campus Admin was the requestor
+      for (final r in enrichedResults) {
+        if (r.isRequestorAdmin && (r.deptHeadStatus.toLowerCase() != 'approved' || r.deptHeadApprovedDate == null)) {
+          unawaited(_db.from(_table).update({
+            'dept_head_status': 'approved',
+            'dept_head_approved_date': (r.deptHeadApprovedDate ?? r.dateSubmitted).toIso8601String(),
+          }).eq('id', r.id).catchError((_) {}));
+        }
+      }
+      
       try {
         final prefs = await SharedPreferences.getInstance();
         final jsonList = enrichedResults.map((r) => r.toMap()).toList();
@@ -598,90 +608,97 @@ class WorkRequestService {
   }
 
   static Future<WorkRequest?> fetchById(String id) async {
+    final cleanId = id.replaceAll('#', '').trim();
+    if (cleanId.isEmpty) return null;
+
+    final isUuid = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    ).hasMatch(cleanId);
+
     Map<String, dynamic>? data;
     try {
-      // Try to fetch by UUID first with relations
-      data = await _db
-          .from(_table)
-          .select(_selectWithRelations)
-          .eq('id', id)
-          .maybeSingle();
-      
-      // If not found and id looks like the old TEXT format, try legacy_id
-      if (data == null && id.startsWith('WR-')) {
+      if (isUuid) {
         data = await _db
             .from(_table)
             .select(_selectWithRelations)
-            .eq('legacy_id', id)
+            .eq('id', cleanId)
             .maybeSingle();
-      }
-    } catch (_) {
-      // If relations join fails due to RLS permissions on related tables, fall back to simple query
-      try {
+      } else if (cleanId.startsWith('WR-')) {
         data = await _db
             .from(_table)
-            .select('*')
-            .eq('id', id)
+            .select(_selectWithRelations)
+            .eq('legacy_id', cleanId)
             .maybeSingle();
-        if (data == null && id.startsWith('WR-')) {
+      } else {
+        // cleanId might be an 8-char prefix (e.g. 437367E1) or tracking number
+        final recent = await fetchAll();
+        final found = recent.where((r) =>
+            r.id.toLowerCase().startsWith(cleanId.toLowerCase()) ||
+            r.formattedId.replaceAll('#', '').toLowerCase() == cleanId.toLowerCase()).firstOrNull;
+        if (found != null) {
+          return found;
+        }
+      }
+    } catch (_) {
+      try {
+        if (isUuid) {
           data = await _db
               .from(_table)
               .select('*')
-              .eq('legacy_id', id)
+              .eq('id', cleanId)
+              .maybeSingle();
+        } else if (cleanId.startsWith('WR-')) {
+          data = await _db
+              .from(_table)
+              .select('*')
+              .eq('legacy_id', cleanId)
               .maybeSingle();
         }
       } catch (_) {}
     }
-    
-    if (data == null) return null;
+
+    if (data == null) {
+      if (!isUuid && !cleanId.startsWith('WR-')) {
+        try {
+          final recent = await fetchAll();
+          final found = recent.where((r) =>
+              r.id.toLowerCase().startsWith(cleanId.toLowerCase()) ||
+              r.formattedId.replaceAll('#', '').toLowerCase() == cleanId.toLowerCase()).firstOrNull;
+          if (found != null) return found;
+        } catch (_) {}
+      }
+      return null;
+    }
     var request = WorkRequest.fromMap(data);
 
-    // Auto-recover attachments from candidate storage buckets if empty
-    if (request.attachmentUrls == null || request.attachmentUrls!.isEmpty) {
-      const candidateBuckets = [
-        'work-evidence',
-        'work-request-attachments',
-        'work_evidence',
-        'evidence',
-        'images',
-        'chat-attachments',
-      ];
-      final candidatePaths = [
-        request.id,
-        'work-evidence/${request.id}',
-        'attachments/${request.id}',
-        'work-requests/${request.id}',
-      ];
+    // Auto-heal if this request was created by Campus Admin
+    if (request.isRequestorAdmin && (data['dept_head_status']?.toString().toLowerCase() != 'approved' || data['dept_head_approved_date'] == null)) {
+      unawaited(_db.from(_table).update({
+        'dept_head_status': 'approved',
+        'dept_head_approved_date': (request.deptHeadApprovedDate ?? request.dateSubmitted).toIso8601String(),
+      }).eq('id', request.id).catchError((_) {}));
+    }
 
-      for (final bucket in candidateBuckets) {
-        bool found = false;
-        for (final path in candidatePaths) {
-          try {
-            final files = await _db.storage.from(bucket).list(path: path);
-            if (files.isNotEmpty) {
-              final recoveredUrls = files
-                  .where((f) => f.name.isNotEmpty && !f.name.startsWith('.'))
-                  .map((f) => _db.storage.from(bucket).getPublicUrl('$path/${f.name}'))
-                  .toList();
-              if (recoveredUrls.isNotEmpty) {
-                request = request.copyWith(
-                  attachmentUrls: recoveredUrls,
-                  workEvidence: jsonEncode(recoveredUrls),
-                );
-                // Opportunistically save to DB so future fetches don't need to re-query storage
-                try {
-                  await _updateWithSchemaFallback(request.id, {
-                    'work_evidence': jsonEncode(recoveredUrls),
-                  });
-                } catch (_) {}
-                found = true;
-                break;
-              }
-            }
-          } catch (_) {}
+    // Fast check for work-evidence bucket with timeout to avoid blocking page loads
+    if (request.attachmentUrls == null || request.attachmentUrls!.isEmpty) {
+      try {
+        final files = await _db.storage
+            .from('work-evidence')
+            .list(path: request.id)
+            .timeout(const Duration(milliseconds: 1200));
+        if (files.isNotEmpty) {
+          final recoveredUrls = files
+              .where((f) => f.name.isNotEmpty && !f.name.startsWith('.'))
+              .map((f) => _db.storage.from('work-evidence').getPublicUrl('${request.id}/${f.name}'))
+              .toList();
+          if (recoveredUrls.isNotEmpty) {
+            request = request.copyWith(
+              attachmentUrls: recoveredUrls,
+              workEvidence: jsonEncode(recoveredUrls),
+            );
+          }
         }
-        if (found) break;
-      }
+      } catch (_) {}
     }
 
     // Enrich requestorName if still empty
@@ -770,15 +787,21 @@ class WorkRequestService {
 
   static Future<void> assignTo(String id, String userId) async {
     final oldReq = await fetchById(id);
-    if (oldReq != null && oldReq.isPendingDeptHead) {
+    if (oldReq != null && oldReq.isPendingDeptHead && !oldReq.isRequestorAdmin) {
       throw Exception('Action Denied: Cannot assign maintenance while request is pending Department Head review.');
     }
     final oldAssigneeId = oldReq?.assignedToId;
 
+    final updateData = <String, dynamic>{'assigned_to_id': userId};
+    if (oldReq != null && oldReq.isRequestorAdmin) {
+      updateData['dept_head_status'] = 'approved';
+      updateData['dept_head_approved_date'] = DateTime.now().toIso8601String();
+    }
+
     if (id.startsWith('WR-')) {
-      await _db.from(_table).update({'assigned_to_id': userId}).eq('legacy_id', id);
+      await _db.from(_table).update(updateData).eq('legacy_id', id);
     } else {
-      await _db.from(_table).update({'assigned_to_id': userId}).eq('id', id);
+      await _db.from(_table).update(updateData).eq('id', id);
     }
 
     notifyChange();
@@ -1098,7 +1121,7 @@ class WorkRequestService {
     String? estimatedDuration,
   }) async {
     final existing = await fetchById(id);
-    if (existing != null && existing.isPendingDeptHead) {
+    if (existing != null && existing.isPendingDeptHead && !existing.isRequestorAdmin) {
       throw Exception('Action Denied: Cannot approve request while pending Department Head review.');
     }
     DateTime? dateDue;
@@ -1120,6 +1143,8 @@ class WorkRequestService {
 
     final updateData = {
       'status': 'In Progress',
+      'dept_head_status': 'approved',
+      'dept_head_approved_date': DateTime.now().toIso8601String(),
       'maintenance_start_time': DateTime.now().toIso8601String(),
       'approved_by_id': approvedById,
       'approved_date': DateTime.now().toIso8601String(),
@@ -1142,6 +1167,82 @@ class WorkRequestService {
         await updateRoomStatusFromRequests(request!.roomId!);
       }
     } catch (_) {}
+  }
+
+  /// Fast, optimized atomic approval and assignment for Campus Admin.
+  /// Parallelizes DB updates and signature saving, and offloads secondary
+  /// tasks (notifications, room sync, status syncing) to unawaited background futures.
+  static Future<void> approveAndAssign({
+    required String id,
+    required String approvedById,
+    required String approvedByName,
+    required String primaryMaintenanceId,
+    String priority = '',
+    String? estimatedDuration,
+    String? signatureBase64,
+  }) async {
+    DateTime? dateDue;
+    if (estimatedDuration != null && estimatedDuration.trim().isNotEmpty) {
+      final durLower = estimatedDuration.toLowerCase();
+      if (durLower.contains('hour')) {
+        final hours = int.tryParse(durLower.replaceAll(RegExp(r'[^0-9]'), '')) ?? 2;
+        dateDue = DateTime.now().add(Duration(hours: hours));
+      } else if (durLower.contains('day')) {
+        final days = int.tryParse(durLower.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+        dateDue = DateTime.now().add(Duration(days: days));
+      } else if (durLower.contains('week')) {
+        final weeks = int.tryParse(durLower.replaceAll(RegExp(r'[^0-9]'), '')) ?? 1;
+        dateDue = DateTime.now().add(Duration(days: weeks * 7));
+      } else {
+        dateDue = DateTime.now().add(const Duration(days: 1));
+      }
+    }
+
+    final nowIso = DateTime.now().toIso8601String();
+    final updateData = <String, dynamic>{
+      'status': 'In Progress',
+      'dept_head_status': 'approved',
+      'dept_head_approved_date': nowIso,
+      'assigned_to_id': primaryMaintenanceId,
+      'approved_by_id': approvedById,
+      'approved_date': nowIso,
+      'maintenance_start_time': nowIso,
+      if (priority.isNotEmpty) 'priority': priority,
+      if (dateDue != null) 'date_due': dateDue.toIso8601String(),
+      if (estimatedDuration != null && estimatedDuration.trim().isNotEmpty)
+        'maintenance_notes': estimatedDuration.trim(),
+    };
+
+    final tasks = <Future>[
+      _safeUpdateWorkRequest(id, updateData),
+    ];
+
+    if (signatureBase64 != null && signatureBase64.trim().isNotEmpty) {
+      tasks.add(_safeInsertSignature({
+        'work_request_id': id,
+        'signer_id': approvedById,
+        'signer_name': approvedByName,
+        'signer_role': 'admin',
+        'signature_type': 'approval',
+        'signature_data': signatureBase64,
+        'signed_at': nowIso,
+      }));
+    }
+
+    await Future.wait(tasks);
+    notifyChange();
+
+    unawaited(() async {
+      try {
+        final request = await fetchById(id);
+        if (request?.roomId != null && request!.roomId!.isNotEmpty) {
+          await updateRoomStatusFromRequests(request.roomId!);
+        }
+        await MaintenanceStatusService.setBusyOnAssignment(primaryMaintenanceId, id);
+      } catch (e) {
+        debugPrint('[WorkRequestService] Error in background approval side effects: $e');
+      }
+    }());
   }
 
   static Future<void> completeRequest(String id) async {
@@ -1382,11 +1483,39 @@ class WorkRequestService {
 
     final roomHasDepartment = room != null && room.departmentId.trim().isNotEmpty;
 
+    // Layer 1.5: Campus Admin Requestor Bypass
+    // Requests created by Campus Admin do NOT require Department Head approval.
+    bool isCampusAdmin = request.isRequestorAdmin ||
+        request.deptHeadStatus.toLowerCase() == 'approved' ||
+        request.deptHeadStatus.toLowerCase() == 'not_applicable';
+    if (!isCampusAdmin && request.requestorId != null && request.requestorId!.trim().isNotEmpty) {
+      try {
+        final userData = await _db
+            .from('users')
+            .select('role')
+            .eq('id', request.requestorId!.trim())
+            .maybeSingle();
+        final role = userData?['role']?.toString().toLowerCase().trim();
+        if (role != null && (role.contains('admin') || role == 'campadmin')) {
+          isCampusAdmin = true;
+        }
+      } catch (_) {}
+    }
+
     // Layer 2: Room-to-Department Validation & Routing
     bool isHead = false;
     String? resolvedDeptHeadId;
 
-    if (roomHasDepartment) {
+    if (isCampusAdmin) {
+      // Campus Admin requests bypass department head approval completely
+      if (roomHasDepartment) {
+        payload['department_id'] = room.departmentId;
+      }
+      payload['dept_head_id'] = null;
+      payload['dept_head_status'] = 'approved';
+      payload['dept_head_approved_date'] = DateTime.now().toIso8601String();
+      payload['status'] = 'Pending';
+    } else if (roomHasDepartment) {
       // Cross-department check: if requestor specifies a department, it must match the room's department
       if (request.departmentId != null &&
           request.departmentId!.trim().isNotEmpty &&
@@ -1465,7 +1594,7 @@ class WorkRequestService {
     }
 
     // Trigger notification: Dept Head ONLY if awaiting Dept Head review, Campus Admin ONLY if common/bypassed
-    if (!isHead && resolvedDeptHeadId != null && resolvedDeptHeadId.isNotEmpty) {
+    if (!isCampusAdmin && !isHead && resolvedDeptHeadId != null && resolvedDeptHeadId.isNotEmpty) {
       try {
         await AppNotificationService.notifyDeptHeadNewRequest(
           deptHeadUserId: resolvedDeptHeadId,

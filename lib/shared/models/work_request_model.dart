@@ -325,10 +325,61 @@ class WorkRequest {
           ? List<String>.from(map['voice_notes'])
           : null,
       deptHeadId: map['dept_head_id']?.toString(),
-      deptHeadStatus: map['dept_head_status']?.toString() ?? 'pending',
-      deptHeadApprovedDate: map['dept_head_approved_date'] != null
-          ? DateTime.tryParse(map['dept_head_approved_date'].toString())
-          : null,
+      deptHeadStatus: () {
+        final raw = map['dept_head_status']?.toString();
+        final rName = (map['requestor_name']?.toString() ??
+                _nestedText(map['requestor'], 'name') ??
+                _nestedText(map['reported_by'], 'name') ??
+                _nestedText(map['users'], 'name') ??
+                '')
+            .toLowerCase();
+        final repName = (map['reported_by_name']?.toString() ?? '').toLowerCase();
+        final rPos = (map['requestor_position']?.toString() ??
+                _nestedText(map['requestor'] is Map ? (map['requestor'] as Map)['teacher_users'] : null, 'position') ??
+                _nestedText(map['requestor'], 'position') ??
+                '')
+            .toLowerCase();
+        final isAdmin = rName.contains('admin') ||
+            repName.contains('admin') ||
+            rPos.contains('admin') ||
+            rName.contains('campadmin') ||
+            repName.contains('campadmin') ||
+            rPos.contains('campadmin');
+        if (isAdmin && (raw == null || raw.toLowerCase() == 'pending')) {
+          return 'approved';
+        }
+        return raw ?? 'pending';
+      }(),
+      deptHeadApprovedDate: () {
+        final d = map['dept_head_approved_date'] != null
+            ? DateTime.tryParse(map['dept_head_approved_date'].toString())
+            : null;
+        if (d != null) return d;
+        final rName = (map['requestor_name']?.toString() ??
+                _nestedText(map['requestor'], 'name') ??
+                _nestedText(map['reported_by'], 'name') ??
+                _nestedText(map['users'], 'name') ??
+                '')
+            .toLowerCase();
+        final repName = (map['reported_by_name']?.toString() ?? '').toLowerCase();
+        final rPos = (map['requestor_position']?.toString() ??
+                _nestedText(map['requestor'] is Map ? (map['requestor'] as Map)['teacher_users'] : null, 'position') ??
+                _nestedText(map['requestor'], 'position') ??
+                '')
+            .toLowerCase();
+        final isAdmin = rName.contains('admin') ||
+            repName.contains('admin') ||
+            rPos.contains('admin') ||
+            rName.contains('campadmin') ||
+            repName.contains('campadmin') ||
+            rPos.contains('campadmin');
+        if (isAdmin) {
+          return map['date_submitted'] != null
+              ? DateTime.tryParse(map['date_submitted'].toString()) ?? DateTime.now()
+              : DateTime.now();
+        }
+        return null;
+      }(),
       deptHeadEvaluatedDate: map['dept_head_evaluated_date'] != null
           ? DateTime.tryParse(map['dept_head_evaluated_date'].toString())
           : (map['dept_head_approved_date'] != null
@@ -540,6 +591,17 @@ class WorkRequest {
     );
   }
 
+  bool get isRequestorAdmin {
+    final name = requestorName.toLowerCase();
+    final pos = requestorPosition.toLowerCase();
+    final repName = (reportedByName ?? '').toLowerCase();
+    return name.contains('admin') ||
+        pos.contains('admin') ||
+        repName.contains('admin') ||
+        name.contains('campadmin') ||
+        pos.contains('campadmin');
+  }
+
   bool get isAcknowledged =>
       deptHeadStatus.toLowerCase() == 'acknowledged' ||
       status.toLowerCase() == 'acknowledged';
@@ -549,15 +611,19 @@ class WorkRequest {
       (cancelledById != null && cancelledById!.isNotEmpty && status.toLowerCase() != 'completed');
   bool get isPendingCampusAdmin =>
       status == 'Pending Campus Admin' ||
-      (status == 'Pending' && (isDeptHeadApproved || isDeptHeadBypassed) && !isCancelled);
+      (status == 'Pending' && (isDeptHeadApproved || isDeptHeadBypassed || isRequestorAdmin) && !isCancelled);
   bool get isPendingDeptHead =>
+      !isRequestorAdmin &&
       deptHeadStatus.toLowerCase() == 'pending' &&
       (status.toLowerCase() == 'pending' || status.toLowerCase() == 'pending department head') &&
       !isDeptHeadBypassed &&
       !isCancelled;
-  bool get isDeptHeadApproved => deptHeadStatus.toLowerCase() == 'approved';
-  bool get isDeptHeadDeclined => deptHeadStatus.toLowerCase() == 'declined';
-  bool get isDeptHeadBypassed => deptHeadStatus.toLowerCase() == 'not_applicable';
+  bool get isDeptHeadApproved =>
+      deptHeadStatus.toLowerCase() == 'approved' || isRequestorAdmin;
+  bool get isDeptHeadDeclined =>
+      !isRequestorAdmin && deptHeadStatus.toLowerCase() == 'declined';
+  bool get isDeptHeadBypassed =>
+      deptHeadStatus.toLowerCase() == 'not_applicable' || isRequestorAdmin;
 
   String get formattedId => '#${id.length > 8 ? id.substring(0, 8).toUpperCase() : id.toUpperCase()}';
 

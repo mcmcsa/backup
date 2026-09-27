@@ -166,7 +166,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
               Row(
                 children: [
                   Text(
-                    '#${request.id.split('-').last}',
+                    request.formattedId,
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,

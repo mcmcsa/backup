@@ -241,7 +241,8 @@ class ChatRoomTile extends StatelessWidget {
 
   Widget _buildAvatar(String name, ChatParticipant? participant, ThemeProvider themeProvider) {
     final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
-    final profileImage = participant?.profileImage;
+    final profileImage = participant?.profileImage?.trim();
+    final hasImage = profileImage != null && profileImage.isNotEmpty;
 
     return Stack(
       children: [
@@ -250,9 +251,9 @@ class ChatRoomTile extends StatelessWidget {
           backgroundColor: themeProvider.isDarkMode
               ? themeProvider.primaryColor.withValues(alpha: 0.25)
               : const Color(0xFF0F766E).withValues(alpha: 0.15),
-          backgroundImage:
-              profileImage != null ? NetworkImage(profileImage) : null,
-          child: profileImage == null
+          backgroundImage: hasImage ? NetworkImage(profileImage) : null,
+          onBackgroundImageError: hasImage ? (_, _) {} : null,
+          child: !hasImage
               ? Text(
                   initials,
                   style: TextStyle(

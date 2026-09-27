@@ -4,7 +4,12 @@ import '../../../authentication/services/auth_service.dart';
 import 'package:provider/provider.dart';
 import '../../../router/app_router.dart';
 
-class StudentDrawer extends StatelessWidget {
+import '../../../shared/providers/theme_provider.dart';
+import '../../../shared/services/department_service.dart';
+import '../../../shared/services/work_request_service.dart';
+import '../../../web/teacher/reports/teacher_dept_head_approvals_web.dart';
+
+class StudentDrawer extends StatefulWidget {
   final Function(int)? onSelectTab;
   final int? currentTab;
 
@@ -13,6 +18,42 @@ class StudentDrawer extends StatelessWidget {
     this.onSelectTab,
     this.currentTab,
   });
+
+  @override
+  State<StudentDrawer> createState() => _StudentDrawerState();
+}
+
+class _StudentDrawerState extends State<StudentDrawer> {
+  bool _isDeptHead = false;
+  int _pendingDeptHeadCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkDeptHeadStatus();
+  }
+
+  Future<void> _checkDeptHeadStatus() async {
+    try {
+      final user = context.read<AuthService>().currentUser;
+      if (user == null) return;
+      final depts = await DepartmentService.fetchAll();
+      final isHead = depts.any((d) => d.headUserId == user.id);
+      if (mounted) {
+        setState(() {
+          _isDeptHead = isHead;
+        });
+      }
+      if (isHead) {
+        final pending = await WorkRequestService.fetchPendingForDeptHead(user.id);
+        if (mounted) {
+          setState(() {
+            _pendingDeptHeadCount = pending.length;
+          });
+        }
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,36 +66,24 @@ class StudentDrawer extends StatelessWidget {
             children: [
               // Header Section
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
                 child: Column(
                   children: [
-                    // Logo
-                    Container(
-                      width: 68,
-                      height: 68,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(10),
+                    // Logo (Enlarged, without white background)
+                    SizedBox(
+                      width: 96,
+                      height: 96,
                       child: Image.asset(
                         'assets/images/app_logo_v2.png',
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) => const Icon(
                           Icons.school,
-                          color: Color(0xFF00BFA5),
-                          size: 38,
+                          color: Colors.white,
+                          size: 54,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     const Text(
                       'PSU E-Ayos',
                       style: TextStyle(
@@ -65,6 +94,25 @@ class StudentDrawer extends StatelessWidget {
                       ),
                       textAlign: TextAlign.center,
                     ),
+                    if (_isDeptHead) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'DEPARTMENT HEAD',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -80,56 +128,94 @@ class StudentDrawer extends StatelessWidget {
                     _buildDrawerItem(
                       icon: Icons.home_rounded,
                       label: 'Home',
-                      isSelected: currentTab == 0,
+                      isSelected: widget.currentTab == 0,
                       onTap: () {
                         Navigator.pop(context);
-                        if (onSelectTab != null) onSelectTab!(0);
+                        if (widget.onSelectTab != null) widget.onSelectTab!(0);
                       },
                     ),
+                    if (_isDeptHead)
+                      _buildDrawerItem(
+                        icon: Icons.approval_rounded,
+                        label: 'Dept Approvals',
+                        badge: _pendingDeptHeadCount > 0 ? '$_pendingDeptHeadCount' : null,
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => Consumer<ThemeProvider>(
+                                builder: (context, themeProvider, _) {
+                                  return Scaffold(
+                                    backgroundColor: themeProvider.backgroundColor,
+                                    appBar: AppBar(
+                                      backgroundColor: themeProvider.isDarkMode
+                                          ? const Color(0xFF1E1E1E)
+                                          : const Color(0xFF0F172A),
+                                      foregroundColor: Colors.white,
+                                      iconTheme: const IconThemeData(color: Colors.white),
+                                      title: const Text(
+                                        'Department Approvals',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    body: const TeacherDeptHeadApprovalsWeb(),
+                                  );
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
                     _buildDrawerItem(
                       icon: Icons.history_rounded,
                       label: 'Logs',
-                      isSelected: currentTab == 1,
+                      isSelected: widget.currentTab == 1,
                       onTap: () {
                         Navigator.pop(context);
-                        if (onSelectTab != null) onSelectTab!(1);
+                        if (widget.onSelectTab != null) widget.onSelectTab!(1);
                       },
                     ),
                     _buildDrawerItem(
                       icon: Icons.qr_code_scanner_rounded,
                       label: 'Scan',
-                      isSelected: currentTab == 2,
+                      isSelected: widget.currentTab == 2,
                       onTap: () {
                         Navigator.pop(context);
-                        if (onSelectTab != null) onSelectTab!(2);
+                        if (widget.onSelectTab != null) widget.onSelectTab!(2);
                       },
                     ),
                     _buildDrawerItem(
                       icon: Icons.description_rounded,
                       label: 'Reports',
-                      isSelected: currentTab == 3,
+                      isSelected: widget.currentTab == 3,
                       onTap: () {
                         Navigator.pop(context);
-                        if (onSelectTab != null) onSelectTab!(3);
+                        if (widget.onSelectTab != null) widget.onSelectTab!(3);
                       },
                     ),
                     _buildDrawerItem(
                       icon: Icons.chat_bubble_rounded,
                       label: 'Messages',
-                      isSelected: currentTab == 5,
+                      isSelected: widget.currentTab == 5,
                       onTap: () {
                         Navigator.pop(context);
-                        if (onSelectTab != null) onSelectTab!(5);
+                        if (widget.onSelectTab != null) widget.onSelectTab!(5);
                       },
                     ),
                     _buildDrawerItem(
                       icon: Icons.person_rounded,
                       label: 'Profile',
-                      isSelected: currentTab == 4,
+                      isSelected: widget.currentTab == 4,
                       onTap: () {
                         Navigator.pop(context);
-                        if (onSelectTab != null) {
-                          onSelectTab!(4);
+                        if (widget.onSelectTab != null) {
+                          widget.onSelectTab!(4);
                         } else {
                           context.push(teacherProfileRoute);
                         }
@@ -238,6 +324,7 @@ class StudentDrawer extends StatelessWidget {
     required String label,
     required VoidCallback onTap,
     bool isSelected = false,
+    String? badge,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -270,6 +357,24 @@ class StudentDrawer extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (badge != null && badge.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      badge,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
                 if (isSelected)
                   Container(
                     width: 6,
