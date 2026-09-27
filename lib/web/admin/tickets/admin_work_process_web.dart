@@ -64,7 +64,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
   int _selectedSection = 0;
   String? _activeSubView;
   bool _showCollaboration = false;
-  bool _showFinancials = false;
   final Map<String, String> _userNames = {};
   Timer? _autoRefreshTimer;
 
@@ -239,6 +238,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                                             const SizedBox(height: 24),
                                             Container(key: _timelineKey, child: _buildTimelineSection()),
                                             const SizedBox(height: 24),
+                                            _buildCollaborationCard(),
+                                            const SizedBox(height: 24),
                                             Container(key: _detailsKey, child: _buildDetailsColumn(showActions: false)),
                                           ],
                                         );
@@ -250,6 +251,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                                           Expanded(flex: 7, child: Column(
                                             children: [
                                               Container(key: _timelineKey, child: _buildTimelineSection()),
+                                              const SizedBox(height: 24),
+                                              _buildCollaborationCard(),
                                             ],
                                           )),
                                           const SizedBox(width: 24),
@@ -301,8 +304,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                 const SizedBox(width: 16),
                 ElevatedButton.icon(
                   onPressed: () {
-                    final screenWidth = MediaQuery.of(context).size.width;
-                    final isCompactMobile = screenWidth < 600;
                     setState(() => _showCollaboration = !_showCollaboration);
                   },
                   icon: Icon(
@@ -317,7 +318,10 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _showCollaboration ? AdminStyles.textMuted.withValues(alpha: 0.1) : AdminStyles.primary,
                     foregroundColor: _showCollaboration ? AdminStyles.textPrimary : Colors.white,
-                    padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 600 ? 12 : 20, vertical: 14),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: MediaQuery.of(context).size.width < 600 ? 12 : 20,
+                      vertical: 14,
+                    ),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
@@ -337,71 +341,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                 activities: _activities,
                 onDataChanged: _loadData,
               ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFinancialsCard() {
-    return Container(
-      decoration: AdminStyles.cardDecoration(borderRadius: 24),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AdminStyles.success.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(Icons.account_balance_wallet_rounded, color: AdminStyles.success, size: 22),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('FINANCIALS & COST TRACKING', style: AdminStyles.headingStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      Text('Labor cost estimates, materials, and total financial logs.', style: AdminStyles.bodyStyle(fontSize: 13, color: AdminStyles.textSecondary)),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() => _showFinancials = !_showFinancials);
-                  },
-                  icon: Icon(
-                    _showFinancials ? Icons.keyboard_arrow_up_rounded : Icons.account_balance_wallet_rounded,
-                    size: 18,
-                  ),
-                  label: Text(
-                    MediaQuery.of(context).size.width < 600
-                        ? (_showFinancials ? 'Hide' : 'Open')
-                        : (_showFinancials ? 'Hide Financials' : 'Open Financials'),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _showFinancials ? AdminStyles.textMuted.withValues(alpha: 0.1) : AdminStyles.success,
-                    foregroundColor: _showFinancials ? AdminStyles.textPrimary : Colors.white,
-                    padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).size.width < 600 ? 12 : 20, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_showFinancials) ...[
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: _buildFinancialsSection(),
             ),
           ],
         ],
@@ -845,20 +784,24 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
             ),
           ),
           const SizedBox(width: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'WORK PROCESS HUB',
-                style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                _request?.title ?? 'Request Details',
-                style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.w800),
-              ),
-            ],
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'WORK PROCESS HUB',
+                  style: AdminStyles.headingStyle(fontSize: 10, color: AdminStyles.textMuted, letterSpacing: 1),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _request?.title ?? 'Request Details',
+                  style: AdminStyles.headingStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
           const SizedBox(width: 40),
           Expanded(
@@ -961,7 +904,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           setState(() {
             _selectedSection = index;
             if (index == 4) _showCollaboration = true;
-            if (index == 5) _showFinancials = true;
           });
           _scrollToSection(key);
         },
@@ -1108,22 +1050,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
           fontWeight: FontWeight.w900,
           color: AdminStyles.primary,
           letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusPill() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: AdminStyles.pillDecoration(color: AdminStyles.primary, isSecondary: true),
-      child: Text(
-        _request?.status.replaceAll('_', ' ').toUpperCase() ?? 'PENDING',
-        style: AdminStyles.headingStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-          color: AdminStyles.primary,
-          letterSpacing: 0.6,
         ),
       ),
     );
@@ -1495,10 +1421,6 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
                           ),
                         ),
                       ),
-                      if (step.action != null) ...[
-                        step.action!,
-                        const SizedBox(width: 8),
-                      ],
                       if (step.time != null) ...[
                         Text(step.time!, style: AdminStyles.bodyStyle(fontSize: 12, color: AdminStyles.textMuted)),
                       ],
@@ -2017,6 +1939,8 @@ class _AdminWorkProcessWebState extends State<AdminWorkProcessWeb> {
         ],
         _buildDeptHeadEvaluationCard(),
         _buildFollowUpsCard(),
+        const SizedBox(height: 20),
+        _buildFinancialsSection(),
       ],
     );
   }
@@ -2604,7 +2528,6 @@ class _TimelineStep {
   final bool isCompleted;
   final bool isActive;
   final bool isWarning;
-  final Widget? action;
 
   _TimelineStep({
     required this.title,
@@ -2613,7 +2536,6 @@ class _TimelineStep {
     required this.isCompleted,
     required this.isActive,
     this.isWarning = false,
-    this.action,
   });
 }
 

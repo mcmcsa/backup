@@ -95,7 +95,11 @@ class _PostRepairPageState extends State<PostRepairPage> {
               title: const Text('Choose from Gallery'),
               onTap: () async {
                 Navigator.pop(ctx);
-                final picked = await picker.pickMultiImage();
+                final picked = await picker.pickMultiImage(
+                  maxWidth: 1024,
+                  maxHeight: 1024,
+                  imageQuality: 75,
+                );
                 if (picked.isNotEmpty) {
                   setState(() => _evidenceImages.addAll(picked));
                   _checkRequiredFields();
@@ -107,7 +111,12 @@ class _PostRepairPageState extends State<PostRepairPage> {
               title: const Text('Take a Photo'),
               onTap: () async {
                 Navigator.pop(ctx);
-                final photo = await picker.pickImage(source: ImageSource.camera);
+                final photo = await picker.pickImage(
+                  source: ImageSource.camera,
+                  maxWidth: 1024,
+                  maxHeight: 1024,
+                  imageQuality: 75,
+                );
                 if (photo != null) {
                   setState(() => _evidenceImages.add(photo));
                   _checkRequiredFields();

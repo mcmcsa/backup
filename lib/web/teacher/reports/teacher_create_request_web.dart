@@ -253,7 +253,9 @@ class _TeacherCreateRequestWebState extends State<TeacherCreateRequestWeb> {
   Future<void> _pickImages() async {
     try {
       final List<XFile> images = await _imagePicker.pickMultiImage(
-        imageQuality: 80,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 75,
       );
       if (images.isNotEmpty) {
         setState(() {

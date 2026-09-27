@@ -39,8 +39,6 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
 
   // Professional color palette mapping
   static const Color _primaryBlue = AdminStyles.primary;
-  static const Color _successGreen = AdminStyles.success;
-  static const Color _warningYellow = AdminStyles.warning;
   static const Color _darkText = AdminStyles.textPrimary;
   static const Color _subtleText = AdminStyles.textSecondary;
   static const Color _pageBg = AdminStyles.bg;
@@ -219,46 +217,6 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
     return requests;
   }
 
-  int _getCountByFilter(int filter) {
-    final active = _requests.where((r) =>
-        !_isHistorical(r.status) &&
-        !r.isPendingDeptHead &&
-        !r.isAcknowledged &&
-        !r.status.toLowerCase().contains('acknowledged'));
-    switch (filter) {
-      case 0:
-        return active.length;
-      case 1:
-        return active
-            .where((r) => r.status.toLowerCase() == 'pending' || r.status.toLowerCase() == 'pending assignment' || r.status.toLowerCase() == 'pending campus admin')
-            .length;
-      case 2:
-        return active
-            .where(
-              (r) => r.status.toLowerCase() == 'in progress' ||
-                  r.status.toLowerCase() == 'in_progress' ||
-                  r.status.toLowerCase() == 'assigned' ||
-                  r.status.toLowerCase() == 'accepted by maintenance' ||
-                  r.status.toLowerCase() == 'pre-inspection submitted',
-            )
-            .length;
-      case 4:
-        return active
-            .where((r) => r.status.toLowerCase() == 'confirmed' || r.status.toLowerCase() == 'pre-inspection approved' || r.status.toLowerCase() == 'post-repair submitted' || r.status.toLowerCase() == 'in progress (post-repair)' || r.status.toLowerCase() == 'under_maintenance')
-            .length;
-      case 5:
-        return active
-            .where((r) => r.status.toLowerCase() == 'rework' || r.status.toLowerCase() == 'for rework' || r.status.toLowerCase() == 'under evaluation')
-            .length;
-      case 7:
-        return active
-            .where((r) => r.duplicateOfId != null || _duplicateRequestIds.contains(r.id))
-            .length;
-      default:
-        return 0;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -297,89 +255,6 @@ class _TicketsPageWebState extends State<TicketsPageWeb>
                 },
               ),
       ),
-    );
-  }
-
-  Widget _buildStatsRow({
-    required double maxWidth,
-    required bool isMobile,
-    required bool isTablet,
-  }) {
-    final cards = [
-      _StatCard(
-        title: 'All Requests',
-        value: _getCountByFilter(0),
-        icon: Icons.confirmation_num_rounded,
-        iconColor: _primaryBlue,
-        isSelected: _selectedFilter == 0,
-        onTap: () => setState(() => _selectedFilter = 0),
-      ),
-      _StatCard(
-        title: 'Pending',
-        value: _getCountByFilter(1),
-        icon: Icons.hourglass_empty_rounded,
-        iconColor: _warningYellow,
-        isSelected: _selectedFilter == 1,
-        onTap: () => setState(() => _selectedFilter = 1),
-      ),
-      _StatCard(
-        title: 'In Progress',
-        value: _getCountByFilter(2),
-        icon: Icons.build_rounded,
-        iconColor: _primaryBlue,
-        isSelected: _selectedFilter == 2,
-        onTap: () => setState(() => _selectedFilter = 2),
-      ),
-      _StatCard(
-        title: 'Under Maintenance',
-        value: _getCountByFilter(3),
-        icon: Icons.build_circle_rounded,
-        iconColor: const Color(0xFFF97316),
-        isSelected: _selectedFilter == 3,
-        onTap: () => setState(() => _selectedFilter = 3),
-      ),
-      _StatCard(
-        title: 'Completed',
-        value: _getCountByFilter(4),
-        icon: Icons.check_circle_rounded,
-        iconColor: _successGreen,
-        isSelected: _selectedFilter == 4,
-        onTap: () => setState(() => _selectedFilter = 4),
-      ),
-    ];
-
-    if (isMobile) {
-      return Column(
-        children: [
-          for (int i = 0; i < cards.length; i++) ...[
-            cards[i],
-            if (i != cards.length - 1) const SizedBox(height: 12),
-          ],
-        ],
-      );
-    }
-
-    if (isTablet) {
-      return Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          SizedBox(width: 216, child: cards[0]),
-          SizedBox(width: 216, child: cards[1]),
-          SizedBox(width: 216, child: cards[2]),
-          SizedBox(width: 216, child: cards[3]),
-          SizedBox(width: 216, child: cards[4]),
-        ],
-      );
-    }
-
-    return Row(
-      children: [
-        for (int i = 0; i < cards.length; i++) ...[
-          Expanded(child: cards[i]),
-          if (i != cards.length - 1) const SizedBox(width: 8),
-        ],
-      ],
     );
   }
 
@@ -995,23 +870,6 @@ class _StatCardState extends State<_StatCard> {
   }
 }
 
-class _TableHeader extends StatelessWidget {
-  final String text;
-  const _TableHeader(this.text);
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: AdminStyles.headingStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        color: const Color(0xFF64748B),
-      ),
-    );
-  }
-}
-
 class _TicketCard extends StatefulWidget {
   final WorkRequest request;
   final void Function(WorkRequest)? onViewDetails;
@@ -1140,39 +998,6 @@ class _TicketCardState extends State<_TicketCard> {
         ],
       ),
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'pending':
-      case 'pending assignment':
-        return AdminStyles.textMuted;
-      case 'in progress':
-      case 'in_progress':
-      case 'assigned':
-      case 'accepted by maintenance':
-      case 'pre-inspection submitted':
-        return AdminStyles.info;
-      case 'declined':
-      case 'cancelled':
-      case 'declined/cancelled':
-      case 'pre-inspection declined':
-        return AdminStyles.error;
-      case 'confirmed':
-      case 'pre-inspection approved':
-      case 'post-repair submitted':
-      case 'in progress (post-repair)':
-      case 'under_maintenance':
-        return AdminStyles.primary;
-      case 'rework':
-      case 'for rework':
-      case 'under evaluation':
-        return AdminStyles.warning;
-      case 'completed':
-        return AdminStyles.success;
-      default:
-        return AdminStyles.textMuted;
-    }
   }
 }
 

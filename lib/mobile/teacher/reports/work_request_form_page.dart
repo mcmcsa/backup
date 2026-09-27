@@ -330,7 +330,9 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
   Future<void> _pickImages() async {
     try {
       final List<XFile> images = await _imagePicker.pickMultiImage(
-        imageQuality: 80,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 75,
       );
       if (images.isNotEmpty) {
         setState(() {
@@ -858,7 +860,10 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                   const SizedBox(height: 16),
                   _buildLabel('Upload Photos (Optional)'),
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 12,
+                    runSpacing: 8,
                     children: [
                       OutlinedButton.icon(
                         onPressed: _pickImages,
@@ -871,7 +876,6 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
-                      const SizedBox(width: 12),
                       Text(
                         'PNG, JPG up to 10MB',
                         style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
@@ -1166,11 +1170,14 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
                                 ),
                               ),
                             )
-                          : const Text(
-                              'Submit Work Request',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
+                          : const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                'Submit Work Request',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                     ),

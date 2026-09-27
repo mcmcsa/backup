@@ -347,60 +347,62 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
           ),
           content: SizedBox(
             width: 480,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F766E).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.25)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF0F766E)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          isAwaitingDeptHead
-                              ? 'Your request is currently awaiting Department Head review. This follow-up will be routed to $recipientName.'
-                              : 'This follow-up inquiry will be routed directly to Campus Admin.',
-                          style: const TextStyle(fontSize: 12, color: Color(0xFF0F766E), fontWeight: FontWeight.w600),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF0F766E)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            isAwaitingDeptHead
+                                ? 'Your request is currently awaiting Department Head review. This follow-up will be routed to $recipientName.'
+                                : 'This follow-up inquiry will be routed directly to Campus Admin.',
+                            style: const TextStyle(fontSize: 12, color: Color(0xFF0F766E), fontWeight: FontWeight.w600),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Please provide a message explaining why you are following up on this request.*',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-                ),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: messageController,
-                  maxLines: 4,
-                  decoration: InputDecoration(
-                    hintText: 'e.g., May update na po ba tungkol sa reported issue? / Urgent po sana ito...',
-                    hintStyle: const TextStyle(fontSize: 13),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Please provide a message explaining why you are following up on this request.*',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                   ),
-                  onChanged: (_) {
-                    if (validationError != null) {
-                      setDState(() => validationError = null);
-                    }
-                  },
-                ),
-                if (validationError != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    validationError!,
-                    style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: messageController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: 'e.g., May update na po ba tungkol sa reported issue? / Urgent po sana ito...',
+                      hintStyle: const TextStyle(fontSize: 13),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onChanged: (_) {
+                      if (validationError != null) {
+                        setDState(() => validationError = null);
+                      }
+                    },
                   ),
+                  if (validationError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      validationError!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -509,93 +511,95 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
           ),
           content: SizedBox(
             width: 480,
-            child: currentStep == 0
-                ? Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Why do you want to cancel this request?',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                      ),
-                      const SizedBox(height: 12),
-                      ...reasons.map((r) => RadioListTile<String>(
-                            title: Text(r, style: const TextStyle(fontSize: 13)),
-                            value: r,
-                            groupValue: selectedReason,
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            activeColor: Colors.red,
-                            onChanged: (val) {
-                              setDState(() {
-                                selectedReason = val;
-                                validationError = null;
-                              });
-                            },
-                          )),
-                      if (selectedReason == 'Other') ...[
-                        const SizedBox(height: 8),
+            child: SingleChildScrollView(
+              child: currentStep == 0
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         const Text(
-                          'Please specify your reason*',
-                          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                          'Why do you want to cancel this request?',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                         ),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: otherController,
-                          maxLines: 3,
-                          decoration: InputDecoration(
-                            hintText: 'Enter reason for cancellation...',
-                            hintStyle: const TextStyle(fontSize: 12),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        const SizedBox(height: 12),
+                        ...reasons.map((r) => RadioListTile<String>(
+                              title: Text(r, style: const TextStyle(fontSize: 13)),
+                              value: r,
+                              groupValue: selectedReason,
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              activeColor: Colors.red,
+                              onChanged: (val) {
+                                setDState(() {
+                                  selectedReason = val;
+                                  validationError = null;
+                                });
+                              },
+                            )),
+                        if (selectedReason == 'Other') ...[
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Please specify your reason*',
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
                           ),
-                          onChanged: (_) {
-                            if (validationError != null) {
-                              setDState(() => validationError = null);
-                            }
-                          },
-                        ),
-                      ],
-                      if (validationError != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          validationError!,
-                          style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ],
-                  )
-                : Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Icon(Icons.info_outline, size: 18, color: Colors.red),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Are you sure you want to cancel this work request? This will end the workflow and mark the request as Cancelled. This action cannot be undone.',
-                                style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600),
-                              ),
+                          const SizedBox(height: 6),
+                          TextField(
+                            controller: otherController,
+                            maxLines: 3,
+                            decoration: InputDecoration(
+                              hintText: 'Enter reason for cancellation...',
+                              hintStyle: const TextStyle(fontSize: 12),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                             ),
-                          ],
+                            onChanged: (_) {
+                              if (validationError != null) {
+                                setDState(() => validationError = null);
+                              }
+                            },
+                          ),
+                        ],
+                        if (validationError != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            validationError!,
+                            style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ],
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.withValues(alpha: 0.2)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Icon(Icons.info_outline, size: 18, color: Colors.red),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Are you sure you want to cancel this work request? This will end the workflow and mark the request as Cancelled. This action cannot be undone.',
+                                  style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(
-                        'Reason: ${selectedReason == "Other" ? otherController.text.trim() : selectedReason}',
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Reason: ${selectedReason == "Other" ? otherController.text.trim() : selectedReason}',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+            ),
           ),
           actions: [
             if (currentStep == 0) ...[

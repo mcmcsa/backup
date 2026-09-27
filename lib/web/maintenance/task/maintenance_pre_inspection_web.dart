@@ -262,7 +262,11 @@ class _MaintenancePreInspectionWebState extends State<MaintenancePreInspectionWe
 
   void _pickImages() async {
     final picker = ImagePicker();
-    final images = await picker.pickMultiImage();
+    final images = await picker.pickMultiImage(
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 75,
+    );
     if (images.isNotEmpty) {
       setState(() => _inspectionImages.addAll(images));
     }

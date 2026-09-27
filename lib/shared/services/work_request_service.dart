@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'package:image/image.dart' as img;
 import '../models/work_request_model.dart';
 import '../models/room_model.dart';
 import 'maintenance_status_service.dart';
@@ -1402,6 +1403,32 @@ class WorkRequestService {
 
   static String generateId() => _generateWorkRequestId();
 
+  /// Safely downscales and compresses image bytes to reduce storage size and upload time.
+  static Uint8List compressImageBytesIfNeeded(Uint8List originalBytes, {int maxSizeKB = 350}) {
+    if (originalBytes.lengthInBytes <= maxSizeKB * 1024) {
+      return originalBytes;
+    }
+    try {
+      final decoded = img.decodeImage(originalBytes);
+      if (decoded == null) return originalBytes;
+
+      img.Image resized = decoded;
+      if (decoded.width > 1280 || decoded.height > 1280) {
+        resized = img.copyResize(
+          decoded,
+          width: decoded.width >= decoded.height ? 1280 : null,
+          height: decoded.height > decoded.width ? 1280 : null,
+        );
+      }
+      final compressed = img.encodeJpg(resized, quality: 75);
+      debugPrint('Compressed image from ${originalBytes.lengthInBytes ~/ 1024}KB to ${compressed.length ~/ 1024}KB');
+      return Uint8List.fromList(compressed);
+    } catch (e) {
+      debugPrint('Optional image compression skipped: $e');
+      return originalBytes;
+    }
+  }
+
   /// Robust multi-bucket upload with automatic base64 data-URI fallback
   static Future<String?> uploadAttachmentBytes({
     required String workRequestId,
@@ -1416,6 +1443,10 @@ class WorkRequestService {
         : '$fileName.$ext';
     final path = '$workRequestId/${DateTime.now().millisecondsSinceEpoch}_$sanitizedFileName';
 
+    final uploadBytes = (mimeType.startsWith('image/'))
+        ? compressImageBytesIfNeeded(bytes)
+        : bytes;
+
     // List of buckets to try in priority order
     final buckets = ['work-evidence', 'work-request-attachments', 'chat-attachments'];
 
@@ -1423,7 +1454,7 @@ class WorkRequestService {
       try {
         await _db.storage.from(bucket).uploadBinary(
           path,
-          bytes,
+          uploadBytes,
           fileOptions: FileOptions(
             contentType: mimeType,
             upsert: true,
@@ -1439,7 +1470,7 @@ class WorkRequestService {
 
     // Ultimate fallback if cloud storage buckets reject: data URI base64
     try {
-      final base64String = base64Encode(bytes);
+      final base64String = base64Encode(uploadBytes);
       final dataUri = 'data:$mimeType;base64,$base64String';
       debugPrint('Attachment saved as resilient data URI (fileName: $fileName)');
       return dataUri;
