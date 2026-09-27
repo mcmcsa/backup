@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../services/login_rate_limit_service.dart';
 import '../widgets/forgot_password_dialog.dart';
 import '../../shared/providers/work_request_provider.dart';
 import '../../shared/providers/room_provider.dart';
@@ -20,6 +22,53 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+
+  Timer? _cooldownTimer;
+  int _cooldownSeconds = 0;
+
+  void _startCooldown(int seconds) {
+    _cooldownTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _cooldownSeconds = seconds;
+    });
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_cooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() {
+          _cooldownSeconds = 0;
+        });
+      } else {
+        setState(() {
+          _cooldownSeconds--;
+        });
+      }
+    });
+  }
+
+  String get _formattedCooldown {
+    final minutes = (_cooldownSeconds / 60).floor();
+    final seconds = _cooldownSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final email = _emailController.text.trim();
+      if (email.isNotEmpty) {
+        final status = await LoginRateLimitService.checkLockout(email);
+        if (status.isLockedOut && mounted) {
+          _startCooldown(status.remainingSeconds);
+        }
+      }
+    });
+  }
 
   Future<void> _showResetPasswordDialog() async {
     await ForgotPasswordDialog.show(
@@ -49,6 +98,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -59,16 +109,45 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    final email = _emailController.text.trim();
+
+    if (_cooldownSeconds > 0) {
+      NetworkErrorHelper.showCleanSnackBar(
+        context: context,
+        error: 'Please wait $_formattedCooldown before trying again.',
+      );
+      return;
+    }
+
+    final lockoutStatus = await LoginRateLimitService.checkLockout(email);
+    if (lockoutStatus.isLockedOut) {
+      _startCooldown(lockoutStatus.remainingSeconds);
+      if (lockoutStatus.shouldTriggerForgotPassword && mounted) {
+        _showResetPasswordDialog();
+      }
+      if (mounted) {
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: lockoutStatus.message,
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
     final authService = context.read<AuthService>();
 
     final user = await authService.login(
-      _emailController.text.trim(),
+      email,
       _passwordController.text,
     );
 
     if (!mounted) return;
 
     if (user != null) {
+      await LoginRateLimitService.resetAttempts(email);
+      if (!mounted) return;
+
       try {
         context.read<WorkRequestProvider>().refreshRequests(silent: true);
         context.read<RoomProvider>().refreshRooms();
@@ -104,11 +183,21 @@ class _LoginPageState extends State<LoginPage> {
           onRetry: () => _handleLogin(),
         );
       } else {
-        NetworkErrorHelper.showCleanSnackBar(
-          context: context,
-          error: errorMsg,
-          onRetry: () => _handleLogin(),
-        );
+        // Record failed attempt and compute progressive cooldown
+        final limitResult = await LoginRateLimitService.recordFailedAttempt(email);
+        if (limitResult.isLockedOut) {
+          _startCooldown(limitResult.remainingSeconds);
+          if (limitResult.shouldTriggerForgotPassword && mounted) {
+            _showResetPasswordDialog();
+          }
+        }
+        if (mounted) {
+          NetworkErrorHelper.showCleanSnackBar(
+            context: context,
+            error: limitResult.message,
+            onRetry: limitResult.isLockedOut ? null : () => _handleLogin(),
+          );
+        }
       }
     }
   }
@@ -349,13 +438,42 @@ class _LoginPageState extends State<LoginPage> {
 
                             SizedBox(height: isMobile ? 16 : 24),
 
+                            // Lockout Warning Banner if locked
+                            if (_cooldownSeconds > 0) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.timer_outlined, size: 18, color: Color(0xFFDC2626)),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Temporary lockout active. Try again in $_formattedCooldown',
+                                        style: const TextStyle(
+                                          color: Color(0xFFB91C1C),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
                             // Login Button
                             SizedBox(
                               height: isMobile ? 48 : 54,
                               child: ElevatedButton(
-                                onPressed: isLoading ? null : _handleLogin,
+                                onPressed: (isLoading || _cooldownSeconds > 0) ? null : _handleLogin,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF0F766E),
+                                  backgroundColor: _cooldownSeconds > 0 ? Colors.grey.shade400 : const Color(0xFF0F766E),
                                   foregroundColor: Colors.white,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -374,12 +492,29 @@ class _LoginPageState extends State<LoginPage> {
                                               ),
                                         ),
                                       )
-                                    : const Text(
-                                        'Login  →',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                    : Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          if (_cooldownSeconds > 0) ...[
+                                            const Icon(Icons.lock_clock_rounded, size: 20),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'Locked ($_formattedCooldown)',
+                                              style: const TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ] else ...[
+                                            const Text(
+                                              'Login  →',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
                                       ),
                               ),
                             ),

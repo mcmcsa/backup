@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../services/auth_service.dart';
+import '../services/login_rate_limit_service.dart';
 import '../widgets/forgot_password_dialog.dart';
 import '../../shared/providers/work_request_provider.dart';
 import '../../shared/providers/room_provider.dart';
@@ -32,6 +34,9 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
   bool _isPasswordVisible = false;
   bool _isLoading = false;
 
+  Timer? _cooldownTimer;
+  int _cooldownSeconds = 0;
+
   late final AnimationController _animController;
   late final Animation<double> _fadeHeader;
   late final Animation<double> _fadeForm;
@@ -42,7 +47,59 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
   late final AnimationController _pulseController;
   late final Animation<double> _pulse;
 
+  void _startCooldown(int seconds) {
+    _cooldownTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _cooldownSeconds = seconds;
+    });
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_cooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() {
+          _cooldownSeconds = 0;
+        });
+      } else {
+        setState(() {
+          _cooldownSeconds--;
+        });
+      }
+    });
+  }
 
+  String get _formattedCooldown {
+    final minutes = (_cooldownSeconds / 60).floor();
+    final seconds = _cooldownSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  void _showResetPasswordDialog() {
+    ForgotPasswordDialog.show(
+      context,
+      initialEmail: _emailController.text.trim(),
+      onPasswordResetSuccess: (email) {
+        _emailController.text = email;
+        _passwordController.clear();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white),
+                SizedBox(width: 10),
+                Text('Password reset successful! Please sign in with your new password.'),
+              ],
+            ),
+            backgroundColor: Color(0xFF16A34A),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -88,10 +145,21 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
       parent: _pulseController,
       curve: Curves.easeInOut,
     );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final email = _emailController.text.trim();
+      if (email.isNotEmpty) {
+        final status = await LoginRateLimitService.checkLockout(email);
+        if (status.isLockedOut && mounted) {
+          _startCooldown(status.remainingSeconds);
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
+    _cooldownTimer?.cancel();
     _animController.dispose();
     _floatController.dispose();
     _pulseController.dispose();
@@ -102,19 +170,55 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
+    final email = _emailController.text.trim();
+
+    if (_cooldownSeconds > 0) {
+      _showLoginError('Please wait $_formattedCooldown before trying again.');
+      return;
+    }
+
+    // Check if account has active lockout
+    final lockoutStatus = await LoginRateLimitService.checkLockout(email);
+    if (lockoutStatus.isLockedOut) {
+      _startCooldown(lockoutStatus.remainingSeconds);
+      if (lockoutStatus.shouldTriggerForgotPassword && mounted) {
+        _showResetPasswordDialog();
+      }
+      _showLoginError(lockoutStatus.message);
+      return;
+    }
+
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final authService = context.read<AuthService>();
       final user = await authService.login(
-        _emailController.text.trim(),
+        email,
         _passwordController.text,
       );
 
       if (user == null) {
-        final errorMsg = authService.loginError ?? 'Invalid email or password';
-        _showLoginError(_friendlyLoginError(errorMsg));
+        final isNetwork = authService.isNetworkError;
+        if (isNetwork) {
+          final errorMsg = authService.loginError ?? 'Network connection error';
+          _showLoginError(_friendlyLoginError(errorMsg));
+          return;
+        }
+
+        // Record failed attempt and compute progressive cooldown
+        final limitResult = await LoginRateLimitService.recordFailedAttempt(email);
+        if (limitResult.isLockedOut) {
+          _startCooldown(limitResult.remainingSeconds);
+          if (limitResult.shouldTriggerForgotPassword && mounted) {
+            _showResetPasswordDialog();
+          }
+        }
+        _showLoginError(limitResult.message);
         return;
       }
+
+      // Successful login -> reset failed attempts
+      await LoginRateLimitService.resetAttempts(email);
 
       // Pre-warm data providers so dashboard renders immediately without manual refresh
       try {
@@ -453,29 +557,7 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {
-                          ForgotPasswordDialog.show(
-                            context,
-                            initialEmail: _emailController.text.trim(),
-                            onPasswordResetSuccess: (email) {
-                              _emailController.text = email;
-                              _passwordController.clear();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Row(
-                                    children: [
-                                      Icon(Icons.check_circle_rounded, color: Colors.white),
-                                      SizedBox(width: 10),
-                                      Text('Password reset successful! Please sign in with your new password.'),
-                                    ],
-                                  ),
-                                  backgroundColor: Color(0xFF16A34A),
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            },
-                          );
-                        },
+                        onPressed: _showResetPasswordDialog,
                         style: TextButton.styleFrom(
                           foregroundColor: _brandNavy,
                           minimumSize: Size.zero,
@@ -498,28 +580,68 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
   }
 
   Widget _buildSubmitButton() {
-    return SizedBox(
-      height: 48, // Reduced from 56
-      child: ElevatedButton(
-        onPressed: _isLoading ? null : _handleLogin,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _brandBlue, // Changed to Dark Blue (1E40AF)
-          foregroundColor: Colors.white,
-          elevation: 2, // Added slight elevation for better visual depth
-          shadowColor: _brandBlue.withValues(alpha: 0.3),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        ),
-        child: _isLoading 
-          ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-          : const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+    final isLocked = _cooldownSeconds > 0;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (isLocked) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFCA5A5)),
+            ),
+            child: Row(
               children: [
-                Text('Log in', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: 0.8)),
-                SizedBox(width: 12),
-                Icon(Icons.chevron_right_rounded, size: 24),
+                const Icon(Icons.timer_outlined, size: 18, color: Color(0xFFDC2626)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Temporary lockout active. Try again in $_formattedCooldown',
+                    style: const TextStyle(
+                      color: Color(0xFFB91C1C),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ],
             ),
-      ),
+          ),
+        ],
+        SizedBox(
+          height: 48,
+          child: ElevatedButton(
+            onPressed: (_isLoading || isLocked) ? null : _handleLogin,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isLocked ? Colors.grey.shade400 : _brandBlue,
+              foregroundColor: Colors.white,
+              elevation: isLocked ? 0 : 2,
+              shadowColor: _brandBlue.withValues(alpha: 0.3),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            child: _isLoading 
+              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (isLocked) ...[
+                      const Icon(Icons.lock_clock_rounded, size: 20),
+                      const SizedBox(width: 8),
+                      Text('Locked ($_formattedCooldown)', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                    ] else ...[
+                      const Text('Log in', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: 0.8)),
+                      const SizedBox(width: 12),
+                      const Icon(Icons.chevron_right_rounded, size: 24),
+                    ],
+                  ],
+                ),
+          ),
+        ),
+      ],
     );
   }
 
