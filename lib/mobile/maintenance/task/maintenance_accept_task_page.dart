@@ -11,6 +11,7 @@ import '../../../shared/services/e_signature_service.dart';
 import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../../shared/widgets/workflow_status_badge.dart';
+import '../../../shared/utils/network_error_helper.dart';
 
 /// Maintenance screen to accept a work request with E-signature
 class MaintenanceAcceptTaskPage extends StatefulWidget {
@@ -100,8 +101,9 @@ class _MaintenanceAcceptTaskPageState extends State<MaintenanceAcceptTaskPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: e,
         );
       }
     }

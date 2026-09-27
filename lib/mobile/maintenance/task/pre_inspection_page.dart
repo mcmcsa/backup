@@ -18,6 +18,7 @@ import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/widgets/common_app_bar.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/utils/network_error_helper.dart';
 
 class PreInspectionPage extends StatefulWidget {
   final WorkRequest request;
@@ -395,11 +396,9 @@ class _PreInspectionPageState extends State<PreInspectionPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Submission failed: $e'),
-            backgroundColor: Colors.red,
-          ),
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: e,
         );
       }
     } finally {

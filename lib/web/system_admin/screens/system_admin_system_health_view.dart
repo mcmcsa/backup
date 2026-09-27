@@ -205,15 +205,27 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
   Widget _buildSecondaryMetrics(bool isMobile) {
     if (_metrics == null) return const SizedBox();
 
-    final cpu = _metrics!['cpu_usage_percent'] as int;
-    final mem = _metrics!['memory_usage_percent'] as int;
-    
+    final cpu = _metrics!['cpu_usage_percent'] as int?;
+    final mem = _metrics!['memory_usage_percent'] as int?;
+    final storage = _metrics!['storage_usage_gb']?.toString() ?? 'N/A';
+    final isStorageNA = storage == 'N/A';
+
     final cards = [
-      _MetricCard('CPU Usage', '$cpu%', Icons.memory_rounded, cpu > 80 ? AdminStyles.error : cpu > 50 ? AdminStyles.warning : AdminStyles.primary),
-      _MetricCard('Memory Usage', '$mem%', Icons.sd_card_rounded, mem > 80 ? AdminStyles.error : mem > 50 ? AdminStyles.warning : AdminStyles.primary),
-      _MetricCard('Storage', '${_metrics!['storage_usage_gb']} GB', Icons.cloud_rounded, AdminStyles.primary),
-      _MetricCard('Active Sessions', '${_metrics!['active_sessions']}', Icons.people_rounded, AdminStyles.success),
-      _MetricCard('Failed Logins', '${_metrics!['failed_login_attempts']}', Icons.gpp_bad_rounded, _metrics!['failed_login_attempts'] > 10 ? AdminStyles.error : AdminStyles.warning),
+      _MetricCard(
+        'CPU Usage',
+        cpu != null ? '$cpu%' : 'N/A',
+        Icons.memory_rounded,
+        cpu != null ? (cpu > 80 ? AdminStyles.error : cpu > 50 ? AdminStyles.warning : AdminStyles.primary) : AdminStyles.textMuted,
+      ),
+      _MetricCard(
+        'Memory Usage',
+        mem != null ? '$mem%' : 'N/A',
+        Icons.sd_card_rounded,
+        mem != null ? (mem > 80 ? AdminStyles.error : mem > 50 ? AdminStyles.warning : AdminStyles.primary) : AdminStyles.textMuted,
+      ),
+      _MetricCard('Storage', isStorageNA ? 'N/A' : '$storage GB', Icons.cloud_rounded, isStorageNA ? AdminStyles.textMuted : AdminStyles.primary),
+      _MetricCard('Active Users', '${_metrics!['active_sessions']}', Icons.people_rounded, AdminStyles.success),
+      _MetricCard('Total Requests', '${_metrics!['total_requests']}', Icons.assignment_rounded, AdminStyles.primary),
     ];
 
     return LayoutBuilder(
@@ -296,14 +308,14 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
       ),
     );
 
-    final storage = _metrics!['storage_growth'] as List<int>;
-    final maxStorage = storage.reduce((a, b) => a > b ? a : b);
+    final storageData = _metrics!['storage_growth'] as List<int>;
+    final maxStorage = storageData.reduce((a, b) => a > b ? a : b);
 
-    final storageChart = _ChartCard(
-      title: 'Storage Growth (Last 7 Days)',
+    final activityChart = _ChartCard(
+      title: 'Work Requests per Day (Last 7 Days)',
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        children: storage.map((val) {
+        children: storageData.map((val) {
           final ratio = maxStorage == 0 ? 0.0 : val / maxStorage;
           return Expanded(
             child: Padding(
@@ -325,9 +337,9 @@ class _SystemAdminSystemHealthViewState extends State<SystemAdminSystemHealthVie
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 960) {
-          return Column(children: [reqChart, const SizedBox(height: 16), storageChart]);
+          return Column(children: [reqChart, const SizedBox(height: 16), activityChart]);
         }
-        return Row(children: [Expanded(flex: 2, child: reqChart), const SizedBox(width: 16), Expanded(flex: 1, child: storageChart)]);
+        return Row(children: [Expanded(flex: 2, child: reqChart), const SizedBox(width: 16), Expanded(flex: 1, child: activityChart)]);
       },
     );
   }

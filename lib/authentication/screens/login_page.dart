@@ -4,6 +4,9 @@ import '../services/auth_service.dart';
 import '../widgets/forgot_password_dialog.dart';
 import '../../shared/providers/work_request_provider.dart';
 import '../../shared/providers/room_provider.dart';
+import '../../shared/services/connectivity_service.dart';
+import '../../shared/utils/network_error_helper.dart';
+import '../../shared/widgets/offline_banner_widget.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -86,13 +89,27 @@ class _LoginPageState extends State<LoginPage> {
       );
     } else {
       final errorMsg = authService.loginError ?? 'Invalid email or password';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMsg),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
-        ),
-      );
+      final isNetwork = authService.isNetworkError ||
+          NetworkErrorHelper.isNetworkError(errorMsg) ||
+          !ConnectivityService().isConnected.value;
+
+      if (isNetwork) {
+        NetworkErrorHelper.showNoInternetDialog(
+          context: context,
+          onRetry: () => _handleLogin(),
+        );
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: errorMsg,
+          onRetry: () => _handleLogin(),
+        );
+      } else {
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: errorMsg,
+          onRetry: () => _handleLogin(),
+        );
+      }
     }
   }
 
@@ -103,11 +120,12 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // Responsive layout for mobile and web
-            final isMobile = constraints.maxWidth < 600;
+      body: OfflineBannerWidget(
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Responsive layout for mobile and web
+              final isMobile = constraints.maxWidth < 600;
 
             return Center(
               child: SingleChildScrollView(
@@ -457,6 +475,7 @@ class _LoginPageState extends State<LoginPage> {
             );
           },
         ),
+      ),
       ),
     );
   }

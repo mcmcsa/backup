@@ -15,6 +15,7 @@ import '../../../shared/services/user_service.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../../shared/widgets/attachment_image_widget.dart';
+import '../../../shared/utils/network_error_helper.dart';
 
 /// Admin screen to evaluate post-repair report - mark completed or rework
 class AdminPostRepairEvaluationPage extends StatefulWidget {
@@ -240,7 +241,10 @@ class _AdminPostRepairEvaluationPageState
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: e,
+        );
       }
     }
   }
@@ -267,7 +271,15 @@ class _AdminPostRepairEvaluationPageState
       await AppNotificationService.notifyPostRepairRework(workRequestId: widget.request.id, maintenanceId: widget.request.assignedToId ?? report.technicianId, adminName: user.name);
       await LoginActivityService.recordAdminAction(user: user, title: 'Post-Repair Rework', details: 'Returned request to rework for ${widget.request.officeRoom}', workRequestId: widget.request.id);
       if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Work request sent back for rework'), backgroundColor: Color(0xFFDC2626))); Navigator.pop(context, 'rework'); }
-    } catch (e) { if (mounted) { setState(() => _isProcessing = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)); } }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: e,
+        );
+      }
+    }
   }
 
   @override

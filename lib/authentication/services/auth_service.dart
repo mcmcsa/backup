@@ -13,6 +13,8 @@ import '../../shared/services/login_activity_service.dart';
 import '../../shared/services/maintenance_status_service.dart';
 import '../../shared/services/web_push_notification_service.dart';
 import '../../shared/services/work_request_service.dart';
+import '../../shared/services/connectivity_service.dart';
+import '../../shared/utils/network_error_helper.dart';
 
 class AuthService extends ChangeNotifier {
   AppUser? _currentUser;
@@ -67,6 +69,8 @@ class AuthService extends ChangeNotifier {
   bool get pauseLoginRedirectOnce => _pauseLoginRedirectOnce;
   bool get isPostLoginSplashActive => _isPostLoginSplashActive;
   String? get loginError => _loginError;
+  bool _isNetworkError = false;
+  bool get isNetworkError => _isNetworkError;
 
   bool _isPasswordResetInProgress = false;
   bool get isPasswordResetInProgress => _isPasswordResetInProgress;
@@ -272,6 +276,7 @@ class AuthService extends ChangeNotifier {
   Future<AppUser?> login(String email, String password) async {
     _isLoading = true;
     _loginError = null;
+    _isNetworkError = false;
     notifyListeners();
 
     try {
@@ -291,8 +296,14 @@ class AuthService extends ChangeNotifier {
         profile = await _fetchProfile(supabaseUser.id);
       } catch (e) {
         debugPrint('Profile fetch error during login: $e');
-        _loginError =
-            'Unable to load your account profile right now. Please try again.';
+        if (NetworkErrorHelper.isNetworkError(e)) {
+          _isNetworkError = true;
+          ConnectivityService().markOffline();
+          _loginError = 'No internet connection. Please check your network and try again.';
+        } else {
+          _loginError =
+              'Unable to load your account profile right now. Please try again.';
+        }
         return null;
       }
       if (profile == null) {
@@ -342,30 +353,45 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       return profile;
     } on AuthException catch (e) {
-      final msg = e.message.toLowerCase();
-      if (msg.contains('invalid login credentials')) {
-        _loginError = 'Invalid email or password.';
-      } else if (msg.contains('email not confirmed')) {
-        _loginError = 'Email is not verified yet. Please check your inbox.';
-      } else if (_isAuthSchemaError(e.message)) {
-        final fallbackUser = _debugSysAdminFallback(email, password);
-        if (fallbackUser != null) {
-          _currentUser = fallbackUser;
-          _pauseLoginRedirectOnce = true;
-          _isPostLoginSplashActive = true;
-          notifyListeners();
-          return fallbackUser;
-        }
-
-        _loginError =
-            'The authentication database is still failing. Please wait for Supabase to recover, then try again.';
+      if (NetworkErrorHelper.isNetworkError(e) || NetworkErrorHelper.isNetworkErrorMessage(e.message)) {
+        _isNetworkError = true;
+        ConnectivityService().markOffline();
+        _loginError = 'No internet connection. Please check your network and try again.';
       } else {
-        _loginError = e.message;
+        final msg = e.message.toLowerCase();
+        if (msg.contains('invalid login credentials')) {
+          _loginError = 'Invalid email or password.';
+        } else if (msg.contains('email not confirmed')) {
+          _loginError = 'Email is not verified yet. Please check your inbox.';
+        } else if (_isAuthSchemaError(e.message)) {
+          final fallbackUser = _debugSysAdminFallback(email, password);
+          if (fallbackUser != null) {
+            _currentUser = fallbackUser;
+            _pauseLoginRedirectOnce = true;
+            _isPostLoginSplashActive = true;
+            notifyListeners();
+            return fallbackUser;
+          }
+
+          _loginError =
+              'The authentication database is still failing. Please wait for Supabase to recover, then try again.';
+        } else {
+          _loginError = NetworkErrorHelper.sanitizeErrorMessage(e.message);
+        }
       }
       return null;
     } catch (e) {
       debugPrint('Login error: $e');
-      _loginError = 'Unable to log in right now. Please try again.';
+      if (NetworkErrorHelper.isNetworkError(e)) {
+        _isNetworkError = true;
+        ConnectivityService().markOffline();
+        _loginError = 'No internet connection. Please check your network and try again.';
+      } else {
+        _loginError = NetworkErrorHelper.sanitizeErrorMessage(
+          e,
+          fallback: 'Unable to log in right now. Please try again.',
+        );
+      }
       return null;
     } finally {
       _isLoading = false;

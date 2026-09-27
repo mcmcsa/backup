@@ -19,6 +19,7 @@ import '../../../shared/widgets/maintenance_schedule_dialog.dart';
 import '../../../shared/widgets/availability_status_badge.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../../shared/providers/theme_provider.dart';
+import '../../../shared/utils/network_error_helper.dart';
 
 /// Campus Admin screen to review a work request and sign E-signature for approval
 class AdminApprovalSignaturePage extends StatefulWidget {
@@ -429,8 +430,9 @@ class _AdminApprovalSignaturePageState
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: e,
         );
       }
     }

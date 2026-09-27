@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
@@ -12,6 +13,7 @@ class ConnectivityService {
   
   // Expose network state
   final ValueNotifier<bool> isConnected = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> isCheckingConnection = ValueNotifier<bool>(false);
 
   Future<void> initialize() async {
     // Initial check
@@ -35,18 +37,65 @@ class ConnectivityService {
     if (isConnected.value != hasConnection) {
       isConnected.value = hasConnection;
     }
+
+    // If connectivity_plus says we have connection, verify actual internet reachability
+    if (hasConnection && !kIsWeb) {
+      checkRealConnection();
+    }
+  }
+
+  /// Performs an actual DNS resolution / socket test to ensure data actually flows
+  Future<bool> checkRealConnection() async {
+    isCheckingConnection.value = true;
+    try {
+      final results = await _connectivity.checkConnectivity();
+      if (results.isEmpty || (results.length == 1 && results.first == ConnectivityResult.none)) {
+        if (isConnected.value) isConnected.value = false;
+        return false;
+      }
+
+      if (!kIsWeb) {
+        // Test real DNS lookup on mobile platforms
+        final lookup = await InternetAddress.lookup('dns.google')
+            .timeout(const Duration(seconds: 4));
+        final hasReal = lookup.isNotEmpty && lookup[0].rawAddress.isNotEmpty;
+        if (isConnected.value != hasReal) {
+          isConnected.value = hasReal;
+        }
+        return hasReal;
+      } else {
+        if (!isConnected.value) isConnected.value = true;
+        return true;
+      }
+    } catch (_) {
+      if (isConnected.value) isConnected.value = false;
+      return false;
+    } finally {
+      isCheckingConnection.value = false;
+    }
+  }
+
+  /// Mark status as offline immediately when any HTTP or socket error occurs
+  void markOffline() {
+    if (isConnected.value) {
+      isConnected.value = false;
+    }
+  }
+
+  /// Mark status as online
+  void markOnline() {
+    if (!isConnected.value) {
+      isConnected.value = true;
+    }
   }
 
   Future<bool> checkInternetNow() async {
-    final results = await _connectivity.checkConnectivity();
-    if (results.isEmpty || (results.length == 1 && results.first == ConnectivityResult.none)) {
-      return false;
-    }
-    return true;
+    return checkRealConnection();
   }
 
   void dispose() {
     _subscription?.cancel();
     isConnected.dispose();
+    isCheckingConnection.dispose();
   }
 }

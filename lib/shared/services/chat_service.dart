@@ -256,84 +256,23 @@ class ChatService {
     final profileImageMap = <String, String>{};
     final userNameMap = <String, String>{};
 
-    // 1. Admin users (admin / campadmin profile photos)
-    try {
-      final List<dynamic> admins = await _db
-          .from('admin_users')
-          .select('user_id, profile_image, name')
-          .inFilter('user_id', missingUserIds.toList());
-      for (final a in admins) {
-        if (a is Map) {
-          final uid = a['user_id']?.toString();
-          final img = a['profile_image']?.toString();
-          final name = a['name']?.toString();
-          if (uid != null && img != null && img.trim().isNotEmpty) {
-            profileImageMap[uid] = img.trim();
-          }
-          if (uid != null && name != null && name.trim().isNotEmpty) {
-            userNameMap[uid] = name.trim();
-          }
-        }
-      }
-    } catch (_) {}
-
-    // 2. Maintenance users
-    try {
-      final List<dynamic> maints = await _db
-          .from('maintenance_users')
-          .select('user_id, profile_image, name')
-          .inFilter('user_id', missingUserIds.toList());
-      for (final m in maints) {
-        if (m is Map) {
-          final uid = m['user_id']?.toString();
-          final img = m['profile_image']?.toString();
-          final name = m['name']?.toString();
-          if (uid != null && img != null && img.trim().isNotEmpty) {
-            profileImageMap[uid] = img.trim();
-          }
-          if (uid != null && name != null && name.trim().isNotEmpty) {
-            userNameMap[uid] = name.trim();
-          }
-        }
-      }
-    } catch (_) {}
-
-    // 3. Teacher users
-    try {
-      final List<dynamic> teachers = await _db
-          .from('teacher_users')
-          .select('user_id, profile_image, name')
-          .inFilter('user_id', missingUserIds.toList());
-      for (final t in teachers) {
-        if (t is Map) {
-          final uid = t['user_id']?.toString();
-          final img = t['profile_image']?.toString();
-          final name = t['name']?.toString();
-          if (uid != null && img != null && img.trim().isNotEmpty) {
-            profileImageMap[uid] = img.trim();
-          }
-          if (uid != null && name != null && name.trim().isNotEmpty) {
-            userNameMap[uid] = name.trim();
-          }
-        }
-      }
-    } catch (_) {}
-
-    // 4. Users table fallback
+    // Query only the users table — it is the canonical source for name and profile_image.
+    // Role-specific tables (admin_users, teacher_users, maintenance_users) do not reliably
+    // contain these columns across all environments.
     try {
       final List<dynamic> users = await _db
           .from('users')
-          .select('id, profile_image, name')
+          .select('id, name, profile_image')
           .inFilter('id', missingUserIds.toList());
       for (final u in users) {
         if (u is Map) {
           final uid = u['id']?.toString();
           final img = u['profile_image']?.toString();
           final name = u['name']?.toString();
-          if (uid != null && img != null && img.trim().isNotEmpty && !profileImageMap.containsKey(uid)) {
+          if (uid != null && img != null && img.trim().isNotEmpty) {
             profileImageMap[uid] = img.trim();
           }
-          if (uid != null && name != null && name.trim().isNotEmpty && !userNameMap.containsKey(uid)) {
+          if (uid != null && name != null && name.trim().isNotEmpty) {
             userNameMap[uid] = name.trim();
           }
         }

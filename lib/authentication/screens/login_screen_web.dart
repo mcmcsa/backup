@@ -118,8 +118,10 @@ class _LoginScreenWebState extends State<LoginScreenWeb>
 
       // Pre-warm data providers so dashboard renders immediately without manual refresh
       try {
-        context.read<WorkRequestProvider>().refreshRequests(silent: true);
-        context.read<RoomProvider>().refreshRooms();
+        if (mounted) {
+          context.read<WorkRequestProvider>().refreshRequests(silent: true);
+          context.read<RoomProvider>().refreshRooms();
+        }
       } catch (_) {}
 
       final String statusText;

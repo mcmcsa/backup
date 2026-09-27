@@ -15,6 +15,7 @@ import '../../../shared/services/inspection_pdf_service.dart';
 import '../../../shared/services/user_service.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../../../shared/widgets/signature_pad_widget.dart';
+import '../../../shared/utils/network_error_helper.dart';
 
 /// Admin screen to review pre-inspection report and approve/reject it
 class AdminPreInspectionReviewPage extends StatefulWidget {
@@ -174,8 +175,9 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: e,
         );
       }
     }
@@ -236,8 +238,9 @@ class _AdminPreInspectionReviewPageState extends State<AdminPreInspectionReviewP
     } catch (e) {
       if (mounted) {
         setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: e,
         );
       }
     }

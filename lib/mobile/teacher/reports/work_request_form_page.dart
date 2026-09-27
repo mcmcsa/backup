@@ -23,6 +23,8 @@ import '../../../shared/widgets/signature_pad_widget.dart';
 import '../../../shared/services/login_activity_service.dart';
 import '../../../authentication/models/user_model.dart';
 import '../../../shared/widgets/department_mismatch_dialog.dart';
+import '../../../shared/utils/network_error_helper.dart';
+import '../../../shared/services/connectivity_service.dart';
 
 class WorkRequestFormPage extends StatefulWidget {
   final String? roomId;
@@ -594,11 +596,16 @@ class _WorkRequestFormPageState extends State<WorkRequestFormPage> {
         );
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Submission failed: $e'),
-            backgroundColor: Colors.red,
-          ),
+        if (NetworkErrorHelper.isNetworkError(e) || !ConnectivityService().isConnected.value) {
+          NetworkErrorHelper.showNoInternetDialog(
+            context: context,
+            onRetry: () => _submitRequest(),
+          );
+        }
+        NetworkErrorHelper.showCleanSnackBar(
+          context: context,
+          error: e,
+          onRetry: () => _submitRequest(),
         );
       } finally {
         if (mounted) {
