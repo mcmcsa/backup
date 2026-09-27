@@ -407,12 +407,13 @@ class AuthService extends ChangeNotifier {
 
   AppUser? _debugSysAdminFallback(String email, String password) {
     if (!kDebugMode) return null;
-    if (email.trim().toLowerCase() != 'sysadmin@psu.edu.ph') return null;
+    final normalized = email.trim().toLowerCase();
+    if (normalized != 'sysadmin@psu.edu.ph' && normalized != 'systemadmin.psu@gmail.com') return null;
     if (password != 'SysAdmin2026!') return null;
 
     return AppUser(
       id: 'fb597e50-ca84-4895-9950-8fc042269565',
-      email: 'sysadmin@psu.edu.ph',
+      email: normalized,
       name: 'System Administrator',
       role: UserRole.admin,
       isActive: true,
