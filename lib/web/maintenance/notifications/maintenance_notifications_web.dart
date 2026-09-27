@@ -439,7 +439,7 @@ class _MaintenanceNotificationsWebState extends State<MaintenanceNotificationsWe
           physics: const NeverScrollableScrollPhysics(),
           itemCount: displayCount,
           separatorBuilder: (_, _) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
+          itemBuilder: (itemCtx, index) {
             final notification = list[index];
             final color = _colorForType(notification.type);
 
@@ -453,10 +453,10 @@ class _MaintenanceNotificationsWebState extends State<MaintenanceNotificationsWe
                   final roomId = targetPage.startsWith('room_id:') 
                       ? targetPage.replaceFirst('room_id:', '') 
                       : targetPage;
-                  if (roomId.isNotEmpty && mounted) {
+                  if (roomId.isNotEmpty && itemCtx.mounted) {
                     showDialog(
-                      context: context,
-                      builder: (context) => RoomComparisonDialog(roomId: roomId),
+                      context: itemCtx,
+                      builder: (dialogCtx) => RoomComparisonDialog(roomId: roomId),
                     );
                   }
                   return;
@@ -465,45 +465,45 @@ class _MaintenanceNotificationsWebState extends State<MaintenanceNotificationsWe
                      notification.type == 'chat_message' ||
                      notification.type == 'new_chat_message';
                  if (isChat && notification.chatRoomId != null && notification.chatRoomId!.isNotEmpty) {
-                  if (mounted) {
+                  if (itemCtx.mounted) {
                     showDialog(
-                      context: context,
+                      context: itemCtx,
                       barrierDismissible: false,
-                      builder: (BuildContext context) {
+                      builder: (BuildContext dialogCtx) {
                         return const Center(child: CircularProgressIndicator());
                       },
                     );
                   }
                   try {
                     final room = await ChatService.fetchRoom(notification.chatRoomId!);
-                    if (mounted) Navigator.of(context).pop();
-                    if (room != null && mounted) {
-                      MaintenanceNavController.of(context)?.navigateTo(2, chatRoom: room);
+                    if (itemCtx.mounted) Navigator.of(itemCtx).pop();
+                    if (room != null && itemCtx.mounted) {
+                      MaintenanceNavController.of(itemCtx)?.navigateTo(2, chatRoom: room);
                     }
                   } catch (_) {
-                    if (mounted) Navigator.of(context).pop();
+                    if (itemCtx.mounted) Navigator.of(itemCtx).pop();
                   }
                   return;
                 }
 
                 if (notification.workRequestId != null && notification.workRequestId!.isNotEmpty) {
-                  if (mounted) {
+                  if (itemCtx.mounted) {
                     showDialog(
-                      context: context,
+                      context: itemCtx,
                       barrierDismissible: false,
-                      builder: (BuildContext context) {
+                      builder: (BuildContext dialogCtx) {
                         return const Center(child: CircularProgressIndicator());
                       },
                     );
                   }
                   try {
                     final workRequest = await WorkRequestService.fetchById(notification.workRequestId!);
-                    if (mounted) Navigator.of(context).pop();
-                    if (workRequest != null && mounted) {
-                      MaintenanceNavController.of(context)?.navigateTo(1, request: workRequest);
+                    if (itemCtx.mounted) Navigator.of(itemCtx).pop();
+                    if (workRequest != null && itemCtx.mounted) {
+                      MaintenanceNavController.of(itemCtx)?.navigateTo(1, request: workRequest);
                     }
                   } catch (_) {
-                    if (mounted) Navigator.of(context).pop();
+                    if (itemCtx.mounted) Navigator.of(itemCtx).pop();
                   }
                 }
               },

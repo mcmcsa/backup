@@ -98,16 +98,18 @@ class WorkOrderConfirmationPage extends StatelessWidget {
                   context: context,
                   builder: (context) => AlertDialog(
                     title: const Text('Work Order Receipt'),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Work Order: $workOrderId'),
-                        const SizedBox(height: 8),
-                        const Text('Status: Completed'),
-                        const SizedBox(height: 8),
-                        Text('Date: ${DateTime.now().toString().substring(0, 10)}'),
-                      ],
+                    content: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Work Order: $workOrderId'),
+                          const SizedBox(height: 8),
+                          const Text('Status: Completed'),
+                          const SizedBox(height: 8),
+                          Text('Date: ${DateTime.now().toString().substring(0, 10)}'),
+                        ],
+                      ),
                     ),
                     actions: [
                       TextButton(
