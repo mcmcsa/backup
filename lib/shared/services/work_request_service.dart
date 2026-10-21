@@ -26,8 +26,12 @@ class WorkRequestService {
       _changeController.add(null);
     }
   }
+  static final RegExp _uuidRegex = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
   static final RegExp _missingColumnRegex = RegExp(
-    "Could not find the '([^']+)' column of 'work_requests'",
+    r'''(?:Could not find the '([^']+)' column of 'work_requests'|column work_requests\.([a-zA-Z0-9_]+) does not exist|column "([a-zA-Z0-9_]+)" (?:of relation "work_requests" )?does not exist)''',
+    caseSensitive: false,
   );
   static const String _selectWithRelations =
       '*, '
@@ -260,10 +264,23 @@ class WorkRequestService {
   }
 
   static Future<List<WorkRequest>> fetchByRoom(String roomId) async {
+    final cleanId = roomId.trim();
+    if (cleanId.isEmpty) return [];
+
+    String resolvedRoomId = cleanId;
+    if (!_uuidRegex.hasMatch(cleanId)) {
+      final found = await RoomService.findRoomByScannedCode(cleanId);
+      if (found != null && _uuidRegex.hasMatch(found.id)) {
+        resolvedRoomId = found.id;
+      } else {
+        return [];
+      }
+    }
+
     final data = await _db
         .from(_table)
         .select(_selectWithRelations)
-        .eq('room_id', roomId)
+        .eq('room_id', resolvedRoomId)
         .order('date_submitted', ascending: false);
     return (data as List).map((e) => WorkRequest.fromMap(e)).toList();
   }
@@ -281,12 +298,11 @@ class WorkRequestService {
     try {
       List<WorkRequest> requests = await fetchByRoom(cleanId);
       if (requests.isEmpty && roomName != null && roomName.trim().isNotEmpty) {
-        final data = await _db
-            .from(_table)
-            .select(_selectWithRelations)
-            .ilike('office_room', '%${roomName.trim()}%')
-            .order('date_submitted', ascending: false);
-        requests = (data as List).map((e) => WorkRequest.fromMap(e)).toList();
+        final found = await RoomService.findRoomByScannedCode(roomName.trim()) ??
+            await RoomService.fetchByCode(roomName.trim());
+        if (found != null && _uuidRegex.hasMatch(found.id)) {
+          requests = await fetchByRoom(found.id);
+        }
       }
 
       for (final req in requests) {
@@ -321,7 +337,7 @@ class WorkRequestService {
     try {
       final activeRequest = await getActiveRequestForRoom(roomId: normalizedRoomId, roomName: roomName);
       if (activeRequest != null) {
-        await RoomService.updateStatus(normalizedRoomId, activeRequest.status.toLowerCase());
+        await RoomService.updateStatus(normalizedRoomId, 'maintenance');
       } else {
         await RoomService.updateStatus(normalizedRoomId, 'available');
       }
@@ -815,8 +831,31 @@ class WorkRequestService {
     } catch (_) {}
   }
 
+  static const Set<String> _droppedDbColumns = {
+    'type_of_request',
+    'room_name',
+    'building_name',
+    'department_name',
+    'department',
+    'office_room',
+    'reported_by',
+    'reported_by_name',
+    'reported_by_id',
+    'accepted_by_id',
+    'campus',
+  };
+
+  static Map<String, dynamic> _sanitizeForDb(Map<String, dynamic> payload) {
+    final sanitized = Map<String, dynamic>.from(payload);
+    for (final col in _droppedDbColumns) {
+      sanitized.remove(col);
+    }
+    sanitized.removeWhere((key, value) => value is Map || (value is List && key != 'attachment_urls'));
+    return sanitized;
+  }
+
   static Future<bool> _safeUpdateWorkRequest(String id, Map<String, dynamic> data) async {
-    final payload = Map<String, dynamic>.from(data);
+    final payload = _sanitizeForDb(data);
     while (true) {
       try {
         final res = await (id.startsWith('WR-')
@@ -844,9 +883,9 @@ class WorkRequestService {
           // that would leave dept_head_status='pending' and break the whole workflow.
           // Surface the error so the caller (and developer) can see it.
         }
-        final match = RegExp(r"Could not find the '([^']+)' column").firstMatch(e.message);
+        final match = _missingColumnRegex.firstMatch(e.message);
         if (match != null) {
-          final missingCol = match.group(1);
+          final missingCol = match.group(1) ?? match.group(2) ?? match.group(3);
           if (missingCol != null && payload.containsKey(missingCol)) {
             debugPrint('[WorkRequestService] Schema fallback: removing missing column "$missingCol"');
             payload.remove(missingCol);
@@ -1794,7 +1833,7 @@ class WorkRequestService {
   static Future<Map<String, dynamic>> _insertWithSchemaFallback(
     Map<String, dynamic> payload,
   ) async {
-    final sanitizedPayload = Map<String, dynamic>.from(payload);
+    final sanitizedPayload = _sanitizeForDb(payload);
 
     while (true) {
       try {
@@ -1823,7 +1862,7 @@ class WorkRequestService {
     String id,
     Map<String, dynamic> payload,
   ) async {
-    final sanitizedPayload = Map<String, dynamic>.from(payload);
+    final sanitizedPayload = _sanitizeForDb(payload);
 
     while (true) {
       try {
@@ -1864,7 +1903,7 @@ class WorkRequestService {
     Map<String, dynamic> payload,
   ) {
     final match = _missingColumnRegex.firstMatch(error.message);
-    final missingColumn = match?.group(1);
+    final missingColumn = match?.group(1) ?? match?.group(2) ?? match?.group(3);
     if (missingColumn == null || !payload.containsKey(missingColumn)) {
       return false;
     }

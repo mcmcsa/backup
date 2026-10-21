@@ -839,9 +839,9 @@ class AuthService extends ChangeNotifier {
 
       // 2. Update role-specific table
       if (updatedUser.role == UserRole.teacher) {
-        String? departmentId;
+        String? departmentId = updatedUser.departmentId;
         final normalizedDepartment = updatedUser.department?.trim() ?? '';
-        if (normalizedDepartment.isNotEmpty) {
+        if (departmentId == null && normalizedDepartment.isNotEmpty) {
           try {
             final dept = await DepartmentService.findOrCreateByName(
               normalizedDepartment,

@@ -412,7 +412,7 @@ class _MaintenanceNavigationWebState extends State<MaintenanceNavigationWeb> {
                         _buildNavItem(index: 0, icon: Icons.dashboard_rounded, title: 'Dashboard', closeDrawerOnTap: closeDrawerOnTap),
                         _buildNavItem(index: 1, icon: Icons.assignment_rounded, title: 'Work Tasks', closeDrawerOnTap: closeDrawerOnTap),
                         _buildNavItem(index: 2, icon: Icons.chat_bubble_outline_rounded, title: 'Messages', closeDrawerOnTap: closeDrawerOnTap),
-                        _buildNavItem(index: 3, icon: Icons.history_rounded, title: 'History', closeDrawerOnTap: closeDrawerOnTap),
+                        _buildNavItem(index: 3, icon: Icons.history_rounded, title: 'Reports History', closeDrawerOnTap: closeDrawerOnTap),
                       ],
                     ),
                   ),

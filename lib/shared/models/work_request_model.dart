@@ -429,7 +429,7 @@ class WorkRequest {
       'description': description,
       'status': status,
       'priority': priority.trim().isEmpty ? null : priority,
-        'type_of_request': typeOfRequest,
+      'type_of_request': typeOfRequest,
       'request_type_id':
           requestTypeId ??
           (_isLikelyUuid(typeOfRequest) ? typeOfRequest : null),
@@ -446,8 +446,6 @@ class WorkRequest {
       'requestor_name': requestorName,
       'requestor_position': requestorPosition,
       'requestor_id': requestorId,
-      'reported_by_name': requestorName,
-      'reported_by_id': requestorId,
       'approved_by_id': approvedById,
       'approved_date': approvedDate?.toIso8601String(),
       if (deptHeadId != null) 'dept_head_id': deptHeadId,

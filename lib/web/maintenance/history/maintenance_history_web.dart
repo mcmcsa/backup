@@ -189,7 +189,7 @@ class _MaintenanceHistoryWebState extends State<MaintenanceHistoryWeb> {
     final titleCol = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: const [
-        Text('Task History', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
+        Text('Reports History', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: _ink, letterSpacing: -0.5)),
         SizedBox(height: 6),
         Text('All completed work requests and resolved maintenance tasks.', style: TextStyle(fontSize: 14, color: _muted)),
       ],

@@ -218,7 +218,7 @@ class _AdminRequestHistoryPageState extends State<AdminRequestHistoryPage> {
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Request History',
+        title: const Text('Reports History',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
         centerTitle: true,
       ),

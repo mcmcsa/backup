@@ -437,7 +437,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _isDeptHead ? 'DEPARTMENT HEAD' : 'FACULTY',
+                        _isDeptHead ? 'DEPARTMENT HEAD' : 'EMPLOYEE',
                         style: TextStyle(
                           fontSize: 10,
                           color: _isDeptHead ? _sidebarSelected : _textMuted,
@@ -464,7 +464,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                   _buildNavItem(index: 3, icon: Icons.assessment_rounded, title: 'Reports', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 4, icon: Icons.message_rounded, title: 'Messages', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 12, icon: Icons.notifications_rounded, title: 'Notifications', badge: _unreadNotificationCount, closeDrawerOnTap: closeDrawerOnTap),
-                  _buildNavItem(index: 5, icon: Icons.history_rounded, title: 'History', closeDrawerOnTap: closeDrawerOnTap),
+                  _buildNavItem(index: 5, icon: Icons.history_rounded, title: 'Reports History', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 6, icon: Icons.person_rounded, title: 'Profile', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 9, icon: Icons.settings_rounded, title: 'Settings', closeDrawerOnTap: closeDrawerOnTap),
                   _buildNavItem(index: 7, icon: Icons.info_rounded, title: 'About us', closeDrawerOnTap: closeDrawerOnTap),
@@ -588,7 +588,7 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
 
   Widget _buildHeader({bool isCompact = false, VoidCallback? onMenuTap}) {
     final user = context.watch<AuthService>().currentUser;
-    final userName = user?.name ?? 'Faculty';
+    final userName = user?.name ?? 'Employee';
     final userAvatarUrl = user?.profileImage;
 
     return Container(

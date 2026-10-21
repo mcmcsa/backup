@@ -573,7 +573,9 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                       if (!context.mounted) return;
                       if (err == null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Account Created!')),
+                          SnackBar(
+                            content: Text('Account Created! Login credentials sent to ${emailController.text.trim()} (check Inbox/Spam).'),
+                          ),
                         );
                         _loadData();
                       } else {

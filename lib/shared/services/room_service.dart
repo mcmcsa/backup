@@ -613,10 +613,31 @@ class RoomService {
   }
 
   static Future<void> updateStatus(String id, String status) async {
-    await _db.from(_table).update({'status': status}).eq('id', id);
+    final cleanId = id.trim();
+    if (cleanId.isEmpty) return;
+
+    final validStatuses = {'available', 'reserved', 'maintenance', 'inactive'};
+    final lower = status.trim().toLowerCase();
+    final safeStatus = validStatuses.contains(lower)
+        ? lower
+        : (lower == 'completed' || lower == 'complete' || lower == 'acknowledged' || lower == 'declined' || lower == 'cancelled' || lower == 'canceled'
+            ? 'available'
+            : 'maintenance');
+
+    String targetId = cleanId;
+    if (!RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(cleanId)) {
+      final room = await findRoomByScannedCode(cleanId);
+      if (room != null && room.id.isNotEmpty) {
+        targetId = room.id;
+      } else {
+        return;
+      }
+    }
+
+    await _db.from(_table).update({'status': safeStatus}).eq('id', targetId);
     await AdminAuditLogService.logAction(
       title: 'Updated Room Status',
-      details: 'Room ID: $id, Status: $status',
+      details: 'Room ID: $targetId, Status: $safeStatus',
     );
   }
 

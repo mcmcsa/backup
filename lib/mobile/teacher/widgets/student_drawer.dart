@@ -230,7 +230,7 @@ class _StudentDrawerState extends State<StudentDrawer> {
                     // Additional Features
                     _buildDrawerItem(
                       icon: Icons.inventory_2_outlined,
-                      label: 'History',
+                      label: 'Reports History',
                       onTap: () {
                         Navigator.pop(context);
                         context.push(teacherArchivesRoute);

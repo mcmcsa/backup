@@ -27,6 +27,7 @@ import 'screens/system_admin_system_health_view.dart';
 import 'screens/system_admin_backup_restore_view.dart';
 import 'screens/system_admin_settings_view.dart';
 import '../../shared/widgets/announcements/global_announcement_listener.dart';
+import '../../shared/services/app_settings_service.dart';
 
 class SystemAdminMainNavigationWeb extends StatefulWidget {
   const SystemAdminMainNavigationWeb({super.key});
@@ -139,7 +140,62 @@ class _SystemAdminMainNavigationWebState
     });
   }
 
-  void _openEditRoomInShell(Room room) {
+  Future<void> _openEditRoomInShell(Room room) async {
+    final qrEnabled = await AppSettingsService.isQrRegenerationEnabled();
+    if (!qrEnabled) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.qr_code_2_rounded, color: Colors.orange, size: 28),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'QR Regeneration Required',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Bago mag-edit ng room, kailangan munang i-ON ang "Allow QR Code Regeneration" toggle button sa System Admin Settings dahil required mag-generate ng bagong QR code bago i-save ang na-edit na kwarto.',
+            style: TextStyle(fontSize: 14, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1E3A8A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                Navigator.pop(dialogCtx);
+                setState(() {
+                  _selectedIndex = 11; // Settings menu item
+                });
+              },
+              child: const Text('Go to Settings'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _selectedIndex = 3;
       _selectedRoom = room;

@@ -57,13 +57,13 @@ class AppNotificationService {
     try {
       final response = await _db
           .from('work_requests')
-          .select('room_id, room_name, room_code, building_name, title, room:rooms(code, name), building:buildings(name)')
+          .select('room_id, room_code, title, room:rooms(code, name), building:buildings(name)')
           .eq('id', workRequestId)
           .maybeSingle();
 
       if (response != null) {
         final roomId = response['room_id'] as String?;
-        final directRoomName = response['room_name'] as String?;
+        final directRoomName = null;
         final directRoomCode = response['room_code'] as String?;
         final directBuildingName = response['building_name'] as String?;
         final directTitle = response['title'] as String?;
@@ -815,14 +815,12 @@ class AppNotificationService {
     try {
       final response = await _db
           .from('work_requests')
-          .select('requestor_id, reported_by_id')
+          .select('requestor_id')
           .eq('id', workRequestId)
           .maybeSingle();
       if (response != null) {
         final rId = response['requestor_id']?.toString().trim();
         if (rId != null && rId.isNotEmpty && rId != 'null') return rId;
-        final repId = response['reported_by_id']?.toString().trim();
-        if (repId != null && repId.isNotEmpty && repId != 'null') return repId;
       }
     } catch (_) {}
     return null;

@@ -5,6 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../../authentication/models/user_model.dart';
 import '../../../authentication/services/auth_service.dart';
 import '../../../shared/services/login_activity_service.dart';
+import '../../../shared/services/department_service.dart';
+import '../../../shared/models/department_model.dart';
 import '../../admin/shared/admin_styles.dart';
 
 class TeacherProfileWeb extends StatefulWidget {
@@ -37,12 +39,44 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
   String? _lastUserId;
   bool _isUploadingImage = false;
 
+  List<Department> _departments = [];
+  bool _isLoadingDepartments = false;
+  String? _selectedDepartmentName;
+  String? _selectedDepartmentId;
+
   @override
   void initState() {
     super.initState();
     final user = context.read<AuthService>().currentUser;
     _initControllers(user);
     _lastUserId = user?.id;
+    _loadDepartments();
+  }
+
+  Future<void> _loadDepartments() async {
+    setState(() => _isLoadingDepartments = true);
+    try {
+      final list = await DepartmentService.fetchAll();
+      if (!mounted) return;
+      setState(() {
+        _departments = list;
+        _isLoadingDepartments = false;
+        if (_selectedDepartmentName != null && _selectedDepartmentId == null) {
+          for (final d in list) {
+            if (d.name.trim().toLowerCase() == _selectedDepartmentName!.trim().toLowerCase()) {
+              _selectedDepartmentId = d.id;
+              _selectedDepartmentName = d.name;
+              break;
+            }
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('Error loading departments: $e');
+      if (mounted) {
+        setState(() => _isLoadingDepartments = false);
+      }
+    }
   }
 
   void _initControllers(AppUser? user) {
@@ -52,6 +86,8 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
     _positionController = TextEditingController(text: user?.position ?? '');
     _employeeIdController = TextEditingController(text: user?.employeeId ?? '');
     _phoneController = TextEditingController(text: user?.phone ?? '');
+    _selectedDepartmentName = user?.department?.trim().isNotEmpty == true ? user!.department!.trim() : null;
+    _selectedDepartmentId = user?.departmentId;
   }
 
   @override
@@ -73,6 +109,8 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
     _positionController.text = user?.position ?? '';
     _employeeIdController.text = user?.employeeId ?? '';
     _phoneController.text = user?.phone ?? '';
+    _selectedDepartmentName = user?.department?.trim().isNotEmpty == true ? user!.department!.trim() : null;
+    _selectedDepartmentId = user?.departmentId;
     FocusScope.of(context).unfocus();
     if (mounted) {
       setState(() => _isEditing = false);
@@ -106,6 +144,8 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
       _positionController.text = user.position ?? '';
       _employeeIdController.text = user.employeeId ?? '';
       _phoneController.text = user.phone ?? '';
+      _selectedDepartmentName = user.department?.trim().isNotEmpty == true ? user.department!.trim() : null;
+      _selectedDepartmentId = user.departmentId;
     });
   }
 
@@ -153,6 +193,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
           title: 'Profile Picture Updated',
           details: 'Updated profile picture',
         );
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Profile picture updated successfully!'),
@@ -203,10 +244,26 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
     final user = auth.currentUser;
     if (user == null) return;
 
+    final deptName = _selectedDepartmentName?.trim().isNotEmpty == true
+        ? _selectedDepartmentName!.trim()
+        : _departmentController.text.trim();
+
+    if (deptName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select your department.'),
+          backgroundColor: AdminStyles.warning,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     try {
       final updated = user.copyWith(
         name: _nameController.text.trim(),
-        department: _departmentController.text.trim(),
+        department: deptName,
+        departmentId: _selectedDepartmentId,
         position: _positionController.text.trim(),
         employeeId: _employeeIdController.text.trim(),
         phone: _phoneController.text.trim(),
@@ -223,6 +280,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
           title: 'Profile Updated',
           details: 'Updated profile details: Name: ${updated.name}, Department: ${updated.department ?? 'N/A'}, Position: ${updated.position ?? 'N/A'}',
         );
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Profile updated successfully!'),
@@ -542,13 +600,7 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
         focusNode: _phoneFocusNode,
         isEditable: true,
       ),
-      _buildField(
-        icon: Icons.school_outlined,
-        label: 'Department',
-        controller: _departmentController,
-        focusNode: _departmentFocusNode,
-        isEditable: true,
-      ),
+      _buildDepartmentField(),
       _buildField(
         icon: Icons.work_outline_rounded,
         label: 'Designation / Position',
@@ -681,6 +733,193 @@ class _TeacherProfileWebState extends State<TeacherProfileWeb> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildDepartmentField() {
+    final canEdit = _isEditing;
+
+    // Collect options from fetched departments
+    final options = _departments.map((d) => d.name.trim()).where((n) => n.isNotEmpty).toSet().toList();
+
+    // Preserve existing department if not yet present in options
+    if (_selectedDepartmentName != null && _selectedDepartmentName!.trim().isNotEmpty) {
+      final currentName = _selectedDepartmentName!.trim();
+      if (!options.any((o) => o.toLowerCase() == currentName.toLowerCase())) {
+        options.insert(0, currentName);
+      }
+    }
+
+    String? dropdownValue;
+    if (_selectedDepartmentName != null && _selectedDepartmentName!.trim().isNotEmpty) {
+      final match = options.firstWhere(
+        (o) => o.toLowerCase() == _selectedDepartmentName!.trim().toLowerCase(),
+        orElse: () => '',
+      );
+      if (match.isNotEmpty) {
+        dropdownValue = match;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.school_outlined,
+              size: 16,
+              color: AdminStyles.textSecondary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Department',
+              style: AdminStyles.bodyStyle(
+                fontSize: 13,
+                color: AdminStyles.textSecondary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AdminStyles.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                'Select from list',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AdminStyles.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (!canEdit)
+          InkWell(
+            onTap: () {
+              setState(() => _isEditing = true);
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AdminStyles.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      dropdownValue ?? (_departmentController.text.isNotEmpty ? _departmentController.text : 'Select Department'),
+                      style: AdminStyles.bodyStyle(
+                        color: (dropdownValue != null || _departmentController.text.isNotEmpty)
+                            ? AdminStyles.textPrimary
+                            : AdminStyles.textMuted,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.edit_outlined,
+                    size: 16,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (_isLoadingDepartments)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AdminStyles.border),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Loading departments...',
+                  style: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
+                ),
+              ],
+            ),
+          )
+        else
+          DropdownButtonFormField<String>(
+            initialValue: dropdownValue,
+            isExpanded: true,
+            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.primary),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: AdminStyles.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AdminStyles.primary, width: 1.5),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AdminStyles.primary, width: 2),
+              ),
+            ),
+            hint: Text(
+              options.isEmpty ? 'No departments available' : 'Choose Department',
+              style: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
+            ),
+            items: options.map((deptName) {
+              return DropdownMenuItem<String>(
+                value: deptName,
+                child: Text(
+                  deptName,
+                  style: AdminStyles.bodyStyle(
+                    color: AdminStyles.textPrimary,
+                    fontWeight: deptName == dropdownValue ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                Department? matchedDept;
+                for (final d in _departments) {
+                  if (d.name.trim().toLowerCase() == value.trim().toLowerCase()) {
+                    matchedDept = d;
+                    break;
+                  }
+                }
+                setState(() {
+                  _selectedDepartmentName = value;
+                  _selectedDepartmentId = matchedDept?.id;
+                  _departmentController.text = value;
+                });
+              }
+            },
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Please select a department';
+              }
+              return null;
+            },
+          ),
+      ],
     );
   }
 

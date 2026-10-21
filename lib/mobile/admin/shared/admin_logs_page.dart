@@ -683,7 +683,7 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'History',
+          'Reports History',
           style: TextStyle(
             color: themeProvider.textColor,
             fontWeight: FontWeight.w700,

@@ -199,7 +199,7 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Request History',
+          'Reports History',
           style: TextStyle(
             color: Colors.black87,
             fontSize: 18,

@@ -126,7 +126,7 @@ class MenuDrawer extends StatelessWidget {
 
                   _buildMenuItem(
                     icon: Icons.history_rounded,
-                    title: 'History',
+                    title: 'Reports History',
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(

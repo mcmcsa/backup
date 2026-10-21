@@ -8,6 +8,7 @@ import '../../../shared/widgets/app_date_range_dialog.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/login_activity_service.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../authentication/models/user_model.dart';
 import '../admin_nav_controller.dart';
 import '../shared/admin_styles.dart';
 import '../tickets/admin_work_process_web.dart';
@@ -70,7 +71,9 @@ class _AdminLogsWebState extends State<AdminLogsWeb> {
     }
 
     try {
-      final data = await LoginActivityService.fetchAdminLogs();
+      final data = await LoginActivityService.fetchAdminLogs(
+        role: UserRole.campadmin,
+      );
       if (!mounted) return;
       data.sort((left, right) => right.loggedInAt.compareTo(left.loggedInAt));
       setState(() {
@@ -210,7 +213,9 @@ class _AdminLogsWebState extends State<AdminLogsWeb> {
   // ─────────────────────────────────────────────────────────────
 
   List<LoginActivity> get _filteredLogs {
-    var list = List<LoginActivity>.from(_logs);
+    var list = List<LoginActivity>.from(_logs)
+        .where((log) => log.role == UserRole.campadmin.name)
+        .toList();
 
     // Category filter
     if (_selectedCategory == 'Actions') {

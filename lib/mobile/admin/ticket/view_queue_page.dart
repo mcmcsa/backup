@@ -299,7 +299,7 @@ class _ViewQueuePageState extends State<ViewQueuePage> {
                   ),
                 ),
                 Text(
-                  'View History',
+                  'View Reports History',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,

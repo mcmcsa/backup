@@ -350,7 +350,10 @@ class LoginActivityService {
     });
   }
 
-  static Future<List<LoginActivity>> fetchAdminLogs({String? userId}) async {
+  static Future<List<LoginActivity>> fetchAdminLogs({
+    String? userId,
+    UserRole? role,
+  }) async {
     initializeRealtime();
     List<LoginActivity> dbLogs = const <LoginActivity>[];
 
@@ -359,8 +362,13 @@ class LoginActivityService {
           .from(_table)
           .select(
             'user_id, user_name, role, event_type, title, details, work_request_id, logged_at',
-          )
-          .or('role.eq.${UserRole.admin.name},role.eq.${UserRole.campadmin.name}');
+          );
+
+      if (role != null) {
+        query = query.eq('role', role.name);
+      } else {
+        query = query.or('role.eq.${UserRole.admin.name},role.eq.${UserRole.campadmin.name}');
+      }
 
       if (userId != null && userId.trim().isNotEmpty) {
         query = query.eq('user_id', userId);
@@ -383,12 +391,20 @@ class LoginActivityService {
               (item) =>
                   LoginActivity.fromMap(Map<String, dynamic>.from(item as Map)),
             )
-            .where((log) =>
-                log.role == UserRole.admin.name ||
-                log.role == UserRole.campadmin.name)
+            .where((log) {
+              if (role != null) {
+                return log.role == role.name;
+              }
+              return log.role == UserRole.admin.name ||
+                  log.role == UserRole.campadmin.name;
+            })
             .toList();
 
     List<LoginActivity> result = _mergeAndDeduplicateLogs(dbLogs, localLogs);
+
+    if (role != null) {
+      result = result.where((log) => log.role == role.name).toList();
+    }
 
     if (userId != null && userId.trim().isNotEmpty) {
       result = result.where((log) => log.userId == userId).toList();

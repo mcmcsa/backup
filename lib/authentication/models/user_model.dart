@@ -6,6 +6,9 @@ class AppUser {
   final String name;
   final UserRole role;
   final bool isActive;
+  final String? firstName;
+  final String? middleName;
+  final String? lastName;
   final String? campus;
   final String? department;
   final String? departmentId;
@@ -23,6 +26,9 @@ class AppUser {
     required this.name,
     required this.role,
     required this.isActive,
+    this.firstName,
+    this.middleName,
+    this.lastName,
     this.mustChangePassword = false,
     this.campus,
     this.department,
@@ -50,10 +56,26 @@ class AppUser {
     final deptId = teacherProfile['department_id']?.toString() ?? map['department_id']?.toString();
     final fallbackDeptName = (deptId != null && deptMap != null) ? deptMap[deptId] : null;
 
+    final firstName = _nonEmptyString(map['first_name']) ?? _nonEmptyString(userMetadata['first_name']);
+    final middleName = _nonEmptyString(map['middle_name']) ?? _nonEmptyString(userMetadata['middle_name']);
+    final lastName = _nonEmptyString(map['last_name']) ?? _nonEmptyString(userMetadata['last_name']);
+
+    String resolvedName = map['name']?.toString() ?? '';
+    if (resolvedName.trim().isEmpty && (firstName != null || lastName != null)) {
+      resolvedName = [
+        ?firstName,
+        ?middleName,
+        ?lastName,
+      ].join(' ');
+    }
+
     return AppUser(
       id: map['id']?.toString() ?? '',
       email: map['email'] ?? '',
-      name: map['name'] ?? '',
+      name: resolvedName,
+      firstName: firstName,
+      middleName: middleName,
+      lastName: lastName,
       role: _parseRole(map['role']),
       isActive: map['is_active'] ?? true,
       mustChangePassword: mustChange,
@@ -103,6 +125,9 @@ class AppUser {
       'id': id,
       'email': email,
       'name': name,
+      if (firstName != null) 'first_name': firstName,
+      if (middleName != null) 'middle_name': middleName,
+      if (lastName != null) 'last_name': lastName,
       'role': role.name,
       'is_active': isActive,
     };
@@ -157,7 +182,7 @@ class AppUser {
       case UserRole.campadmin:
         return '/admin/dashboard';
       case UserRole.teacher:
-        return '/teacher/dashboard';
+        return '/employee/dashboard';
       case UserRole.maintenance:
         return '/maintenance/dashboard';
     }
@@ -167,6 +192,9 @@ class AppUser {
     String? id,
     String? email,
     String? name,
+    String? firstName,
+    String? middleName,
+    String? lastName,
     UserRole? role,
     bool? isActive,
     bool? mustChangePassword,
@@ -184,6 +212,9 @@ class AppUser {
       id: id ?? this.id,
       email: email ?? this.email,
       name: name ?? this.name,
+      firstName: firstName ?? this.firstName,
+      middleName: middleName ?? this.middleName,
+      lastName: lastName ?? this.lastName,
       role: role ?? this.role,
       isActive: isActive ?? this.isActive,
       mustChangePassword: mustChangePassword ?? this.mustChangePassword,

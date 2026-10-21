@@ -123,7 +123,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
           },
         ),
         title: Text(
-          'History',
+          'Reports History',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -141,7 +141,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
               controller: _searchController,
               style: TextStyle(color: themeProvider.textColor),
               decoration: InputDecoration(
-                hintText: 'Search request history...',
+                hintText: 'Search reports history...',
                 hintStyle: TextStyle(
                   color: isDark ? Colors.grey.shade400 : Colors.grey.shade400,
                   fontSize: 14,
@@ -214,7 +214,7 @@ class _ArchivesPageState extends State<ArchivesPage> {
                       children: [
                         Icon(Icons.history_rounded, size: 48, color: themeProvider.subtitleColor),
                         const SizedBox(height: 12),
-                        Text('No request history found', style: TextStyle(color: themeProvider.subtitleColor)),
+                        Text('No reports history found', style: TextStyle(color: themeProvider.subtitleColor)),
                       ],
                     ),
                   )

@@ -229,7 +229,7 @@ class MenuDrawer extends StatelessWidget {
                   ),
                   _buildMenuItem(
                     icon: Icons.history_rounded,
-                    title: 'History',
+                    title: 'Reports History',
                     isCompact: isCompact,
                     onTap: () {
                       Navigator.pop(context);

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../authentication/models/user_model.dart';
 import '../../authentication/services/auth_service.dart';
 import 'department_service.dart';
+import 'email_notification_service.dart';
 
 class SystemAdminService {
   static SupabaseClient get _db => Supabase.instance.client;
@@ -110,7 +111,7 @@ class SystemAdminService {
         'email': email.trim(),
         'name': name.trim(),
         'role': role,
-        if (isActive != null) 'is_active': isActive,
+        'is_active': ?isActive,
         // Only write phone when the caller explicitly opts in,
         // to prevent silently clearing it when not provided.
         if (updatePhone) 'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
@@ -183,7 +184,10 @@ class SystemAdminService {
   static Future<String?> createUserAccount({
     required String email,
     required String password,
-    required String name,
+    String? firstName,
+    String? middleName,
+    String? lastName,
+    String? name,
     required String role,
     String? departmentId,
     String? position,
@@ -196,6 +200,15 @@ class SystemAdminService {
     // replaces the current session in the browser. We save the tokens so we
     // can restore the admin session after creating the new user's auth record.
     final adminRefreshToken = _db.auth.currentSession?.refreshToken;
+
+    final fName = _normalizeNamePart(firstName);
+    final mName = middleName?.trim().isNotEmpty == true ? _normalizeNamePart(middleName) : null;
+    final lName = _normalizeNamePart(lastName);
+    final computedFullName = (name != null && name.trim().isNotEmpty)
+        ? _normalizeNamePart(name)
+        : [fName, if (mName != null && mName.isNotEmpty) mName, lName]
+            .where((p) => p.isNotEmpty)
+            .join(' ');
 
     // Suppress AuthService from reacting to auth state events fired during
     // user creation (prevents redirect to /force-change-password).
@@ -221,7 +234,10 @@ class SystemAdminService {
           email: normalizedEmail,
           password: password,
           data: {
-            'name': name.trim(),
+            if (fName.isNotEmpty) 'first_name': fName,
+            if (mName != null && mName.isNotEmpty) 'middle_name': mName,
+            if (lName.isNotEmpty) 'last_name': lName,
+            'name': computedFullName,
             'role': role,
             'must_change_password': true,
           },
@@ -266,22 +282,38 @@ class SystemAdminService {
         await _db.from('users').upsert({
           'id': newUserId,
           'email': email.trim(),
-          'name': name.trim(),
+          if (fName.isNotEmpty) 'first_name': fName,
+          if (mName != null && mName.isNotEmpty) 'middle_name': mName,
+          if (lName.isNotEmpty) 'last_name': lName,
+          'name': computedFullName,
           'role': role,
           'is_active': true,
           'must_change_password': true,
           'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
         }, onConflict: 'id');
-      } catch (_) {
-        // Fallback: insert without must_change_password column
-        await _db.from('users').upsert({
-          'id': newUserId,
-          'email': email.trim(),
-          'name': name.trim(),
-          'role': role,
-          'is_active': true,
-          'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
-        }, onConflict: 'id');
+      } catch (upsertErr) {
+        debugPrint('[SystemAdminService] Upsert with name parts failed, falling back: $upsertErr');
+        try {
+          await _db.from('users').upsert({
+            'id': newUserId,
+            'email': email.trim(),
+            'name': computedFullName,
+            'role': role,
+            'is_active': true,
+            'must_change_password': true,
+            'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
+          }, onConflict: 'id');
+        } catch (_) {
+          // Fallback: insert without must_change_password column
+          await _db.from('users').upsert({
+            'id': newUserId,
+            'email': email.trim(),
+            'name': computedFullName,
+            'role': role,
+            'is_active': true,
+            'phone': phone?.trim().isNotEmpty == true ? phone!.trim() : null,
+          }, onConflict: 'id');
+        }
       }
 
       // ── Step 4: Create role-specific profile ─────────────────────────────────
@@ -324,6 +356,18 @@ class SystemAdminService {
         }
       }
 
+      // ── Step 5: Send default password credentials to user via email ───────────
+      try {
+        await EmailNotificationService.sendAccountCredentialsEmail(
+          recipientEmail: normalizedEmail,
+          recipientName: computedFullName,
+          role: role,
+          defaultPassword: password,
+        );
+      } catch (emailErr) {
+        debugPrint('[SystemAdminService] Credentials email notification error: $emailErr');
+      }
+
       debugPrint('[SystemAdminService] User $normalizedEmail created successfully.');
       return null;
     } catch (e) {
@@ -339,5 +383,16 @@ class SystemAdminService {
       // above so any subsequent auth events will process for the admin.
       AuthService.endUserCreation();
     }
+  }
+
+  static String _normalizeNamePart(String? input) {
+    if (input == null) return '';
+    final cleaned = input.trim();
+    if (cleaned.isEmpty) return '';
+    return cleaned
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.length > 1 ? w.substring(1).toLowerCase() : ''}')
+        .join(' ');
   }
 }

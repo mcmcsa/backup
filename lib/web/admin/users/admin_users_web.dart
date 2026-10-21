@@ -383,7 +383,7 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
               Text('Users', style: AdminStyles.pageTitleStyle(fontSize: isCompact ? 22 : 26)),
               const SizedBox(height: 4),
               Text(
-                'Manage and view faculty accounts and departmental assignments',
+                'Manage and view employee accounts and departmental assignments',
                 style: AdminStyles.pageSubtitleStyle(fontSize: isCompact ? 12 : 13),
               ),
             ],
@@ -423,7 +423,7 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
         controller: _searchController,
         onChanged: (_) => setState(() {}),
         decoration: AdminStyles.searchInputDecoration(
-          hintText: 'Search faculty by name, email, employee ID, or department...',
+          hintText: 'Search employee by name, email, employee ID, or department...',
           prefixIcon: Icons.search_rounded,
         ).copyWith(
           suffixIcon: _searchController.text.isNotEmpty
@@ -555,7 +555,7 @@ class _AdminUsersWebState extends State<AdminUsersWeb> {
             color: AdminStyles.bg.withValues(alpha: 0.6),
             child: Row(
               children: [
-                Expanded(flex: 3, child: _tableHeaderTitle('Faculty Member')),
+                Expanded(flex: 3, child: _tableHeaderTitle('Employee')),
                 Expanded(flex: 3, child: _tableHeaderTitle('Email Address', align: TextAlign.center)),
                 Expanded(flex: 3, child: _tableHeaderTitle('Department', align: TextAlign.center)),
                 SizedBox(width: 90, child: _tableHeaderTitle('Status', align: TextAlign.center)),

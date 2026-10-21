@@ -22,7 +22,9 @@ class SystemAdminAddUserView extends StatefulWidget {
 class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
   final _formKey = GlobalKey<FormState>();
   
-  final _nameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _middleNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _empIdController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -41,7 +43,9 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _middleNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _empIdController.dispose();
     _phoneController.dispose();
@@ -64,12 +68,24 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
       return;
     }
 
+    final firstName = _firstNameController.text.trim();
+    final middleName = _middleNameController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    final fullName = [
+      firstName,
+      if (middleName.isNotEmpty) middleName,
+      lastName,
+    ].join(' ');
+
     setState(() => _isLoading = true);
 
     final error = await SystemAdminService.createUserAccount(
       email: _emailController.text.trim(),
       password: empId,
-      name: _nameController.text.trim(),
+      firstName: firstName,
+      middleName: middleName.isNotEmpty ? middleName : null,
+      lastName: lastName,
+      name: fullName,
       role: _selectedRole,
       departmentId: _selectedDeptId?.isNotEmpty == true ? _selectedDeptId : null,
       position: _posController.text.trim(),
@@ -83,13 +99,16 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
     if (!mounted) return;
 
     if (error == null) {
+      final targetEmail = _emailController.text.trim();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
               const Icon(Icons.check_circle_rounded, color: Colors.white),
               const SizedBox(width: 12),
-              Text('User Account "${_nameController.text}" Created Successfully!'),
+              Expanded(
+                child: Text('User Account "$fullName" Created! Login credentials sent to $targetEmail (check Inbox or Spam folder).'),
+              ),
             ],
           ),
           backgroundColor: AdminStyles.success,
@@ -160,29 +179,42 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Role Selection Section
-                      _buildSectionTitle('Access Level'),
-                      const SizedBox(height: 16),
-                      _buildRoleSelector(),
-                      const SizedBox(height: 32),
-
-                      // Basic Details Section
+                      // 1. Basic Details Section
                       _buildSectionTitle('Basic Details'),
                       const SizedBox(height: 16),
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: AdminStyles.cardDecoration(borderRadius: 16),
-                        child: MediaQuery.of(context).size.width < 600
+                        child: MediaQuery.of(context).size.width < 700
                             ? Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   _buildInputWrapper(
-                                    label: 'Full Name',
+                                    label: 'First Name',
                                     child: _buildTextField(
-                                      controller: _nameController,
-                                      hint: 'e.g. Juan Dela Cruz',
+                                      controller: _firstNameController,
+                                      hint: 'e.g. Juan',
                                       icon: Icons.person_outline_rounded,
-                                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                                      validator: (v) => (v == null || v.trim().isEmpty) ? 'First name is required' : null,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _buildInputWrapper(
+                                    label: 'Middle Name',
+                                    child: _buildTextField(
+                                      controller: _middleNameController,
+                                      hint: 'e.g. Santos (Optional)',
+                                      icon: Icons.person_outline_rounded,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _buildInputWrapper(
+                                    label: 'Last Name',
+                                    child: _buildTextField(
+                                      controller: _lastNameController,
+                                      hint: 'e.g. Dela Cruz',
+                                      icon: Icons.person_outline_rounded,
+                                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Last name is required' : null,
                                     ),
                                   ),
                                   const SizedBox(height: 20),
@@ -192,7 +224,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                       controller: _emailController,
                                       hint: 'e.g. juan@psu.edu.ph',
                                       icon: Icons.alternate_email_rounded,
-                                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Email is required' : null,
                                     ),
                                   ),
                                 ],
@@ -203,17 +235,48 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Expanded(
+                                        flex: 4,
                                         child: _buildInputWrapper(
-                                          label: 'Full Name',
+                                          label: 'First Name',
                                           child: _buildTextField(
-                                            controller: _nameController,
-                                            hint: 'e.g. Juan Dela Cruz',
+                                            controller: _firstNameController,
+                                            hint: 'e.g. Juan',
                                             icon: Icons.person_outline_rounded,
-                                            validator: (v) => v!.isEmpty ? 'Required' : null,
+                                            validator: (v) => (v == null || v.trim().isEmpty) ? 'First name is required' : null,
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 24),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        flex: 3,
+                                        child: _buildInputWrapper(
+                                          label: 'Middle Name',
+                                          child: _buildTextField(
+                                            controller: _middleNameController,
+                                            hint: 'e.g. Santos (Optional)',
+                                            icon: Icons.person_outline_rounded,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        flex: 4,
+                                        child: _buildInputWrapper(
+                                          label: 'Last Name',
+                                          child: _buildTextField(
+                                            controller: _lastNameController,
+                                            hint: 'e.g. Dela Cruz',
+                                            icon: Icons.person_outline_rounded,
+                                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Last name is required' : null,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
                                       Expanded(
                                         child: _buildInputWrapper(
                                           label: 'Email Address',
@@ -221,7 +284,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                             controller: _emailController,
                                             hint: 'e.g. juan@psu.edu.ph',
                                             icon: Icons.alternate_email_rounded,
-                                            validator: (v) => v!.isEmpty ? 'Required' : null,
+                                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Email is required' : null,
                                           ),
                                         ),
                                       ),
@@ -232,21 +295,47 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                       ),
                       const SizedBox(height: 32),
 
-                      // Role Specific Details
-                      if (_selectedRole == 'teacher' ||
-                          _selectedRole == 'maintenance' ||
-                          _selectedRole == 'campadmin' ||
-                          _selectedRole == 'admin') ...[
-                        _buildSectionTitle('Profile Details'),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: AdminStyles.cardDecoration(borderRadius: 16),
-                          child: MediaQuery.of(context).size.width < 600
-                              ? Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    _buildInputWrapper(
+                      // 2. Profile Details Section (Credentials & Contact)
+                      _buildSectionTitle('Profile Details'),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: AdminStyles.cardDecoration(borderRadius: 16),
+                        child: MediaQuery.of(context).size.width < 600
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _buildInputWrapper(
+                                    label: 'Employee ID',
+                                    child: _buildTextField(
+                                      controller: _empIdController,
+                                      hint: 'e.g. EMP-2024-001',
+                                      helperText: 'Default password for initial login (min. 6 chars)',
+                                      icon: Icons.badge_outlined,
+                                      validator: (v) {
+                                        final val = v?.trim() ?? '';
+                                        if (val.isEmpty) return 'Employee ID is required';
+                                        if (val.length < 6) return 'Must be at least 6 characters';
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  _buildInputWrapper(
+                                    label: 'Phone Number',
+                                    child: _buildTextField(
+                                      controller: _phoneController,
+                                      hint: 'Optional',
+                                      icon: Icons.phone_outlined,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: _buildInputWrapper(
                                       label: 'Employee ID',
                                       child: _buildTextField(
                                         controller: _empIdController,
@@ -261,8 +350,10 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                         },
                                       ),
                                     ),
-                                    const SizedBox(height: 20),
-                                    _buildInputWrapper(
+                                  ),
+                                  const SizedBox(width: 24),
+                                  Expanded(
+                                    child: _buildInputWrapper(
                                       label: 'Phone Number',
                                       child: _buildTextField(
                                         controller: _phoneController,
@@ -270,8 +361,39 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                         icon: Icons.phone_outlined,
                                       ),
                                     ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // 3. Access Level Section (The 3 clickable role squares moved down here!)
+                      _buildSectionTitle('Access Level'),
+                      const SizedBox(height: 16),
+                      _buildRoleSelector(),
+                      const SizedBox(height: 24),
+
+                      // 4. Role-Specific Details Section
+                      if (_selectedRole == 'teacher' ||
+                          _selectedRole == 'maintenance' ||
+                          _selectedRole == 'campadmin' ||
+                          _selectedRole == 'admin') ...[
+                        _buildSectionTitle(
+                          _selectedRole == 'teacher'
+                              ? 'Employee Role Information'
+                              : _selectedRole == 'maintenance'
+                                  ? 'Maintenance Role Information'
+                                  : 'Campus Admin Role Information',
+                        ),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: AdminStyles.cardDecoration(borderRadius: 16),
+                          child: MediaQuery.of(context).size.width < 600
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
                                     if (_selectedRole == 'teacher') ...[
-                                      const SizedBox(height: 20),
                                       _buildInputWrapper(
                                         label: 'Department',
                                         child: DropdownButtonFormField<String?>(
@@ -299,13 +421,12 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                         label: 'Position',
                                         child: _buildTextField(
                                           controller: _posController,
-                                          hint: 'e.g. Associate Professor',
+                                          hint: 'e.g. Associate Professor / Staff',
                                           icon: Icons.work_outline_rounded,
                                         ),
                                       ),
                                     ],
                                     if (_selectedRole == 'campadmin' || _selectedRole == 'admin') ...[
-                                      const SizedBox(height: 20),
                                       _buildInputWrapper(
                                         label: 'Designation / Position',
                                         child: _buildTextField(
@@ -316,7 +437,6 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                       ),
                                     ],
                                     if (_selectedRole == 'maintenance') ...[
-                                      const SizedBox(height: 20),
                                       _buildInputWrapper(
                                         label: 'Specialization',
                                         child: _buildTextField(
@@ -330,41 +450,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                 )
                               : Column(
                                   children: [
-                                    Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: _buildInputWrapper(
-                                            label: 'Employee ID',
-                                            child: _buildTextField(
-                                              controller: _empIdController,
-                                              hint: 'e.g. EMP-2024-001',
-                                              helperText: 'Default password for initial login (min. 6 chars)',
-                                              icon: Icons.badge_outlined,
-                                              validator: (v) {
-                                                final val = v?.trim() ?? '';
-                                                if (val.isEmpty) return 'Employee ID is required';
-                                                if (val.length < 6) return 'Must be at least 6 characters';
-                                                return null;
-                                              },
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 24),
-                                        Expanded(
-                                          child: _buildInputWrapper(
-                                            label: 'Phone Number',
-                                            child: _buildTextField(
-                                              controller: _phoneController,
-                                              hint: 'Optional',
-                                              icon: Icons.phone_outlined,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
                                     if (_selectedRole == 'teacher') ...[
-                                      const SizedBox(height: 20),
                                       Row(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
@@ -398,7 +484,7 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                               label: 'Position',
                                               child: _buildTextField(
                                                 controller: _posController,
-                                                hint: 'e.g. Associate Professor',
+                                                hint: 'e.g. Associate Professor / Staff',
                                                 icon: Icons.work_outline_rounded,
                                               ),
                                             ),
@@ -407,7 +493,6 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                       ),
                                     ],
                                     if (_selectedRole == 'campadmin' || _selectedRole == 'admin') ...[
-                                      const SizedBox(height: 20),
                                       Row(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
@@ -427,7 +512,6 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                       ),
                                     ],
                                     if (_selectedRole == 'maintenance') ...[
-                                      const SizedBox(height: 20),
                                       Row(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
@@ -553,9 +637,9 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
             children: [
               Expanded(
                 child: _RoleOptionCard(
-                  title: 'Teacher',
+                  title: 'Employee',
                   desc: 'Submit and track work requests.',
-                  icon: Icons.school_rounded,
+                  icon: Icons.badge_rounded,
                   color: AdminStyles.primary,
                   isSelected: _selectedRole == 'teacher',
                   onTap: () => setState(() => _selectedRole = 'teacher'),
@@ -591,9 +675,9 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
           onTap: () => setState(() => _selectedRole = 'campadmin'),
         ),
         _RoleOptionCard(
-          title: 'Teacher',
+          title: 'Employee',
           desc: 'Submit and track work requests.',
-          icon: Icons.school_rounded,
+          icon: Icons.badge_rounded,
           color: AdminStyles.primary,
           isSelected: _selectedRole == 'teacher',
           onTap: () => setState(() => _selectedRole = 'teacher'),

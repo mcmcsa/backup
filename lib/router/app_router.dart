@@ -48,19 +48,34 @@ final GlobalKey<NavigatorState> rootNavigatorKey =
     GlobalKey<NavigatorState>();
 
 const String appStartupRoute = '/startup';
-const String teacherDashboardRoute = '/teacher/dashboard';
-const String teacherReportsRoute = '/teacher/reports';
-const String teacherLogsRoute = '/teacher/logs';
-const String teacherScannerRoute = '/teacher/scanner';
-const String teacherProfileRoute = '/teacher/profile';
-const String teacherArchivesRoute = '/teacher/archives';
-const String teacherSettingsRoute = '/teacher/settings';
-const String teacherAboutRoute = '/teacher/about';
-const String teacherContactRoute = '/teacher/contact';
-const String teacherWorkflowRoute = '/teacher/workflow';
-const String teacherCreateRequestRoute = '/teacher/create-request';
-const String teacherChatRoute = '/teacher/chat';
-const String teacherDeptApprovalsRoute = '/teacher/dept-approvals';
+const String employeeDashboardRoute = '/employee/dashboard';
+const String employeeReportsRoute = '/employee/reports';
+const String employeeLogsRoute = '/employee/logs';
+const String employeeScannerRoute = '/employee/scanner';
+const String employeeProfileRoute = '/employee/profile';
+const String employeeArchivesRoute = '/employee/archives';
+const String employeeSettingsRoute = '/employee/settings';
+const String employeeAboutRoute = '/employee/about';
+const String employeeContactRoute = '/employee/contact';
+const String employeeWorkflowRoute = '/employee/workflow';
+const String employeeCreateRequestRoute = '/employee/create-request';
+const String employeeChatRoute = '/employee/chat';
+const String employeeDeptApprovalsRoute = '/employee/dept-approvals';
+
+// Backward compatibility alias constants (all pointing to /employee)
+const String teacherDashboardRoute = employeeDashboardRoute;
+const String teacherReportsRoute = employeeReportsRoute;
+const String teacherLogsRoute = employeeLogsRoute;
+const String teacherScannerRoute = employeeScannerRoute;
+const String teacherProfileRoute = employeeProfileRoute;
+const String teacherArchivesRoute = employeeArchivesRoute;
+const String teacherSettingsRoute = employeeSettingsRoute;
+const String teacherAboutRoute = employeeAboutRoute;
+const String teacherContactRoute = employeeContactRoute;
+const String teacherWorkflowRoute = employeeWorkflowRoute;
+const String teacherCreateRequestRoute = employeeCreateRequestRoute;
+const String teacherChatRoute = employeeChatRoute;
+const String teacherDeptApprovalsRoute = employeeDeptApprovalsRoute;
 
 String? resolveAuthRedirect({
   required String location,
@@ -127,7 +142,15 @@ String? resolveAuthRedirect({
     return dashboardRoute;
   }
 
-  if (location.startsWith('/teacher') && user.role != UserRole.teacher) {
+  if (location.startsWith('/teacher')) {
+    if (user.role != UserRole.teacher) {
+      return dashboardRoute;
+    }
+    // Seamlessly redirect any legacy /teacher path to /employee
+    return location.replaceFirst('/teacher', '/employee');
+  }
+
+  if (location.startsWith('/employee') && user.role != UserRole.teacher) {
     return dashboardRoute;
   }
 
@@ -405,24 +428,78 @@ GoRouter buildAppRouter(AuthService authService) {
         },
       ),
       GoRoute(
+        path: '/employee-archives',
+        redirect: (context, state) => employeeArchivesRoute,
+      ),
+      GoRoute(
+        path: '/employee-settings',
+        redirect: (context, state) => employeeSettingsRoute,
+      ),
+      GoRoute(
+        path: '/employee-about-us',
+        redirect: (context, state) => employeeAboutRoute,
+      ),
+      GoRoute(
+        path: '/employee-contact-us',
+        redirect: (context, state) => employeeContactRoute,
+      ),
+      GoRoute(
+        path: '/employee-system-workflow',
+        redirect: (context, state) => employeeWorkflowRoute,
+      ),
+      // Legacy /teacher-* redirects
+      GoRoute(
         path: '/teacher-archives',
-        redirect: (context, state) => teacherArchivesRoute,
+        redirect: (context, state) => employeeArchivesRoute,
       ),
       GoRoute(
         path: '/teacher-settings',
-        redirect: (context, state) => teacherSettingsRoute,
+        redirect: (context, state) => employeeSettingsRoute,
       ),
       GoRoute(
         path: '/teacher-about-us',
-        redirect: (context, state) => teacherAboutRoute,
+        redirect: (context, state) => employeeAboutRoute,
       ),
       GoRoute(
         path: '/teacher-contact-us',
-        redirect: (context, state) => teacherContactRoute,
+        redirect: (context, state) => employeeContactRoute,
       ),
       GoRoute(
         path: '/teacher-system-workflow',
-        redirect: (context, state) => teacherWorkflowRoute,
+        redirect: (context, state) => employeeWorkflowRoute,
+      ),
+      // Legacy /teacher/* path redirects
+      GoRoute(
+        path: '/teacher/dashboard',
+        redirect: (context, state) => employeeDashboardRoute,
+      ),
+      GoRoute(
+        path: '/teacher/reports',
+        redirect: (context, state) => employeeReportsRoute,
+      ),
+      GoRoute(
+        path: '/teacher/logs',
+        redirect: (context, state) => employeeLogsRoute,
+      ),
+      GoRoute(
+        path: '/teacher/scanner',
+        redirect: (context, state) => employeeScannerRoute,
+      ),
+      GoRoute(
+        path: '/teacher/profile',
+        redirect: (context, state) => employeeProfileRoute,
+      ),
+      GoRoute(
+        path: '/teacher/chat',
+        redirect: (context, state) => employeeChatRoute,
+      ),
+      GoRoute(
+        path: '/teacher/create-request',
+        redirect: (context, state) => employeeCreateRequestRoute,
+      ),
+      GoRoute(
+        path: '/teacher/dept-approvals',
+        redirect: (context, state) => employeeDeptApprovalsRoute,
       ),
       GoRoute(
         path: '/room-verification',

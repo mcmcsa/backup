@@ -1075,7 +1075,7 @@ class _AnnouncementFormDialogState extends State<_AnnouncementFormDialog> {
                   spacing: 8, runSpacing: 8,
                   children: [
                     _buildAudienceChip('all', 'Everyone'),
-                    _buildAudienceChip('teacher', 'Faculty'),
+                    _buildAudienceChip('teacher', 'Employee'),
                     _buildAudienceChip('maintenance', 'Maintenance'),
                     _buildAudienceChip('campadmin', 'Campus Admin'),
                   ],

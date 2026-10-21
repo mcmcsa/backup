@@ -212,7 +212,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
                     const SizedBox(height: 4),
                     _buildDrawerMenuItem(
                       icon: Icons.history_rounded,
-                      title: 'History',
+                      title: 'Reports History',
                       isSelected: _selectedIndex == 3,
                       onTap: () {
                         Navigator.pop(context);
@@ -412,7 +412,7 @@ class _MaintenanceNavigationState extends State<MaintenanceNavigation> {
               _buildNavItem(
                 icon: Icons.history_outlined,
                 activeIcon: Icons.history_rounded,
-                label: 'History',
+                label: 'Reports History',
                 index: 3,
                 themeProvider: themeProvider,
               ),

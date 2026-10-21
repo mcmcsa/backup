@@ -115,7 +115,7 @@ class DuplicateDetectionService {
           .neq('status', 'Declined')
           .gte('date_submitted', cutoff.toIso8601String())
           .order('room_id', ascending: true)
-          .order('type_of_request', ascending: true);
+          .order('date_submitted', ascending: false);
 
       final requests =
           (data as List).map((e) => WorkRequest.fromMap(e)).toList();

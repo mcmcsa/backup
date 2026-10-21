@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +20,7 @@ class VoicePlayerWidget extends StatefulWidget {
 
 class _VoicePlayerWidgetState extends State<VoicePlayerWidget> {
   late final AudioPlayer _audioPlayer;
+  final List<StreamSubscription> _subs = [];
   bool _isPlaying = false;
   bool _isLoading = true;
   Duration _duration = Duration.zero;
@@ -32,38 +34,44 @@ class _VoicePlayerWidgetState extends State<VoicePlayerWidget> {
   }
 
   Future<void> _initPlayer() async {
+    final url = widget.audioUrl.trim();
+    if (url.isEmpty) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
     try {
       if (widget.isLocal) {
-        await _audioPlayer.setSourceDeviceFile(widget.audioUrl);
+        await _audioPlayer.setSourceDeviceFile(url);
       } else {
-        await _audioPlayer.setSourceUrl(widget.audioUrl);
+        await _audioPlayer.setSourceUrl(url);
       }
 
-      _audioPlayer.onDurationChanged.listen((d) {
+      _subs.add(_audioPlayer.onDurationChanged.listen((d) {
         if (mounted) setState(() => _duration = d);
-      });
+      }));
 
-      _audioPlayer.onPositionChanged.listen((p) {
+      _subs.add(_audioPlayer.onPositionChanged.listen((p) {
         if (mounted) setState(() => _position = p);
-      });
+      }));
 
-      _audioPlayer.onPlayerStateChanged.listen((state) {
+      _subs.add(_audioPlayer.onPlayerStateChanged.listen((state) {
         if (mounted) {
           setState(() {
             _isPlaying = state == PlayerState.playing;
             _isLoading = false;
           });
         }
-      });
+      }));
 
-      _audioPlayer.onPlayerComplete.listen((event) {
+      _subs.add(_audioPlayer.onPlayerComplete.listen((event) {
         if (mounted) {
           setState(() {
             _isPlaying = false;
             _position = Duration.zero;
           });
         }
-      });
+      }));
 
       final duration = await _audioPlayer.getDuration();
       if (duration != null && mounted) {
@@ -72,14 +80,17 @@ class _VoicePlayerWidgetState extends State<VoicePlayerWidget> {
           _isLoading = false;
         });
       }
-    } catch (e) {
-      debugPrint('Error initializing audio player: $e');
+    } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    _subs.clear();
     _audioPlayer.dispose();
     super.dispose();
   }

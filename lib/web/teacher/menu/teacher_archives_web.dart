@@ -121,7 +121,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('History', style: AdminStyles.headingStyle(fontSize: isNarrow ? 24 : 32)),
+          Text('Reports History', style: AdminStyles.headingStyle(fontSize: isNarrow ? 24 : 32)),
           const SizedBox(height: 8),
           Text(
             'Review your historical work requests, evaluations, approvals, and acknowledged requests.',
@@ -138,7 +138,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                     controller: _searchController,
                     onChanged: (v) => setState(() {}),
                     decoration: AdminStyles.searchInputDecoration(
-                      hintText: 'Search request history...',
+                      hintText: 'Search reports history...',
                       prefixIcon: Icons.search_rounded,
                     ),
                   ),
@@ -173,7 +173,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
                     child: TextField(
                       controller: _searchController,
                       onChanged: (v) => setState(() {}),
-                      decoration: AdminStyles.searchInputDecoration(hintText: 'Search request history...', prefixIcon: Icons.search_rounded),
+                      decoration: AdminStyles.searchInputDecoration(hintText: 'Search reports history...', prefixIcon: Icons.search_rounded),
                     ),
                   ),
                 ),
@@ -234,7 +234,7 @@ class _TeacherArchivesWebState extends State<TeacherArchivesWeb> {
           children: [
             Icon(Icons.history_rounded, size: 64, color: AdminStyles.textMuted.withValues(alpha: 0.2)),
             const SizedBox(height: 16),
-            Text('No request history found', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
+            Text('No reports history found', style: AdminStyles.bodyStyle(color: AdminStyles.textMuted)),
           ],
         ),
       );

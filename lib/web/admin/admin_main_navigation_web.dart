@@ -759,7 +759,7 @@ class _AdminMainNavigationWebState extends State<AdminMainNavigationWeb> {
                     _buildNavItem(
                       index: _historyIndex,
                       icon: Icons.history_rounded,
-                      title: 'History',
+                      title: 'Reports History',
                       closeDrawerOnTap: closeDrawerOnTap,
                     ),
                     _buildNavItem(

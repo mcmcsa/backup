@@ -9,6 +9,7 @@ import '../../../../shared/services/floor_service.dart';
 import '../../../../shared/services/qr_code_history_service.dart';
 import '../../../../shared/services/room_service.dart';
 import '../../../../shared/services/room_type_service.dart';
+import '../../../../shared/services/app_settings_service.dart';
 import '../../../../shared/utils/dropdown_data_helper.dart';
 import '../../../../shared/widgets/attachment_image_widget.dart';
 import '../../../../shared/widgets/room_image_cropper_dialog.dart';
@@ -43,6 +44,7 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
   bool _isSaving = false;
   bool _isTimedSuccessVisible = false;
   String _qrData = '';
+  bool _qrRegenerated = false;
 
   Uint8List? _roomImageBytes;
   String? _roomImageName;
@@ -54,6 +56,7 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
       final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
       if (image != null && mounted) {
         final bytes = await image.readAsBytes();
+        if (!mounted) return;
         // Show cropper dialog
         final cropped = await showRoomImageCropperDialog(context, bytes);
         if (cropped != null && mounted) {
@@ -106,6 +109,96 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
         : 'ROOM:$roomCode';
     _existingImageUrl = widget.room.imageUrl;
     _loadDropdownOptions();
+    _checkQrRegenerationSetting();
+    _roomCodeController.addListener(_onRoomCodeChanged);
+  }
+
+  void _onRoomCodeChanged() {
+    if (_qrRegenerated) {
+      setState(() {
+        _qrRegenerated = false;
+      });
+    }
+  }
+
+  Future<void> _checkQrRegenerationSetting() async {
+    final enabled = await AppSettingsService.isQrRegenerationEnabled();
+    if (!mounted) return;
+    if (!enabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _showQrDisabledNotice();
+      });
+    }
+  }
+
+  void _showQrDisabledNotice() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.qr_code_2_rounded, color: Colors.orange, size: 28),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'QR Regeneration Required',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Bago mag-edit ng room, kailangan munang i-ON ang "Allow QR Code Regeneration" toggle button sa System Admin Settings dahil required mag-generate ng bagong QR code bago i-save ang na-edit na kwarto.',
+          style: TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              _closePage();
+            },
+            child: const Text('Bumalik'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _generateNewQrCode() {
+    final code = _roomCodeController.text.trim();
+    if (code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a Room Code first before generating QR code.'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _qrData = 'ROOM:${code.toUpperCase()}';
+      _qrRegenerated = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('New QR Code generated successfully!'),
+        backgroundColor: Color(0xFF16A34A),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _loadDropdownOptions() async {
@@ -179,6 +272,7 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
 
   @override
   void dispose() {
+    _roomCodeController.removeListener(_onRoomCodeChanged);
     _roomCodeController.dispose();
     _nameController.dispose();
     _capacityController.dispose();
@@ -186,6 +280,19 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
   }
 
   void _showSaveConfirmation() {
+    if (!_qrRegenerated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Kailangan munang mag-generate ng QR code bago i-save ang na-edit na room.',
+          ),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -409,7 +516,7 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
       barrierDismissible: false,
       barrierColor: Colors.black.withValues(alpha: 0.18),
       transitionDuration: const Duration(milliseconds: 180),
-      pageBuilder: (dialogContext, _, __) {
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
         return SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -1110,14 +1217,53 @@ class _AdminEditRoomPageWebState extends State<AdminEditRoomPageWeb> {
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
           ),
-          const SizedBox(height: 10),
-          const Text(
-            'QR code value is locked for existing rooms.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: _qrRegenerated ? const Color(0xFFDCFCE7) : const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _qrRegenerated ? const Color(0xFF86EFAC) : const Color(0xFFFCD34D),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _qrRegenerated ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                  size: 16,
+                  color: _qrRegenerated ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _qrRegenerated ? 'QR Code Regenerated' : 'QR Regeneration Required',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _qrRegenerated ? const Color(0xFF15803D) : const Color(0xFFB45309),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 42,
+            child: ElevatedButton.icon(
+              onPressed: _generateNewQrCode,
+              icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+              label: Text(
+                _qrRegenerated ? 'Regenerate QR Code' : 'Generate New QR Code',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _qrRegenerated ? const Color(0xFF334155) : const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
             ),
           ),
         ],

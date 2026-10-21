@@ -136,7 +136,7 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('History', style: AdminStyles.pageTitleStyle()),
+            Text('Reports History', style: AdminStyles.pageTitleStyle()),
             const SizedBox(height: 16),
             // Responsive Metric Cards
             Row(
@@ -200,7 +200,7 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
                         fontWeight: FontWeight.w600,
                       ),
                       decoration: InputDecoration(
-                        hintText: 'Search history...',
+                        hintText: 'Search reports history...',
                         hintStyle: AdminStyles.bodyStyle(
                           fontSize: 13,
                           color: AdminStyles.textMuted,
@@ -338,7 +338,7 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
                                 Icon(Icons.history_rounded, size: 48, color: AdminStyles.textMuted.withValues(alpha: 0.4)),
                                 const SizedBox(height: 12),
                                 Text(
-                                  'No maintenance history found',
+                                  'No reports history found',
                                   style: AdminStyles.bodyStyle(color: AdminStyles.textMuted),
                                 ),
                               ],

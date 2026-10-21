@@ -658,11 +658,11 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
         subtitle: '$_activeUsers active',
       ),
       _StatCard(
-        label: 'Faculty Accounts',
+        label: 'Employee Accounts',
         value: _facultyCount,
-        icon: Icons.school_rounded,
+        icon: Icons.badge_rounded,
         color: AdminStyles.secondary,
-        subtitle: 'Teaching staff',
+        subtitle: 'Faculty & staff',
       ),
       _StatCard(
         label: 'Maintenance Staff',
@@ -1088,7 +1088,7 @@ class _SystemAdminDashboardViewState extends State<SystemAdminDashboardView>
   // Users by Role donut-style breakdown
   Widget _buildRoleDonut() {
     final roles = [
-      _RoleItem('Faculty', _facultyCount, AdminStyles.secondary),
+      _RoleItem('Employee', _facultyCount, AdminStyles.secondary),
       _RoleItem('Maintenance', _maintenanceCount, Colors.deepPurple),
       _RoleItem('Campus Admin', _campAdminCount, AdminStyles.warning),
       _RoleItem('System Admin',
