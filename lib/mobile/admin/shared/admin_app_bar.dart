@@ -9,6 +9,7 @@ import 'notifications_page.dart';
 class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback openDrawer;
   final String? subtitle;
+  final List<Widget>? actions;
 
   static const Color _headerColor = Color(0xFFF2F4F7);
 
@@ -16,6 +17,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     required this.openDrawer,
     this.subtitle,
+    this.actions,
   });
 
   Future<int> _fetchUnreadCount(BuildContext context) async {
@@ -97,6 +99,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
       ),
       actions: [
+        if (actions != null) ...actions!,
         IconButton(
           icon: Icon(
             Icons.help_outline_rounded,

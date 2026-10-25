@@ -259,15 +259,11 @@ class _StudentProfilePageNewState extends State<StudentProfilePageNew> {
                                               color: Colors.grey.shade600,
                                             ),
                                       )
-                                      : Image.asset(
-                                        'assets/images/avatar_placeholder.png',
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Icon(
+                                      : Icon(
                                           Icons.person,
                                           size: 48,
                                           color: Colors.grey.shade600,
                                         ),
-                                      ),
                             ),
                           ),
                           Positioned(

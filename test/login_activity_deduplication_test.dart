@@ -16,14 +16,15 @@ void main() {
     });
 
     test('toPhilippineTime handles legacy rows stored directly with local time', () {
-      // Suppose current UTC time is 10:30 UTC. A legacy row has 18:30 UTC (8 hours ahead of UTC).
-      final legacyStored = DateTime.utc(2026, 9, 7, 18, 30, 0);
+      // Suppose current UTC time is nowUtc. A legacy row was stored with local time (+8 hours ahead of UTC).
+      final nowUtc = DateTime.now().toUtc();
+      final legacyStored = nowUtc.add(const Duration(hours: 8));
       final pht = LoginActivity.toPhilippineTime(legacyStored);
 
-      // Hour should remain 18 (6:30 PM), NOT 02:30 AM next day
-      expect(pht.day, 7);
-      expect(pht.hour, 18);
-      expect(pht.minute, 30);
+      // Hour should remain the legacyStored hour, NOT bumped another 8 hours
+      expect(pht.day, legacyStored.day);
+      expect(pht.hour, legacyStored.hour);
+      expect(pht.minute, legacyStored.minute);
     });
 
     test('LoginActivity.fromMap correctly parses ISO strings into Philippine time', () {

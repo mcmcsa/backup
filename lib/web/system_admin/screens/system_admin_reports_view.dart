@@ -7,7 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:universal_html/html.dart' as html;
 
 import '../../../authentication/models/user_model.dart';
+import '../../../shared/models/request_type_model.dart';
 import '../../../shared/models/work_request_model.dart';
+import '../../../shared/services/request_type_service.dart';
 import '../../../shared/services/system_admin_service.dart';
 import '../../../shared/services/work_request_service.dart';
 import '../../admin/shared/admin_styles.dart';
@@ -34,7 +36,15 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   RealtimeChannel? _realtimeChannel;
   Timer? _autoRefreshTimer;
 
-  static const List<String> _standardRequestTypes = [
+  static const List<String> _defaultRequestTypes = [
+    'Ocular Inspection',
+    'Installation',
+    'Repair',
+    'Replacement',
+    'Others',
+  ];
+
+  List<String> _standardRequestTypes = [
     'Ocular Inspection',
     'Installation',
     'Repair',
@@ -189,10 +199,27 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
         SystemAdminService.fetchAllUsers(),
       ]);
 
+      List<RequestType> fetchedTypes = [];
+      try {
+        fetchedTypes = await RequestTypeService.fetchAll();
+      } catch (_) {}
+
+      final dynamicTypeNames = fetchedTypes
+          .where((t) => t.isActive && t.name.trim().isNotEmpty)
+          .map((t) => t.name.trim())
+          .toList();
+
+      final merged = <String>{
+        ..._defaultRequestTypes.where((t) => t != 'Others'),
+        ...dynamicTypeNames,
+        'Others',
+      }.toList();
+
       if (mounted) {
         setState(() {
           _allRequests = results[0] as List<WorkRequest>;
           _allUsers = results[1] as List<AppUser>;
+          _standardRequestTypes = merged;
           _loading = false;
         });
       }
@@ -211,6 +238,12 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
   String _normalizeRequestType(WorkRequest r) {
     final raw = (r.typeDisplay.isNotEmpty ? r.typeDisplay : r.typeOfRequest).trim();
     final lower = raw.toLowerCase();
+
+    for (final type in _standardRequestTypes) {
+      if (type != 'Others' && lower.startsWith(type.toLowerCase())) {
+        return type;
+      }
+    }
 
     if (lower.startsWith('ocular inspection') || lower.startsWith('ocular')) {
       return 'Ocular Inspection';
@@ -276,11 +309,7 @@ class _SystemAdminReportsViewState extends State<SystemAdminReportsView> {
 
   Map<String, int> get _categoryDistribution {
     final map = <String, int>{
-      'Ocular Inspection': 0,
-      'Installation': 0,
-      'Repair': 0,
-      'Replacement': 0,
-      'Others': 0,
+      for (final t in _standardRequestTypes) t: 0,
     };
     for (final r in _filteredRequests) {
       final c = _normalizeRequestType(r);

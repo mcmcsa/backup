@@ -246,6 +246,7 @@ class AppNotificationService {
               return true;
             }
           }
+          return false;
         }
 
         // 1. Same work ticket and same workflow transition within 15 minutes

@@ -17,6 +17,7 @@ class RequestDetailsPageWeb extends StatefulWidget {
 
 class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
   WorkRequest get request => widget.request;
+  bool _showWarningBanner = true;
 
   @override
   void initState() {
@@ -106,7 +107,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Warning Alert
-              if (request.status == 'In Progress' || request.status == 'Confirmed' || request.status == 'Rework')
+              if (_showWarningBanner && (request.status == 'In Progress' || request.status == 'Confirmed' || request.status == 'Rework'))
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
@@ -143,7 +144,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPageWeb> {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () {},
+                        onTap: () => setState(() => _showWarningBanner = false),
                         child: const Icon(Icons.close, color: Color(0xFFCA8A04), size: 18),
                       ),
                     ],

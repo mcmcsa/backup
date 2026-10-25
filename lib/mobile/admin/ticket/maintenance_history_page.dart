@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/admin_report_print_service.dart';
 import 'admin_work_process_page.dart';
 import '../../../shared/widgets/room_comparison_dialog.dart';
 import '../../../shared/widgets/app_date_range_dialog.dart';
@@ -206,6 +207,23 @@ class _MaintenanceHistoryPageState extends State<MaintenanceHistoryPage> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print_rounded, color: Colors.black87),
+            tooltip: 'Print Report',
+            onPressed: () {
+              AdminReportPrintService.printReport(
+                context: context,
+                reportTitle: 'Reports History',
+                requests: _filteredItems,
+                startDate: _startDate,
+                endDate: _endDate,
+                statusFilter: _selectedFilter,
+                searchQuery: _searchController.text.trim(),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

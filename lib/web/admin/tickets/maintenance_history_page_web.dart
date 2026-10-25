@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/admin_report_print_service.dart';
+import '../../../shared/widgets/app_date_range_dialog.dart';
 import '../shared/admin_styles.dart';
 import 'admin_work_process_web.dart';
 import '../admin_nav_controller.dart';
@@ -21,6 +23,8 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
   List<WorkRequest> _historyItems = [];
   bool _isLoading = true;
   String _selectedFilter = 'All';
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void initState() {
@@ -78,6 +82,15 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
       }).toList();
     }
 
+    // Filter by date range
+    if (_startDate != null && _endDate != null) {
+      final start = DateTime(_startDate!.year, _startDate!.month, _startDate!.day, 0, 0, 0);
+      final end = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59, 999);
+      filtered = filtered.where((item) {
+        return !item.dateSubmitted.isBefore(start) && !item.dateSubmitted.isAfter(end);
+      }).toList();
+    }
+
     final query = _searchController.text.trim().toLowerCase();
     if (query.isNotEmpty) {
       filtered = filtered.where((item) {
@@ -92,6 +105,119 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
     }
 
     return filtered;
+  }
+
+  Future<void> _pickDateRange() async {
+    final picked = await showAppDateRangePicker(
+      context: context,
+      initialStartDate: _startDate,
+      initialEndDate: _endDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _startDate = picked.start;
+        _endDate = picked.end;
+      });
+    }
+  }
+
+  void _clearDateRange() {
+    setState(() {
+      _startDate = null;
+      _endDate = null;
+    });
+  }
+
+  Future<void> _printReport() async {
+    await AdminReportPrintService.printReport(
+      context: context,
+      reportTitle: 'Reports History',
+      requests: _filteredItems,
+      startDate: _startDate,
+      endDate: _endDate,
+      statusFilter: _selectedFilter,
+      searchQuery: _searchController.text.trim(),
+    );
+  }
+
+  Widget _buildDateRangeButton(bool isMobile) {
+    final hasRange = _startDate != null && _endDate != null;
+    final label = hasRange
+        ? '${DateFormat('MMM dd').format(_startDate!)} – ${DateFormat('MMM dd').format(_endDate!)}'
+        : (isMobile ? 'Date' : 'Custom Range');
+
+    return Container(
+      decoration: BoxDecoration(
+        color: hasRange ? const Color(0xFFE6FFFA) : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: hasRange ? const Color(0xFF0F766E) : AdminStyles.border,
+          width: hasRange ? 1.5 : 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: _pickDateRange,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.calendar_today_rounded,
+                  size: 15,
+                  color: hasRange ? const Color(0xFF0F766E) : AdminStyles.textSecondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: AdminStyles.bodyStyle(
+                    fontSize: 12,
+                    fontWeight: hasRange ? FontWeight.w700 : FontWeight.w600,
+                    color: hasRange ? const Color(0xFF0F766E) : AdminStyles.textPrimary,
+                  ),
+                ),
+                if (hasRange) ...[
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: _clearDateRange,
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.all(2),
+                      child: Icon(Icons.close_rounded, size: 14, color: Color(0xFF0F766E)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrintButton(bool isMobile) {
+    return ElevatedButton.icon(
+      onPressed: _printReport,
+      icon: const Icon(Icons.print_rounded, size: 16),
+      label: Text(isMobile ? 'Print' : 'Print Report'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AdminStyles.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        textStyle: AdminStyles.bodyStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+    );
   }
 
   Widget _buildTableHeader(String title) {
@@ -136,7 +262,52 @@ class _MaintenanceHistoryPageWebState extends State<MaintenanceHistoryPageWeb> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Reports History', style: AdminStyles.pageTitleStyle()),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text('Reports History', style: AdminStyles.pageTitleStyle()),
+                ),
+                _buildDateRangeButton(isMobile),
+                const SizedBox(width: 8),
+                _buildPrintButton(isMobile),
+              ],
+            ),
+            if (_startDate != null && _endDate != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6FFFA),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.date_range_rounded, size: 18, color: Color(0xFF0F766E)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Filtered period: ${DateFormat('MMMM dd, yyyy').format(_startDate!)} – ${DateFormat('MMMM dd, yyyy').format(_endDate!)} (${filtered.length} records)',
+                        style: AdminStyles.bodyStyle(
+                          fontSize: 12,
+                          color: const Color(0xFF0F766E),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: _clearDateRange,
+                      borderRadius: BorderRadius.circular(6),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Text('Reset to All', style: TextStyle(color: Color(0xFF0F766E), fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             // Responsive Metric Cards
             Row(

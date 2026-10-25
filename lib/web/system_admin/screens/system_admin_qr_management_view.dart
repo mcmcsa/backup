@@ -1314,6 +1314,7 @@ class _SystemAdminQrManagementViewState
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           onSelected: (v) {
             if (v == 'toggle') _toggleActive(qr);
+            if (v == 'delete') _delete(qr);
           },
           itemBuilder: (ctx) => [
             PopupMenuItem(
@@ -1330,6 +1331,17 @@ class _SystemAdminQrManagementViewState
                     style: AdminStyles.bodyStyle(
                         color: qr.isActive ? AdminStyles.warning : AdminStyles.success,
                         fontWeight: FontWeight.w600)),
+              ]),
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: Row(children: [
+                const Icon(Icons.delete_outline_rounded,
+                    size: 18, color: AdminStyles.error),
+                const SizedBox(width: 10),
+                Text('Delete',
+                    style: AdminStyles.bodyStyle(
+                        color: AdminStyles.error, fontWeight: FontWeight.w600)),
               ]),
             ),
           ],

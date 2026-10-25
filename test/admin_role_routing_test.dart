@@ -59,10 +59,10 @@ void main() {
   test('teacher cannot access either admin route', () {
     final teacher = _testUser(UserRole.teacher);
 
-    expect(_redirectFor(teacher, '/admin/dashboard'), '/teacher/dashboard');
+    expect(_redirectFor(teacher, '/admin/dashboard'), '/employee/dashboard');
     expect(
       _redirectFor(teacher, '/system-admin/dashboard'),
-      '/teacher/dashboard',
+      '/employee/dashboard',
     );
   });
 

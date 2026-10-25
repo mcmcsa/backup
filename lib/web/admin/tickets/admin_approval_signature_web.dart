@@ -111,7 +111,9 @@ class _AdminApprovalSignatureWebState extends State<AdminApprovalSignatureWeb> {
 
   @override
   void dispose() {
-    Supabase.instance.client.removeChannel(_realtimeChannel!);
+    if (_realtimeChannel != null) {
+      Supabase.instance.client.removeChannel(_realtimeChannel!);
+    }
     super.dispose();
   }
 

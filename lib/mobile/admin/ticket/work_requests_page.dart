@@ -11,6 +11,8 @@ import 'admin_pre_inspection_review_page.dart';
 import 'admin_post_repair_evaluation_page.dart';
 import 'admin_room_verification_page.dart';
 import '../shared/admin_app_bar.dart';
+import '../../../shared/services/admin_report_print_service.dart';
+import '../../../shared/widgets/app_date_range_dialog.dart';
 
 class WorkRequestsPage extends StatefulWidget {
   final VoidCallback openDrawer;
@@ -50,6 +52,8 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
   Map<String, String> _maintenanceSpecializationsById = {};
   bool _isLoading = true;
   Timer? _autoRefreshTimer;
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void initState() {
@@ -227,7 +231,52 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
       }).toList();
     }
 
+    // Apply date range filter
+    if (_startDate != null && _endDate != null) {
+      final start = DateTime(_startDate!.year, _startDate!.month, _startDate!.day, 0, 0, 0);
+      final end = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59, 999);
+      requests = requests.where((r) {
+        return !r.dateSubmitted.isBefore(start) && !r.dateSubmitted.isAfter(end);
+      }).toList();
+    }
+
     return requests;
+  }
+
+  Future<void> _pickDateRange() async {
+    final picked = await showAppDateRangePicker(
+      context: context,
+      initialStartDate: _startDate,
+      initialEndDate: _endDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _startDate = picked.start;
+        _endDate = picked.end;
+      });
+    }
+  }
+
+  void _clearDateRange() {
+    setState(() {
+      _startDate = null;
+      _endDate = null;
+    });
+  }
+
+  Future<void> _printReport() async {
+    final filterName = _selectedFilter < _filters.length ? _filters[_selectedFilter] : 'All';
+    await AdminReportPrintService.printReport(
+      context: context,
+      reportTitle: 'Tickets Report',
+      requests: _filteredRequests,
+      startDate: _startDate,
+      endDate: _endDate,
+      statusFilter: filterName,
+      searchQuery: _searchController.text.trim(),
+    );
   }
 
   @override
@@ -252,6 +301,26 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
       backgroundColor: themeProvider.backgroundColor,
       appBar: AdminAppBar(
         openDrawer: widget.openDrawer,
+        actions: [
+          IconButton(
+            icon: Icon(
+              Icons.date_range_rounded,
+              color: (_startDate != null && _endDate != null)
+                  ? const Color(0xFF0F766E)
+                  : (themeProvider.isDarkMode ? Colors.white : Colors.black87),
+            ),
+            tooltip: 'Filter by Date Range',
+            onPressed: _pickDateRange,
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.print_rounded,
+              color: themeProvider.isDarkMode ? Colors.white : Colors.black87,
+            ),
+            tooltip: 'Print Report',
+            onPressed: _printReport,
+          ),
+        ],
       ),
       floatingActionButton: Container(
         height: 52,
@@ -381,6 +450,41 @@ class _WorkRequestsPageState extends State<WorkRequestsPage>
                     }),
                   ),
                 ),
+                if (_startDate != null && _endDate != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE6FFFA),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF0F766E).withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.date_range_rounded, size: 16, color: Color(0xFF0F766E)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Period: ${DateFormat('MMM dd').format(_startDate!)} – ${DateFormat('MMM dd').format(_endDate!)} (${_filteredRequests.length} tickets)',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF0F766E),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        InkWell(
+                          onTap: _clearDateRange,
+                          borderRadius: BorderRadius.circular(6),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            child: Icon(Icons.close_rounded, size: 16, color: Color(0xFF0F766E)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

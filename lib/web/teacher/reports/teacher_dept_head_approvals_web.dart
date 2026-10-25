@@ -597,6 +597,11 @@ class _TeacherDeptHeadApprovalsWebState
   }
 
   void _openDetails(WorkRequest req) {
+    final navCtrl = TeacherNavController.of(context);
+    if (navCtrl != null) {
+      navCtrl.navigateTo(3, request: req);
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(

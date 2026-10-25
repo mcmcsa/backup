@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../../shared/models/work_request_model.dart';
 import '../../../shared/services/work_request_service.dart';
+import '../../../shared/services/admin_report_print_service.dart';
 import '../../../shared/widgets/workflow_status_badge.dart';
 import '../../../shared/providers/theme_provider.dart';
 import '../ticket/request_details_page.dart';
@@ -690,6 +691,23 @@ class _AdminHistoryPageState extends State<AdminHistoryPage> {
           ),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.print_rounded, color: themeProvider.textColor),
+            tooltip: 'Print Report',
+            onPressed: () {
+              AdminReportPrintService.printReport(
+                context: context,
+                reportTitle: 'Reports History',
+                requests: _filteredRequests,
+                startDate: _startDate,
+                endDate: _endDate,
+                statusFilter: _selectedFilter,
+                searchQuery: _searchController.text.trim(),
+              );
+            },
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF4169E1)))

@@ -52,6 +52,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
   Timer? _autoRefreshTimer;
   bool _isSubmittingAdminCompletionSignature = false;
   int _selectedTab = 0; // 0: Work Request Timeline, 1: Details
+  bool _showWarningBanner = true;
 
   bool _isUnassigned(String? staffId) {
     final normalized = staffId?.trim().toLowerCase();
@@ -484,7 +485,9 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
 
   @override
   void dispose() {
-    Supabase.instance.client.removeChannel(_realtimeChannel!);
+    if (_realtimeChannel != null) {
+      Supabase.instance.client.removeChannel(_realtimeChannel!);
+    }
     _autoRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -688,7 +691,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Warning Alert
-              if (request.status.toLowerCase() == 'in progress' || request.status.toLowerCase() == 'in_progress')
+              if (_showWarningBanner && (request.status.toLowerCase() == 'in progress' || request.status.toLowerCase() == 'in_progress'))
                 Container(
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(14),
@@ -733,7 +736,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
                         ),
                       ),
                       GestureDetector(
-                        onTap: () {},
+                        onTap: () => setState(() => _showWarningBanner = false),
                         child: const Icon(
                           Icons.close,
                           color: Color(0xFFCA8A04),

@@ -1395,6 +1395,8 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
                   _popItem(Icons.check_circle_outline_rounded, 'Activate',
                       'activate',
                       color: AdminStyles.success),
+                _popItem(Icons.delete_outline_rounded, 'Delete Account', 'delete',
+                    color: AdminStyles.error),
               ],
               onSelected: (v) {
                 switch (v) {
@@ -1412,6 +1414,9 @@ class _SystemAdminUsersViewState extends State<SystemAdminUsersView> {
                     break;
                   case 'activate':
                     _toggleActive(user, true);
+                    break;
+                  case 'delete':
+                    _deleteUser(user);
                     break;
                 }
               },

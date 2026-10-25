@@ -258,37 +258,34 @@ class RoomSuccessPage extends StatelessWidget {
                 ),
 
                 // Secondary action
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () {
-                    if (isEdit) {
-                      // View Activity Log - placeholder
-                    } else {
+                if (!isEdit) ...[
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: () {
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
                           builder: (context) => const AddRoomPage(),
                         ),
                       );
-                    }
-                  },
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (!isEdit)
-                        Icon(Icons.add, size: 16, color: const Color(0xFF4169E1)),
-                      if (!isEdit) const SizedBox(width: 4),
-                      Text(
-                        isEdit ? 'View Activity Log' : 'Add Another Room',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF4169E1),
+                    },
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add, size: 16, color: Color(0xFF4169E1)),
+                        SizedBox(width: 4),
+                        Text(
+                          'Add Another Room',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF4169E1),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

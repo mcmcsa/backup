@@ -1275,10 +1275,7 @@ class _RequestDetailsPageState extends State<RequestDetailsPage>
               }
             },
           ),
-          IconButton(
-            icon: Icon(Icons.share, color: themeProvider.appBarIconColor),
-            onPressed: () {},
-          ),
+
         ],
       ),
       body: _request == null
