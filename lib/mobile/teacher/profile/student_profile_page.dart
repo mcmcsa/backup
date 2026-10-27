@@ -91,13 +91,42 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     }
   }
 
+  static String _formatPhoneForDisplay(String? phone) {
+    if (phone == null || phone.trim().isEmpty) return '';
+    final trimmed = phone.trim();
+    if (trimmed.startsWith('+63')) {
+      return trimmed.substring(3).trim();
+    } else if (trimmed.startsWith('63') && trimmed.length >= 12) {
+      return trimmed.substring(2).trim();
+    } else if (trimmed.startsWith('09')) {
+      return trimmed.substring(1).trim();
+    }
+    return trimmed;
+  }
+
+  static String _normalizeToPlus63(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return '';
+    final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+    if (digits.startsWith('09') && digits.length >= 11) {
+      return '+63${digits.substring(1)}';
+    } else if (digits.startsWith('639') && digits.length >= 12) {
+      return '+$digits';
+    } else if (digits.startsWith('9') && digits.length == 10) {
+      return '+63$digits';
+    } else if (trimmed.startsWith('+')) {
+      return trimmed;
+    }
+    return '+63$digits';
+  }
+
   void _initControllers(AppUser? user) {
     _nameController = TextEditingController(text: user?.name ?? '');
     _emailController = TextEditingController(text: user?.email ?? '');
     _departmentController = TextEditingController(text: user?.department ?? '');
     _positionController = TextEditingController(text: user?.position ?? '');
     _employeeIdController = TextEditingController(text: user?.employeeId ?? '');
-    _phoneController = TextEditingController(text: user?.phone ?? '');
+    _phoneController = TextEditingController(text: _formatPhoneForDisplay(user?.phone));
     _selectedDepartmentName = user?.department?.trim().isNotEmpty == true ? user!.department!.trim() : null;
     _selectedDepartmentId = user?.departmentId;
   }
@@ -120,7 +149,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     _departmentController.text = user?.department ?? '';
     _positionController.text = user?.position ?? '';
     _employeeIdController.text = user?.employeeId ?? '';
-    _phoneController.text = user?.phone ?? '';
+    _phoneController.text = _formatPhoneForDisplay(user?.phone);
     _selectedDepartmentName = user?.department?.trim().isNotEmpty == true ? user!.department!.trim() : null;
     _selectedDepartmentId = user?.departmentId;
     FocusScope.of(context).unfocus();
@@ -155,7 +184,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
       _departmentController.text = user.department ?? '';
       _positionController.text = user.position ?? '';
       _employeeIdController.text = user.employeeId ?? '';
-      _phoneController.text = user.phone ?? '';
+      _phoneController.text = _formatPhoneForDisplay(user.phone);
       _selectedDepartmentName = user.department?.trim().isNotEmpty == true ? user.department!.trim() : null;
       _selectedDepartmentId = user.departmentId;
     });
@@ -268,6 +297,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
       return;
     }
 
+    final normalizedPhone = _normalizeToPlus63(_phoneController.text);
     try {
       final updated = user.copyWith(
         name: _nameController.text.trim(),
@@ -275,19 +305,22 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         departmentId: _selectedDepartmentId,
         position: _positionController.text.trim(),
         employeeId: _employeeIdController.text.trim(),
-        phone: _phoneController.text.trim(),
+        phone: normalizedPhone.isNotEmpty ? normalizedPhone : null,
       );
 
       final success = await auth.updateProfile(updated);
       if (!mounted) return;
 
       if (success) {
-        setState(() => _isEditing = false);
+        setState(() {
+          _isEditing = false;
+          _phoneController.text = _formatPhoneForDisplay(normalizedPhone);
+        });
         FocusScope.of(context).unfocus();
         await LoginActivityService.recordAction(
           user: user,
           title: 'Profile Updated',
-          details: 'Updated profile details: Name: ${updated.name}, Department: ${updated.department ?? 'N/A'}, Position: ${updated.position ?? 'N/A'}',
+          details: 'Updated profile details: Name: ${updated.name}, Department: ${updated.department ?? 'N/A'}, Position: ${updated.position ?? 'N/A'}, Phone: ${updated.phone ?? 'N/A'}',
         );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -597,6 +630,8 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         controller: _phoneController,
         focusNode: _phoneFocusNode,
         isEditable: true,
+        keyboardType: TextInputType.phone,
+        prefixWidget: _buildPhonePrefix(_isEditing),
       ),
       _buildDepartmentField(),
       _buildField(
@@ -605,6 +640,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
         controller: _positionController,
         focusNode: _positionFocusNode,
         isEditable: true,
+        hintText: 'e.g. Faculty, Non-Teaching',
       ),
     ];
 
@@ -918,6 +954,34 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     );
   }
 
+  Widget _buildPhonePrefix(bool canEdit) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(width: 14),
+        const Text('🇵🇭', style: TextStyle(fontSize: 15)),
+        const SizedBox(width: 6),
+        Text(
+          '+63',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: _isDark
+                ? (canEdit ? Colors.white : Colors.grey.shade400)
+                : (canEdit ? const Color(0xFF0F172A) : const Color(0xFF64748B)),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Container(
+          width: 1,
+          height: 20,
+          color: _isDark ? Colors.grey.shade700 : const Color(0xFFCBD5E1),
+        ),
+        const SizedBox(width: 10),
+      ],
+    );
+  }
+
   Widget _buildField({
     required IconData icon,
     required String label,
@@ -925,6 +989,9 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     FocusNode? focusNode,
     required bool isEditable,
     String? helperText,
+    String? hintText,
+    TextInputType? keyboardType,
+    Widget? prefixWidget,
   }) {
     final canEdit = isEditable && _isEditing;
 
@@ -989,12 +1056,24 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
               focusNode: focusNode,
               enabled: isEditable,
               readOnly: !isEditable,
+              keyboardType: keyboardType,
               style: AdminStyles.bodyStyle(
                 color: _isDark
                     ? (isEditable ? Colors.white : Colors.grey.shade400)
                     : (isEditable ? AdminStyles.textPrimary : AdminStyles.textMuted),
               ),
               decoration: InputDecoration(
+                prefixIcon: prefixWidget,
+                prefixIconConstraints: prefixWidget != null
+                    ? const BoxConstraints(minWidth: 0, minHeight: 0)
+                    : null,
+                hintText: hintText,
+                hintStyle: AdminStyles.bodyStyle(
+                  fontSize: 13,
+                  color: _isDark
+                      ? Colors.grey.shade600
+                      : AdminStyles.textMuted.withValues(alpha: 0.6),
+                ),
                 helperText: helperText,
                 helperStyle: AdminStyles.bodyStyle(
                   fontSize: 11,

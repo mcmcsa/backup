@@ -403,6 +403,18 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
   }
 
   Widget _buildSidebar({double width = 260, bool closeDrawerOnTap = false}) {
+    final user = context.watch<AuthService>().currentUser;
+    final position = user?.position?.trim();
+    final String roleSubtitle;
+    final posLower = position?.toLowerCase();
+    if (_isDeptHead || posLower == 'head' || posLower == 'department head') {
+      roleSubtitle = 'DEPARTMENT HEAD';
+    } else if (position != null && position.isNotEmpty) {
+      roleSubtitle = position.toUpperCase();
+    } else {
+      roleSubtitle = 'EMPLOYEE';
+    }
+
     return Container(
       width: width,
       decoration: const BoxDecoration(color: _sidebarBg),
@@ -437,13 +449,17 @@ class _TeacherNavigationWebState extends State<TeacherNavigationWeb> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        _isDeptHead ? 'DEPARTMENT HEAD' : 'EMPLOYEE',
+                        roleSubtitle,
                         style: TextStyle(
                           fontSize: 10,
-                          color: _isDeptHead ? _sidebarSelected : _textMuted,
+                          color: (_isDeptHead || (position != null && position.isNotEmpty))
+                              ? _sidebarSelected
+                              : _textMuted,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.5,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),

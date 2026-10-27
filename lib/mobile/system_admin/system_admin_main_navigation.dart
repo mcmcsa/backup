@@ -605,6 +605,19 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
         TextEditingController(text: user.role == UserRole.maintenance ? user.position : '');
     final posController =
         TextEditingController(text: user.role == UserRole.teacher ? user.position : '');
+    const teacherPositions = ['Faculty', 'Department Head', 'Non-Teaching'];
+    final rawPos = (user.role == UserRole.teacher ? user.position : '')?.trim() ?? '';
+    String selectedTeacherPos;
+    if (rawPos.toLowerCase() == 'head' || rawPos.toLowerCase() == 'department head') {
+      selectedTeacherPos = 'Department Head';
+    } else if (teacherPositions.any((p) => p.toLowerCase() == rawPos.toLowerCase())) {
+      selectedTeacherPos = teacherPositions.firstWhere((p) => p.toLowerCase() == rawPos.toLowerCase());
+    } else if (rawPos.isNotEmpty) {
+      selectedTeacherPos = rawPos;
+    } else {
+      selectedTeacherPos = 'Faculty';
+    }
+
     String selectedRole = user.role.name;
     bool isActive = user.isActive;
     String? selectedDeptId = _departments.isNotEmpty ? _departments.first.id : null;
@@ -666,9 +679,22 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                               .toList(),
                         ),
                         const SizedBox(height: 8),
-                        TextFormField(
-                          controller: posController,
+                        DropdownButtonFormField<String>(
+                          value: selectedTeacherPos,
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => selectedTeacherPos = val);
+                            }
+                          },
                           decoration: const InputDecoration(labelText: 'Position'),
+                          items: {
+                            ...teacherPositions,
+                            if (!teacherPositions.contains(selectedTeacherPos))
+                              selectedTeacherPos,
+                          }.map((p) => DropdownMenuItem(
+                                value: p,
+                                child: Text(p),
+                              )).toList(),
                         ),
                       ],
                       if (selectedRole == 'maintenance') ...[
@@ -704,17 +730,39 @@ class _SystemAdminMainNavigationState extends State<SystemAdminMainNavigation> {
                   style: ElevatedButton.styleFrom(backgroundColor: _primaryTeal),
                   onPressed: () async {
                     if (formKey.currentState?.validate() ?? false) {
+                      final rawPhone = phoneController.text.trim();
+                      String? normalizedPhone;
+                      if (rawPhone.isNotEmpty) {
+                        String digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+                        if (digits.startsWith('63') && digits.length >= 12) {
+                          normalizedPhone = '+$digits';
+                        } else if (digits.startsWith('0')) {
+                          normalizedPhone = '+63${digits.substring(1)}';
+                        } else {
+                          normalizedPhone = '+63$digits';
+                        }
+                      }
+
                       final err = await SystemAdminService.updateUserAccount(
                         id: user.id,
-                        email: emailController.text,
-                        name: nameController.text,
+                        email: emailController.text.trim(),
+                        name: nameController.text.trim(),
                         role: selectedRole,
                         isActive: isActive,
                         departmentId: selectedDeptId,
-                        position: posController.text,
-                        employeeId: empIdController.text,
-                        phone: phoneController.text,
-                        specialization: specController.text,
+                        position: selectedRole == 'teacher'
+                            ? selectedTeacherPos
+                            : (posController.text.trim().isNotEmpty
+                                ? posController.text.trim()
+                                : null),
+                        employeeId: empIdController.text.trim().isNotEmpty
+                            ? empIdController.text.trim()
+                            : null,
+                        phone: normalizedPhone ??
+                            (rawPhone.isNotEmpty ? rawPhone : null),
+                        specialization: specController.text.trim().isNotEmpty
+                            ? specController.text.trim()
+                            : null,
                       );
                       if (ctx.mounted) Navigator.pop(ctx);
                       if (!context.mounted) return;

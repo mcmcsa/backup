@@ -2107,6 +2107,13 @@ class _EditUserDialogState extends State<_EditUserDialog> {
   late final _phoneCtrl = TextEditingController(text: widget.user.phone ?? '');
   late final _posCtrl = TextEditingController(text: widget.user.position ?? '');
 
+  static const List<String> _teacherPositions = [
+    'Faculty',
+    'Department Head',
+    'Non-Teaching',
+  ];
+  late String _selectedTeacherPosition;
+
   late String _role = widget.user.role.name;
   late bool _isActive = widget.user.isActive;
   String? _selectedDeptId;
@@ -2116,6 +2123,18 @@ class _EditUserDialogState extends State<_EditUserDialog> {
   @override
   void initState() {
     super.initState();
+    // Initialize teacher position
+    final rawPos = widget.user.position?.trim() ?? '';
+    if (rawPos.toLowerCase() == 'head' || rawPos.toLowerCase() == 'department head') {
+      _selectedTeacherPosition = 'Department Head';
+    } else if (_teacherPositions.any((p) => p.toLowerCase() == rawPos.toLowerCase())) {
+      _selectedTeacherPosition = _teacherPositions.firstWhere((p) => p.toLowerCase() == rawPos.toLowerCase());
+    } else if (rawPos.isNotEmpty) {
+      _selectedTeacherPosition = rawPos;
+    } else {
+      _selectedTeacherPosition = 'Faculty';
+    }
+
     // Try to find dept id by matching name
     if (widget.user.department != null) {
       try {
@@ -2143,6 +2162,29 @@ class _EditUserDialogState extends State<_EditUserDialog> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
 
+    final rawPhone = _phoneCtrl.text.trim();
+    String? normalizedPhone;
+    if (rawPhone.isNotEmpty) {
+      String digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+      if (digits.startsWith('63') && digits.length >= 12) {
+        normalizedPhone = '+$digits';
+      } else if (digits.startsWith('0')) {
+        normalizedPhone = '+63${digits.substring(1)}';
+      } else {
+        normalizedPhone = '+63$digits';
+      }
+    }
+
+    final String? resolvedPosition;
+    if (_role == 'teacher') {
+      resolvedPosition = _selectedTeacherPosition;
+    } else if (_role == 'maintenance') {
+      resolvedPosition = null;
+    } else {
+      resolvedPosition =
+          _posCtrl.text.trim().isNotEmpty ? _posCtrl.text.trim() : null;
+    }
+
     final err = await SystemAdminService.updateUserAccount(
       id: widget.user.id,
       email: _emailCtrl.text.trim(),
@@ -2150,10 +2192,10 @@ class _EditUserDialogState extends State<_EditUserDialog> {
       role: _role,
       isActive: _isActive,
       departmentId: _role == 'teacher' ? _selectedDeptId : null,
-      position: _posCtrl.text.trim().isNotEmpty ? _posCtrl.text.trim() : null,
+      position: resolvedPosition,
       employeeId:
           _empIdCtrl.text.trim().isNotEmpty ? _empIdCtrl.text.trim() : null,
-      phone: _phoneCtrl.text.trim().isNotEmpty ? _phoneCtrl.text.trim() : null,
+      phone: normalizedPhone ?? (rawPhone.isNotEmpty ? rawPhone : null),
       specialization:
           _role == 'maintenance' && _posCtrl.text.trim().isNotEmpty
               ? _posCtrl.text.trim()
@@ -2245,8 +2287,25 @@ class _EditUserDialogState extends State<_EditUserDialog> {
                         .toList(),
                     onChanged: (v) => setState(() => _selectedDeptId = v),
                   ),
-                  const SizedBox(height: 14),
-                  _field('Position', _posCtrl, Icons.work_outline_rounded),
+                  _sectionLabel('Position'),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: _selectedTeacherPosition,
+                    decoration: _inputDecor(Icons.work_outline_rounded),
+                    items: {
+                      ..._teacherPositions,
+                      if (!_teacherPositions.contains(_selectedTeacherPosition))
+                        _selectedTeacherPosition,
+                    }.map((p) => DropdownMenuItem(
+                          value: p,
+                          child: Text(p),
+                        )).toList(),
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() => _selectedTeacherPosition = v);
+                      }
+                    },
+                  ),
                   const SizedBox(height: 14),
                 ],
                 if (_role == 'maintenance') ...[

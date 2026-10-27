@@ -31,6 +31,13 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
   final _specController = TextEditingController();
   final _posController = TextEditingController();
 
+  static const List<String> _teacherPositions = [
+    'Faculty',
+    'Department Head',
+    'Non-Teaching',
+  ];
+  String _selectedPosition = 'Faculty';
+
   String _selectedRole = 'teacher';
   String? _selectedDeptId;
   bool _isLoading = false;
@@ -79,6 +86,23 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
 
     setState(() => _isLoading = true);
 
+    final String resolvedPosition = _selectedRole == 'teacher'
+        ? _selectedPosition
+        : _posController.text.trim();
+
+    final rawPhone = _phoneController.text.trim();
+    String? normalizedPhone;
+    if (rawPhone.isNotEmpty) {
+      String digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+      if (digits.startsWith('63') && digits.length >= 12) {
+        normalizedPhone = '+$digits';
+      } else if (digits.startsWith('0')) {
+        normalizedPhone = '+63${digits.substring(1)}';
+      } else {
+        normalizedPhone = '+63$digits';
+      }
+    }
+
     final error = await SystemAdminService.createUserAccount(
       email: _emailController.text.trim(),
       password: empId,
@@ -88,9 +112,9 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
       name: fullName,
       role: _selectedRole,
       departmentId: _selectedDeptId?.isNotEmpty == true ? _selectedDeptId : null,
-      position: _posController.text.trim(),
+      position: resolvedPosition,
       employeeId: empId,
-      phone: _phoneController.text.trim(),
+      phone: normalizedPhone ?? (rawPhone.isNotEmpty ? rawPhone : null),
       specialization: _specController.text.trim(),
     );
 
@@ -419,10 +443,22 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                       const SizedBox(height: 20),
                                       _buildInputWrapper(
                                         label: 'Position',
-                                        child: _buildTextField(
-                                          controller: _posController,
-                                          hint: 'e.g. Associate Professor / Staff',
-                                          icon: Icons.work_outline_rounded,
+                                        child: DropdownButtonFormField<String>(
+                                          isExpanded: true,
+                                          value: _selectedPosition,
+                                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textSecondary),
+                                          decoration: _inputDecoration(icon: Icons.work_outline_rounded),
+                                          items: _teacherPositions.map<DropdownMenuItem<String>>((pos) {
+                                            return DropdownMenuItem<String>(
+                                              value: pos,
+                                              child: Text(pos, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
+                                            );
+                                          }).toList(),
+                                          onChanged: (v) {
+                                            if (v != null) {
+                                              setState(() => _selectedPosition = v);
+                                            }
+                                          },
                                         ),
                                       ),
                                     ],
@@ -482,10 +518,22 @@ class _SystemAdminAddUserViewState extends State<SystemAdminAddUserView> {
                                           Expanded(
                                             child: _buildInputWrapper(
                                               label: 'Position',
-                                              child: _buildTextField(
-                                                controller: _posController,
-                                                hint: 'e.g. Associate Professor / Staff',
-                                                icon: Icons.work_outline_rounded,
+                                              child: DropdownButtonFormField<String>(
+                                                isExpanded: true,
+                                                value: _selectedPosition,
+                                                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AdminStyles.textSecondary),
+                                                decoration: _inputDecoration(icon: Icons.work_outline_rounded),
+                                                items: _teacherPositions.map<DropdownMenuItem<String>>((pos) {
+                                                  return DropdownMenuItem<String>(
+                                                    value: pos,
+                                                    child: Text(pos, style: AdminStyles.bodyStyle(fontWeight: FontWeight.w600)),
+                                                  );
+                                                }).toList(),
+                                                onChanged: (v) {
+                                                  if (v != null) {
+                                                    setState(() => _selectedPosition = v);
+                                                  }
+                                                },
                                               ),
                                             ),
                                           ),

@@ -163,7 +163,8 @@ class SystemAdminService {
         } catch (_) {}
       }
 
-      final bool isHeadPosition = position?.trim().toLowerCase() == 'head';
+      final pLower = position?.trim().toLowerCase() ?? '';
+      final bool isHeadPosition = pLower == 'head' || pLower == 'department head';
 
       if (role == 'teacher' && userIsActive && isHeadPosition && departmentId != null && departmentId.isNotEmpty) {
         // Rule 1 & 2: Active teacher with Position = "Head" -> set as official department head
@@ -325,10 +326,12 @@ class SystemAdminService {
           'employee_id': employeeId?.trim().isNotEmpty == true ? employeeId!.trim() : null,
         }, onConflict: 'user_id');
 
-        // Rule 1: Active teacher created with Position = "Head" and a Department -> assign as official Department Head
+        // Rule 1: Active teacher created with Position = "Head" or "Department Head" and a Department -> assign as official Department Head
+        final pLower = position?.trim().toLowerCase() ?? '';
+        final bool isHead = pLower == 'head' || pLower == 'department head';
         if (departmentId != null &&
             departmentId.isNotEmpty &&
-            position?.trim().toLowerCase() == 'head') {
+            isHead) {
           await DepartmentService.setDepartmentHead(departmentId, newUserId);
         }
       } else if (role == 'maintenance') {

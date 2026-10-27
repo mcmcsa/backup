@@ -57,6 +57,18 @@ class _StudentDrawerState extends State<StudentDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.watch<AuthService>().currentUser;
+    final position = user?.position?.trim();
+    final String roleSubtitle;
+    final posLower = position?.toLowerCase();
+    if (_isDeptHead || posLower == 'head' || posLower == 'department head') {
+      roleSubtitle = 'DEPARTMENT HEAD';
+    } else if (position != null && position.isNotEmpty) {
+      roleSubtitle = position.toUpperCase();
+    } else {
+      roleSubtitle = 'EMPLOYEE';
+    }
+
     return Drawer(
       width: 280,
       child: Container(
@@ -94,25 +106,23 @@ class _StudentDrawerState extends State<StudentDrawer> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    if (_isDeptHead) ...[
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          'DEPARTMENT HEAD',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.6,
-                          ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        roleSubtitle,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 0.6,
                         ),
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ),
